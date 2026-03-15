@@ -1,0 +1,19 @@
+{
+  "candidateId": "CGON_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_109",
+  "userId": "default",
+  "symbol": "CGON",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 43.239999771118164,
+    "detectedBaseBottom": 19.450000047683716
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 40.39,
+    "baseBottomPrice": 25.2,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "b07cfd22-a5de-4278-a86b-f904deab89f9",
+  "timestamp": "2026-02-24T20:27:24.417Z"
+}

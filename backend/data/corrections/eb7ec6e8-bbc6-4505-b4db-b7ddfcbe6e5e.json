@@ -1,0 +1,19 @@
+{
+    "candidateId":  "OPEN_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_296",
+    "userId":  "default",
+    "symbol":  "OPEN",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  32.38999938964844,
+                     "detectedBaseBottom":  15.350000381469727
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  4.69,
+                      "baseBottomPrice":  0.9,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "eb7ec6e8-bbc6-4505-b4db-b7ddfcbe6e5e",
+    "timestamp":  "2026-02-23T22:54:32.731Z"
+}

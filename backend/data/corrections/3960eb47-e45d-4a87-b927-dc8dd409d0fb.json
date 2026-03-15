@@ -1,0 +1,19 @@
+{
+    "candidateId":  "TLT_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_1229",
+    "userId":  "default",
+    "symbol":  "TLT",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  138.22521500675037,
+                     "detectedBaseBottom":  74.1980638269068
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  77.91,
+                      "baseBottomPrice":  74.2,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "3960eb47-e45d-4a87-b927-dc8dd409d0fb",
+    "timestamp":  "2026-02-23T23:17:49.831Z"
+}

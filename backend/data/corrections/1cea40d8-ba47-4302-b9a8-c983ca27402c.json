@@ -1,0 +1,21 @@
+{
+  "candidateId": "ASC_W_scan_rdp_wiggle_base_v1_9797e66f_0_656",
+  "userId": "default",
+  "symbol": "ASC",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 4.73,
+    "baseBottomPrice": 2.31,
+    "baseStartTime": "2020-10-26",
+    "baseEndTime": "2022-03-14",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "1cea40d8-ba47-4302-b9a8-c983ca27402c",
+  "timestamp": "2026-02-26T22:28:08.277Z"
+}

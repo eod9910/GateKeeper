@@ -1,0 +1,13 @@
+{
+  "type": "attempt_validated",
+  "sessionId": "6488009d-3b06-49f4-ac44-a648ebec2e17",
+  "contractId": "pullback_v1",
+  "payload": {
+    "symbol": "SNDX",
+    "timeframe": "1d",
+    "ready": false,
+    "state": "ENTRY_BLOCKED"
+  },
+  "id": "7e777d3b-6e0d-4236-a590-65ad65a1e7b5",
+  "timestamp": "2026-03-06T01:38:50.924Z"
+}

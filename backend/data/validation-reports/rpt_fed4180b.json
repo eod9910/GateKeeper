@@ -1,0 +1,165 @@
+{
+  "report_id": "rpt_fed4180b",
+  "strategy_version_id": "sweep_68426b59-7_0_05",
+  "config": {
+    "date_start": "2020-01-01",
+    "date_end": "2026-02-22",
+    "universe": [
+      "APLS",
+      "ARWR",
+      "BEAM",
+      "HALO",
+      "INSM",
+      "KRTX",
+      "PRCT",
+      "RVMD",
+      "IOVA",
+      "ANET",
+      "ALRM",
+      "BRZE",
+      "CALX",
+      "CRDO",
+      "DDOG",
+      "ESTC",
+      "JAMF",
+      "NTNX",
+      "SMCI",
+      "BROS",
+      "CAVA",
+      "CROX",
+      "DNUT",
+      "FIGS",
+      "SHAK",
+      "WRBY",
+      "AFRM",
+      "BILL",
+      "HOOD",
+      "SOFI",
+      "TOST",
+      "UPST",
+      "ARRY",
+      "ENPH",
+      "RUN",
+      "SEDG",
+      "SHLS",
+      "ASTS",
+      "IONQ",
+      "JOBY",
+      "LUNR",
+      "RKLB",
+      "AG",
+      "CCJ",
+      "MP",
+      "PAAS",
+      "BWXT",
+      "POWL",
+      "MARA",
+      "RIOT"
+    ],
+    "timeframes": [
+      "1d"
+    ],
+    "data_snapshot": {
+      "path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\validator-snapshots\\snapshot_ea8d5b124007f0b0.json",
+      "loaded_from_cache": true
+    },
+    "costs": {
+      "commission_per_trade": 0,
+      "slippage_pct": 0.001
+    },
+    "max_concurrent_positions": 3,
+    "validation_thresholds": {
+      "min_trades_pass": 300,
+      "min_trades_fail": 200,
+      "max_oos_degradation_pct": 50,
+      "min_wf_profitable_windows": 0.6,
+      "max_mc_p95_dd_pct": 30,
+      "max_mc_p99_dd_pct": 50,
+      "max_sensitivity_score": 40,
+      "r_to_pct": 2
+    },
+    "tier_runtime_profile": "tier1_baseline_only",
+    "tier1_early_stop_reason": "Tier 1 early pass evidence reached after 301 trades (expectancy=0.424R, pf=1.894).",
+    "tier1_symbols_processed": 26,
+    "validation_tier": "tier1",
+    "asset_class": "stocks"
+  },
+  "trades_summary": {
+    "total_trades": 165,
+    "winners": 73,
+    "losers": 92,
+    "win_rate": 0.44242424242424244,
+    "avg_win_R": 1.9327875398505692,
+    "avg_loss_R": -0.8775608121708081,
+    "expectancy_R": 0.3658054284204678,
+    "profit_factor": 1.7475995674388556,
+    "largest_win_R": 6.999790035587109,
+    "largest_loss_R": -1.0004399061849851
+  },
+  "risk_summary": {
+    "max_drawdown_pct": 24.030172440899435,
+    "max_drawdown_R": 12.015086220449717,
+    "time_under_water_bars": 44,
+    "expected_recovery_time_bars": 44,
+    "sharpe_ratio": 2.5915542939952516,
+    "calmar_ratio": 0.030445510061997375,
+    "longest_losing_streak": 9,
+    "avg_losing_streak": 2.5555555555555554,
+    "longest_winning_streak": 6
+  },
+  "robustness": {
+    "out_of_sample": {
+      "is_expectancy": 0.3658054284204678,
+      "is_n": 165,
+      "oos_expectancy": 0.3658054284204678,
+      "oos_n": 165,
+      "split_date": "2026-02-22",
+      "oos_degradation_pct": 0
+    },
+    "walk_forward": {
+      "windows": [],
+      "avg_test_expectancy": 0.3658054284204678,
+      "pct_profitable_windows": 1
+    },
+    "monte_carlo": {
+      "simulations": 0,
+      "median_dd_pct": 24.030172440899435,
+      "p95_dd_pct": 24.030172440899435,
+      "p99_dd_pct": 24.030172440899435,
+      "median_final_R": 60.35789568937719,
+      "p5_final_R": -1.0004399061849851
+    },
+    "parameter_sensitivity": {
+      "params_tested": [],
+      "base_expectancy": 0.3658054284204678,
+      "nudged_results": [],
+      "sensitivity_score": 0
+    }
+  },
+  "execution_stats": {
+    "rules_active": false,
+    "breakeven_triggers": 0,
+    "ladder_lock_triggers": 0,
+    "green_to_red_exits": 0,
+    "scale_out_triggers": 0,
+    "time_stop_exits": 0,
+    "profit_retrace_exits": 0,
+    "daily_cap_triggers": 0,
+    "avg_giveback_from_peak_R": 0.7853544934041632,
+    "pct_trades_hitting_breakeven": 0,
+    "pct_trades_hitting_scale_out": 0,
+    "expectancy_without_rules_R": 0.3658054284204678,
+    "expectancy_with_rules_R": 0.3658054284204678
+  },
+  "pass_fail": "FAIL",
+  "pass_fail_reasons": [
+    "Too few trades for Tier 1 confidence: 165 < 200"
+  ],
+  "decision_log": {
+    "decision": "pending",
+    "decided_by": "",
+    "decided_at": null,
+    "notes": ""
+  },
+  "created_at": "2026-02-22T12:48:40.652371Z"
+}

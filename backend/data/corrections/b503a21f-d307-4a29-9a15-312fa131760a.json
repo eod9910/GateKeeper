@@ -1,0 +1,19 @@
+{
+    "candidateId":  "NXE_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_653",
+    "userId":  "default",
+    "symbol":  "NXE",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  8.920000076293945,
+                     "detectedBaseBottom":  3.6505000591278076
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  4.94,
+                      "baseBottomPrice":  3.65,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "b503a21f-d307-4a29-9a15-312fa131760a",
+    "timestamp":  "2026-02-23T22:53:36.042Z"
+}

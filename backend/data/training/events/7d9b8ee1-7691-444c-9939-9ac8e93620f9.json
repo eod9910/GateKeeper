@@ -1,0 +1,13 @@
+{
+  "type": "attempt_validated",
+  "sessionId": "2def9809-77b5-4bfb-9731-ef5bc551a95d",
+  "contractId": "pullback_v1",
+  "payload": {
+    "symbol": "COP",
+    "timeframe": "1h",
+    "ready": false,
+    "state": "ENTRY_BLOCKED"
+  },
+  "id": "7d9b8ee1-7691-444c-9939-9ac8e93620f9",
+  "timestamp": "2026-03-04T06:57:59.568Z"
+}

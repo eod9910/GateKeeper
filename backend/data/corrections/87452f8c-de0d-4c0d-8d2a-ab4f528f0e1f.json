@@ -1,0 +1,19 @@
+{
+  "candidateId": "NATL_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_124",
+  "userId": "default",
+  "symbol": "NATL",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 37.18249988555908,
+    "detectedBaseBottom": 21.328749656677246
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 34.64,
+    "baseBottomPrice": 25.63,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "87452f8c-de0d-4c0d-8d2a-ab4f528f0e1f",
+  "timestamp": "2026-02-24T20:30:25.317Z"
+}

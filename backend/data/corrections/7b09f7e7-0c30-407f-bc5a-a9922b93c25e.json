@@ -1,0 +1,19 @@
+{
+    "candidateId":  "UWMC_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_303",
+    "userId":  "default",
+    "symbol":  "UWMC",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  6.888723702482547,
+                     "detectedBaseBottom":  3.7910351807998417
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  3.5,
+                      "baseBottomPrice":  2.39,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "7b09f7e7-0c30-407f-bc5a-a9922b93c25e",
+    "timestamp":  "2026-02-23T23:18:36.614Z"
+}

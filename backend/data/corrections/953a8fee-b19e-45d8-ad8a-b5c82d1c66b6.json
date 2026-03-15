@@ -1,0 +1,21 @@
+{
+  "candidateId": "ALRM_W_scan_rdp_wiggle_base_v1_9797e66f_0_557",
+  "userId": "default",
+  "symbol": "ALRM",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 79.4,
+    "baseBottomPrice": 44.52,
+    "baseStartTime": "2022-08-08",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "953a8fee-b19e-45d8-ad8a-b5c82d1c66b6",
+  "timestamp": "2026-02-26T05:28:57.254Z"
+}

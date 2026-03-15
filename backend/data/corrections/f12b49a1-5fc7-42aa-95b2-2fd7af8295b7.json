@@ -1,0 +1,21 @@
+{
+  "candidateId": "AMTB_W_scan_rdp_wiggle_base_v1_9797e66f_0_384",
+  "userId": "default",
+  "symbol": "AMTB",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 25.22,
+    "baseBottomPrice": 14.83,
+    "baseStartTime": "2023-05-01",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "f12b49a1-5fc7-42aa-95b2-2fd7af8295b7",
+  "timestamp": "2026-02-26T05:35:30.116Z"
+}

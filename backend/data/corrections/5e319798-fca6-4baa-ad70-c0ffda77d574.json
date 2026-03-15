@@ -1,0 +1,19 @@
+{
+    "candidateId":  "DOT-USD_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_288",
+    "userId":  "default",
+    "symbol":  "DOT-USD",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  38.683414459228516,
+                     "detectedBaseBottom":  14.135740280151367
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  10.12,
+                      "baseBottomPrice":  3.68,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "5e319798-fca6-4baa-ad70-c0ffda77d574",
+    "timestamp":  "2026-02-24T00:06:18.619Z"
+}

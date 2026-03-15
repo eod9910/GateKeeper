@@ -1,0 +1,19 @@
+{
+    "candidateId":  "CALX_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_830",
+    "userId":  "default",
+    "symbol":  "CALX",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  78.31750106811523,
+                     "detectedBaseBottom":  31.619999885559082
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  42.26,
+                      "baseBottomPrice":  31.62,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "0e0ab82a-d342-4501-b35f-e10785df9a2a",
+    "timestamp":  "2026-02-23T06:53:41.029Z"
+}

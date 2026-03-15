@@ -1,0 +1,21 @@
+{
+  "candidateId": "AROC_W_scan_rdp_wiggle_base_v1_9797e66f_0_966",
+  "userId": "default",
+  "symbol": "AROC",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 9.84,
+    "baseBottomPrice": 1.93,
+    "baseStartTime": "2016-02-15",
+    "baseEndTime": "2023-03-27",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "0bbed03b-2b8e-464a-82c3-393922f60dcc",
+  "timestamp": "2026-02-26T22:24:28.802Z"
+}

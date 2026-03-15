@@ -1,0 +1,19 @@
+{
+  "candidateId": "ACLS_W_scan_rdp_wiggle_base_v1_22bed501_0_1337",
+  "userId": "default",
+  "symbol": "ACLS",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 15.51,
+    "baseBottomPrice": 0.96,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "2ecebeae-e057-4693-903d-a0f86dee37b8",
+  "timestamp": "2026-02-26T03:26:34.314Z"
+}

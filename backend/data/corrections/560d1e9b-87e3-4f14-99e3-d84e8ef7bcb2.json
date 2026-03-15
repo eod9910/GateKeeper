@@ -1,0 +1,21 @@
+{
+  "candidateId": "ASGN_W_scan_rdp_wiggle_base_v1_9797e66f_0_1744",
+  "userId": "default",
+  "symbol": "ASGN",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 10.19,
+    "baseBottomPrice": 2.14,
+    "baseStartTime": "2002-12-16",
+    "baseEndTime": "2011-06-13",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "560d1e9b-87e3-4f14-99e3-d84e8ef7bcb2",
+  "timestamp": "2026-02-26T22:28:47.065Z"
+}

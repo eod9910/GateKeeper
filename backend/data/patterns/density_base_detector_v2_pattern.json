@@ -1,0 +1,166 @@
+{
+  "pattern_id": "density_base_detector_v2_pattern",
+  "name": "Density Base Detector V2 (Multi-Scale)",
+  "category": "price_action",
+  "description": "V2 of void-based base detection. Uses RDP structural peaks as the primary peak map, scans full history (no bar cap), and supports nested bases (bowl-within-bowl) so it can find both a multi-year macro base and a recent micro base on the same chart. V1 is preserved as the proven tradable-signal detector.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/density_base_detector_v2_pattern.py",
+  "plugin_function": "run_density_base_detector_v2_pattern_plugin",
+  "pattern_type": "density_base_detector_v2_pattern",
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "phase_structure_pattern",
+  "indicator_role": "context",
+  "default_structure_config": {
+    "swing_method": "none"
+  },
+  "default_setup_params": {
+    "pattern_type": "density_base_detector_v2_pattern",
+    "max_scan_bars": 0,
+    "min_data_bars": 60,
+    "rdp_epsilon_pct": 0.05,
+    "swing_lookback": 10,
+    "swing_lookahead": 10,
+    "min_drop_pct": 0.08,
+    "min_void_bars": 8,
+    "min_base_bars": 5,
+    "min_score": 0.25,
+    "max_bases": 10,
+    "forming_top_tolerance_atr": 0.25,
+    "expanding_extension_atr": 0.75,
+    "failed_break_atr": 0.35,
+    "trigger_max_age_bars": 1,
+    "allowed_active_base_states": "forming"
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "rdp_epsilon_pct",
+      "label": "RDP Peak Epsilon",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.05
+    },
+    {
+      "key": "min_drop_pct",
+      "label": "Min Drop %",
+      "type": "float",
+      "min": 0.03,
+      "max": 0.30,
+      "step": 0.01,
+      "default": 0.08
+    },
+    {
+      "key": "min_void_bars",
+      "label": "Min Void Bars",
+      "type": "int",
+      "min": 4,
+      "max": 30,
+      "step": 1,
+      "default": 8
+    },
+    {
+      "key": "min_base_bars",
+      "label": "Min Base Bars",
+      "type": "int",
+      "min": 3,
+      "max": 20,
+      "step": 1,
+      "default": 5
+    },
+    {
+      "key": "min_score",
+      "label": "Min Score",
+      "type": "float",
+      "min": 0.10,
+      "max": 0.80,
+      "step": 0.05,
+      "default": 0.25
+    },
+    {
+      "key": "swing_lookback",
+      "label": "Peak Lookback",
+      "type": "int",
+      "min": 5,
+      "max": 50,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "key": "swing_lookahead",
+      "label": "Peak Lookahead",
+      "type": "int",
+      "min": 5,
+      "max": 50,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "key": "max_bases",
+      "label": "Max Bases per Symbol",
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "key": "max_scan_bars",
+      "label": "Max Scan Bars (0 = all)",
+      "type": "int",
+      "min": 0,
+      "max": 10000,
+      "step": 100,
+      "default": 0
+    },
+    {
+      "key": "forming_top_tolerance_atr",
+      "label": "Forming Top Tol ATR",
+      "type": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.05,
+      "default": 0.25
+    },
+    {
+      "key": "expanding_extension_atr",
+      "label": "Expanding ATR",
+      "type": "float",
+      "min": 0.25,
+      "max": 2.0,
+      "step": 0.05,
+      "default": 0.75
+    },
+    {
+      "key": "failed_break_atr",
+      "label": "Failed Break ATR",
+      "type": "float",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.05,
+      "default": 0.35
+    },
+    {
+      "key": "trigger_max_age_bars",
+      "label": "Trigger Max Age",
+      "type": "int",
+      "min": 0,
+      "max": 5,
+      "step": 1,
+      "default": 1
+    }
+  ],
+  "output_ports": {
+    "signal": {
+      "description": "Set of bar indices where void-detected bases end"
+    },
+    "base_boxes": {
+      "description": "Detected bases with peak, void, and base cluster metrics — supports nested/multi-scale bases"
+    }
+  }
+}

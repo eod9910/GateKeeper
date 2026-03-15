@@ -1,0 +1,40 @@
+{
+  "pattern_id": "rdp_swing_structure",
+  "name": "RDP Pivots (Primitive)",
+  "category": "price_action",
+  "description": "Primitive anchor-structure indicator. Extracts RDP swing highs/lows only (no phase detection, no entry trigger logic).",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/rdp_swing_structure.py",
+  "plugin_function": "run_rdp_pivots_plugin",
+  "pattern_type": "rdp_swing_structure",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "rdp_swing_structure"
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.2,
+      "default": 0.05
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 250,
+  "status": "draft",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "anchor_structure"
+}

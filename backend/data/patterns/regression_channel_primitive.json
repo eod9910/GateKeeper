@@ -1,0 +1,69 @@
+{
+  "pattern_id": "regression_channel_primitive",
+  "name": "Regression Channel (Primitive)",
+  "category": "indicator_signals",
+  "description": "Linear regression channel anchored at the absolute low from RDP swing detection. Draws standard deviation bands and reports current SD position.",
+  "author": "ai_generated",
+  "version": "1.0.0",
+  "plugin_file": "plugins/regression_channel_primitive.py",
+  "plugin_function": "run_regression_channel_primitive_plugin",
+  "pattern_type": "regression_channel_primitive",
+  "chart_indicator": true,
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "regression_channel_primitive",
+    "epsilon_pct": 0.05,
+    "sd_bands": [1, 2, 3, 6],
+    "anchor_mode": "absolute_low"
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Sensitivity",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "default": 0.05,
+      "description": "RDP sensitivity for finding swing lows to anchor from"
+    },
+    {
+      "key": "anchor_mode",
+      "label": "Anchor Mode",
+      "type": "string",
+      "default": "absolute_low",
+      "description": "Which swing low to anchor at: absolute_low or most_recent_low"
+    }
+  ],
+  "examples": [
+    {
+      "name": "Default (Absolute Low)",
+      "setup_config": {
+        "epsilon_pct": 0.05,
+        "sd_bands": [1, 2, 3, 6],
+        "anchor_mode": "absolute_low"
+      }
+    },
+    {
+      "name": "Recent Trend Only",
+      "setup_config": {
+        "epsilon_pct": 0.05,
+        "sd_bands": [1, 2, 3],
+        "anchor_mode": "most_recent_low"
+      }
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 100,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "structure_filter"
+}

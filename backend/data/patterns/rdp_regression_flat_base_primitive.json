@@ -1,0 +1,76 @@
+{
+  "pattern_id": "rdp_regression_flat_base",
+  "name": "RDP Regression Flat Base (Primitive)",
+  "category": "price_action",
+  "description": "Anchors at each RDP low and fits a regression from that low forward. A base is confirmed when the regression angle flattens (near zero) and no newer lower RDP low invalidates it. Keeps historical bases and marks newer base cycles separately.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/rdp_regression_flat_base_primitive.py",
+  "plugin_function": "run_rdp_regression_flat_base_primitive_plugin",
+  "pattern_type": "rdp_regression_flat_base",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "rdp_regression_flat_base",
+    "epsilon_pct": 0.05,
+    "min_reg_bars": 16,
+    "flat_angle_deg": 0.1,
+    "max_marked_events": 3,
+    "channel_sd_mult": 1.0
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.05
+    },
+    {
+      "key": "min_reg_bars",
+      "label": "Min Bars Before Flat Check",
+      "type": "int",
+      "min": 6,
+      "max": 80,
+      "step": 1,
+      "default": 16
+    },
+    {
+      "key": "flat_angle_deg",
+      "label": "Flat Angle Threshold (deg)",
+      "type": "float",
+      "min": 0.1,
+      "max": 5.0,
+      "step": 0.1,
+      "default": 0.8
+    },
+    {
+      "key": "max_marked_events",
+      "label": "Max Marked Events",
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "key": "channel_sd_mult",
+      "label": "Regression Channel SD Mult",
+      "type": "float",
+      "min": 0.5,
+      "max": 3.0,
+      "step": 0.1,
+      "default": 1.0
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 80,
+  "status": "experimental"
+}

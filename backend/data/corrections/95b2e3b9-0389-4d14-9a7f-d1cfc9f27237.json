@@ -1,0 +1,62 @@
+{
+  "candidateId": "CPER_W_chart_only",
+  "userId": "default",
+  "symbol": "CPER",
+  "timeframe": "W",
+  "patternType": "wyckoff_drawing",
+  "drawings": {
+    "peak": {
+      "type": "point",
+      "time": "2012-01-09",
+      "price": 30.49348273100322
+    },
+    "markdown": {
+      "type": "lineDown",
+      "time1": "2012-01-23",
+      "price1": 27.54983546358867,
+      "time2": "2015-09-14",
+      "price2": 16.143202302357302
+    },
+    "base": {
+      "type": "box",
+      "time1": "2015-09-21",
+      "price1": 15.959224348143893,
+      "time2": "2016-11-14",
+      "price2": 13.015577080729345
+    },
+    "markup": {
+      "type": "lineUp",
+      "time1": "2016-10-03",
+      "price1": 13.383532989156164,
+      "time2": "2018-02-19",
+      "price2": 21.110607066119357
+    },
+    "pullback": {
+      "type": "lineDown",
+      "time1": "2018-01-15",
+      "price1": 20.926629111905946,
+      "time2": "2020-06-08",
+      "price2": 13.199555034942756
+    },
+    "breakout": {
+      "type": "hline",
+      "price": 21.110607066119357
+    }
+  },
+  "canvasSize": {
+    "width": 825,
+    "height": 500
+  },
+  "chartTimeRange": {
+    "start": "2011-11-14",
+    "end": "2026-02-02"
+  },
+  "chartPriceRange": {
+    "low": 11.899999618530273,
+    "high": 40.439998626708984
+  },
+  "original": null,
+  "corrected": null,
+  "id": "95b2e3b9-0389-4d14-9a7f-d1cfc9f27237",
+  "timestamp": "2026-02-05T22:02:27.136Z"
+}

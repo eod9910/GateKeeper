@@ -1,0 +1,67 @@
+{
+  "pattern_id": "wyckoff_accumulation_major",
+  "name": "Wyckoff Accumulation (Major Peaks)",
+  "category": "chart_patterns",
+  "description": "Classic Wyckoff-style accumulation detector using major-peaks prominence swing detection. Prior Peak → Markdown → Base → Markup → Pullback → Second Breakout. Targets deep-value setups after catastrophic declines with structural re-accumulation.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/wyckoff_accumulation_rdp.py",
+  "plugin_function": "run_wyckoff_plugin",
+  "pattern_type": "wyckoff_accumulation_major",
+  "default_structure_config": {
+    "swing_method": "major",
+    "swing_epsilon_pct": 0.05,
+    "swing_left_bars": 10,
+    "swing_right_bars": 10,
+    "swing_first_peak_decline": 0.5,
+    "swing_subsequent_decline": 0.25,
+    "base_min_duration": 20,
+    "base_max_duration": 500,
+    "base_max_range_pct": 0.8,
+    "base_volatility_threshold": 0.1
+  },
+  "default_setup_params": {
+    "pattern_type": "wyckoff_accumulation_major",
+    "min_prominence": 0.2,
+    "peak_lookback": 50,
+    "min_markdown_pct": 0.7,
+    "markdown_lookback": 300,
+    "base_resistance_closes": 3,
+    "markup_lookforward": 100,
+    "markup_min_breakout_bars": 2,
+    "pullback_lookforward": 200,
+    "pullback_retracement_min": 0.3,
+    "pullback_retracement_max": 5.0,
+    "double_bottom_tolerance": 1.05,
+    "breakout_multiplier": 1.02,
+    "score_min": 0.0
+  },
+  "default_entry": {
+    "entry_type": "breakout",
+    "breakout_pct_above": 0.02,
+    "confirmation_bars": 1
+  },
+  "tunable_params": [
+    {
+      "key": "min_prominence",
+      "label": "Min Peak Prominence",
+      "type": "float",
+      "min": 0.05,
+      "max": 0.5,
+      "default": 0.2
+    },
+    {
+      "key": "min_markdown_pct",
+      "label": "Min Markdown %",
+      "type": "float",
+      "min": 0.3,
+      "max": 1.0,
+      "default": 0.7
+    }
+  ],
+  "suggested_timeframes": ["W", "D"],
+  "min_data_bars": 300,
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "phase_structure_pattern"
+}

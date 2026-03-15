@@ -1,0 +1,51 @@
+{
+  "pattern_id": "base_breakout_entry_composite",
+  "name": "Base Breakout Entry Composite",
+  "category": "indicator_signals",
+  "description": "Composite entry: RDP wiggle base detects the base formation, base_breakout confirms breakout and signals entry when price pulls back to the base ceiling zone. Two stages, no Fib required.",
+  "author": "user",
+  "version": "2.0.0",
+  "plugin_file": "plugins/composite_runner.py",
+  "plugin_function": "run_composite_plugin",
+  "pattern_type": "base_breakout_entry_composite",
+  "chart_indicator": true,
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "base_breakout_entry_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "base_detection",
+          "pattern_id": "rdp_wiggle_base"
+        },
+        {
+          "id": "breakout_retest",
+          "pattern_id": "base_breakout"
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "base_detection",
+          "breakout_retest"
+        ]
+      }
+    }
+  },
+  "default_entry": {
+    "entry_type": "market_on_close"
+  },
+  "tunable_params": [],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 60,
+  "artifact_type": "indicator",
+  "composition": "composite",
+  "indicator_role": "entry_composite"
+}

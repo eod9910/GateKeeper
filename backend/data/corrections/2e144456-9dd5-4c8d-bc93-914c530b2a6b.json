@@ -1,0 +1,62 @@
+{
+  "candidateId": "BFLY_W_chart_only",
+  "userId": "default",
+  "symbol": "BFLY",
+  "timeframe": "W",
+  "patternType": "wyckoff_drawing",
+  "drawings": {
+    "peak": {
+      "type": "point",
+      "time": "2021-02-15",
+      "price": 31.36402208121001
+    },
+    "markdown": {
+      "type": "lineDown",
+      "time1": "2021-01-18",
+      "price1": 28.638286964822058,
+      "time2": "2022-12-12",
+      "price2": 1.7216526904910143
+    },
+    "base": {
+      "type": "box",
+      "time1": "2022-11-28",
+      "price1": 4.788104696427462,
+      "time2": "2025-02-10",
+      "price2": 0.35878513229703657
+    },
+    "markup": {
+      "type": "lineUp",
+      "time1": "2024-06-10",
+      "price1": 0.4723574288132024,
+      "time2": "2025-02-17",
+      "price2": 4.447387806878966
+    },
+    "pullback": {
+      "type": "lineDown",
+      "time1": "2025-01-27",
+      "price1": 5.128821585975958,
+      "time2": "2025-09-08",
+      "price2": 0.9266466148778587
+    },
+    "breakout": {
+      "type": "hline",
+      "price": 5.696683068556782
+    }
+  },
+  "canvasSize": {
+    "width": 825,
+    "height": 500
+  },
+  "chartTimeRange": {
+    "start": "2020-07-13",
+    "end": "2026-02-09"
+  },
+  "chartPriceRange": {
+    "low": 0.6740000247955322,
+    "high": 29.1299991607666
+  },
+  "original": null,
+  "corrected": null,
+  "id": "2e144456-9dd5-4c8d-bc93-914c530b2a6b",
+  "timestamp": "2026-02-10T19:09:51.643Z"
+}

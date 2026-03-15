@@ -1,0 +1,19 @@
+{
+    "candidateId":  "BFLY_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_292",
+    "userId":  "default",
+    "symbol":  "BFLY",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  22.315250396728516,
+                     "detectedBaseBottom":  9.420000076293945
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  3.28,
+                      "baseBottomPrice":  1.76,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "4afb94c1-acef-49a9-8d15-f98a68c951fd",
+    "timestamp":  "2026-02-23T06:52:44.638Z"
+}

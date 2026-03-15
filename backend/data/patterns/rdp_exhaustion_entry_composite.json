@@ -1,0 +1,62 @@
+{
+  "pattern_id": "rdp_exhaustion_entry_composite",
+  "name": "RDP Exhaustion Entry Composite",
+  "category": "indicator_signals",
+  "status": "experimental",
+  "description": "Conditional composite indicator generated from Blockly composition.",
+  "author": "user",
+  "version": "1.0.0",
+  "plugin_file": "plugins/composite_runner.py",
+  "plugin_function": "run_composite_plugin",
+  "pattern_type": "rdp_exhaustion_entry_composite",
+  "artifact_type": "indicator",
+  "composition": "composite",
+  "indicator_role": "entry_composite",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "rdp_exhaustion_entry_composite",
+    "composite_spec": {
+      "type": "conditional",
+      "intent": "entry",
+      "branches": [
+        {
+          "condition": {
+            "type": "sequence",
+            "first_id": "rdp_energy_swing_detector_v1_primitive",
+            "second_id": "energy_state_primitive",
+            "lookback": 5,
+            "params_first": {
+              "epsilon_pct": 0.05,
+              "energy_window": 2,
+              "require_energy": true
+            },
+            "params_second": {
+              "energy_pressure_max": 30,
+              "energy_require_declining_pressure": false
+            }
+          },
+          "then": {
+            "pattern_id": "fib_location_primitive",
+            "params": {
+              "location_min_retracement_pct": 50,
+              "location_max_retracement_pct": 79,
+              "location_require_near_level": false
+            }
+          }
+        }
+      ]
+    }
+  },
+  "default_entry": {
+    "entry_type": "market_on_close"
+  },
+  "tunable_params": [],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 220
+}

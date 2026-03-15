@@ -1,0 +1,65 @@
+{
+  "strategy_id": "sweep_298966fd-e_0_01",
+  "strategy_version_id": "sweep_298966fd-e_0_01",
+  "version": 1,
+  "name": "Pullback in Uptrend Entry Composite [ATR Multiplier=2] [Sweep Winner] [Take Profit R=7] [Sweep Winner] [Max Concurrent Positions=8] [Sweep Winner] [RDP Epsilon %=0.01]",
+  "description": "Composite entry indicator for buying pullbacks in an uptrend using MACD divergence and regime filter.",
+  "status": "testing",
+  "asset_class": "stocks",
+  "interval": "1d",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "setup_config": {
+    "pattern_type": "pullback_uptrend_entry_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "timing",
+          "pattern_id": "macd_divergence_primitive_v2",
+          "params": {
+            "divergence_type": "bullish",
+            "epsilon_pct": 0.01
+          }
+        },
+        {
+          "id": "regime",
+          "pattern_id": "regime_filter",
+          "params": {
+            "reference_symbol": "SPY",
+            "required_regime": "expansion"
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "timing",
+          "regime"
+        ]
+      }
+    }
+  },
+  "entry_config": {
+    "entry_type": "market_on_close"
+  },
+  "risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 2,
+    "take_profit_R": 7,
+    "max_hold_bars": 30,
+    "max_concurrent_positions": 8
+  },
+  "exit_config": {},
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {},
+  "created_at": "2026-02-22T07:26:50.926Z",
+  "updated_at": "2026-02-22T07:37:34.826Z",
+  "spec_hash": "68a68e7b6c7c2a874b4d2fb46c5a9a4e95f6048948ef20ca65e3fbffaa53000a"
+}

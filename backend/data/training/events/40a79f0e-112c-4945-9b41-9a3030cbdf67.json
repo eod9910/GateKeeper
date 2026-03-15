@@ -1,0 +1,13 @@
+{
+  "type": "attempt_validated",
+  "sessionId": "ebdf78df-5d1a-4f38-af0d-9db8e38d03bf",
+  "contractId": "breakout_v1",
+  "payload": {
+    "symbol": "DIS",
+    "timeframe": "1d",
+    "ready": false,
+    "state": "ENTRY_BLOCKED"
+  },
+  "id": "40a79f0e-112c-4945-9b41-9a3030cbdf67",
+  "timestamp": "2026-03-04T06:19:20.663Z"
+}

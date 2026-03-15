@@ -1,0 +1,22 @@
+{
+  "sessionId": "114d22ef-3263-4522-bae6-93d9d8049c71",
+  "userId": "local-user",
+  "startedAt": "2026-03-03T23:51:09.989Z",
+  "contractId": "base_breakout_long_v1",
+  "contractVersion": "1.0.0",
+  "attemptIds": [],
+  "stats": {
+    "attempts": 0,
+    "resolvedAttempts": 0,
+    "wins": 0,
+    "losses": 0,
+    "winRate": 0,
+    "avgR": 0,
+    "expectancy": 0,
+    "processAdherence": 0,
+    "disciplineTrend": 0,
+    "cooldownActive": false,
+    "cooldownUntil": null
+  },
+  "cooldownUntil": null
+}

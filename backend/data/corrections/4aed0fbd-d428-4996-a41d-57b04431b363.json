@@ -1,0 +1,19 @@
+{
+  "candidateId": "AAOI_W_scan_rdp_wiggle_base_v1_22bed501_0_648",
+  "userId": "default",
+  "symbol": "AAOI",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 22.98,
+    "baseBottomPrice": 1.69,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "4aed0fbd-d428-4996-a41d-57b04431b363",
+  "timestamp": "2026-02-26T03:20:23.192Z"
+}

@@ -1,0 +1,19 @@
+{
+  "candidateId": "MES=F_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_0fd28b78_0_355",
+  "userId": "default",
+  "symbol": "MES=F",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 4557.75,
+    "detectedBaseBottom": 3536.1875
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 4185.47,
+    "baseBottomPrice": 3536.19,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "7616a5ae-e504-40ec-abb8-6e4dede50274",
+  "timestamp": "2026-02-23T07:41:56.832Z"
+}

@@ -1,0 +1,38 @@
+{
+  "suite_id": "base_method_suite_v1",
+  "name": "Base Detection Method Suite",
+  "description": "Centralized list of base-related methods to run one-by-one for side-by-side testing.",
+  "methods": [
+    {
+      "id": "rdp_wiggle_base",
+      "enabled": true
+    },
+    {
+      "id": "wiggle_base_box_v2_pattern",
+      "enabled": true
+    },
+    {
+      "id": "rdp_regression_flat_base",
+      "enabled": true
+    },
+    {
+      "id": "rdp_base_75",
+      "enabled": true
+    },
+    {
+      "id": "base_box_detector_v1_primitive",
+      "enabled": true
+    },
+    {
+      "id": "base_box_detector_rdp_hybrid_v1_pattern",
+      "enabled": true
+    },
+    {
+      "id": "regime_filter",
+      "enabled": true,
+      "setup_overrides": {
+        "required_regime": "expansion"
+      }
+    }
+  ]
+}

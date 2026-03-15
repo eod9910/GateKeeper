@@ -1,0 +1,19 @@
+{
+  "candidateId": "LIVN_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_540",
+  "userId": "default",
+  "symbol": "LIVN",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 93.88999938964844,
+    "detectedBaseBottom": 35.11500072479248
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 59.36,
+    "baseBottomPrice": 38.8,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "af71c82a-5506-4093-a0bf-43ee4ae8be42",
+  "timestamp": "2026-02-24T20:31:47.553Z"
+}

@@ -1,0 +1,19 @@
+{
+  "candidateId": "TALO_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_407",
+  "userId": "default",
+  "symbol": "TALO",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 22.6299991607666,
+    "detectedBaseBottom": 8.704999923706055
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 12.5,
+    "baseBottomPrice": 8.48,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "c73bfcf4-8310-47b9-a842-219425c7d4b9",
+  "timestamp": "2026-02-24T20:25:47.588Z"
+}

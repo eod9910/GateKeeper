@@ -1,0 +1,57 @@
+{
+  "pattern_id": "fib_location_primitive",
+  "name": "Fib Location (Primitive)",
+  "category": "indicator_signals",
+  "description": "Primitive LOCATION indicator. Checks whether current retracement is inside the configured Fib location window.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/fib_location_primitive.py",
+  "plugin_function": "run_fib_location_primitive_plugin",
+  "pattern_type": "fib_location_primitive",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "fib_location_primitive",
+    "fib_proximity": 3.0,
+    "location_min_retracement_pct": 50.0,
+    "location_max_retracement_pct": 79.0,
+    "location_require_near_level": false
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "location_min_retracement_pct",
+      "label": "Min Retracement %",
+      "type": "float",
+      "min": 30.0,
+      "max": 79.0,
+      "default": 50.0
+    },
+    {
+      "key": "location_max_retracement_pct",
+      "label": "Max Retracement %",
+      "type": "float",
+      "min": 50.0,
+      "max": 95.0,
+      "default": 79.0
+    },
+    {
+      "key": "location_require_near_level",
+      "label": "Require Near Fib Level",
+      "type": "bool",
+      "default": false
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 220,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "location"
+}

@@ -1,0 +1,1489 @@
+[
+  {
+    "module": "rdp",
+    "functions": [
+      {
+        "name": "clear_rdp_cache",
+        "signature": "clear_rdp_cache() -> 'None'",
+        "description": "Clear the RDP swing-structure cache. Call between backtest runs.",
+        "params": [],
+        "returns": "None"
+      },
+      {
+        "name": "clear_rdp_precomputed",
+        "signature": "clear_rdp_precomputed() -> 'None'",
+        "description": "Clear the backtest precomputed-RDP cache (call between pipeline runs).",
+        "params": [],
+        "returns": "None"
+      },
+      {
+        "name": "detect_relative_swing_points",
+        "signature": "detect_relative_swing_points(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'W', swing_threshold: 'float' = 0.2, lookback: 'int' = 0, verbose: 'bool' = True) -> 'SwingStructure'",
+        "description": "Detect swing points using RELATIVE percentage moves.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "swing_threshold",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "verbose",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "SwingStructure"
+      },
+      {
+        "name": "detect_swing_highs_lows",
+        "signature": "detect_swing_highs_lows(data: 'List[OHLCV]', left_bars: 'int' = 5, right_bars: 'int' = 5) -> 'Tuple[List[int], List[int]]'",
+        "description": "Detect swing highs and lows using pivot logic.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "left_bars",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "right_bars",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "Tuple[List[int], List[int]]"
+      },
+      {
+        "name": "detect_swings_rdp",
+        "signature": "detect_swings_rdp(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'W', epsilon_pct: 'float' = 0.05, use_exact_epsilon: 'bool' = False, verbose: 'bool' = True) -> 'SwingStructure'",
+        "description": "Detect swing highs and lows using Ramer-Douglas-Peucker line simplification.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "epsilon_pct",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "use_exact_epsilon",
+            "type": "bool",
+            "description": ""
+          },
+          {
+            "name": "verbose",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "SwingStructure"
+      },
+      {
+        "name": "precompute_rdp_for_backtest",
+        "signature": "precompute_rdp_for_backtest(data: 'List[OHLCV]', symbol: 'str', timeframe: 'str', epsilon_pct: 'float') -> 'None'",
+        "description": "Run RDP once on the FULL dataset and cache the result. Subsequent detect_swings_rdp() calls with prefix slices of the same (symbol, timeframe) will filter the cached swing points instead of re-running the expensive fastrdp algorithm for each bar.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "epsilon_pct",
+            "type": "float",
+            "description": ""
+          }
+        ],
+        "returns": "None"
+      },
+      {
+        "name": "rdp_cache_stats",
+        "signature": "rdp_cache_stats() -> 'dict'",
+        "description": "Return cache hit/miss counters for diagnostics.",
+        "params": [],
+        "returns": "dict"
+      },
+      {
+        "name": "set_backtest_mode",
+        "signature": "set_backtest_mode(enabled: 'bool') -> 'None'",
+        "description": "Toggle backtest mode to suppress verbose diagnostic prints.",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "None"
+      }
+    ]
+  },
+  {
+    "module": "swing_structure",
+    "functions": [
+      {
+        "name": "dataclass",
+        "signature": "dataclass(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False)",
+        "description": "Returns the same class as was passed in, with dunder methods added based on the fields defined in the class.",
+        "params": [
+          {
+            "name": "cls",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "init",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "repr",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "eq",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "order",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "unsafe_hash",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "frozen",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "match_args",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "kw_only",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "slots",
+            "type": "Any",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      },
+      {
+        "name": "detect_confirmed_swing_points",
+        "signature": "detect_confirmed_swing_points(data: List[platform_sdk.ohlcv.OHLCV], symbol: str = 'UNKNOWN', timeframe: str = 'W', subsequent_peak_decline: float = 0.25, first_peak_decline: float = 0.5, verbose: bool = True) -> platform_sdk.swing_structure.SwingStructure",
+        "description": "Detect CONFIRMED swing highs and lows using structure-break logic.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "subsequent_peak_decline",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "first_peak_decline",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "verbose",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "SwingStructure"
+      },
+      {
+        "name": "detect_regime_windows",
+        "signature": "detect_regime_windows(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 26, min_window_bars: int = 8) -> Dict[str, Any]",
+        "description": "Classify rolling market regime using: - volatility (avg absolute return) - regression slope (trend direction/intensity) - directional persistence",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "min_window_bars",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "Dict"
+      },
+      {
+        "name": "detect_swing_points_with_fallback",
+        "signature": "detect_swing_points_with_fallback(data: List[platform_sdk.ohlcv.OHLCV], symbol: str = 'UNKNOWN', timeframe: str = 'W', first_peak_decline: float = 0.5, relative_threshold: float = 0.2, min_major_highs: int = 2, epsilon_pct: float = 0.05, verbose: bool = True) -> platform_sdk.swing_structure.SwingStructure",
+        "description": "Detect swing points with automatic fallback from MAJOR to RDP mode.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "first_peak_decline",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "relative_threshold",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "min_major_highs",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "epsilon_pct",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "verbose",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "SwingStructure"
+      },
+      {
+        "name": "find_major_peaks",
+        "signature": "find_major_peaks(data: List[platform_sdk.ohlcv.OHLCV], min_prominence: float = 0.15, lookback: int = 50) -> List[Tuple[int, float]]",
+        "description": "Find major peaks (prior highs) in the data. A major peak is a high that stands out significantly from surrounding price action.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "min_prominence",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "List"
+      },
+      {
+        "name": "serialize_swing_structure",
+        "signature": "serialize_swing_structure(structure: platform_sdk.swing_structure.SwingStructure, data: List[platform_sdk.ohlcv.OHLCV] = None) -> Dict[str, Any]",
+        "description": "Convert SwingStructure to JSON-serializable dict for frontend.",
+        "params": [
+          {
+            "name": "structure",
+            "type": "SwingStructure",
+            "description": ""
+          },
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          }
+        ],
+        "returns": "Dict"
+      },
+      {
+        "name": "set_backtest_mode",
+        "signature": "set_backtest_mode(enabled: bool) -> None",
+        "description": "Toggle backtest mode to suppress verbose diagnostic prints.",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "None"
+      }
+    ]
+  },
+  {
+    "module": "ohlcv",
+    "functions": [
+      {
+        "name": "aggregate_bars",
+        "signature": "aggregate_bars(data: List[platform_sdk.ohlcv.OHLCV], factor: int) -> List[platform_sdk.ohlcv.OHLCV]",
+        "description": "Aggregate N bars into one (e.g., 4x 1H bars -> 1x 4H bar). Takes first open, max high, min low, last close, sum volume.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "factor",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "List"
+      },
+      {
+        "name": "cache_needs_refresh",
+        "signature": "cache_needs_refresh(symbol: str, interval: str) -> bool",
+        "description": "Check if we should fetch new bars from Yahoo.",
+        "params": [
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "interval",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "bool"
+      },
+      {
+        "name": "dataclass",
+        "signature": "dataclass(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False)",
+        "description": "Returns the same class as was passed in, with dunder methods added based on the fields defined in the class.",
+        "params": [
+          {
+            "name": "cls",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "init",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "repr",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "eq",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "order",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "unsafe_hash",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "frozen",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "match_args",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "kw_only",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "slots",
+            "type": "Any",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      },
+      {
+        "name": "fetch_data_yfinance",
+        "signature": "fetch_data_yfinance(symbol: str, period: str = '10y', interval: str = '1wk', force_refresh: bool = False) -> List[platform_sdk.ohlcv.OHLCV]",
+        "description": "Fetch OHLCV data with persistent cache and incremental updates.",
+        "params": [
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "period",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "interval",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "force_refresh",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "List"
+      },
+      {
+        "name": "get_cache_path",
+        "signature": "get_cache_path(symbol: str, interval: str) -> str",
+        "description": "Get the path to cached chart data file.",
+        "params": [
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "interval",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "str"
+      },
+      {
+        "name": "get_refresh_interval_seconds",
+        "signature": "get_refresh_interval_seconds(interval: str) -> int",
+        "description": "How often to check Yahoo for NEW bars to append.",
+        "params": [
+          {
+            "name": "interval",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "int"
+      },
+      {
+        "name": "load_cached_data",
+        "signature": "load_cached_data(symbol: str, interval: str) -> Optional[List[platform_sdk.ohlcv.OHLCV]]",
+        "description": "Load chart data from the persistent cache.",
+        "params": [
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "interval",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "Optional"
+      },
+      {
+        "name": "load_data_from_csv",
+        "signature": "load_data_from_csv(filepath: str) -> List[platform_sdk.ohlcv.OHLCV]",
+        "description": "Load OHLCV data from a CSV file.",
+        "params": [
+          {
+            "name": "filepath",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "List"
+      },
+      {
+        "name": "merge_new_bars",
+        "signature": "merge_new_bars(existing: List[platform_sdk.ohlcv.OHLCV], new_bars: List[platform_sdk.ohlcv.OHLCV]) -> List[platform_sdk.ohlcv.OHLCV]",
+        "description": "Merge new bars into existing cached data.",
+        "params": [
+          {
+            "name": "existing",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "new_bars",
+            "type": "List",
+            "description": ""
+          }
+        ],
+        "returns": "List"
+      },
+      {
+        "name": "save_to_cache",
+        "signature": "save_to_cache(symbol: str, interval: str, data: List[platform_sdk.ohlcv.OHLCV])",
+        "description": "Save chart data to the persistent cache.",
+        "params": [
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "interval",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      }
+    ]
+  },
+  {
+    "module": "energy",
+    "functions": [
+      {
+        "name": "calculate_buying_pressure",
+        "signature": "calculate_buying_pressure(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 10) -> platform_sdk.energy.SellingPressure",
+        "description": "Calculate buying pressure as a single objective number (0-100). Mirror of selling pressure but measuring UPWARD momentum.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "SellingPressure"
+      },
+      {
+        "name": "calculate_energy_state",
+        "signature": "calculate_energy_state(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 0, range_lookback: int = 0, timeframe: str = 'W') -> platform_sdk.energy.EnergyState",
+        "description": "Calculate the current energy state of price action using physics principles.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "range_lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "EnergyState"
+      },
+      {
+        "name": "calculate_selling_pressure",
+        "signature": "calculate_selling_pressure(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 10) -> platform_sdk.energy.SellingPressure",
+        "description": "Calculate selling pressure as a single objective number (0-100).",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "SellingPressure"
+      },
+      {
+        "name": "dataclass",
+        "signature": "dataclass(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False)",
+        "description": "Returns the same class as was passed in, with dunder methods added based on the fields defined in the class.",
+        "params": [
+          {
+            "name": "cls",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "init",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "repr",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "eq",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "order",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "unsafe_hash",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "frozen",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "match_args",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "kw_only",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "slots",
+            "type": "Any",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      },
+      {
+        "name": "detect_energy_swings",
+        "signature": "detect_energy_swings(data: List[platform_sdk.ohlcv.OHLCV], symbol: str = 'UNKNOWN', timeframe: str = 'W', velocity_threshold: float = 2.0, exhaustion_threshold: float = 0.5) -> Tuple[List, List[platform_sdk.energy.EnergyState]]",
+        "description": "Detect swing points using energy state changes.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "velocity_threshold",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "exhaustion_threshold",
+            "type": "float",
+            "description": ""
+          }
+        ],
+        "returns": "Tuple"
+      }
+    ]
+  },
+  {
+    "module": "fib_analysis",
+    "functions": [
+      {
+        "name": "calculate_energy_state",
+        "signature": "calculate_energy_state(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 0, range_lookback: int = 0, timeframe: str = 'W') -> platform_sdk.energy.EnergyState",
+        "description": "Calculate the current energy state of price action using physics principles.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "range_lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "EnergyState"
+      },
+      {
+        "name": "calculate_fib_energy_signal",
+        "signature": "calculate_fib_energy_signal(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'W', fib_levels: 'List[float]' = [0.25, 0.382, 0.5, 0.618, 0.7, 0.79, 0.88], proximity_pct: 'float' = 3.0, use_swing_structure: 'bool' = True) -> 'FibEnergySignal'",
+        "description": "Combined Fibonacci + Energy analysis for finding high-probability entries.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "fib_levels",
+            "type": "List[float]",
+            "description": ""
+          },
+          {
+            "name": "proximity_pct",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "use_swing_structure",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "FibEnergySignal"
+      },
+      {
+        "name": "calculate_selling_pressure",
+        "signature": "calculate_selling_pressure(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 10) -> platform_sdk.energy.SellingPressure",
+        "description": "Calculate selling pressure as a single objective number (0-100).",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "SellingPressure"
+      },
+      {
+        "name": "dataclass",
+        "signature": "dataclass(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False)",
+        "description": "Returns the same class as was passed in, with dunder methods added based on the fields defined in the class.",
+        "params": [
+          {
+            "name": "cls",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "init",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "repr",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "eq",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "order",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "unsafe_hash",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "frozen",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "match_args",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "kw_only",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "slots",
+            "type": "Any",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      }
+    ]
+  },
+  {
+    "module": "numba_indicators",
+    "functions": [
+      {
+        "name": "njit",
+        "signature": "njit(*args, **kws)",
+        "description": "Equivalent to jit(nopython=True)",
+        "params": [
+          {
+            "name": "args",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "kws",
+            "type": "Any",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      },
+      {
+        "name": "warmup_all",
+        "signature": "warmup_all() -> 'None'",
+        "description": "Trigger JIT compilation for all functions by calling each once with tiny dummy arrays. Call on service startup so first real request is fast.",
+        "params": [],
+        "returns": "None"
+      }
+    ]
+  },
+  {
+    "module": "copilot",
+    "functions": [
+      {
+        "name": "asdict",
+        "signature": "asdict(obj, *, dict_factory=dict)",
+        "description": "Return the fields of a dataclass instance as a new dictionary mapping field names to field values.",
+        "params": [
+          {
+            "name": "obj",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "dict_factory",
+            "type": "Any",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      },
+      {
+        "name": "calculate_buying_pressure",
+        "signature": "calculate_buying_pressure(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 10) -> platform_sdk.energy.SellingPressure",
+        "description": "Calculate buying pressure as a single objective number (0-100). Mirror of selling pressure but measuring UPWARD momentum.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "SellingPressure"
+      },
+      {
+        "name": "calculate_energy_state",
+        "signature": "calculate_energy_state(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 0, range_lookback: int = 0, timeframe: str = 'W') -> platform_sdk.energy.EnergyState",
+        "description": "Calculate the current energy state of price action using physics principles.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "range_lookback",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "EnergyState"
+      },
+      {
+        "name": "calculate_fib_energy_signal",
+        "signature": "calculate_fib_energy_signal(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'W', fib_levels: 'List[float]' = [0.25, 0.382, 0.5, 0.618, 0.7, 0.79, 0.88], proximity_pct: 'float' = 3.0, use_swing_structure: 'bool' = True) -> 'FibEnergySignal'",
+        "description": "Combined Fibonacci + Energy analysis for finding high-probability entries.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "fib_levels",
+            "type": "List[float]",
+            "description": ""
+          },
+          {
+            "name": "proximity_pct",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "use_swing_structure",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "FibEnergySignal"
+      },
+      {
+        "name": "calculate_selling_pressure",
+        "signature": "calculate_selling_pressure(data: List[platform_sdk.ohlcv.OHLCV], lookback: int = 10) -> platform_sdk.energy.SellingPressure",
+        "description": "Calculate selling pressure as a single objective number (0-100).",
+        "params": [
+          {
+            "name": "data",
+            "type": "List",
+            "description": ""
+          },
+          {
+            "name": "lookback",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "SellingPressure"
+      },
+      {
+        "name": "calculate_soft_score",
+        "signature": "calculate_soft_score(data: 'List[OHLCV]', base: 'Base', markup: 'Markup', pullback: 'Pullback') -> 'float'",
+        "description": "Calculate a \"cleanliness\" score for the pattern. This is what will be learned from your Yes/No feedback.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "base",
+            "type": "Base",
+            "description": ""
+          },
+          {
+            "name": "markup",
+            "type": "Markup",
+            "description": ""
+          },
+          {
+            "name": "pullback",
+            "type": "Pullback",
+            "description": ""
+          }
+        ],
+        "returns": "float"
+      },
+      {
+        "name": "dataclass",
+        "signature": "dataclass(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False)",
+        "description": "Returns the same class as was passed in, with dunder methods added based on the fields defined in the class.",
+        "params": [
+          {
+            "name": "cls",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "init",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "repr",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "eq",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "order",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "unsafe_hash",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "frozen",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "match_args",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "kw_only",
+            "type": "Any",
+            "description": ""
+          },
+          {
+            "name": "slots",
+            "type": "Any",
+            "description": ""
+          }
+        ],
+        "returns": "Any"
+      },
+      {
+        "name": "detect_accumulation_bases",
+        "signature": "detect_accumulation_bases(data: 'List[OHLCV]', min_duration: 'int' = 15, max_duration: 'int' = 500, max_range_pct: 'float' = 0.8, volatility_threshold: 'float' = 0.1) -> 'List[Base]'",
+        "description": "Detect accumulation bases (range-bound, volatility-compressed zones).",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "min_duration",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "max_duration",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "max_range_pct",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "volatility_threshold",
+            "type": "float",
+            "description": ""
+          }
+        ],
+        "returns": "List[Base]"
+      },
+      {
+        "name": "detect_markup",
+        "signature": "detect_markup(data: 'List[OHLCV]', base: 'Base', min_breakout_bars: 'int' = 2, lookforward: 'int' = 50) -> 'Optional[Markup]'",
+        "description": "Detect markup breakout above a base.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "base",
+            "type": "Base",
+            "description": ""
+          },
+          {
+            "name": "min_breakout_bars",
+            "type": "int",
+            "description": ""
+          },
+          {
+            "name": "lookforward",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "Optional[Markup]"
+      },
+      {
+        "name": "detect_second_pullback",
+        "signature": "detect_second_pullback(data: 'List[OHLCV]', base: 'Base', markup: 'Markup', min_retracement: 'float' = 0.3, max_retracement: 'float' = 5.0, max_duration_ratio: 'float' = 1.0, lookforward: 'int' = 200) -> 'Optional[Pullback]'",
+        "description": "Detect the second pullback (your entry zone).",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "base",
+            "type": "Base",
+            "description": ""
+          },
+          {
+            "name": "markup",
+            "type": "Markup",
+            "description": ""
+          },
+          {
+            "name": "min_retracement",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "max_retracement",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "max_duration_ratio",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "lookforward",
+            "type": "int",
+            "description": ""
+          }
+        ],
+        "returns": "Optional[Pullback]"
+      },
+      {
+        "name": "detect_wyckoff_patterns",
+        "signature": "detect_wyckoff_patterns(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'W', config: 'Optional[Dict[str, Any]]' = None, min_markdown_pct: 'float' = 0.7) -> 'List[WyckoffPattern]'",
+        "description": "Detect Wyckoff-style accumulation patterns.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "config",
+            "type": "Optional[Dict[str, Any]]",
+            "description": ""
+          },
+          {
+            "name": "min_markdown_pct",
+            "type": "float",
+            "description": ""
+          }
+        ],
+        "returns": "List[WyckoffPattern]"
+      },
+      {
+        "name": "fetch_data_yfinance",
+        "signature": "fetch_data_yfinance(symbol: str, period: str = '10y', interval: str = '1wk', force_refresh: bool = False) -> List[platform_sdk.ohlcv.OHLCV]",
+        "description": "Fetch OHLCV data with persistent cache and incremental updates.",
+        "params": [
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "period",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "interval",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "force_refresh",
+            "type": "bool",
+            "description": ""
+          }
+        ],
+        "returns": "List"
+      },
+      {
+        "name": "generate_copilot_analysis",
+        "signature": "generate_copilot_analysis(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'W', epsilon_pct: 'float' = 0.05, user_direction: 'str' = None) -> 'Dict[str, Any]'",
+        "description": "Generate a complete Trading Co-Pilot analysis.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "epsilon_pct",
+            "type": "float",
+            "description": ""
+          },
+          {
+            "name": "user_direction",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "Dict[str, Any]"
+      },
+      {
+        "name": "load_data_from_csv",
+        "signature": "load_data_from_csv(filepath: str) -> List[platform_sdk.ohlcv.OHLCV]",
+        "description": "Load OHLCV data from a CSV file.",
+        "params": [
+          {
+            "name": "filepath",
+            "type": "str",
+            "description": ""
+          }
+        ],
+        "returns": "List"
+      },
+      {
+        "name": "main",
+        "signature": "main()",
+        "description": "",
+        "params": [],
+        "returns": "Any"
+      },
+      {
+        "name": "scan_discount_zone",
+        "signature": "scan_discount_zone(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'W', epsilon_pct: 'float' = 0.05) -> 'Optional[Dict[str, Any]]'",
+        "description": "Scan a single symbol for discount zone entry criteria.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "epsilon_pct",
+            "type": "float",
+            "description": ""
+          }
+        ],
+        "returns": "Optional[Dict[str, Any]]"
+      },
+      {
+        "name": "scan_for_patterns",
+        "signature": "scan_for_patterns(data: 'List[OHLCV]', symbol: 'str' = 'UNKNOWN', timeframe: 'str' = 'D', config: 'Optional[Dict[str, Any]]' = None) -> 'List[PatternCandidate]'",
+        "description": "Main scanning function. Finds all pattern candidates in the data.",
+        "params": [
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          },
+          {
+            "name": "symbol",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "timeframe",
+            "type": "str",
+            "description": ""
+          },
+          {
+            "name": "config",
+            "type": "Optional[Dict[str, Any]]",
+            "description": ""
+          }
+        ],
+        "returns": "List[PatternCandidate]"
+      },
+      {
+        "name": "serialize_candidate",
+        "signature": "serialize_candidate(candidate: 'PatternCandidate', data: 'List[OHLCV]' = None) -> 'Dict[str, Any]'",
+        "description": "Convert a PatternCandidate to a JSON-serializable dict.",
+        "params": [
+          {
+            "name": "candidate",
+            "type": "PatternCandidate",
+            "description": ""
+          },
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          }
+        ],
+        "returns": "Dict[str, Any]"
+      },
+      {
+        "name": "serialize_wyckoff_pattern",
+        "signature": "serialize_wyckoff_pattern(pattern: 'WyckoffPattern', data: 'List[OHLCV]' = None) -> 'Dict[str, Any]'",
+        "description": "Convert a WyckoffPattern to a JSON-serializable dict.",
+        "params": [
+          {
+            "name": "pattern",
+            "type": "WyckoffPattern",
+            "description": ""
+          },
+          {
+            "name": "data",
+            "type": "List[OHLCV]",
+            "description": ""
+          }
+        ],
+        "returns": "Dict[str, Any]"
+      },
+      {
+        "name": "uuid4",
+        "signature": "uuid4()",
+        "description": "Generate a random UUID.",
+        "params": [],
+        "returns": "Any"
+      }
+    ]
+  }
+]

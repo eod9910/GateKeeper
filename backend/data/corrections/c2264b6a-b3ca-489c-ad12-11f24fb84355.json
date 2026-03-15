@@ -1,0 +1,19 @@
+{
+    "candidateId":  "ANET_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_611",
+    "userId":  "default",
+    "symbol":  "ANET",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  133.5749969482422,
+                     "detectedBaseBottom":  59.43000030517578
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  88.05,
+                      "baseBottomPrice":  59.43,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "c2264b6a-b3ca-489c-ad12-11f24fb84355",
+    "timestamp":  "2026-02-23T07:21:57.488Z"
+}

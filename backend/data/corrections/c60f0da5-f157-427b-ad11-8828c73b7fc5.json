@@ -1,0 +1,21 @@
+{
+  "candidateId": "ASLE_W_scan_rdp_wiggle_base_v1_9797e66f_0_365",
+  "userId": "default",
+  "symbol": "ASLE",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 9.11,
+    "baseBottomPrice": 4.58,
+    "baseStartTime": "2024-03-04",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "c60f0da5-f157-427b-ad11-8828c73b7fc5",
+  "timestamp": "2026-02-26T22:31:55.594Z"
+}

@@ -1,0 +1,97 @@
+{
+  "pattern_id": "rdp_wiggle_base",
+  "name": "RDP Wiggle Base (Primitive)",
+  "category": "price_action",
+  "description": "Two-pass RDP base detection. Coarse epsilon finds structural lows (floor). Fine epsilon reveals oscillation texture. WIGGLE_SCORE (ALT * AMP * TURN) measures alternation, amplitude compression, and curvature-without-progress to deterministically qualify bases.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/rdp_wiggle_base_primitive.py",
+  "plugin_function": "run_rdp_wiggle_base_primitive_plugin",
+  "pattern_type": "rdp_wiggle_base",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "rdp_wiggle_base",
+    "epsilon_coarse": 0.05,
+    "epsilon_fine": 0.010,
+    "window_n": 8,
+    "persist_m": 2,
+    "wiggle_threshold": 0.30,
+    "k_expand": 2.0,
+    "max_marked_events": 3
+  },
+  "_calibration_note": "Parameters tuned via synthetic base calibration (2026-02-20). 14,400 synthetic charts tested across short/medium/long base durations. Accuracy: short=94.2%, medium=99.0%, long=97.5%.",
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_coarse",
+      "label": "Coarse RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.02,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.05
+    },
+    {
+      "key": "epsilon_fine",
+      "label": "Fine RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.05,
+      "step": 0.002,
+      "default": 0.010
+    },
+    {
+      "key": "window_n",
+      "label": "Wiggle Window (legs)",
+      "type": "int",
+      "min": 5,
+      "max": 15,
+      "step": 1,
+      "default": 8
+    },
+    {
+      "key": "persist_m",
+      "label": "Qualify Persistence (windows)",
+      "type": "int",
+      "min": 1,
+      "max": 5,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "key": "wiggle_threshold",
+      "label": "Wiggle Threshold",
+      "type": "float",
+      "min": 0.2,
+      "max": 0.9,
+      "step": 0.05,
+      "default": 0.30
+    },
+    {
+      "key": "k_expand",
+      "label": "Escape Expansion Multiple",
+      "type": "float",
+      "min": 1.0,
+      "max": 5.0,
+      "step": 0.25,
+      "default": 2.0
+    },
+    {
+      "key": "max_marked_events",
+      "label": "Max Marked Events",
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 3
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 60,
+  "status": "experimental"
+}

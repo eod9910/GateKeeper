@@ -1,0 +1,66 @@
+{
+  "pattern_id": "macd_histogram",
+  "name": "MACD Histogram",
+  "category": "indicator_signals",
+  "description": "Computes the MACD histogram (MACD line minus Signal line) and detects zero-line crossovers and momentum shifts. Positive histogram = bullish momentum, negative = bearish. Can be used as a standalone signal or composed with other primitives.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/macd_histogram_primitive.py",
+  "plugin_function": "run_macd_histogram_primitive_plugin",
+  "pattern_type": "macd_histogram",
+  "chart_indicator": true,
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "macd_histogram",
+    "fast_period": 12,
+    "slow_period": 26,
+    "signal_period": 9,
+    "signal_type": "zero_cross"
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "fast_period",
+      "label": "Fast Period",
+      "type": "int",
+      "min": 2,
+      "max": 50,
+      "default": 12,
+      "description": "Fast EMA period for MACD calculation"
+    },
+    {
+      "key": "slow_period",
+      "label": "Slow Period",
+      "type": "int",
+      "min": 10,
+      "max": 100,
+      "default": 26,
+      "description": "Slow EMA period for MACD calculation"
+    },
+    {
+      "key": "signal_period",
+      "label": "Signal Period",
+      "type": "int",
+      "min": 2,
+      "max": 50,
+      "default": 9,
+      "description": "Signal line EMA period"
+    },
+    {
+      "key": "signal_type",
+      "label": "Signal Type",
+      "type": "select",
+      "options": ["zero_cross", "momentum_shift", "both"],
+      "default": "zero_cross",
+      "description": "zero_cross = histogram flips sign, momentum_shift = histogram changes direction, both = either"
+    }
+  ],
+  "suggested_timeframes": ["D", "W", "4H", "1H"],
+  "min_data_bars": 35,
+  "status": "active",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Symbol Library - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .symbol-library-layout {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: var(--space-16);
+      height: 100%;
+      overflow: hidden;
+    }
+    .symbol-library-controls {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12) var(--space-16);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      justify-content: space-between;
+      gap: var(--space-12);
+    }
+    .symbol-library-control-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+      min-width: 220px;
+    }
+    .symbol-library-label {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .symbol-library-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-12);
+      min-height: 0;
+      overflow: auto;
+      padding-bottom: var(--space-8);
+    }
+    .symbol-tier-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      min-height: 340px;
+    }
+    .symbol-tier-card-header {
+      padding: var(--space-10) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+    }
+    .symbol-tier-title {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .symbol-tier-count {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      font-family: var(--font-mono);
+    }
+    .symbol-tier-body {
+      padding: var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-10);
+      min-height: 0;
+      flex: 1;
+    }
+    .symbol-tier-description {
+      font-size: var(--text-small);
+      color: var(--color-text-muted);
+      line-height: var(--leading-body);
+      border: 1px solid var(--color-border-subtle);
+      background: var(--color-void);
+      border-radius: var(--radius);
+      padding: var(--space-8) var(--space-10);
+    }
+    .symbol-list {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid var(--color-border-subtle);
+      background: var(--color-void);
+      border-radius: var(--radius);
+      padding: var(--space-10);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      color: var(--color-text);
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .symbol-library-source {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      margin-top: var(--space-2);
+    }
+    @media (max-width: 1200px) {
+      .symbol-library-grid {
+        grid-template-columns: 1fr;
+      }
+      .symbol-tier-card {
+        min-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Scanner</span>
+        </a>
+        <a href="copilot.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Trading Desk</span>
+        </a>
+        <a href="history.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Position Book</span>
+        </a>
+        <a href="validator.html" class="sidebar-nav-item active" aria-current="page">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Validator</span>
+        </a>
+        <a href="workshop.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Indicator Studio</span>
+        </a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+      </nav>
+    </aside>
+
+    <main class="app-main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Symbol Library</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">Fixed Tier 1/2/3 universes used by Validator runs.</span>
+        </div>
+        <div style="display:flex;gap:var(--space-12);align-items:center;align-self:flex-start;padding-top:4px;">
+          <a href="validator.html" class="btn btn-ghost btn-sm">← Validator</a>
+          <a href="strategy.html" class="btn btn-ghost btn-sm">Strategy Page</a>
+          <a href="validator-symbol-library.html" class="btn btn-ghost btn-sm" style="color:var(--color-accent);border-color:var(--color-accent);">Symbol Library</a>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-16) var(--space-24);overflow:hidden;height:calc(100vh - 80px);">
+        <div class="symbol-library-layout">
+          <section class="symbol-library-controls">
+            <div class="symbol-library-control-group">
+              <label for="asset-class-select" class="symbol-library-label">Asset Class</label>
+              <select id="asset-class-select" class="input-field">
+                <option value="stocks">stocks</option>
+                <option value="futures">futures</option>
+                <option value="options">options</option>
+                <option value="forex">forex</option>
+                <option value="crypto">crypto</option>
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-4);">
+              <div id="symbol-library-source" class="symbol-library-source">Loading tier config...</div>
+            </div>
+          </section>
+
+          <section id="symbol-library-grid" class="symbol-library-grid" aria-live="polite"></section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="validator-symbol-library.js"></script>
+</body>
+</html>
+

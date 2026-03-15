@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indicator Studio - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="drawing-tools.css">
+  <script src="https://unpkg.com/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Scanner</span>
+        </a>
+        <a href="copilot.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Trading Desk</span>
+        </a>
+        <a href="history.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Position Book</span>
+        </a>
+        <a href="validator.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Validator</span>
+        </a>
+        <a href="workshop.html" class="sidebar-nav-item active" aria-current="page">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Indicator Studio</span>
+        </a>
+        <a href="auto-labeler.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Auto Labeler</span>
+        </a>
+        <a href="research.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Research Agent</span>
+        </a>
+        <a href="sweep.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Parameter Sweep</span>
+        </a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+      </nav>
+
+    </aside>
+
+    <main class="app-main" id="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Indicator Studio</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">Chat with Plugin Engineer, generate code, test, and register.</span>
+        </div>
+        <div class="workshop-header-actions">
+          <div class="workshop-tabbar" role="tablist" aria-label="Indicator Studio views">
+            <button id="workshop-tab-builder" class="workshop-tab active" role="tab" aria-selected="true" aria-controls="workshop-builder-view" onclick="setWorkshopTab('builder')">Indicator Builder</button>
+            <button id="workshop-tab-composite" class="workshop-tab" role="tab" aria-selected="false" aria-controls="workshop-composite-view" onclick="setWorkshopTab('composite')">Composite Builder</button>
+            <button id="workshop-tab-scanner" class="workshop-tab" role="tab" aria-selected="false" aria-controls="workshop-scanner-view" onclick="setWorkshopTab('scanner')">Pattern Scanner</button>
+            <button id="workshop-tab-library" class="workshop-tab" role="tab" aria-selected="false" aria-controls="workshop-library-view" onclick="setWorkshopTab('library')">Indicator Library</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="content workshop-content">
+        <div class="workshop-container" id="workshop-main-container">
+          <section id="workshop-builder-chat-panel" class="workshop-chat-panel cc-panel" aria-label="Plugin Engineer chat">
+            <div class="workshop-chat-header cc-header">
+              <button class="cc-toggle-btn" onclick="toggleChat('workshop-builder-chat-panel','workshop-main-container','chat-collapsed')" title="Collapse panel">&#8250;</button>
+              <span class="cc-title">Plugin Engineer</span>
+              <span id="workshop-chat-status" class="cc-status">Ready</span>
+              <span class="cc-vert-label" onclick="toggleChat('workshop-builder-chat-panel','workshop-main-container','chat-collapsed')">Plugin Engineer</span>
+            </div>
+            <div id="workshop-chat-messages" class="workshop-chat-messages"></div>
+            <div class="workshop-chat-input-row">
+              <textarea id="workshop-chat-input" rows="3" placeholder="Describe the plugin you want to create..." onkeydown="handleWorkshopChatKeydown(event)"></textarea>
+              <button class="workshop-send-btn" type="button" aria-label="Send workshop chat message" onclick="sendWorkshopChat()">&#8593;</button>
+            </div>
+            <div class="workshop-chat-actions">
+              <button class="btn btn-ghost" onclick="sendWorkshopChat('Show me what plugins already exist')">Browse Existing</button>
+              <button class="btn btn-ghost" onclick="sendWorkshopChat('Start a new plugin from scratch')">New Plugin</button>
+            </div>
+          </section>
+
+          <section class="workshop-editor-panel" aria-label="Plugin editor">
+            <div id="workshop-builder-view" class="workshop-tab-panel" role="tabpanel" aria-labelledby="workshop-tab-builder">
+              <div class="workshop-meta-bar">
+                <div class="workshop-meta-field">
+                  <label for="workshop-pattern-name">Pattern Name</label>
+                  <input type="text" id="workshop-pattern-name" placeholder="e.g. EMA RSI Crossover" oninput="handlePatternNameInput()">
+                  <div id="workshop-error-pattern-name" class="workshop-field-error" aria-live="polite"></div>
+                </div>
+                <div class="workshop-meta-field">
+                  <label for="workshop-pattern-id">Pattern ID</label>
+                  <input type="text" id="workshop-pattern-id" placeholder="auto-generated" readonly>
+                  <div id="workshop-error-pattern-id" class="workshop-field-error" aria-live="polite"></div>
+                </div>
+                <div class="workshop-meta-field">
+                  <label for="workshop-category">Category</label>
+                  <input type="text" id="workshop-category" placeholder="AI will set category (e.g. trend, momentum, chart_pattern)" oninput="syncDefinitionMetaFields()">
+                  <div id="workshop-error-category" class="workshop-field-error" aria-live="polite"></div>
+                </div>
+                <div class="workshop-meta-field">
+                  <label>Status</label>
+                  <span class="workshop-status-badge" id="workshop-status">experimental</span>
+                </div>
+              </div>
+
+              <div id="code-editor-container" class="workshop-editor-box"></div>
+              <div id="workshop-error-code" class="workshop-field-error workshop-field-error--block" aria-live="polite"></div>
+
+              <div class="workshop-actions">
+                <select id="workshop-test-symbol" class="select">
+                  <option>SPY</option>
+                  <option>AAPL</option>
+                  <option>MSFT</option>
+                  <option>GOOGL</option>
+                  <option>QQQ</option>
+                  <option>AMZN</option>
+                </select>
+                <select id="workshop-test-interval" class="select">
+                  <option value="1d">Daily</option>
+                  <option value="1wk">Weekly</option>
+                  <option value="4h">4 Hour</option>
+                  <option value="1h">1 Hour</option>
+                  <option value="15m">15 Minute</option>
+                  <option value="5m">5 Minute</option>
+                </select>
+                <div class="workshop-actions-divider"></div>
+                <button id="btn-start-blank" class="btn btn-ghost" onclick="startBlankBuilder()">Start Blank</button>
+                <button id="btn-save-draft" class="btn btn-ghost" onclick="saveDraft()">Save Draft</button>
+                <button id="btn-test-plugin" class="btn" onclick="testPlugin()">Test</button>
+                <label class="workshop-toggle-label" title="Make this available as a toggleable chart indicator">
+                  <input type="checkbox" id="workshop-chart-indicator" checked class="workshop-toggle-checkbox">
+                  <span class="workshop-toggle-text">Chart Indicator</span>
+                </label>
+                <button id="btn-register" class="btn" onclick="registerPlugin()">Register Plugin</button>
+              </div>
+
+              <details id="workshop-json-section" class="workshop-json-section">
+                <summary>Pattern Definition (JSON)</summary>
+                <div id="json-editor-container" class="workshop-json-box"></div>
+                <div id="workshop-error-json" class="workshop-field-error workshop-field-error--block" aria-live="polite"></div>
+              </details>
+
+              <div class="workshop-test-output" id="workshop-test-output">
+                <div class="workshop-test-header">Test Output</div>
+                <div id="workshop-test-results">
+                  <p class="workshop-test-placeholder">Click "Test" to run your plugin against market data.</p>
+                </div>
+              </div>
+            </div>
+
+            <div id="workshop-scanner-view" class="workshop-tab-panel hidden" role="tabpanel" aria-labelledby="workshop-tab-scanner">
+              <div style="display:flex;flex-direction:column;gap:12px;min-height:720px;height:100%;">
+                <div class="panel" style="padding:10px 12px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;overflow:visible;">
+                  <div style="min-width:220px;flex:1;">
+                    <label for="workshop-scanner-indicator">Pattern</label>
+                    <div id="workshop-scanner-indicator-picker" class="workshop-method-picker">
+                      <button
+                        id="workshop-scanner-indicator-trigger"
+                        type="button"
+                        class="workshop-method-picker__trigger"
+                        onclick="workshopScannerToggleIndicatorMenu()"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                      >
+                        <span id="workshop-scanner-indicator-trigger-label">Select a pattern</span>
+                        <span class="workshop-method-picker__caret">v</span>
+                      </button>
+                      <div id="workshop-scanner-indicator-menu" class="workshop-method-picker__menu hidden" role="listbox"></div>
+                      <select id="workshop-scanner-indicator" class="select hidden" onchange="workshopScannerHandlePatternChange()"></select>
+                    </div>
+                  </div>
+                  <div style="min-width:140px;">
+                    <label for="workshop-scanner-universe">Universe</label>
+                    <select id="workshop-scanner-universe" class="select" onchange="workshopScannerApplyUniverseFilter()">
+                      <option value="base_test_40" selected>Base Test 40</option>
+                      <option value="all">All Instruments</option>
+                      <option value="futures">Futures</option>
+                      <option value="commodities">Commodities</option>
+                      <option value="crypto">Crypto</option>
+                      <option value="indices">Indices</option>
+                      <option value="sectors">Sectors</option>
+                      <option value="international">International</option>
+                      <option value="bonds">Bonds</option>
+                      <option value="smallcaps">Small Caps</option>
+                      <option value="optionable">Optionable</option>
+                    </select>
+                  </div>
+                  <div style="min-width:120px;">
+                    <label for="workshop-scanner-interval">Interval</label>
+                    <select id="workshop-scanner-interval" class="select">
+                      <option value="1d">Daily</option>
+                      <option value="1wk" selected>Weekly</option>
+                    </select>
+                  </div>
+                  <div style="display:flex;gap:10px;align-items:center;">
+                    <button class="btn btn-primary" onclick="runWorkshopPatternScan()">Scan</button>
+                    <button class="btn btn-ghost" onclick="runWorkshopMethodCompare()">Compare Methods</button>
+                    <button class="btn" onclick="startWorkshopAutoLabel()">Auto Label</button>
+                    <button class="btn btn-ghost" onclick="workshopScannerLoadLatestAIResults()">Load AI Results</button>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;min-width:260px;">
+                    <label class="text-muted" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                      <input id="workshop-scanner-strict-base" type="checkbox" checked />
+                      Strict Base
+                    </label>
+                    <label class="text-muted" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                      <input id="workshop-scanner-one-per-symbol" type="checkbox" checked onchange="workshopScannerHandlePatternChange()" />
+                      1/Symbol
+                    </label>
+                    <label class="text-muted" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                      Mode
+                      <select id="workshop-scanner-compare-mode" class="select" style="width:100px;">
+                        <option value="backtest" selected>Backtest</option>
+                        <option value="scan">Scan</option>
+                      </select>
+                    </label>
+                    <label class="text-muted" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                      Max
+                      <input id="workshop-scanner-compare-limit" type="number" min="1" max="200" step="1" value="40" style="width:72px;" />
+                    </label>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;min-width:300px;">
+                    <label class="text-muted" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                      <input id="workshop-auto-label-dry-run" type="checkbox" checked />
+                      Dry Run
+                    </label>
+                    <label class="text-muted" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                      L
+                      <input id="workshop-auto-label-threshold" type="number" min="0" max="1" step="0.01" value="0.90" style="width:68px;" />
+                    </label>
+                    <label class="text-muted" style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                      C
+                      <input id="workshop-auto-correction-threshold" type="number" min="0" max="1" step="0.01" value="0.92" style="width:68px;" />
+                    </label>
+                  </div>
+                  <div id="workshop-scanner-universe-count" class="text-muted" style="min-width:160px;">Universe: 0 symbols</div>
+                  <div id="workshop-scanner-status" class="text-muted" style="margin-left:auto;min-width:180px;text-align:right;">Ready</div>
+                </div>
+                <div id="workshop-scanner-metrics" class="text-muted" style="font-size:12px;padding:0 12px 4px 12px;">
+                  Total: -- | Saved: -- | YES: -- | NO: -- | SKIP: -- | Corrected: -- | Unlabeled: -- | Queue: --
+                </div>
+                <div id="workshop-scanner-scan-summary" class="text-muted" style="font-size:12px;padding:0 12px 6px 12px;">
+                  Last scan: --
+                </div>
+                <div id="workshop-scanner-compare-summary" class="text-muted" style="font-size:12px;padding:0 12px 6px 12px;">
+                  Method compare: --
+                </div>
+                <div id="workshop-scanner-compare-results" class="text-muted" style="font-size:12px;padding:0 12px 8px 12px;display:flex;flex-direction:column;gap:4px;">
+                </div>
+                <div style="padding:0 12px 6px 12px;display:flex;justify-content:flex-end;align-items:center;">
+                  <label class="text-muted" style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;">
+                    <input id="workshop-scanner-skip-reviewed" type="checkbox" checked />
+                    Skip Reviewed While Panning
+                  </label>
+                </div>
+
+                <div id="workshop-scanner-inner-grid" style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--space-24);min-height:0;flex:1;align-items:stretch;transition:grid-template-columns 0.2s ease;">
+                  <div class="panel" style="min-height:0;display:flex;flex-direction:column;">
+                    <div class="panel-header"><span class="panel-header-title">Chart + Labels</span></div>
+                    <div class="panel-body" style="display:flex;flex-direction:column;gap:8px;min-height:0;">
+                      <div class="dt-chart-shell" style="min-height:0;">
+                        <aside class="dt-chart-rail" aria-label="Chart drawing tools">
+                          <div id="workshop-dt-toolbar" data-dt-for="workshop-scanner-chart" class="dt-toolbar dt-toolbar--dock dt-toolbar--grouped"></div>
+                        </aside>
+                        <div class="dt-chart-stage">
+                          <div id="workshop-scanner-chart" style="position:relative;height:560px;background:#1e1e1e;border:1px solid var(--color-border);">
+                            <div id="workshop-scanner-chart-symbol" class="text-muted" style="position:absolute;top:8px;left:10px;z-index:20;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;background:rgba(17,24,39,0.72);padding:2px 8px;border:1px solid rgba(75,85,99,0.6);border-radius:4px;pointer-events:none;">--</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div id="workshop-scanner-correction" class="hidden" style="display:flex;flex-direction:column;gap:8px;">
+                        <div class="text-muted" style="font-size:12px;">
+                          Correction mode: draw a canonical base box (top, bottom, start, end), then save.
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
+                          <button class="btn btn-ghost btn-sm" onclick="workshopScannerStartSetLevel('box')">Draw Base Box (2 clicks)</button>
+                          <button class="btn btn-ghost btn-sm" onclick="workshopScannerStartSetLevel('top')">Set Top (click chart)</button>
+                          <button class="btn btn-ghost btn-sm" onclick="workshopScannerStartSetLevel('bottom')">Set Bottom (click chart)</button>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+                          <div>
+                            <input id="workshop-scanner-correction-top" class="input" type="number" step="0.01" placeholder="Top level" />
+                          </div>
+                          <div>
+                            <input id="workshop-scanner-correction-bottom" class="input" type="number" step="0.01" placeholder="Bottom level" />
+                          </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+                          <div>
+                            <input id="workshop-scanner-correction-start" class="input" type="text" placeholder="Base start" readonly />
+                          </div>
+                          <div>
+                            <input id="workshop-scanner-correction-end" class="input" type="text" placeholder="Base end" readonly />
+                          </div>
+                        </div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                          <button class="btn btn-ghost btn-sm" onclick="workshopScannerCancelCorrection()">Cancel</button>
+                          <button class="btn btn-sm" onclick="workshopScannerSaveCorrection()">Save Correction</button>
+                        </div>
+                      </div>
+                      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">
+                        <button class="btn" onclick="workshopScannerLabel('yes')">YES</button>
+                        <button class="btn" onclick="workshopScannerLabel('no')">NO</button>
+                        <button class="btn" onclick="workshopScannerLabel('close')">SKIP</button>
+                        <button class="btn btn-ghost" onclick="toggleWorkshopCorrection()">CORRECT IT</button>
+                      </div>
+                      <div id="workshop-scanner-save-indicator" class="text-muted" style="min-height:20px;">Saved: none</div>
+                      <div id="workshop-scanner-ai-suggestion" style="display:none;flex-direction:column;gap:4px;padding:8px 10px;border:1px solid rgba(96,165,250,0.3);border-radius:6px;background:rgba(96,165,250,0.05);"></div>
+                      <div style="border-top:1px solid var(--color-border);padding-top:8px;display:flex;flex-direction:column;gap:6px;min-height:140px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                          <div id="workshop-scanner-candidates-title" class="text-muted" style="font-size:var(--text-caption);text-transform:uppercase;letter-spacing:0.08em;">Candidates (Queue: 0)</div>
+                          <select id="workshop-scanner-sort" class="select" style="width:180px;font-size:11px;" onchange="workshopScannerApplySort()">
+                            <option value="all">All Scan Results</option>
+                            <option value="scanner-hit">Accepted By Scanner</option>
+                            <option value="no-candidate">Not Accepted</option>
+                            <option value="accepted">Review YES</option>
+                            <option value="rejected">Review NO</option>
+                            <option value="reviewed">All Reviewed</option>
+                            <option value="unreviewed">Unreviewed</option>
+                            <option value="skipped">Skipped</option>
+                            <option value="corrected">Corrected</option>
+                            <option value="score-desc">Score: High → Low</option>
+                            <option value="score-asc">Score: Low → High</option>
+                          </select>
+                        </div>
+                        <div id="workshop-scanner-list" style="overflow-y:auto;display:flex;flex-direction:column;gap:6px;min-height:80px;max-height:220px;"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="workshop-scanner-chat-panel" class="scanner-chat-panel cc-panel" aria-label="Pattern Analyst chat" style="grid-column:auto;grid-row:auto;">
+                    <div class="scanner-chat-header cc-header">
+                      <button class="cc-toggle-btn" onclick="toggleChat('workshop-scanner-chat-panel','workshop-scanner-inner-grid','chat-collapsed')" title="Collapse panel">&#8250;</button>
+                      <span class="cc-title">Pattern Analyst</span>
+                      <span id="workshop-scanner-chat-status" class="cc-status">Ready</span>
+                      <span class="cc-vert-label" onclick="toggleChat('workshop-scanner-chat-panel','workshop-scanner-inner-grid','chat-collapsed')">Pattern Analyst</span>
+                    </div>
+                    <div id="workshop-scanner-ai-messages" class="scanner-chat-messages"></div>
+                    <div class="scanner-chat-input-row">
+                      <textarea id="workshop-scanner-ai-input" rows="3" placeholder="Ask about this pattern..." onkeydown="handleWorkshopScannerChatKeydown(event)"></textarea>
+                      <button class="scanner-send-btn" type="button" aria-label="Send pattern analyst chat message" onclick="sendWorkshopScannerChat()">&#8593;</button>
+                    </div>
+                    <div class="scanner-chat-actions">
+                      <button class="btn btn-ghost" onclick="sendWorkshopScannerChat('Is this a valid pattern?')">Validate</button>
+                      <button class="btn btn-ghost" onclick="sendWorkshopScannerChat('What could improve detection?')">Improve</button>
+                      <button class="btn btn-ghost" onclick="sendWorkshopScannerChat('Show likely failure points.')">Failure Risks</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="workshop-library-view" class="workshop-tab-panel workshop-library-view hidden" role="tabpanel" aria-labelledby="workshop-tab-library">
+              <div class="workshop-library-toolbar">
+                <div class="workshop-library-filter">
+                  <label for="workshop-library-search">Search</label>
+                  <input id="workshop-library-search" type="text" placeholder="Name, ID, category..." oninput="handleLibraryFilterChange()">
+                </div>
+                <div class="workshop-library-filter">
+                  <label for="workshop-library-type">Type</label>
+                  <select id="workshop-library-type" class="select" onchange="handleLibraryFilterChange()">
+                    <option value="">All</option>
+                    <option value="primitive">Primitives</option>
+                    <option value="composite">Composites</option>
+                    <option value="pattern">Patterns</option>
+                  </select>
+                </div>
+                <div class="workshop-library-filter">
+                  <label for="workshop-library-category">Category</label>
+                  <select id="workshop-library-category" class="select" onchange="handleLibraryFilterChange()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+                <div class="workshop-library-filter">
+                  <label for="workshop-library-status">Status</label>
+                  <select id="workshop-library-status" class="select" onchange="handleLibraryFilterChange()">
+                    <option value="">All</option>
+                  </select>
+                </div>
+                <div class="workshop-library-summary" id="workshop-library-summary">0 indicators</div>
+              </div>
+
+              <div class="workshop-library-layout">
+                <div class="workshop-library-list-panel">
+                  <div id="workshop-library-list" class="workshop-library-list">
+                    <p class="workshop-test-placeholder">Loading indicator library...</p>
+                  </div>
+                </div>
+                <div class="workshop-library-detail-panel">
+                  <div class="workshop-library-detail-header">
+                    <span>Indicator Detail</span>
+                  </div>
+                  <div id="workshop-library-detail" class="workshop-library-detail-body">
+                    <p class="workshop-test-placeholder">Select an indicator to inspect details.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ======= COMPOSITE BUILDER VIEW ======= -->
+            <div id="workshop-composite-view" class="workshop-tab-panel hidden" role="tabpanel" aria-labelledby="workshop-tab-composite">
+              <!-- Sub-tab bar -->
+              <div class="composite-subtab-bar" role="tablist" aria-label="Composite builder modes">
+                <button id="composite-subtab-ai" class="composite-subtab active" role="tab" aria-selected="true" onclick="setCompositeSubTab('ai')">AI Composer</button>
+                <button id="composite-subtab-blockly" class="composite-subtab" role="tab" aria-selected="false" onclick="setCompositeSubTab('blockly')">Blocky</button>
+                <button id="composite-subtab-pipeline" class="composite-subtab" role="tab" aria-selected="false" onclick="setCompositeSubTab('pipeline')">Node Editor</button>
+              </div>
+
+              <!-- AI Composer sub-view â€” same grid layout as the Indicator Builder -->
+              <div id="composite-ai-view" class="composite-subview composite-ai-grid">
+                <!-- Left: Editor / definition pane -->
+                <section class="workshop-editor-panel" style="grid-column:1;grid-row:1;">
+                  <div class="workshop-meta-bar">
+                    <div class="workshop-meta-field">
+                      <label for="composite-name">Composite Name</label>
+                      <input type="text" id="composite-name" placeholder="e.g. Breakout Retest Entry" oninput="onCompositeNameInput()">
+                    </div>
+                    <div class="workshop-meta-field">
+                      <label for="composite-id">Composite ID</label>
+                      <input type="text" id="composite-id" placeholder="auto-generated" readonly>
+                    </div>
+                    <div class="workshop-meta-field">
+                      <label for="composite-intent">Intent</label>
+                      <select id="composite-intent" class="select" onchange="onCompositeIntentChange()">
+                        <option value="entry">Entry</option>
+                        <option value="exit">Exit</option>
+                        <option value="analysis">Analysis</option>
+                        <option value="regime">Regime</option>
+                      </select>
+                    </div>
+                    <div class="workshop-meta-field">
+                      <label>Status</label>
+                      <span class="workshop-status-badge" id="composite-status">draft</span>
+                    </div>
+                  </div>
+
+                  <div class="composite-ai-primitives" id="composite-ai-primitives">
+                    <div class="composite-ai-primitives-header">Available Primitives â€” click to add as stage</div>
+                    <div id="composite-ai-primitives-list" class="composite-ai-primitives-list">
+                      <p class="text-muted" style="padding:8px;font-size:var(--text-caption);">Loading...</p>
+                    </div>
+                  </div>
+
+                  <div class="composite-stages-panel" id="composite-stages-panel">
+                    <div class="composite-stages-header">Stages</div>
+                    <div id="composite-stages-list" class="composite-stages-list">
+                      <p class="text-muted" style="padding:8px;font-size:var(--text-caption);">No stages yet. Chat with the AI or add primitives from the sidebar.</p>
+                    </div>
+                  </div>
+
+                  <div class="workshop-actions" style="flex-wrap:wrap;">
+                    <span id="composite-validation-badge" class="workshop-validation-badge" style="display:none;"></span>
+                    <div style="flex:1;"></div>
+                    <button class="btn" id="btn-composite-validate" onclick="validateCompositeDefinition()">Validate</button>
+                    <button class="btn btn-primary" id="btn-composite-register" onclick="registerCompositeDefinition()" disabled>Register Composite</button>
+                  </div>
+
+                  <details class="workshop-json-section" open>
+                    <summary>Composite Definition (JSON)</summary>
+                    <pre id="composite-json-preview" class="composite-json-preview"><code>{ }</code></pre>
+                  </details>
+                </section>
+
+                <!-- Right: Chat pane â€” identical structure to Plugin Engineer -->
+                <section class="workshop-chat-panel cc-panel" id="composite-ai-chat-panel" aria-label="Composite Architect chat" style="grid-column:2;grid-row:1;">
+                  <div class="workshop-chat-header cc-header">
+                    <button class="cc-toggle-btn" onclick="toggleChat('composite-ai-chat-panel','composite-ai-view','chat-collapsed')" title="Collapse panel">&#8250;</button>
+                    <span class="cc-title">Composite Architect</span>
+                    <span id="composite-chat-status" class="cc-status">Ready</span>
+                    <span class="cc-vert-label" onclick="toggleChat('composite-ai-chat-panel','composite-ai-view','chat-collapsed')">Composite Architect</span>
+                  </div>
+                  <div id="composite-ai-messages" class="workshop-chat-messages"></div>
+                  <div class="workshop-chat-input-row">
+                    <textarea id="composite-ai-input" rows="3" placeholder="Describe the composite indicator you want to build..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCompositeChat();}"></textarea>
+                    <button class="workshop-send-btn" type="button" aria-label="Send composite architect chat message" onclick="sendCompositeChat()">&#8593;</button>
+                  </div>
+                  <div class="workshop-chat-actions">
+                    <button class="btn btn-ghost" onclick="sendCompositeChat('Show me what primitives are available and suggest a composite')">Suggest Composite</button>
+                    <button class="btn btn-ghost" onclick="sendCompositeChat('Build an entry composite with Structure + Location + Trigger')">Entry Template</button>
+                  </div>
+                </section>
+              </div>
+
+              <!-- Blocky sub-view (iframe) -->
+              <div id="composite-blockly-view" class="composite-subview" style="display:none;flex:1;min-height:0;">
+                <iframe id="composite-blockly-iframe" style="width:100%;height:100%;border:none;min-height:700px;" title="Blockly Composer"></iframe>
+              </div>
+
+              <!-- Node Editor sub-view (iframe) -->
+              <div id="composite-pipeline-view" class="composite-subview" style="display:none;flex:1;min-height:0;">
+                <iframe id="composite-pipeline-iframe" style="width:100%;height:100%;border:none;min-height:700px;" title="Pipeline Composer"></iframe>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="drawing-tools.js"></script>
+  <script src="workshop-core.js"></script>
+  <script src="workshop-builder.js"></script>
+  <script src="workshop-scanner.js"></script>
+  <script src="workshop-composite.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "candidateId": "ALTG_W_scan_rdp_wiggle_base_v1_9797e66f_0_357",
+  "userId": "default",
+  "symbol": "ALTG",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 8.38,
+    "baseBottomPrice": 4.09,
+    "baseStartTime": "2024-08-05",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "7640dede-71aa-4216-baed-051818e55809",
+  "timestamp": "2026-02-26T05:30:20.621Z"
+}

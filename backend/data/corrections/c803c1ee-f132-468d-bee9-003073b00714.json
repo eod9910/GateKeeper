@@ -1,0 +1,21 @@
+{
+  "candidateId": "APGE_W_scan_rdp_wiggle_base_v1_9797e66f_0_137",
+  "userId": "default",
+  "symbol": "APGE",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 46.67,
+    "baseBottomPrice": 29.19,
+    "baseStartTime": "2025-02-24",
+    "baseEndTime": "2025-10-06",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "c803c1ee-f132-468d-bee9-003073b00714",
+  "timestamp": "2026-02-26T22:18:11.543Z"
+}

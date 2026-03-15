@@ -1,0 +1,52 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Operator Deviation",
+    "type": "object",
+    "required": [
+      "deviation_type",
+      "severity",
+      "self_reported_reason"
+    ],
+    "properties": {
+      "deviation_type": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "early_entry",
+            "late_entry",
+            "early_exit",
+            "late_exit",
+            "stop_moved",
+            "oversized",
+            "undersized",
+            "discretion_override",
+            "hesitation",
+            "revenge_trade"
+          ]
+        }
+      },
+      "severity": {
+        "type": "string",
+        "enum": ["low", "medium", "high"]
+      },
+      "self_reported_reason": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "fear",
+            "greed",
+            "boredom",
+            "overconfidence",
+            "revenge",
+            "uncertainty",
+            "fatigue",
+            "external_distraction"
+          ]
+        }
+      },
+      "notes": { "type": "string" }
+    }
+  }
+  

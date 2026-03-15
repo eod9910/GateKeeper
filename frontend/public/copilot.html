@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Desk â€” Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="drawing-tools.css">
+  <style>
+    #copilot-main-grid {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+      min-height: 100%;
+    }
+
+    #copilot-center-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      min-height: max-content;
+    }
+
+    #copilot-chart-panel {
+      flex: 0 0 clamp(520px, 72vh, 900px);
+      min-height: 520px;
+    }
+
+    #copilot-chat-panel {
+      flex: 0 0 420px;
+      height: 420px;
+      min-height: 240px;
+    }
+
+    #copilot-chat-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .chart-header-symbol-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      flex-shrink: 0;
+      min-width: 0;
+    }
+
+    .chart-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-12);
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0;
+    }
+
+    .chart-header-toolbar {
+      margin-left: auto;
+      justify-content: flex-end;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .chart-workspace {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: stretch;
+      min-height: 0;
+      height: 100%;
+      background: color-mix(in srgb, var(--color-void) 88%, black 12%);
+      border-radius: 0 0 var(--radius) var(--radius);
+      overflow: visible;
+    }
+
+    .chart-side-toolbar {
+      flex: 0 0 72px;
+      width: 72px;
+      position: relative;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: 0;
+      padding: 10px 8px;
+      border-right: 1px solid var(--color-border);
+      border-radius: 0 0 0 var(--radius);
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 72%, black 28%) 0%, color-mix(in srgb, var(--color-void) 90%, black 10%) 100%);
+    }
+
+    .chart-side-toolbar-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chart-side-toolbar-divider {
+      width: 100%;
+      height: 1px;
+      background: var(--color-border);
+      opacity: 0.9;
+    }
+
+    .chart-side-tool-btn {
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      white-space: normal;
+      line-height: 1.1;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.65rem;
+    }
+
+    .chart-side-tool-btn.active::before {
+      content: none;
+    }
+
+    .chart-side-tool-btn.active {
+      color: var(--color-text);
+      background: color-mix(in srgb, var(--color-surface) 84%, black 16%);
+      border-color: var(--ui-active-border);
+      box-shadow: inset 2px 0 0 var(--ui-active-border), 0 0 0 1px rgba(66, 89, 109, 0.2);
+    }
+
+    .chart-side-toolbar-status {
+      margin-top: auto;
+      min-height: 36px;
+      padding-top: 2px;
+      font-size: 0.65rem;
+      line-height: 1.35;
+      text-align: center;
+      color: var(--color-text-muted);
+      overflow-wrap: anywhere;
+    }
+
+    .chart-stage {
+      display: flex;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      border-radius: 0 0 var(--radius) 0;
+    }
+
+    .trade-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: var(--space-12);
+      align-items: start;
+    }
+
+    .trade-actions-card {
+      grid-column: span 12;
+      border: 1px solid var(--color-border);
+      background: var(--color-void);
+      padding: var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      min-width: 0;
+    }
+
+    .trade-actions-card-title {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      padding-bottom: var(--space-8);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .trade-actions-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+
+    .trade-actions-inline-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-8);
+      align-items: start;
+    }
+
+    .trade-actions-size-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.8fr);
+      gap: var(--space-8);
+      align-items: end;
+    }
+
+    .trade-actions-size-readout {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-8);
+      margin-bottom: var(--space-4);
+    }
+
+    .trade-actions-size-readout .size-value {
+      font-size: var(--text-large);
+      font-weight: 700;
+      color: var(--color-accent);
+    }
+
+    .trade-actions-size-readout .size-unit {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .saved-trades-list {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      min-height: 120px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    @media (min-width: 1100px) {
+      .trade-actions-card--route {
+        grid-column: 1 / span 6;
+        grid-row: 1;
+      }
+
+      .trade-actions-card--instrument {
+        grid-column: 7 / span 6;
+        grid-row: 1;
+      }
+
+      .trade-actions-card--instrument-settings {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+
+      .trade-actions-card--sizing {
+        grid-column: 1 / span 6;
+        grid-row: 3;
+      }
+
+      .trade-actions-card--ai {
+        grid-column: 7 / span 6;
+        grid-row: 3;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      #copilot-chart-panel {
+        flex-basis: clamp(400px, 56vh, 620px);
+        min-height: 400px;
+      }
+
+      #copilot-chat-panel {
+        flex-basis: 340px;
+        height: 340px;
+      }
+
+      .trade-actions-card--route,
+      .trade-actions-card--instrument,
+      .trade-actions-card--sizing,
+      .trade-actions-card--instrument-settings,
+      .trade-actions-card--ai {
+        grid-column: span 12;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .chart-header-symbol-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .chart-header-toolbar {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .trade-actions-inline-fields,
+      .trade-actions-size-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .chart-workspace {
+        flex-direction: column;
+      }
+
+      .chart-side-toolbar {
+        width: auto;
+        flex-basis: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        border-right: 0;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .chart-side-toolbar-group {
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+
+      .chart-side-toolbar .dt-toolbar--vertical {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        width: auto;
+      }
+
+      .chart-side-toolbar-divider {
+        width: 1px;
+        height: 28px;
+      }
+
+      .chart-side-toolbar .dt-toolbar--vertical .dt-tool-btn {
+        width: auto;
+        min-width: 44px;
+      }
+
+      .chart-side-toolbar .dt-toolbar--vertical .dt-divider {
+        width: 1px;
+        height: 24px;
+        margin: 0 4px;
+      }
+
+      .chart-side-toolbar .dt-toolbar--vertical .dt-status {
+        flex-basis: 100%;
+        text-align: right;
+        min-height: auto;
+      }
+
+      .chart-side-tool-btn {
+        width: auto;
+        min-width: 76px;
+      }
+
+      .chart-side-toolbar-status {
+        margin-top: 0;
+        margin-left: auto;
+        min-height: auto;
+        max-width: 220px;
+        text-align: right;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="copilot.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Trading Desk</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Scanner</span>
+        </a>
+        <a href="copilot.html" class="sidebar-nav-item active" aria-current="page">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Trading Desk</span>
+        </a>
+        <a href="history.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Position Book</span>
+        </a>
+        <a href="validator.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Validator</span>
+        </a>
+        <a href="workshop.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Indicator Studio</span>
+        </a>
+        <a href="research.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Research Agent</span>
+        </a>
+        <a href="sweep.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Parameter Sweep</span>
+        </a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+      </nav>
+    
+      <!-- Account & Risk settings moved to global Settings page -->
+      <div style="display:none;">
+        <input type="number" id="account-size" value="50000">
+        <input type="number" id="available-balance" value="50000">
+        <input type="number" id="daily-loss-limit" value="5">
+        <input type="number" id="max-open-positions" value="5">
+        <input type="range"  id="swing-sensitivity" value="5">
+        <span id="swing-sensitivity-label"></span>
+      </div>
+    
+      <!-- AI / Risk settings moved to global Settings page; hidden inputs for JS compat -->
+      <div style="display:none;">
+        <select id="ai-provider"><option value="openai" selected>OpenAI</option></select>
+        <select id="ai-model">
+          <option value="gpt-5.4" selected>GPT-5.4</option>
+          <option value="gpt-5">GPT-5</option>
+          <option value="gpt-5-mini">GPT-5 Mini</option>
+          <option value="gpt-4o">GPT-4o</option>
+          <option value="gpt-4o-mini">GPT-4o Mini</option>
+          <option value="o3-mini">o3-mini</option>
+          <option value="o1-mini">o1-mini</option>
+          <option value="o1">o1</option>
+          <option value="minicpm-v">MiniCPM-V</option>
+        </select>
+        <input type="range" id="ai-temperature" value="0.7">
+        <span id="temp-value">0.7</span>
+        <input type="number" id="risk-percent" value="2">
+        <input type="number" id="min-rr" value="1.5">
+        <input type="number" id="max-position" value="25">
+        <input type="number" id="max-daily-trades" value="3">
+        <input type="number" id="max-consecutive-losses" value="3">
+        <input type="number" id="max-drawdown" value="10">
+        <input type="checkbox" id="require-approval" checked>
+      </div>
+
+    </aside>
+
+    <div class="app-main" id="main-content">
+      <!-- Page Header -->
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-12) var(--space-24);border-bottom:1px solid var(--color-border);gap:var(--space-16);">
+        <div style="flex-shrink:0;">
+          <h1 style="font-size:var(--text-large);font-weight:700;margin:0;">Trading Desk</h1>
+          <span id="copilot-breadcrumb" class="text-muted text-caption">Enter a symbol to begin</span>
+          <span id="copilot-status" class="text-muted text-caption" style="margin-left:var(--space-8);"></span>
+        </div>
+
+        <!-- Active Symbol â€” moved from sidebar -->
+        <div style="display:flex;align-items:center;gap:var(--space-8);flex:1;max-width:480px;">
+          <div style="position:relative;flex:1;">
+            <input type="text" id="copilot-symbol" placeholder="Symbol (e.g. AAPL)" autocomplete="off"
+              class="input input-sm text-mono"
+              style="text-transform:uppercase;letter-spacing:0.05em;font-weight:700;width:100%;"
+              onkeypress="if(event.key==='Enter')runCopilotAnalysis()">
+            <div id="copilot-symbol-suggestions" class="hidden" style="position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius);max-height:200px;overflow-y:auto;z-index:50;"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="runCopilotAnalysis()" style="flex-shrink:0;">Go</button>
+        </div>
+
+        <div style="display:flex;gap:var(--space-8);flex-shrink:0;">
+          <button class="btn btn-sm" onclick="newAnalysis()">New</button>
+          <button class="btn btn-sm" onclick="exportAnalysis()">Export</button>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-12) var(--space-24) var(--space-24);height:calc(100vh - 57px);overflow:auto;">
+        <div id="scanner-handoff-panel" class="panel hidden" style="margin-bottom:var(--space-12);">
+          <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-12);">
+            <span class="panel-header-title">Scanner Assessment</span>
+            <span id="scanner-handoff-status" class="text-muted text-caption">Scanner handoff loaded</span>
+          </div>
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:var(--space-12);">
+            <div id="scanner-handoff-summary" style="display:flex;flex-wrap:wrap;gap:var(--space-8);"></div>
+            <div id="scanner-handoff-read" style="font-size:var(--text-small);color:var(--color-text);line-height:1.55;"></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-12);">
+              <div>
+                <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-6);">Reasons</div>
+                <ul id="scanner-handoff-reasons" style="margin:0;padding-left:18px;color:var(--color-text-subtle);font-size:var(--text-small);display:flex;flex-direction:column;gap:6px;"></ul>
+              </div>
+              <div>
+                <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-6);">Risks</div>
+                <ul id="scanner-handoff-risks" style="margin:0;padding-left:18px;color:var(--color-text-subtle);font-size:var(--text-small);display:flex;flex-direction:column;gap:6px;"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="copilot-main-grid">
+          
+          <!-- Center: Chart + Summary Panels -->
+          <div id="copilot-center-stack">
+            
+            <!-- Chart Panel -->
+            <div class="panel" id="copilot-chart-panel" style="display:flex;flex-direction:column;">
+              <div class="panel-header chart-panel-header">
+                <div class="chart-header-symbol-row">
+                  <button id="chart-symbol" type="button" onclick="openRiskPlanModal()" class="text-mono" style="font-size:var(--text-body);font-weight:700;white-space:nowrap;background:transparent;border:0;color:var(--color-text);padding:0;cursor:pointer;" title="Open the Trading Desk risk plan for this symbol">
+                    Enter a symbol
+                  </button>
+                  <select id="copilot-interval" class="select select-sm text-mono" style="width:auto;min-width:120px;" onchange="if(document.getElementById('copilot-symbol').value.trim()) runCopilotAnalysis()">
+                    <option value="1mo">Monthly</option>
+                    <option value="1wk" selected>Weekly</option>
+                    <option value="1d">Daily</option>
+                    <option value="4h">4 Hour</option>
+                    <option value="1h">1 Hour</option>
+                    <option value="15m">15 Min</option>
+                    <option value="5m">5 Min</option>
+                    <option value="1m">1 Min</option>
+                  </select>
+                  <span id="chart-interval-display" class="hidden" aria-hidden="true">W</span>
+                </div>
+                <span id="chart-pattern" style="display:none;"></span>
+                <div class="toolbar chart-header-toolbar">
+                  <button id="btn-entry" onclick="setMarkerMode('entry')" class="toolbar-btn" title="Place entry on chart">Entry</button>
+                  <button id="btn-stop-loss" onclick="setMarkerMode('stopLoss')" class="toolbar-btn" title="Place stop-loss on chart">Stop</button>
+                  <button id="btn-take-profit" onclick="setMarkerMode('takeProfit')" class="toolbar-btn" title="Place take-profit on chart">Target</button>
+                  <button id="btn-fit-chart" onclick="fitChartToContent()" title="Fit chart to content" class="toolbar-btn">Fit</button>
+                  <button onclick="clearChart()" class="toolbar-btn" title="Clear chart levels and drawings">Clear</button>
+                  <span id="drawing-status" class="text-muted text-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;"></span>
+                </div>
+              </div>
+              <div class="panel-body" style="flex:1;display:flex;position:relative;padding:0;min-height:0;">
+                <div class="chart-workspace">
+                  <aside class="chart-side-toolbar" aria-label="Chart tools">
+                    <div id="copilot-dt-toolbar" data-dt-for="chart-area" class="dt-toolbar dt-toolbar--dock dt-toolbar--grouped" aria-label="Drawing tools"></div>
+                  </aside>
+                  <div class="chart-stage">
+                    <div id="chart-container" style="width:100%;height:100%;background:#1e1e1e;position:relative;">
+                      <div id="chart-area" style="position:absolute;inset:0;"></div>
+                      <canvas id="drawing-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:10;"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Analysis Panel -->
+            <div id="copilot-chat-shell">
+              <div class="panel copilot-chat-panel cc-panel" id="copilot-chat-panel" data-resizable-height="true" data-skip-viewport-clamp="true" data-resize-storage-key="copilot-chat-panel-height" data-resize-default="420" data-resize-min="220" data-resize-max="760" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;width:100%;">
+                <div class="panel-header cc-header" style="padding:var(--space-12);border-bottom:1px solid var(--color-border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+                  <button class="cc-toggle-btn" onclick="toggleChat('copilot-chat-panel','copilot-main-grid','chat-collapsed')" title="Collapse panel">&#8250;</button>
+                  <span class="cc-title" style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Analysis</span>
+                  <span class="cc-vert-label" onclick="toggleChat('copilot-chat-panel','copilot-main-grid','chat-collapsed')">Analysis</span>
+                </div>
+                
+                <div id="chat-messages" style="flex:1;min-height:0;overflow-y:auto;padding:var(--space-12);display:flex;flex-direction:column;gap:var(--space-8);">
+                  <div class="chat-message chat-ai" style="background:var(--color-surface);border-radius:var(--radius);padding:var(--space-12);font-size:var(--text-small);color:var(--color-text-subtle);">
+                    <p>Welcome! Enter a symbol above, set the timeframe on the chart header, and use Trade Actions for instrument setup and routing.</p>
+                    <p style="font-size:var(--text-caption);color:var(--color-text-muted);margin-top:var(--space-4);">I'll evaluate trend, Fibonacci levels, energy state, and selling pressure to give you a clear verdict.</p>
+                  </div>
+                </div>
+                
+                <div style="padding:var(--space-12);border-top:1px solid var(--color-border);flex-shrink:0;">
+                  <div style="position:relative;display:block;">
+                    <textarea id="chat-input" placeholder="Ask..."
+                           style="width:100%;display:block;background:color-mix(in srgb, var(--color-void) 82%, black 18%);border:1px solid var(--color-border);border-radius:var(--radius);padding:var(--space-12) 56px var(--space-12) var(--space-12);font-size:var(--text-small);line-height:var(--leading-body);color:var(--color-text);resize:none;overflow-y:auto;font-family:inherit;min-height:82px;max-height:180px;"
+                           rows="1"
+                           oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight, 180)+'px';"
+                           onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChat(false);}"></textarea>
+                    <button onclick="sendChat(false)" type="button" aria-label="Send Trading Desk chat message" style="position:absolute;right:12px;bottom:12px;width:34px;height:34px;border-radius:999px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;cursor:pointer;">&#8593;</button>
+                  </div>
+                  <div style="display:flex;gap:var(--space-4);margin-top:var(--space-8);">
+                    <button onclick="quickChat('What do you think of this pattern?')" class="btn btn-sm">Analyze pattern</button>
+                    <button onclick="quickChat('Is this a good entry?')" class="btn btn-sm">Good entry?</button>
+                    <button onclick="calculateAndVerdict()" class="btn btn-sm">Calculate</button>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-resize-handle panel-resize-handle--vertical" data-resize-target="copilot-chat-panel" title="Drag to resize analysis panel. Double-click to reset."></div>
+            </div>
+
+            <!-- Key Levels -->
+            <div class="panel" style="flex-shrink:0;">
+              <div class="panel-header" style="padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);">
+                <span style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Key Levels</span>
+              </div>
+              <div class="panel-body" style="padding:var(--space-12);">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:var(--space-12);">
+                  <div>
+                    <div id="kl-entry-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Entry</div>
+                    <div id="kl-entry" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div>
+                  </div>
+                  <div>
+                    <div id="kl-stop-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Stop</div>
+                    <div id="kl-stop" style="font-size:var(--text-body);font-weight:700;color:#ef4444;">--</div>
+                  </div>
+                  <div>
+                    <div id="kl-t1-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">T1</div>
+                    <div id="kl-t1" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div>
+                  </div>
+                  <div>
+                    <div id="kl-t2-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">T2</div>
+                    <div id="kl-t2" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div>
+                  </div>
+                  <div>
+                    <div id="kl-rr-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">R/R</div>
+                    <div id="kl-rr" style="font-size:var(--text-body);font-weight:700;">--</div>
+                  </div>
+                  <div>
+                    <div id="kl-size-label" style="font-size:var(--text-caption);color:var(--color-accent);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Size</div>
+                    <div id="kl-size" style="font-size:var(--text-body);font-weight:700;color:var(--color-accent);">--</div>
+                    <div id="kl-size-hint" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" style="flex-shrink:0;">
+              <div class="panel-header" style="padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);">
+                <span style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Trade Actions</span>
+              </div>
+              <div class="panel-body" style="padding:var(--space-12);">
+                <div class="trade-actions-grid">
+                  <section id="live-pnl-panel" class="trade-actions-card trade-actions-card--route">
+                    <div class="trade-actions-card-title">Route</div>
+                    <span id="pnl-instrument-label" class="text-muted" style="font-size:var(--text-caption);"></span>
+                    <div class="sidebar-field">
+                      <label style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;">Trade Side</label>
+                      <div class="direction-toggle" role="group" aria-label="Trade side">
+                        <button type="button" id="btn-direction-long" class="direction-toggle-btn" onclick="setTradeDirection(1)">Long</button>
+                        <button type="button" id="btn-direction-short" class="direction-toggle-btn" onclick="setTradeDirection(-1)">Short</button>
+                      </div>
+                    </div>
+                    <div class="trade-actions-inline-fields">
+                      <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label for="execution-broker-route" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;">Broker Route</label>
+                        <select id="execution-broker-route" class="select select-sm">
+                          <option value="robinhood">Robinhood</option>
+                          <option value="oanda">OANDA</option>
+                          <option value="alpaca">Alpaca</option>
+                        </select>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:6px;">
+                        <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;">Order Ticket</div>
+                        <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                          <button id="btn-order-market" class="btn btn-sm trade-order-btn is-active" onclick="setOrderType('market')">Market</button>
+                          <button id="btn-order-limit" class="btn btn-sm trade-order-btn" onclick="setOrderType('limit')">Limit</button>
+                        </div>
+                        <div id="limit-price-row" class="hidden">
+                          <input type="number" step="0.01" id="limit-price" placeholder="Enter limit price" class="input input-sm">
+                        </div>
+                      </div>
+                    </div>
+                    <div id="execution-route-summary" class="text-muted" style="font-size:var(--text-caption);line-height:1.5;">
+                      Route this ticket from Trading Desk into Execution Desk.
+                    </div>
+                    <div id="execution-trade-summary" style="display:grid;gap:6px;padding:10px 12px;border:1px solid var(--color-border);background:var(--color-surface);font-size:var(--text-caption);line-height:1.5;">
+                      <div style="color:var(--color-text);font-weight:600;">Trade side is not set yet.</div>
+                      <div class="text-muted">Choose Long or Short, or set entry, stop, and take profit so Trading Desk can infer the side before sending to Execution Desk.</div>
+                    </div>
+                    <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                      <button onclick="openRiskPlanModal()" id="btn-open-risk-plan" class="btn btn-sm">Plan Exits</button>
+                      <button onclick="sendTradeToExecution()" id="btn-send-to-execution" class="btn btn-primary btn-sm">Send To Execution Desk</button>
+                    </div>
+                    <div id="save-trade-panel" class="hidden">
+                      <button onclick="saveTrade()" id="btn-save-trade" class="btn btn-primary btn-sm">Save Trade</button>
+                    </div>
+                    <div id="live-pnl-dollar" style="display:none;">$0.00</div>
+                    <div id="live-pnl-percent" style="display:none;">0.00%</div>
+                    <div id="live-pnl-size" style="display:none;">--</div>
+                    <div id="live-pnl-current" style="display:none;">--</div>
+                  </section>
+
+                  <section class="trade-actions-card trade-actions-card--instrument">
+                    <div class="trade-actions-card-title">Instrument</div>
+                    <div class="trade-actions-stack">
+                      <div class="sidebar-field">
+                        <label class="sidebar-field-label" for="instrument-type">Type</label>
+                        <select id="instrument-type" class="select select-sm" onchange="toggleInstrumentSettings(); saveSettings()">
+                          <option value="stock">Stock</option>
+                          <option value="futures">Futures</option>
+                          <option value="options">Options</option>
+                          <option value="forex">Forex</option>
+                          <option value="crypto">Crypto</option>
+                        </select>
+                      </div>
+                      <div class="sidebar-field">
+                        <label class="sidebar-field-label">Position Size</label>
+                        <div class="trade-actions-size-grid">
+                          <div>
+                            <div class="trade-actions-size-readout">
+                              <span id="sidebar-pos-size" class="size-value">--</span>
+                              <span id="position-size-unit" class="size-unit">contracts</span>
+                            </div>
+                            <div id="position-size-calc" class="sidebar-field-hint">Set entry &amp; stop on chart</div>
+                          </div>
+                          <div>
+                            <input type="number" id="manual-position-size" min="1" step="1" placeholder="Override" class="input input-sm" style="width:100%;text-align:center;" onchange="onManualSizeChange()">
+                            <div class="sidebar-field-hint" style="margin-top:var(--space-4);">Manual override</div>
+                          </div>
+                        </div>
+                        <div id="position-size-warning" class="hidden" style="margin-top:var(--space-4);font-size:var(--text-caption);color:#f59e0b;"></div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section id="position-sizing" class="trade-actions-card trade-actions-card--sizing hidden" style="display:flex;flex-direction:column;gap:var(--space-6);">
+                    <div class="trade-actions-card-title">Position Sizing</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-8);">
+                      <div>
+                        <div class="text-muted" style="font-size:var(--text-caption);">Units</div>
+                        <div><span id="position-shares">--</span> <span id="position-unit-label">shares</span></div>
+                      </div>
+                      <div>
+                        <div id="position-value-label" class="text-muted" style="font-size:var(--text-caption);">Position Value</div>
+                        <div id="position-value">--</div>
+                      </div>
+                      <div>
+                        <div class="text-muted" style="font-size:var(--text-caption);">Max Loss</div>
+                        <div id="max-loss">--</div>
+                      </div>
+                      <div>
+                        <div class="text-muted" style="font-size:var(--text-caption);">Target</div>
+                        <div id="target-profit">--</div>
+                      </div>
+                      <div>
+                        <div class="text-muted" style="font-size:var(--text-caption);">Account %</div>
+                        <div id="account-percent">--</div>
+                      </div>
+                    </div>
+                    <div id="futures-margin-info" class="hidden"><span id="futures-margin-detail"></span></div>
+                  </section>
+
+                  <section class="trade-actions-card trade-actions-card--instrument-settings">
+                    <div class="trade-actions-card-title">Instrument Settings</div>
+                    <div class="trade-actions-stack">
+                      <div id="futures-settings" class="hidden">
+                        <div class="sidebar-sub-title">Futures Contract</div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="futures-margin">Margin per Contract ($)</label>
+                          <input type="number" id="futures-margin" value="10000" step="100" class="input input-sm" onchange="saveSettings()">
+                        </div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="futures-point-value">Point Value ($)</label>
+                          <input type="number" id="futures-point-value" value="5000" step="100" class="input input-sm" onchange="saveSettings()">
+                          <div class="sidebar-field-hint">Silver=5000, Gold=100, ES=50, NQ=20</div>
+                        </div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="futures-tick-size">Tick Size</label>
+                          <input type="number" id="futures-tick-size" value="0.005" step="0.001" class="input input-sm" onchange="saveSettings()">
+                          <div class="sidebar-field-hint">Silver=0.005, Gold=0.10, ES=0.25</div>
+                        </div>
+                      </div>
+
+                      <div id="options-settings" class="hidden">
+                        <div class="sidebar-sub-title">Options Contract</div>
+                        <div class="sidebar-field-row">
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="option-strike">Strike ($)</label>
+                            <input type="number" id="option-strike" value="0" step="0.50" class="input input-sm" onchange="saveSettings()" placeholder="e.g. 2.50">
+                          </div>
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="option-expiry">Expiration</label>
+                            <input type="text" id="option-expiry" value="" class="input input-sm" onchange="saveSettings()" placeholder="e.g. 7/17">
+                          </div>
+                        </div>
+                        <div class="sidebar-field-row">
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="option-price">Entry Premium ($)</label>
+                            <input type="number" id="option-price" value="1.53" step="0.01" class="input input-sm" onchange="onOptionPremiumChange()" placeholder="Paid">
+                          </div>
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="option-current-premium">Current ($)</label>
+                            <input type="number" id="option-current-premium" value="" step="0.01" class="input input-sm" onchange="onOptionPremiumChange()" placeholder="Bid">
+                          </div>
+                        </div>
+                        <div class="sidebar-field-row">
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="option-type">Type</label>
+                            <select id="option-type" class="select select-sm" onchange="saveSettings()">
+                              <option value="call">Call</option>
+                              <option value="put">Put</option>
+                            </select>
+                          </div>
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="contract-multiplier">Multiplier</label>
+                            <input type="number" id="contract-multiplier" value="100" step="1" class="input input-sm" onchange="saveSettings()">
+                          </div>
+                        </div>
+                        <div id="options-pnl-summary" class="sidebar-pnl-summary hidden">
+                          <div class="sidebar-pnl-row"><span>Live P&amp;L:</span><span id="options-live-pnl-display">--</span></div>
+                          <div class="sidebar-pnl-row"><span>Max Loss:</span><span id="options-max-loss-display" class="pnl-negative">--</span></div>
+                          <div class="sidebar-pnl-row"><span>Breakeven:</span><span id="options-breakeven-display">--</span></div>
+                        </div>
+                      </div>
+
+                      <div id="forex-settings" class="hidden">
+                        <div class="sidebar-sub-title">Forex Pair</div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="lot-size">Lot Size</label>
+                          <select id="lot-size" class="select select-sm" onchange="saveSettings()">
+                            <option value="standard">Standard (100,000)</option>
+                            <option value="mini">Mini (10,000)</option>
+                            <option value="micro">Micro (1,000)</option>
+                          </select>
+                        </div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="pip-value">Pip Value ($)</label>
+                          <input type="number" id="pip-value" value="10" step="0.01" class="input input-sm" onchange="saveSettings()">
+                          <div class="sidebar-field-hint">EUR/USD standard = $10/pip</div>
+                        </div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="leverage">Leverage</label>
+                          <select id="leverage" class="select select-sm" onchange="saveSettings()">
+                            <option value="50">50:1</option>
+                            <option value="100">100:1</option>
+                            <option value="200">200:1</option>
+                            <option value="30">30:1 (US Regulated)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div id="crypto-settings" class="hidden">
+                        <div class="sidebar-sub-title">Crypto</div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="exchange-fee">Exchange Fee (%)</label>
+                          <input type="number" id="exchange-fee" value="0.1" step="0.01" min="0" max="5" class="input input-sm" onchange="saveSettings()">
+                          <div class="sidebar-field-hint">Coinbase=0.6%, Binance=0.1%</div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section id="ai-verdict" class="trade-actions-card trade-actions-card--ai hidden" style="display:flex;flex-direction:column;gap:var(--space-8);">
+                    <div class="trade-actions-card-title">AI Analysis</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-8);">
+                      <div id="verdict-title" style="font-size:var(--text-small);font-weight:700;">AI Analysis</div>
+                      <div id="verdict-badge"></div>
+                    </div>
+                    <p id="verdict-text" class="text-muted" style="margin:0;font-size:var(--text-small);"></p>
+                    <div id="verdict-layers"></div>
+                  </section>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" style="flex-shrink:0;">
+              <div class="panel-header" style="padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);">
+                <span style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Saved</span>
+              </div>
+              <div class="panel-body" style="padding:var(--space-12);">
+                <div id="candidates-list" class="saved-trades-list">
+                  Loading...
+                </div>
+              </div>
+            </div>
+
+            <!-- Hidden functional panels (keep for JS compatibility) -->
+            <div style="display:none;">
+              <!-- Trade Levels (hidden, used by JS) -->
+              <div id="trade-levels">
+                <span id="instrument-badge"></span>
+                <input type="number" id="entry-price-input" placeholder="--" step="0.01" />
+                <input type="number" id="stop-loss-price-input" placeholder="--" step="0.01" />
+                <input type="number" id="take-profit-price-input" placeholder="--" step="0.01" />
+                <div id="risk-reward">--</div>
+              </div>
+              <!-- Trading Desk Analysis -->
+              <div id="copilot-analysis">
+                <div id="copilot-verdict-header">
+                  <div id="copilot-verdict-symbol"></div>
+                  <div id="copilot-verdict-label"></div>
+                  <div id="copilot-verdict-subtitle"></div>
+                </div>
+                <div id="cp-price">--</div>
+                <div id="cp-retracement">--</div>
+                <div id="cp-nearest-fib">--</div>
+                <div id="cp-stop-dist">--</div>
+                <div id="cp-primary-trend">--</div>
+                <div id="cp-intermediate-trend">--</div>
+                <div id="cp-alignment">--</div>
+                <div id="cp-energy-state">--</div>
+                <div id="cp-energy-direction">--</div>
+                <div id="cp-velocity">--</div>
+                <div id="cp-acceleration">--</div>
+                <div id="cp-pressure-label">Pressure</div>
+                <div id="cp-pressure-value">--</div>
+                <div id="cp-pressure-trend">--</div>
+                <div id="cp-pressure-bars"></div>
+                <div id="cp-fib-table"></div>
+                <div id="cp-go-reasons"></div>
+                <div id="cp-nogo-reasons"></div>
+                <div id="cp-watch-section"><div id="cp-watch-items"></div></div>
+                <pre id="cp-commentary"></pre>
+              </div>
+            </div>
+
+          </div><!-- end center column -->
+        </div><!-- end grid -->
+      </div><!-- end content -->
+
+      <!-- Fib Level Editor Popup -->
+      <div id="fib-editor" style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50;display:none;align-items:center;justify-content:center;">
+        <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:var(--space-24);width:320px;border:1px solid var(--color-border);">
+          <h3 style="font-weight:700;font-size:var(--text-body);margin-bottom:var(--space-12);">Edit Fibonacci Levels</h3>
+          <div id="fib-levels-list" style="display:flex;flex-direction:column;gap:var(--space-8);margin-bottom:var(--space-16);max-height:240px;overflow-y:auto;">
+          </div>
+          <div style="display:flex;gap:var(--space-8);margin-bottom:var(--space-12);">
+            <input type="number" id="fib-new-level" step="0.001" placeholder="e.g. 0.618" class="input input-sm" style="flex:1;">
+            <button onclick="addFibLevel()" class="btn btn-primary btn-sm">Add</button>
+          </div>
+          <div style="display:flex;gap:var(--space-8);justify-content:flex-end;">
+            <button onclick="resetFibLevels()" class="btn btn-sm">Reset Defaults</button>
+            <button onclick="saveFibLevels()" class="btn btn-sm">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="risk-plan-modal" class="modal" onclick="closeRiskPlanModal(event)">
+        <div class="modal-content" style="max-width:760px;" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h3 class="modal-title">Trading Desk Risk Plan</h3>
+            <button onclick="closeRiskPlanModal()" class="modal-close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div id="risk-plan-summary" class="modal-summary">Load a symbol first, then define the initial stop-loss and take-profit here before handing the trade to Execution Desk.</div>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-12);">
+              <div class="modal-section">
+                <label class="modal-label" for="risk-plan-strategy">Strategy Template</label>
+                <select id="risk-plan-strategy" class="select" onchange="updateRiskPlanStrategySummary()"></select>
+              </div>
+              <div class="modal-section">
+                <label class="modal-label">Template Notes</label>
+                <div id="risk-plan-template-summary" class="text-muted" style="font-size:var(--text-small);line-height:1.6;border:1px solid var(--color-border);padding:var(--space-8);background:var(--color-void);min-height:72px;"></div>
+              </div>
+              <div class="modal-section">
+                <label class="modal-label" for="risk-plan-entry">Entry</label>
+                <input id="risk-plan-entry" type="number" min="0" step="0.00001" class="input">
+              </div>
+              <div class="modal-section">
+                <label class="modal-label" for="risk-plan-atr">ATR Reference</label>
+                <input id="risk-plan-atr" type="number" min="0" step="0.00001" class="input" readonly>
+              </div>
+              <div class="modal-section">
+                <label class="modal-label" for="risk-plan-stop">Stop Loss</label>
+                <input id="risk-plan-stop" type="number" min="0" step="0.00001" class="input">
+              </div>
+              <div class="modal-section">
+                <label class="modal-label" for="risk-plan-target">Take Profit</label>
+                <input id="risk-plan-target" type="number" min="0" step="0.00001" class="input">
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button onclick="closeRiskPlanModal()" class="btn btn-ghost">Cancel</button>
+              <button onclick="applyRiskPlanTemplate()" class="btn btn-ghost">Apply Template</button>
+              <button onclick="saveRiskPlanFromModal()" class="btn btn-primary">Apply To Desk</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end app-main -->
+  </div><!-- end app -->
+
+  <script src="app.js"></script>
+  <script src="drawing-tools.js"></script>
+  <script src="trade-plan-store.js"></script>
+  <script src="ai-handoffs.js"></script>
+  <script src="trade-intent.js"></script>
+  <script src="copilot-core.js"></script>
+  <script src="copilot-chart.js"></script>
+  <script src="copilot-trading.js"></script>
+  <script src="copilot-trade-plan-sync.js"></script>
+  <script src="copilot-risk-plan.js"></script>
+  <script src="copilot-chat.js"></script>
+  <script src="copilot-trade-actions.js"></script>
+  <script src="copilot-execution-route.js"></script>
+  <script src="copilot-analysis.js"></script>
+</body>
+</html>

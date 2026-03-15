@@ -1,0 +1,138 @@
+{
+  "sweep_id": "sweep_c89dad52-3",
+  "base_strategy_version_id": "pullback_uptrend_entry_composite_v1_sweep_winner_v1771733344106",
+  "sweep_params": [
+    {
+      "label": "Take Profit R",
+      "param_path": "risk_config.take_profit_R",
+      "values": [
+        1.5,
+        2,
+        2.5,
+        3,
+        4
+      ]
+    }
+  ],
+  "tier": "tier1",
+  "interval": "1d",
+  "status": "completed",
+  "variants": [
+    {
+      "variant_id": "sweep_c89dad52-3_1_5",
+      "strategy_version_id": "sweep_c89dad52-3_1_5",
+      "param_label": "Take Profit R",
+      "param_path": "risk_config.take_profit_R",
+      "param_value": 1.5,
+      "job_id": "job_3aa56ce7-4",
+      "status": "completed",
+      "report_id": "rpt_adce0ea5",
+      "metrics": {
+        "total_trades": 324,
+        "expectancy_R": 0.08654410097743807,
+        "win_rate": 0.4567901234567901,
+        "profit_factor": 1.171307423816965,
+        "max_drawdown_pct": 37.1063058696789,
+        "sharpe_ratio": 1.3446101235034689,
+        "fitness_score": 0.416
+      }
+    },
+    {
+      "variant_id": "sweep_c89dad52-3_2",
+      "strategy_version_id": "sweep_c89dad52-3_2",
+      "param_label": "Take Profit R",
+      "param_path": "risk_config.take_profit_R",
+      "param_value": 2,
+      "job_id": "job_e459611d-9",
+      "status": "completed",
+      "report_id": "rpt_35f4a432",
+      "metrics": {
+        "total_trades": 306,
+        "expectancy_R": 0.10535147943124526,
+        "win_rate": 0.4215686274509804,
+        "profit_factor": 1.2000997085486689,
+        "max_drawdown_pct": 32.33149352321763,
+        "sharpe_ratio": 1.4301138326942515,
+        "fitness_score": 0.422
+      }
+    },
+    {
+      "variant_id": "sweep_c89dad52-3_2_5",
+      "strategy_version_id": "sweep_c89dad52-3_2_5",
+      "param_label": "Take Profit R",
+      "param_path": "risk_config.take_profit_R",
+      "param_value": 2.5,
+      "job_id": "job_60b70adf-8",
+      "status": "completed",
+      "report_id": "rpt_3d482e7b",
+      "metrics": {
+        "total_trades": 332,
+        "expectancy_R": 0.1978508735861197,
+        "win_rate": 0.4186746987951807,
+        "profit_factor": 1.3770771565428561,
+        "max_drawdown_pct": 28.32246513784778,
+        "sharpe_ratio": 2.505405006592083,
+        "fitness_score": 0.53
+      }
+    },
+    {
+      "variant_id": "sweep_c89dad52-3_3",
+      "strategy_version_id": "sweep_c89dad52-3_3",
+      "param_label": "Take Profit R",
+      "param_path": "risk_config.take_profit_R",
+      "param_value": 3,
+      "job_id": "job_aed46bb2-b",
+      "status": "completed",
+      "report_id": "rpt_c315b4ce",
+      "metrics": {
+        "total_trades": 307,
+        "expectancy_R": 0.18578376690889462,
+        "win_rate": 0.4201954397394137,
+        "profit_factor": 1.349739293626503,
+        "max_drawdown_pct": 26.395160314090973,
+        "sharpe_ratio": 2.1825385536576407,
+        "fitness_score": 0.504
+      }
+    },
+    {
+      "variant_id": "sweep_c89dad52-3_4",
+      "strategy_version_id": "sweep_c89dad52-3_4",
+      "param_label": "Take Profit R",
+      "param_path": "risk_config.take_profit_R",
+      "param_value": 4,
+      "job_id": "job_6c484977-8",
+      "status": "completed",
+      "report_id": "rpt_add87b05",
+      "metrics": {
+        "total_trades": 306,
+        "expectancy_R": 0.22277619753951675,
+        "win_rate": 0.41830065359477125,
+        "profit_factor": 1.415860769804384,
+        "max_drawdown_pct": 19.910394305154917,
+        "sharpe_ratio": 2.4227132451547875,
+        "fitness_score": 0.534
+      }
+    }
+  ],
+  "winner": {
+    "variant_id": "sweep_c89dad52-3_4",
+    "strategy_version_id": "sweep_c89dad52-3_4",
+    "param_label": "Take Profit R",
+    "param_path": "risk_config.take_profit_R",
+    "param_value": 4,
+    "job_id": "job_6c484977-8",
+    "status": "completed",
+    "report_id": "rpt_add87b05",
+    "metrics": {
+      "total_trades": 306,
+      "expectancy_R": 0.22277619753951675,
+      "win_rate": 0.41830065359477125,
+      "profit_factor": 1.415860769804384,
+      "max_drawdown_pct": 19.910394305154917,
+      "sharpe_ratio": 2.4227132451547875,
+      "fitness_score": 0.534
+    }
+  },
+  "created_at": "2026-02-22T04:10:43.865Z",
+  "completed_at": "2026-02-22T04:19:18.853Z"
+}

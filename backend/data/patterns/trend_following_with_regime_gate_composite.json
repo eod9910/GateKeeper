@@ -1,0 +1,62 @@
+{
+  "pattern_id": "trend_following_with_regime_gate_composite",
+  "name": "Trend Following with Regime Gate Composite",
+  "category": "indicator_signals",
+  "description": "Composite entry indicator combining a moving average crossover with a regime filter to ensure trading with the trend.",
+  "author": "user",
+  "version": "1.0.0",
+  "plugin_file": "plugins/composite_runner.py",
+  "plugin_function": "run_composite_plugin",
+  "pattern_type": "trend_following_with_regime_gate_composite",
+  "chart_indicator": true,
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "trend_following_with_regime_gate_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "timing",
+          "pattern_id": "ma_crossover",
+          "params": {
+            "fast_period": 50,
+            "slow_period": 200,
+            "ma_type": "sma",
+            "cross_direction": "bullish",
+            "lookback_bars": 500
+          }
+        },
+        {
+          "id": "regime",
+          "pattern_id": "regime_filter",
+          "params": {
+            "reference_symbol": "SPY",
+            "required_regime": "expansion"
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "timing",
+          "regime"
+        ]
+      }
+    }
+  },
+  "default_entry": {
+    "entry_type": "market_on_close"
+  },
+  "tunable_params": [],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 250,
+  "artifact_type": "indicator",
+  "composition": "composite",
+  "indicator_role": "entry_composite"
+}

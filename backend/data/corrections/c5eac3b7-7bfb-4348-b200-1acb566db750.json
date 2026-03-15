@@ -1,0 +1,19 @@
+{
+    "candidateId":  "GENI_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_280",
+    "userId":  "default",
+    "symbol":  "GENI",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  24.65999984741211,
+                     "detectedBaseBottom":  13.772500038146973
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  21.75,
+                      "baseBottomPrice":  13.77,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "c5eac3b7-7bfb-4348-b200-1acb566db750",
+    "timestamp":  "2026-02-23T07:32:16.547Z"
+}

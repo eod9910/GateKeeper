@@ -1,0 +1,19 @@
+{
+    "candidateId":  "MP_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_295",
+    "userId":  "default",
+    "symbol":  "MP",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  55.97999954223633,
+                     "detectedBaseBottom":  23.258750438690186
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  22.41,
+                      "baseBottomPrice":  13.39,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "4befa0e9-2d6c-4ffd-adca-aee4877615b1",
+    "timestamp":  "2026-02-23T07:43:11.842Z"
+}

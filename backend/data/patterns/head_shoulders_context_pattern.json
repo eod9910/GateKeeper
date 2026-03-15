@@ -1,0 +1,143 @@
+{
+  "pattern_id": "head_shoulders_context_pattern",
+  "name": "Head and Shoulders (Pattern)",
+  "category": "chart_patterns",
+  "description": "Experimental bearish head-and-shoulders retrace detector. Uses RDP-confirmed swing structure to find a H-L-H-L-H top, requires a break below protected structure, then anchors Fibonacci from the right shoulder to the post-break low and only surfaces the setup when price is retracing into the configured OTE zone.",
+  "author": "system",
+  "version": "2.0.0",
+  "plugin_file": "plugins/head_shoulders_context_pattern.py",
+  "plugin_function": "run_head_shoulders_context_pattern_plugin",
+  "pattern_type": "head_shoulders_context_pattern",
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "distribution_retrace_pattern",
+  "indicator_role": "anchor_structure",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true
+  },
+  "default_setup_params": {
+    "pattern_type": "head_shoulders_context_pattern",
+    "lookback_bars": 220,
+    "pivot_source": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true,
+    "shoulder_tolerance_pct": 0.08,
+    "head_dominance_pct": 0.015,
+    "neckline_tolerance_pct": 0.08,
+    "break_min_pct": 0.01,
+    "entry_zone_min_level": 0.618,
+    "entry_zone_max_level": 0.786,
+    "min_score": 0.6,
+    "max_candidates": 2
+  },
+  "default_entry": {
+    "entry_type": "ote_retrace"
+  },
+  "tunable_params": [
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.005,
+      "default": 0.08
+    },
+    {
+      "key": "use_exact_epsilon",
+      "label": "Exact Epsilon",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Bars",
+      "type": "int",
+      "min": 80,
+      "max": 500,
+      "default": 220
+    },
+    {
+      "key": "pivot_source",
+      "label": "Pivot Source",
+      "type": "select",
+      "options": [
+        "rdp",
+        "structure",
+        "auto"
+      ],
+      "default": "rdp"
+    },
+    {
+      "key": "shoulder_tolerance_pct",
+      "label": "Shoulder Tolerance",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.01,
+      "default": 0.08
+    },
+    {
+      "key": "head_dominance_pct",
+      "label": "Head Dominance",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.1,
+      "step": 0.005,
+      "default": 0.015
+    },
+    {
+      "key": "neckline_tolerance_pct",
+      "label": "Neckline Tolerance",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.01,
+      "default": 0.08
+    },
+    {
+      "key": "break_min_pct",
+      "label": "Break Min",
+      "type": "float",
+      "min": 0,
+      "max": 0.1,
+      "step": 0.005,
+      "default": 0.01
+    },
+    {
+      "key": "entry_zone_min_level",
+      "label": "OTE Min",
+      "type": "float",
+      "min": 0.382,
+      "max": 0.786,
+      "step": 0.01,
+      "default": 0.618
+    },
+    {
+      "key": "entry_zone_max_level",
+      "label": "OTE Max",
+      "type": "float",
+      "min": 0.5,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.786
+    },
+    {
+      "key": "min_score",
+      "label": "Min Score",
+      "type": "float",
+      "min": 0.25,
+      "max": 0.95,
+      "step": 0.05,
+      "default": 0.55
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 40,
+  "status": "experimental"
+}

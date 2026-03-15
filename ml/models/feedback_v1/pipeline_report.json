@@ -1,0 +1,135 @@
+{
+  "dataset_build": {
+    "labels_total": 311,
+    "labels_used": 166,
+    "labels_skipped": 145,
+    "corrections_total": 211,
+    "corrections_used": 122,
+    "corrections_skipped": 89,
+    "candidate_resolution_methods": {
+      "direct_file": 281,
+      "fallback_symbol_timeframe": 11,
+      "cache_by_id": 83,
+      "unresolved": 5
+    },
+    "skip_reasons": {
+      "label_not_used": 142,
+      "no_candidate_files_for_symbol_timeframe": 5,
+      "missing_base_levels_for_regression": 87
+    },
+    "classifier_rows": 166,
+    "regressor_rows": 122
+  },
+  "training": {
+    "classifier": {
+      "trained": true,
+      "rows": 166,
+      "class_counts": {
+        "0": 105,
+        "1": 61
+      },
+      "mode": "train_test_split",
+      "feature_columns": [
+        "score",
+        "entry_ready",
+        "rule_pass_ratio",
+        "rule_count",
+        "window_len",
+        "chart_len",
+        "base_high",
+        "base_low",
+        "base_range_pct",
+        "base_duration",
+        "current_close",
+        "current_pos_in_base",
+        "touches_top",
+        "touches_bottom",
+        "pivot_switches",
+        "window_pivots",
+        "trendiness",
+        "slope_pct_per_bar",
+        "rdp_swing_count_total",
+        "rdp_swing_count_highs",
+        "rdp_swing_count_lows",
+        "node_score"
+      ],
+      "test_accuracy": 0.7352941176470589,
+      "confusion_matrix": [
+        [
+          18,
+          4
+        ],
+        [
+          5,
+          7
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.782608695652174,
+          "recall": 0.8181818181818182,
+          "f1-score": 0.8,
+          "support": 22.0
+        },
+        "1": {
+          "precision": 0.6363636363636364,
+          "recall": 0.5833333333333334,
+          "f1-score": 0.6086956521739131,
+          "support": 12.0
+        },
+        "accuracy": 0.7352941176470589,
+        "macro avg": {
+          "precision": 0.7094861660079052,
+          "recall": 0.7007575757575758,
+          "f1-score": 0.7043478260869566,
+          "support": 34.0
+        },
+        "weighted avg": {
+          "precision": 0.7309927923738666,
+          "recall": 0.7352941176470589,
+          "f1-score": 0.7324808184143223,
+          "support": 34.0
+        }
+      },
+      "cv_mean": 0.8321937321937322,
+      "cv_std": 0.09711464676576752
+    },
+    "regressor": {
+      "trained": true,
+      "rows": 122,
+      "mode": "train_test_split",
+      "feature_columns": [
+        "score",
+        "entry_ready",
+        "rule_pass_ratio",
+        "rule_count",
+        "window_len",
+        "chart_len",
+        "base_high",
+        "base_low",
+        "base_range_pct",
+        "base_duration",
+        "current_close",
+        "current_pos_in_base",
+        "touches_top",
+        "touches_bottom",
+        "pivot_switches",
+        "window_pivots",
+        "trendiness",
+        "slope_pct_per_bar",
+        "rdp_swing_count_total",
+        "rdp_swing_count_highs",
+        "rdp_swing_count_lows",
+        "node_score"
+      ],
+      "mae_top_delta": 50.77142278228407,
+      "mae_bottom_delta": 38.589226945672834,
+      "r2_top_delta": 0.8630466570700213,
+      "r2_bottom_delta": 0.8016959889526534
+    }
+  },
+  "paths": {
+    "dataset_dir": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\ml\\artifacts\\feedback_dataset",
+    "models_dir": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\ml\\models\\feedback_v1"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "sweep_id": "sweep_6ad8f04e-7",
+  "base_strategy_version_id": "pullback_uptrend_entry_composite_v1_sweep_winner_v1771733344106_sweep_winner_v1771734925018",
+  "sweep_params": [
+    {
+      "label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "values": [
+        3,
+        5,
+        8,
+        10,
+        15,
+        20
+      ]
+    }
+  ],
+  "tier": "tier1",
+  "interval": "1d",
+  "status": "cancelled",
+  "variants": [
+    {
+      "variant_id": "sweep_6ad8f04e-7_3",
+      "strategy_version_id": "sweep_6ad8f04e-7_3",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 3,
+      "job_id": "job_a0de5221-4",
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Validation cancelled by user"
+    },
+    {
+      "variant_id": "sweep_6ad8f04e-7_5",
+      "strategy_version_id": "sweep_6ad8f04e-7_5",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 5,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_6ad8f04e-7_8",
+      "strategy_version_id": "sweep_6ad8f04e-7_8",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 8,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_6ad8f04e-7_10",
+      "strategy_version_id": "sweep_6ad8f04e-7_10",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 10,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_6ad8f04e-7_15",
+      "strategy_version_id": "sweep_6ad8f04e-7_15",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 15,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_6ad8f04e-7_20",
+      "strategy_version_id": "sweep_6ad8f04e-7_20",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 20,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    }
+  ],
+  "winner": null,
+  "created_at": "2026-02-22T05:19:50.976Z",
+  "completed_at": "2026-02-22T05:21:21.249Z"
+}

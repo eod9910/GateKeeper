@@ -1,0 +1,21 @@
+{
+  "candidateId": "ADMA_W_scan_rdp_wiggle_base_v1_22bed501_0_645",
+  "userId": "default",
+  "symbol": "ADMA",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 4.49,
+    "baseBottomPrice": 1.9,
+    "baseStartTime": "2017-10-02",
+    "baseEndTime": "2023-11-20",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "76bbb9c2-80e5-453d-9553-b6955cfd527b",
+  "timestamp": "2026-02-26T03:42:49.360Z"
+}

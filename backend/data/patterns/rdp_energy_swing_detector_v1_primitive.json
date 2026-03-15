@@ -1,0 +1,86 @@
+{
+  "pattern_id": "rdp_energy_swing_detector_v1_primitive",
+  "name": "RDP Energy Swing Detector V1 (Primitive)",
+  "category": "indicator_signals",
+  "description": "Detects swing highs and lows using RDP and confirms them with energy states.",
+  "author": "ai_generated",
+  "version": "1.0.0",
+  "plugin_file": "plugins/rdp_energy_swing_detector_v1_primitive.py",
+  "plugin_function": "run_rdp_energy_swing_detector_v1_primitive_plugin",
+  "pattern_type": "rdp_energy_swing_detector_v1_primitive",
+  "chart_indicator": false,
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "rdp_energy_swing_detector_v1_primitive",
+    "epsilon_pct": 0.05,
+    "energy_window": 2,
+    "require_energy": false
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Sensitivity",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "default": 0.05,
+      "description": "RDP sensitivity, lower = more swings"
+    },
+    {
+      "key": "energy_window",
+      "label": "Energy Window",
+      "type": "int",
+      "min": 1,
+      "max": 5,
+      "default": 2,
+      "description": "Bars around swing to check energy"
+    },
+    {
+      "key": "require_energy",
+      "label": "Require Energy Confirmation",
+      "type": "bool",
+      "default": true,
+      "description": "If false, fall back to pure RDP"
+    }
+  ],
+  "examples": [
+    {
+      "name": "Default",
+      "setup_config": {
+        "epsilon_pct": 0.05,
+        "energy_window": 2,
+        "require_energy": true
+      }
+    },
+    {
+      "name": "More Sensitive",
+      "setup_config": {
+        "epsilon_pct": 0.03,
+        "energy_window": 3,
+        "require_energy": true
+      }
+    },
+    {
+      "name": "Less Sensitive",
+      "setup_config": {
+        "epsilon_pct": 0.1,
+        "energy_window": 1,
+        "require_energy": false
+      }
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 200,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "anchor_structure"
+}

@@ -1,0 +1,41 @@
+{
+  "pattern_id": "fvg",
+  "name": "Fair Value Gaps (Primitive)",
+  "category": "price_action",
+  "description": "Identifies Fair Value Gaps (FVGs) in price data. An FVG occurs when there is a gap between the high of bar[i-2] and the low of bar[i], indicating an imbalance. Bullish FVGs are gap-ups, bearish FVGs are gap-downs.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/fvg_primitive.py",
+  "plugin_function": "run_fvg_primitive_plugin",
+  "pattern_type": "fvg",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "fvg",
+    "min_gap_pct": 0.0
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "min_gap_pct",
+      "label": "Minimum Gap Size (%)",
+      "type": "float",
+      "min": 0.0,
+      "max": 5.0,
+      "step": 0.1,
+      "default": 0.0
+    }
+  ],
+  "suggested_timeframes": [
+    "1h",
+    "4h",
+    "D",
+    "W"
+  ],
+  "min_data_bars": 10,
+  "status": "experimental",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context"
+}

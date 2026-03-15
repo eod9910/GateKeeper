@@ -1,0 +1,14 @@
+{
+  "type": "attempt_resolved",
+  "sessionId": "6488009d-3b06-49f4-ac44-a648ebec2e17",
+  "attemptId": "d48169b9-29eb-48a9-b8c9-e3421aa6883c",
+  "contractId": "pullback_v1",
+  "payload": {
+    "status": "resolved",
+    "symbol": "SNDX",
+    "timeframe": "1d",
+    "rMultiple": 0.9363057227651024
+  },
+  "id": "bd4e8327-154b-42e9-b3fc-82b537be2af5",
+  "timestamp": "2026-03-06T01:39:57.583Z"
+}

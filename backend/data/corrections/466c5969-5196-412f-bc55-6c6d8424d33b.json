@@ -1,0 +1,19 @@
+{
+  "candidateId": "BAND_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_433",
+  "userId": "default",
+  "symbol": "BAND",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 197.1762466430664,
+    "detectedBaseBottom": 109.0250015258789
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 27.03,
+    "baseBottomPrice": 9.14,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "466c5969-5196-412f-bc55-6c6d8424d33b",
+  "timestamp": "2026-02-24T20:30:03.385Z"
+}

@@ -1,0 +1,13 @@
+{
+  "type": "attempt_validated",
+  "sessionId": "2882a17e-f289-4c88-a47e-a7f97ad01e27",
+  "contractId": "pullback_v1",
+  "payload": {
+    "symbol": "DMAC",
+    "timeframe": "1d",
+    "ready": true,
+    "state": "ENTRY_READY"
+  },
+  "id": "99f3f27a-99d9-4422-8a74-ebb4bee6f49d",
+  "timestamp": "2026-03-06T01:42:47.314Z"
+}

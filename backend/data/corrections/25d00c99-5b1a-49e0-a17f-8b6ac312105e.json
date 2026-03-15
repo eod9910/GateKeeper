@@ -1,0 +1,21 @@
+{
+  "candidateId": "APLD_W_scan_rdp_wiggle_base_v1_9797e66f_0_202",
+  "userId": "default",
+  "symbol": "APLD",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 11.21,
+    "baseBottomPrice": 2.44,
+    "baseStartTime": "2023-06-26",
+    "baseEndTime": "2025-05-12",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "25d00c99-5b1a-49e0-a17f-8b6ac312105e",
+  "timestamp": "2026-02-26T22:18:49.771Z"
+}

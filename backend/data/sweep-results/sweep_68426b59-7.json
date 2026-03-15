@@ -1,0 +1,204 @@
+{
+  "sweep_id": "sweep_68426b59-7",
+  "base_strategy_version_id": "pullback_uptrend_entry_composite_v1",
+  "sweep_params": [
+    {
+      "label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "values": [
+        0.01,
+        0.02,
+        0.03,
+        0.05,
+        0.07,
+        0.1,
+        0.15
+      ]
+    },
+    {
+      "label": "RDP Epsilon % (primitive)",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "values": [
+        0.01,
+        0.02,
+        0.03,
+        0.05,
+        0.07,
+        0.1,
+        0.15
+      ]
+    },
+    {
+      "label": "Use Exact Epsilon",
+      "param_path": "structure_config.use_exact_epsilon",
+      "values": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  ],
+  "tier": "tier1",
+  "interval": "1d",
+  "status": "completed",
+  "variants": [
+    {
+      "variant_id": "sweep_68426b59-7_0_01",
+      "strategy_version_id": "sweep_68426b59-7_0_01",
+      "param_label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "param_value": 0.01,
+      "job_id": "job_225ad011-c",
+      "status": "completed",
+      "report_id": "rpt_e216c340",
+      "metrics": {
+        "total_trades": 184,
+        "expectancy_R": 0.216950255785837,
+        "win_rate": 0.42391304347826086,
+        "profit_factor": 1.4061517452429495,
+        "max_drawdown_pct": 29.754845519139558,
+        "sharpe_ratio": 1.6875245012979696,
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_68426b59-7_0_02",
+      "strategy_version_id": "sweep_68426b59-7_0_02",
+      "param_label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "param_value": 0.02,
+      "job_id": "job_15844426-9",
+      "status": "completed",
+      "report_id": "rpt_02d3841c",
+      "metrics": {
+        "total_trades": 182,
+        "expectancy_R": 0.2784447071141559,
+        "win_rate": 0.43956043956043955,
+        "profit_factor": 1.5372582710370444,
+        "max_drawdown_pct": 25.366881244522403,
+        "sharpe_ratio": 2.26234072355633,
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_68426b59-7_0_03",
+      "strategy_version_id": "sweep_68426b59-7_0_03",
+      "param_label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "param_value": 0.03,
+      "job_id": "job_984a07b9-6",
+      "status": "completed",
+      "report_id": "rpt_0d1b908d",
+      "metrics": {
+        "total_trades": 182,
+        "expectancy_R": 0.22751793612714716,
+        "win_rate": 0.42857142857142855,
+        "profit_factor": 1.4384298695806552,
+        "max_drawdown_pct": 27.434982381375136,
+        "sharpe_ratio": 1.8834840041618608,
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_68426b59-7_0_05",
+      "strategy_version_id": "sweep_68426b59-7_0_05",
+      "param_label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "param_value": 0.05,
+      "job_id": "job_0f9f68d0-3",
+      "status": "completed",
+      "report_id": "rpt_fed4180b",
+      "metrics": {
+        "total_trades": 165,
+        "expectancy_R": 0.3658054284204678,
+        "win_rate": 0.44242424242424244,
+        "profit_factor": 1.7475995674388556,
+        "max_drawdown_pct": 24.030172440899435,
+        "sharpe_ratio": 2.5915542939952516,
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_68426b59-7_0_07",
+      "strategy_version_id": "sweep_68426b59-7_0_07",
+      "param_label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "param_value": 0.07,
+      "job_id": "job_eed6b6e3-f",
+      "status": "completed",
+      "report_id": "rpt_9f595836",
+      "metrics": {
+        "total_trades": 169,
+        "expectancy_R": 0.24207229329100854,
+        "win_rate": 0.42011834319526625,
+        "profit_factor": 1.4765292734347062,
+        "max_drawdown_pct": 25.109311167712697,
+        "sharpe_ratio": 1.9184410670184249,
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_68426b59-7_0_1",
+      "strategy_version_id": "sweep_68426b59-7_0_1",
+      "param_label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "param_value": 0.1,
+      "job_id": "job_74c06f4a-d",
+      "status": "completed",
+      "report_id": "rpt_52893e31",
+      "metrics": {
+        "total_trades": 170,
+        "expectancy_R": 0.1506977572782124,
+        "win_rate": 0.4117647058823529,
+        "profit_factor": 1.281666669456822,
+        "max_drawdown_pct": 42.031187675866434,
+        "sharpe_ratio": 1.2717578107383445,
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_68426b59-7_0_15",
+      "strategy_version_id": "sweep_68426b59-7_0_15",
+      "param_label": "RDP Epsilon %",
+      "param_path": "structure_config.swing_epsilon_pct",
+      "param_value": 0.15,
+      "job_id": "job_50f7cd34-9",
+      "status": "completed",
+      "report_id": "rpt_bd341b9b",
+      "metrics": {
+        "total_trades": 168,
+        "expectancy_R": 0.17022633145657298,
+        "win_rate": 0.3869047619047619,
+        "profit_factor": 1.3085594298317982,
+        "max_drawdown_pct": 35.52194919781423,
+        "sharpe_ratio": 1.3584492466876175,
+        "fitness_score": 0
+      }
+    }
+  ],
+  "winner": {
+    "variant_id": "sweep_68426b59-7_0_01",
+    "strategy_version_id": "sweep_68426b59-7_0_01",
+    "param_label": "RDP Epsilon %",
+    "param_path": "structure_config.swing_epsilon_pct",
+    "param_value": 0.01,
+    "job_id": "job_225ad011-c",
+    "status": "completed",
+    "report_id": "rpt_e216c340",
+    "metrics": {
+      "total_trades": 184,
+      "expectancy_R": 0.216950255785837,
+      "win_rate": 0.42391304347826086,
+      "profit_factor": 1.4061517452429495,
+      "max_drawdown_pct": 29.754845519139558,
+      "sharpe_ratio": 1.6875245012979696,
+      "fitness_score": 0
+    }
+  },
+  "created_at": "2026-02-22T12:42:41.112Z",
+  "completed_at": "2026-02-22T12:54:08.434Z"
+}

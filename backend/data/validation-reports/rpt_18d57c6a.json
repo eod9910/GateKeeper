@@ -1,0 +1,306 @@
+{
+  "report_id": "rpt_18d57c6a",
+  "strategy_version_id": "sweep_823392d0-0_0_02",
+  "config": {
+    "date_start": "2020-01-01",
+    "date_end": "2026-02-22",
+    "universe": [
+      "APLS",
+      "ARWR",
+      "BEAM",
+      "HALO",
+      "INSM",
+      "KRTX",
+      "PRCT",
+      "RVMD",
+      "IOVA",
+      "ANET",
+      "ALRM",
+      "BRZE",
+      "CALX",
+      "CRDO",
+      "DDOG",
+      "ESTC",
+      "JAMF",
+      "NTNX",
+      "SMCI",
+      "BROS",
+      "CAVA",
+      "CROX",
+      "DNUT",
+      "FIGS",
+      "SHAK",
+      "WRBY",
+      "AFRM",
+      "BILL",
+      "HOOD",
+      "SOFI",
+      "TOST",
+      "UPST",
+      "ARRY",
+      "ENPH",
+      "RUN",
+      "SEDG",
+      "SHLS",
+      "ASTS",
+      "IONQ",
+      "JOBY",
+      "LUNR",
+      "RKLB",
+      "AG",
+      "CCJ",
+      "MP",
+      "PAAS",
+      "BWXT",
+      "POWL",
+      "MARA",
+      "RIOT",
+      "CRNX",
+      "DVAX",
+      "FATE",
+      "IMVT",
+      "MNKD",
+      "NARI",
+      "PCVX",
+      "SDGR",
+      "TGTX",
+      "TMDX",
+      "VRNA",
+      "CWAN",
+      "DCBO",
+      "EVCM",
+      "FLYW",
+      "GENI",
+      "PAYO",
+      "TBLA",
+      "AEO",
+      "ARKO",
+      "JACK",
+      "LOCO",
+      "PRPL",
+      "COIN",
+      "LPRO",
+      "OPEN",
+      "PSFE",
+      "RELY",
+      "FLNC",
+      "MAXN",
+      "NOVA",
+      "SPWR",
+      "ACHR",
+      "AEHR",
+      "BKSY",
+      "RGTI",
+      "AMR",
+      "HCC",
+      "IAUX",
+      "LAC",
+      "NXE",
+      "UUUU",
+      "ARIS",
+      "CSWI",
+      "ROAD",
+      "BTBT",
+      "CIFR",
+      "CLSK",
+      "IREN",
+      "WULF"
+    ],
+    "timeframes": [
+      "1d"
+    ],
+    "data_snapshot": {
+      "path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\validator-snapshots\\snapshot_8298efa3dd234270.json",
+      "loaded_from_cache": true
+    },
+    "costs": {
+      "commission_per_trade": 0,
+      "slippage_pct": 0.001
+    },
+    "max_concurrent_positions": 3,
+    "validation_thresholds": {
+      "min_trades_pass": 500,
+      "min_trades_fail": 300,
+      "max_oos_degradation_pct": 50,
+      "min_wf_profitable_windows": 0.6,
+      "max_mc_p95_dd_pct": 30,
+      "max_mc_p99_dd_pct": 50,
+      "max_sensitivity_score": 40,
+      "r_to_pct": 2
+    },
+    "tier_runtime_profile": "full_robustness",
+    "tier1_early_stop_reason": null,
+    "tier1_symbols_processed": 100,
+    "validation_tier": "tier2",
+    "asset_class": "stocks"
+  },
+  "trades_summary": {
+    "total_trades": 276,
+    "winners": 98,
+    "losers": 178,
+    "win_rate": 0.35507246376811596,
+    "avg_win_R": 2.191023879900623,
+    "avg_loss_R": -0.9195505439607543,
+    "expectancy_R": 0.18492878045379268,
+    "profit_factor": 1.3118300610661218,
+    "largest_win_R": 6.999847291448253,
+    "largest_loss_R": -1.0005413277639237
+  },
+  "risk_summary": {
+    "max_drawdown_pct": 38.10358439121849,
+    "max_drawdown_R": 19.051792195609245,
+    "time_under_water_bars": 78,
+    "expected_recovery_time_bars": 78,
+    "sharpe_ratio": 1.7047160744336294,
+    "calmar_ratio": 0.009706634344689746,
+    "longest_losing_streak": 14,
+    "avg_losing_streak": 3.4901960784313726,
+    "longest_winning_streak": 5
+  },
+  "robustness": {
+    "out_of_sample": {
+      "is_expectancy": 0.1963,
+      "is_n": 193,
+      "oos_expectancy": 0.1585,
+      "oos_n": 83,
+      "split_date": "2024-01-11",
+      "oos_degradation_pct": 19.2
+    },
+    "walk_forward": {
+      "windows": [
+        {
+          "train_start": "2019-01-07",
+          "train_end": "2022-04-25",
+          "test_start": "2022-04-26",
+          "test_end": "2023-09-08",
+          "train_expectancy": 0.2687,
+          "test_expectancy": 0.1212,
+          "test_n": 55
+        },
+        {
+          "train_start": "2020-03-20",
+          "train_end": "2023-09-08",
+          "test_start": "2023-09-19",
+          "test_end": "2025-01-30",
+          "train_expectancy": 0.2446,
+          "test_expectancy": -0.0575,
+          "test_n": 55
+        },
+        {
+          "train_start": "2021-12-02",
+          "train_end": "2025-01-30",
+          "test_start": "2025-02-10",
+          "test_end": "2026-02-13",
+          "train_expectancy": -0.0066,
+          "test_expectancy": 0.3385,
+          "test_n": 42
+        },
+        {
+          "train_start": "2023-05-02",
+          "train_end": "2026-01-06",
+          "test_start": "2026-01-12",
+          "test_end": "2026-02-13",
+          "train_expectancy": 0.1273,
+          "test_expectancy": -0.1759,
+          "test_n": 3
+        },
+        {
+          "train_start": "2024-09-09",
+          "train_end": "2026-01-06",
+          "test_start": "2026-01-12",
+          "test_end": "2026-02-13",
+          "train_expectancy": 0.369,
+          "test_expectancy": -0.1759,
+          "test_n": 3
+        }
+      ],
+      "avg_test_expectancy": 0.0101,
+      "pct_profitable_windows": 0.4
+    },
+    "monte_carlo": {
+      "simulations": 1000,
+      "median_dd_pct": 34.7,
+      "p95_dd_pct": 55.4,
+      "p99_dd_pct": 71.3,
+      "median_final_R": 51.04,
+      "p5_final_R": 51.04
+    },
+    "parameter_sensitivity": {
+      "params_tested": [
+        "swing_epsilon",
+        "stop_value",
+        "take_profit_R"
+      ],
+      "base_expectancy": 0.1849,
+      "nudged_results": [
+        {
+          "param": "swing_epsilon",
+          "direction": "+10%",
+          "expectancy": 0.2244,
+          "change_pct": 21.3
+        },
+        {
+          "param": "swing_epsilon",
+          "direction": "-10%",
+          "expectancy": 0.2244,
+          "change_pct": 21.3
+        },
+        {
+          "param": "stop_value",
+          "direction": "+10%",
+          "expectancy": 0.2244,
+          "change_pct": 21.3
+        },
+        {
+          "param": "stop_value",
+          "direction": "-10%",
+          "expectancy": 0.2244,
+          "change_pct": 21.3
+        },
+        {
+          "param": "take_profit_R",
+          "direction": "+10%",
+          "expectancy": 0.2257,
+          "change_pct": 22
+        },
+        {
+          "param": "take_profit_R",
+          "direction": "-10%",
+          "expectancy": 0.229,
+          "change_pct": 23.8
+        }
+      ],
+      "sensitivity_score": 21.8
+    }
+  },
+  "execution_stats": {
+    "rules_active": false,
+    "breakeven_triggers": 0,
+    "ladder_lock_triggers": 0,
+    "green_to_red_exits": 0,
+    "scale_out_triggers": 0,
+    "time_stop_exits": 0,
+    "profit_retrace_exits": 0,
+    "daily_cap_triggers": 0,
+    "avg_giveback_from_peak_R": 1.0049642270154402,
+    "pct_trades_hitting_breakeven": 0,
+    "pct_trades_hitting_scale_out": 0,
+    "expectancy_without_rules_R": 0.18492878045379268,
+    "expectancy_with_rules_R": 0.18492878045379268
+  },
+  "pass_fail": "FAIL",
+  "pass_fail_reasons": [
+    "Expectancy > 0 after costs (0.18R)",
+    "OOS expectancy positive (0.16R)",
+    "Walk-forward profitable windows: 40.0% (threshold 60.0%)",
+    "Monte Carlo p95 DD: 55.4% (threshold < 30.0%)",
+    "Sensitivity score: 21.8/100 (threshold < 40.0)"
+  ],
+  "decision_log": {
+    "decision": "pending",
+    "decided_by": "",
+    "decided_at": null,
+    "notes": ""
+  },
+  "created_at": "2026-02-22T08:24:44.036969Z"
+}

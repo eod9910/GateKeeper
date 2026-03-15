@@ -1,0 +1,13 @@
+{
+  "type": "attempt_validated",
+  "sessionId": "f147252f-dbc7-4e9e-a677-64bf390ff60b",
+  "contractId": "pullback_v1",
+  "payload": {
+    "symbol": "DIA",
+    "timeframe": "1d",
+    "ready": true,
+    "state": "ENTRY_READY"
+  },
+  "id": "cc66a7a1-5dea-481b-8575-9e2ef33da4c2",
+  "timestamp": "2026-03-04T06:47:56.380Z"
+}

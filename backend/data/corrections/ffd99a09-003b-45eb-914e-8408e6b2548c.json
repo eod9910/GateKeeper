@@ -1,0 +1,19 @@
+{
+    "candidateId":  "LOVE_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_399",
+    "userId":  "default",
+    "symbol":  "LOVE",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  39.57000160217285,
+                     "detectedBaseBottom":  16.74500036239624
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  29.65,
+                      "baseBottomPrice":  16.75,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "ffd99a09-003b-45eb-914e-8408e6b2548c",
+    "timestamp":  "2026-02-23T07:37:57.413Z"
+}

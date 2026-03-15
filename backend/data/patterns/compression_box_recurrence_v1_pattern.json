@@ -1,0 +1,111 @@
+{
+  "pattern_id": "compression_box_recurrence_v1_pattern",
+  "name": "Compression Box Recurrence V1 (Pattern)",
+  "category": "price_action",
+  "description": "Detects volatility-compression bases using ATR-normalized box width, efficiency ratio, slope, and recurrence, then annotates base top/bottom for visual review.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/compression_box_recurrence_v1_pattern.py",
+  "plugin_function": "run_compression_box_recurrence_v1_pattern_plugin",
+  "pattern_type": "compression_box_recurrence_v1_pattern",
+  "artifact_type": "pattern",
+  "composition": "preset",
+  "pattern_role": "phase_structure_pattern",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "compression_box_recurrence_v1_pattern",
+    "epsilon_pct": 0.05,
+    "base_lookbacks": "40,60,90,120,180",
+    "max_scan_bars": 500,
+    "min_data_bars": 90,
+    "min_base_bars": 30,
+    "min_top_touches": 2,
+    "min_bottom_touches": 2,
+    "min_pivot_switches": 2,
+    "max_width_atr": 12.0,
+    "max_efficiency_ratio": 0.4,
+    "max_slope_atr_per_bar": 0.3,
+    "min_recurrence": 0.26,
+    "recurrence_eps_atr": 0.4,
+    "min_final_score": 0.58,
+    "top_quantile": 0.85,
+    "bottom_quantile": 0.15,
+    "top_tolerance_pct": 0.08,
+    "bottom_tolerance_pct": 0.08,
+    "max_markers": 40
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.02,
+      "max": 0.2,
+      "step": 0.005,
+      "default": 0.05
+    },
+    {
+      "key": "base_lookbacks",
+      "label": "Lookbacks (bars CSV)",
+      "type": "string",
+      "default": "40,60,90,120,180"
+    },
+    {
+      "key": "max_width_atr",
+      "label": "Max Box Width (ATR)",
+      "type": "float",
+      "min": 4.0,
+      "max": 30.0,
+      "step": 0.5,
+      "default": 12.0
+    },
+    {
+      "key": "max_efficiency_ratio",
+      "label": "Max Efficiency Ratio",
+      "type": "float",
+      "min": 0.1,
+      "max": 0.9,
+      "step": 0.01,
+      "default": 0.4
+    },
+    {
+      "key": "max_slope_atr_per_bar",
+      "label": "Max Slope/ATR Per Bar",
+      "type": "float",
+      "min": 0.05,
+      "max": 1.0,
+      "step": 0.01,
+      "default": 0.3
+    },
+    {
+      "key": "min_recurrence",
+      "label": "Min Recurrence",
+      "type": "float",
+      "min": 0.1,
+      "max": 0.9,
+      "step": 0.01,
+      "default": 0.26
+    },
+    {
+      "key": "min_final_score",
+      "label": "Min Final Score",
+      "type": "float",
+      "min": 0.2,
+      "max": 1.0,
+      "step": 0.01,
+      "default": 0.58
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 90,
+  "status": "experimental"
+}

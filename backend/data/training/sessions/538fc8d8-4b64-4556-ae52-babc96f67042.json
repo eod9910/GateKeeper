@@ -1,0 +1,22 @@
+{
+  "sessionId": "538fc8d8-4b64-4556-ae52-babc96f67042",
+  "userId": "local-user",
+  "startedAt": "2026-03-04T06:36:55.743Z",
+  "contractId": "pullback_v1",
+  "contractVersion": "1.0.0",
+  "attemptIds": [],
+  "stats": {
+    "attempts": 0,
+    "resolvedAttempts": 0,
+    "wins": 0,
+    "losses": 0,
+    "winRate": 0,
+    "avgR": 0,
+    "expectancy": 0,
+    "processAdherence": 0,
+    "disciplineTrend": 0,
+    "cooldownActive": false,
+    "cooldownUntil": null
+  },
+  "cooldownUntil": null
+}

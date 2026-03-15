@@ -1,0 +1,202 @@
+{
+  "pattern_id": "base_box_detector_rdp_v1_pattern",
+  "name": "Base Box Detector RDP V1 (Pattern)",
+  "category": "price_action",
+  "description": "RDP-anchored base box detector. Builds consolidation boxes from RDP swing highs/lows and scores tightness, touch quality, flatness, pivot alternation, duration, and recency.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/base_box_detector_rdp_v1_pattern.py",
+  "plugin_function": "run_base_box_detector_rdp_v1_pattern_plugin",
+  "pattern_type": "base_box_detector_rdp_v1_pattern",
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "phase_structure_pattern",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "base_box_detector_rdp_v1_pattern",
+    "epsilon_pct": 0.05,
+    "base_lookbacks": "30,45,60,90,120,180",
+    "min_base_bars": 25,
+    "max_base_range_pct": 0.22,
+    "top_tolerance_pct": 0.03,
+    "bottom_tolerance_pct": 0.03,
+    "min_top_touches": 2,
+    "min_bottom_touches": 2,
+    "min_total_pivots": 5,
+    "min_pivot_switches": 3,
+    "max_slope_pct_per_bar": 0.0035,
+    "max_scan_bars": 800,
+    "breakout_help_pct": 0.01,
+    "ceiling_escape_pct": 0.08,
+    "floor_escape_pct": 0.03,
+    "overlap_threshold": 0.70
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.20,
+      "step": 0.005,
+      "default": 0.05,
+      "description": "RDP sensitivity for swing extraction used to anchor the base box."
+    },
+    {
+      "key": "base_lookbacks",
+      "label": "Base Lookbacks CSV",
+      "type": "string",
+      "default": "30,45,60,90,120,180",
+      "description": "Comma-separated window sizes to test as candidate base durations."
+    },
+    {
+      "key": "min_base_bars",
+      "label": "Min Base Bars",
+      "type": "int",
+      "min": 10,
+      "max": 300,
+      "step": 1,
+      "default": 25,
+      "description": "Minimum bars for a base window."
+    },
+    {
+      "key": "max_base_range_pct",
+      "label": "Max Base Range (%)",
+      "type": "float",
+      "min": 0.05,
+      "max": 0.60,
+      "step": 0.01,
+      "default": 0.22,
+      "description": "Maximum allowed high-low box range as % of box ceiling."
+    },
+    {
+      "key": "top_tolerance_pct",
+      "label": "Top Touch Tolerance (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.03,
+      "description": "How close RDP highs must be to box ceiling to count as top touches."
+    },
+    {
+      "key": "bottom_tolerance_pct",
+      "label": "Bottom Touch Tolerance (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.03,
+      "description": "How close RDP lows must be to box floor to count as bottom touches."
+    },
+    {
+      "key": "min_top_touches",
+      "label": "Min Top Touches",
+      "type": "int",
+      "min": 1,
+      "max": 12,
+      "step": 1,
+      "default": 2,
+      "description": "Minimum RDP ceiling touches required."
+    },
+    {
+      "key": "min_bottom_touches",
+      "label": "Min Bottom Touches",
+      "type": "int",
+      "min": 1,
+      "max": 12,
+      "step": 1,
+      "default": 2,
+      "description": "Minimum RDP floor touches required."
+    },
+    {
+      "key": "min_total_pivots",
+      "label": "Min Total RDP Pivots",
+      "type": "int",
+      "min": 3,
+      "max": 40,
+      "step": 1,
+      "default": 5,
+      "description": "Minimum total RDP pivots required inside the base window."
+    },
+    {
+      "key": "min_pivot_switches",
+      "label": "Min Pivot Switches",
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "default": 3,
+      "description": "Minimum HIGH/LOW alternations within the candidate window."
+    },
+    {
+      "key": "max_slope_pct_per_bar",
+      "label": "Max Slope (%/bar)",
+      "type": "float",
+      "min": 0.0001,
+      "max": 0.02,
+      "step": 0.0001,
+      "default": 0.0035,
+      "description": "Max normalized close slope allowed for a flat base."
+    },
+    {
+      "key": "max_scan_bars",
+      "label": "Max Scan Bars",
+      "type": "int",
+      "min": 100,
+      "max": 3000,
+      "step": 50,
+      "default": 800,
+      "description": "How far back to search for bases."
+    },
+    {
+      "key": "breakout_help_pct",
+      "label": "Breakout Context (%)",
+      "type": "float",
+      "min": 0.0,
+      "max": 0.10,
+      "step": 0.005,
+      "default": 0.01,
+      "description": "Optional context flag only: did price ever close above this level after base."
+    },
+    {
+      "key": "ceiling_escape_pct",
+      "label": "Ceiling Escape (%)",
+      "type": "float",
+      "min": 0.0,
+      "max": 0.30,
+      "step": 0.01,
+      "default": 0.08,
+      "description": "How far above ceiling current price can be and still count as near/inside base context."
+    },
+    {
+      "key": "floor_escape_pct",
+      "label": "Floor Escape (%)",
+      "type": "float",
+      "min": 0.0,
+      "max": 0.30,
+      "step": 0.01,
+      "default": 0.03,
+      "description": "How far below floor current price can be and still count as near/inside base context."
+    },
+    {
+      "key": "overlap_threshold",
+      "label": "Overlap Threshold",
+      "type": "float",
+      "min": 0.3,
+      "max": 0.95,
+      "step": 0.05,
+      "default": 0.70,
+      "description": "Used to deduplicate overlapping box windows."
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 120,
+  "status": "experimental"
+}

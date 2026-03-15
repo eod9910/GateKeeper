@@ -1,0 +1,104 @@
+{
+  "pattern_id": "base_breakout",
+  "name": "Base Breakout (Wyckoff)",
+  "category": "price_action",
+  "description": "Multi-scale RDP base detection. Runs RDP at two epsilon levels: fine (normal) to see internal structure, coarse (2.5× fine) to detect flatness. A base is where coarse RDP collapses a region into a tight price band after a meaningful prior decline, followed by a confirmed breakout. Price must still be above the base floor. Scores highest when pulling back toward the base ceiling.",
+  "author": "system",
+  "version": "2.0.0",
+  "plugin_file": "plugins/base_breakout_primitive.py",
+  "plugin_function": "run_base_breakout_primitive_plugin",
+  "pattern_type": "base_breakout",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "base_breakout",
+    "epsilon_pct": 0.05,
+    "coarse_scale": 2.5,
+    "min_base_highs": 2,
+    "range_tolerance_pct": 0.25,
+    "min_base_bars": 6,
+    "min_prior_decline_pct": 0.15,
+    "breakout_margin_pct": 0.03,
+    "entry_zone_pct": 0.50
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_pct",
+      "label": "Fine RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.10,
+      "step": 0.005,
+      "default": 0.05,
+      "description": "Fine-grain RDP sensitivity. Coarse = this × coarse_scale."
+    },
+    {
+      "key": "coarse_scale",
+      "label": "Coarse Scale Multiplier",
+      "type": "float",
+      "min": 1.5,
+      "max": 5.0,
+      "step": 0.5,
+      "default": 2.5,
+      "description": "Coarse epsilon = fine × this. Higher = only major structural moves visible."
+    },
+    {
+      "key": "range_tolerance_pct",
+      "label": "Base Flatness Tolerance (%)",
+      "type": "float",
+      "min": 0.05,
+      "max": 0.30,
+      "step": 0.01,
+      "default": 0.15,
+      "description": "Max price range of coarse swing points in the base window. 0.15 = 15% band."
+    },
+    {
+      "key": "min_base_bars",
+      "label": "Min Base Duration (bars)",
+      "type": "int",
+      "min": 4,
+      "max": 100,
+      "step": 2,
+      "default": 10,
+      "description": "Minimum bars the base must span."
+    },
+    {
+      "key": "min_prior_decline_pct",
+      "label": "Min Prior Decline (%)",
+      "type": "float",
+      "min": 0.05,
+      "max": 0.60,
+      "step": 0.05,
+      "default": 0.20,
+      "description": "Required drop from prior peak to base ceiling before base qualifies."
+    },
+    {
+      "key": "breakout_margin_pct",
+      "label": "Breakout Margin (%)",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.10,
+      "step": 0.005,
+      "default": 0.03,
+      "description": "How far above base ceiling the breakout swing must clear."
+    },
+    {
+      "key": "entry_zone_pct",
+      "label": "Entry Zone (% above ceiling)",
+      "type": "float",
+      "min": 0.05,
+      "max": 1.00,
+      "step": 0.05,
+      "default": 0.30,
+      "description": "Price within this % above base ceiling = pullback entry zone (entry_ready=true)."
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 50,
+  "status": "experimental"
+}

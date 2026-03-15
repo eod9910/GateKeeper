@@ -1,0 +1,62 @@
+{
+  "candidateId": "DBC_W_chart_only",
+  "userId": "default",
+  "symbol": "DBC",
+  "timeframe": "W",
+  "patternType": "wyckoff_drawing",
+  "drawings": {
+    "peak": {
+      "type": "point",
+      "time": "2011-05-09",
+      "price": 27.364232448525932
+    },
+    "markdown": {
+      "type": "lineDown",
+      "time1": "2011-01-31",
+      "price1": 26.93728548201926,
+      "time2": "2016-04-04",
+      "price2": 10.85561641026797
+    },
+    "base": {
+      "type": "box",
+      "time1": "2016-01-04",
+      "price1": 9.802643516408958,
+      "time2": "2017-08-21",
+      "price2": 13.44907479650983
+    },
+    "markup": {
+      "type": "lineUp",
+      "time1": "2017-06-12",
+      "price1": 11.416645570383892,
+      "time2": "2018-06-04",
+      "price2": 15.381960916270799
+    },
+    "pullback": {
+      "type": "lineDown",
+      "time1": "2018-04-23",
+      "price1": 14.93135689969274,
+      "time2": "2020-04-06",
+      "price2": 9.524108700756049
+    },
+    "breakout": {
+      "type": "hline",
+      "price": 15.832564932848857
+    }
+  },
+  "canvasSize": {
+    "width": 825,
+    "height": 500
+  },
+  "chartTimeRange": {
+    "start": "2006-02-06",
+    "end": "2026-02-02"
+  },
+  "chartPriceRange": {
+    "low": 9.058137058775054,
+    "high": 38.81071324306962
+  },
+  "original": null,
+  "corrected": null,
+  "id": "53cebcf7-75bb-4dc4-92c5-e8946fff9b83",
+  "timestamp": "2026-02-05T22:03:32.046Z"
+}

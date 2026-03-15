@@ -1,0 +1,19 @@
+{
+    "candidateId":  "NUVB_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_286",
+    "userId":  "default",
+    "symbol":  "NUVB",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  15.152499675750732,
+                     "detectedBaseBottom":  8.735000371932983
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  3.23,
+                      "baseBottomPrice":  1.36,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "6820a407-6ff1-4341-874e-c9b7bbc3e49f",
+    "timestamp":  "2026-02-23T22:51:33.834Z"
+}

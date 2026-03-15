@@ -1,0 +1,19 @@
+{
+    "candidateId":  "ACLX_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_211",
+    "userId":  "default",
+    "symbol":  "ACLX",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  100.72000122070312,
+                     "detectedBaseBottom":  47.86500072479248
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  73.85,
+                      "baseBottomPrice":  47.87,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "7f68a7b3-a6b5-44bd-8a52-39aea54da14d",
+    "timestamp":  "2026-02-23T07:17:03.035Z"
+}

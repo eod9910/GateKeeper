@@ -1,0 +1,19 @@
+{
+  "candidateId": "PSNL_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_349",
+  "userId": "default",
+  "symbol": "PSNL",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 33.95000076293945,
+    "detectedBaseBottom": 18.899999618530273
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 5.64,
+    "baseBottomPrice": 1.73,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "e5fd3f44-4dfe-4c2d-8380-8bf13e505882",
+  "timestamp": "2026-02-24T20:25:28.089Z"
+}

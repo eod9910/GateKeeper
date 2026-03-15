@@ -1,0 +1,21 @@
+{
+  "candidateId": "ATEC_W_scan_rdp_wiggle_base_v1_9797e66f_0_1028",
+  "userId": "default",
+  "symbol": "ATEC",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 8.18,
+    "baseBottomPrice": 0,
+    "baseStartTime": "2015-07-20",
+    "baseEndTime": "2020-03-02",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "b77621f0-575b-442b-becf-9c29569521b6",
+  "timestamp": "2026-02-27T04:16:44.356Z"
+}

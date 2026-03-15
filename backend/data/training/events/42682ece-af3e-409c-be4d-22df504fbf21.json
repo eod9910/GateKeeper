@@ -1,0 +1,13 @@
+{
+  "type": "attempt_validated",
+  "sessionId": "cc7c021a-2a37-4ebc-bd87-0e36f4bff160",
+  "contractId": "breakout_v1",
+  "payload": {
+    "symbol": "PIPR",
+    "timeframe": "1wk",
+    "ready": false,
+    "state": "ENTRY_BLOCKED"
+  },
+  "id": "42682ece-af3e-409c-be4d-22df504fbf21",
+  "timestamp": "2026-03-06T01:47:48.554Z"
+}

@@ -1,0 +1,21 @@
+{
+  "candidateId": "ALEC_W_scan_rdp_wiggle_base_v1_9797e66f_0_368",
+  "userId": "default",
+  "symbol": "ALEC",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 5.97,
+    "baseBottomPrice": 0.81,
+    "baseStartTime": "2024-11-11",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "676006f0-1452-4cd7-bda8-f7f436b2b7e7",
+  "timestamp": "2026-02-26T05:26:12.526Z"
+}

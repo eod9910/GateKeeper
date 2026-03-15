@@ -1,0 +1,21 @@
+{
+  "candidateId": "ALRS_W_scan_rdp_wiggle_base_v1_9797e66f_0_1197",
+  "userId": "default",
+  "symbol": "ALRS",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 22,
+    "baseBottomPrice": 12.33,
+    "baseStartTime": "2022-02-21",
+    "baseEndTime": "2026-01-05",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "0efc6d43-7b67-4d47-8ba8-65d6b0fb910f",
+  "timestamp": "2026-02-26T05:29:39.353Z"
+}

@@ -1,0 +1,19 @@
+{
+    "candidateId":  "RLAY_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_292",
+    "userId":  "default",
+    "symbol":  "RLAY",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  38.26375102996826,
+                     "detectedBaseBottom":  25.862499713897705
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  12.14,
+                      "baseBottomPrice":  5.65,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "0c4b278c-86f7-4d58-a3db-55b7f44ee615",
+    "timestamp":  "2026-02-23T22:58:14.677Z"
+}

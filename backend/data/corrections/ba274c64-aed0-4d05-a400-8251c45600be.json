@@ -1,0 +1,19 @@
+{
+  "candidateId": "OPBK_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_1072",
+  "userId": "default",
+  "symbol": "OPBK",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 11.23855065509382,
+    "detectedBaseBottom": 4.394350983537215
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 2.67,
+    "baseBottomPrice": 0.25,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "ba274c64-aed0-4d05-a400-8251c45600be",
+  "timestamp": "2026-02-24T20:28:03.545Z"
+}

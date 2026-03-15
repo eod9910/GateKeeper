@@ -1,0 +1,19 @@
+{
+  "candidateId": "VNDA_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_1037",
+  "userId": "default",
+  "symbol": "VNDA",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 19.774999618530273,
+    "detectedBaseBottom": 7.730000019073486
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 15.63,
+    "baseBottomPrice": 7.73,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "dd3885a2-6785-4867-86b6-52b19ab0985d",
+  "timestamp": "2026-02-24T20:24:09.453Z"
+}

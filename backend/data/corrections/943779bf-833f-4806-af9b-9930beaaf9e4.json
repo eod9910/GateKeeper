@@ -1,0 +1,19 @@
+{
+  "candidateId": "ACCO_W_scan_rdp_wiggle_base_v1_22bed501_0_1071",
+  "userId": "default",
+  "symbol": "ACCO",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 9.09,
+    "baseBottomPrice": 2.92,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "943779bf-833f-4806-af9b-9930beaaf9e4",
+  "timestamp": "2026-02-26T03:25:01.698Z"
+}

@@ -1,0 +1,19 @@
+{
+    "candidateId":  "BRZE_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_222",
+    "userId":  "default",
+    "symbol":  "BRZE",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  50.970001220703125,
+                     "detectedBaseBottom":  27.09000015258789
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  35.64,
+                      "baseBottomPrice":  27.09,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "b7fc9edf-7788-4648-8e1a-be12a384d37b",
+    "timestamp":  "2026-02-23T07:23:51.412Z"
+}

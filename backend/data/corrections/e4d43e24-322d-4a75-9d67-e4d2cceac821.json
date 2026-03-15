@@ -1,0 +1,19 @@
+{
+    "candidateId":  "ZF=F_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_1326",
+    "userId":  "default",
+    "symbol":  "ZF=F",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  125.37890625,
+                     "detectedBaseBottom":  113.4375
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  124.69,
+                      "baseBottomPrice":  113.44,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "e4d43e24-322d-4a75-9d67-e4d2cceac821",
+    "timestamp":  "2026-02-23T05:37:26.798Z"
+}

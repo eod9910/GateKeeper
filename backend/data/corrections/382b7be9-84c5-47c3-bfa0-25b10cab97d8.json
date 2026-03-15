@@ -1,0 +1,41 @@
+{
+  "candidateId": "EFA_W_chart_only",
+  "userId": "default",
+  "symbol": "EFA",
+  "timeframe": "W",
+  "patternType": "wyckoff_drawing",
+  "drawings": {
+    "peak": {
+      "type": "point",
+      "time": "2007-12-24",
+      "price": 49.324951035831766
+    },
+    "markdown": {
+      "type": "lineDown",
+      "time1": "2009-03-02",
+      "price1": 20.659537552832834,
+      "time2": "2009-03-02",
+      "price2": 20.659537552832834
+    },
+    "base": null,
+    "markup": null,
+    "pullback": null,
+    "breakout": null
+  },
+  "canvasSize": {
+    "width": 825,
+    "height": 500
+  },
+  "chartTimeRange": {
+    "start": "2001-08-27",
+    "end": "2026-02-02"
+  },
+  "chartPriceRange": {
+    "low": 15.11094874420121,
+    "high": 102.66999816894531
+  },
+  "original": null,
+  "corrected": null,
+  "id": "382b7be9-84c5-47c3-bfa0-25b10cab97d8",
+  "timestamp": "2026-02-05T22:07:48.238Z"
+}

@@ -1,0 +1,115 @@
+{
+  "pattern_id": "density_base_detector_v1_pattern",
+  "name": "Density Base Detector V1 (Pattern)",
+  "category": "price_action",
+  "description": "Detects bases via void detection: finds peaks where price dropped away, measures the empty space (void), and identifies the sideways cluster at the bottom as the base. Mimics how a human eye spots the bowl shape — empty space first, base at the bottom.",
+  "author": "system",
+  "version": "2.0.0",
+  "plugin_file": "plugins/density_base_detector_v1_pattern.py",
+  "plugin_function": "run_density_base_detector_v1_pattern_plugin",
+  "pattern_type": "density_base_detector_v1_pattern",
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "phase_structure_pattern",
+  "indicator_role": "context",
+  "default_structure_config": {
+    "swing_method": "none"
+  },
+  "default_setup_params": {
+    "pattern_type": "density_base_detector_v1_pattern",
+    "max_scan_bars": 800,
+    "min_data_bars": 60,
+    "swing_lookback": 10,
+    "swing_lookahead": 10,
+    "min_drop_pct": 0.08,
+    "min_void_bars": 8,
+    "min_base_bars": 5,
+    "min_score": 0.25,
+    "max_bases": 5
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "min_drop_pct",
+      "label": "Min Drop %",
+      "type": "float",
+      "min": 0.03,
+      "max": 0.30,
+      "step": 0.01,
+      "default": 0.08
+    },
+    {
+      "key": "min_void_bars",
+      "label": "Min Void Bars",
+      "type": "int",
+      "min": 4,
+      "max": 30,
+      "step": 1,
+      "default": 8
+    },
+    {
+      "key": "min_base_bars",
+      "label": "Min Base Bars",
+      "type": "int",
+      "min": 3,
+      "max": 20,
+      "step": 1,
+      "default": 5
+    },
+    {
+      "key": "min_score",
+      "label": "Min Score",
+      "type": "float",
+      "min": 0.10,
+      "max": 0.80,
+      "step": 0.05,
+      "default": 0.25
+    },
+    {
+      "key": "swing_lookback",
+      "label": "Peak Lookback",
+      "type": "int",
+      "min": 5,
+      "max": 30,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "key": "swing_lookahead",
+      "label": "Peak Lookahead",
+      "type": "int",
+      "min": 5,
+      "max": 30,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "key": "max_bases",
+      "label": "Max Bases per Symbol",
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 5
+    },
+    {
+      "key": "max_scan_bars",
+      "label": "Max Scan Bars",
+      "type": "int",
+      "min": 200,
+      "max": 2000,
+      "step": 100,
+      "default": 800
+    }
+  ],
+  "output_ports": {
+    "signal": {
+      "description": "Set of bar indices where void-detected bases end"
+    },
+    "base_boxes": {
+      "description": "Detected bases with peak, void, and base cluster metrics"
+    }
+  }
+}

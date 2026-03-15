@@ -1,0 +1,19 @@
+{
+  "candidateId": "AAP_W_scan_rdp_wiggle_base_v1_d82bf2d2_0_1265",
+  "userId": "default",
+  "symbol": "AAP",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 0,
+    "baseBottomPrice": 0,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "84c1d660-4cfe-49d1-9011-7c76087f5b36",
+  "timestamp": "2026-02-26T02:58:51.578Z"
+}

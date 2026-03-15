@@ -1,0 +1,19 @@
+{
+  "candidateId": "ABG_W_scan_rdp_wiggle_base_v1_22bed501_0_1249",
+  "userId": "default",
+  "symbol": "ABG",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 71.15,
+    "baseBottomPrice": 44.42,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "f0cf2336-f984-468e-8f37-831c74928e7d",
+  "timestamp": "2026-02-26T03:22:27.063Z"
+}

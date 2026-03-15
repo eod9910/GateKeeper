@@ -1,0 +1,21 @@
+{
+  "candidateId": "ADCT_W_scan_rdp_wiggle_base_v1_22bed501_0_301",
+  "userId": "default",
+  "symbol": "ADCT",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 4.65,
+    "baseBottomPrice": 0.19,
+    "baseStartTime": "2022-12-05",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "865b72f0-0bdd-4854-8c1c-f9761d761f6c",
+  "timestamp": "2026-02-26T03:41:37.882Z"
+}

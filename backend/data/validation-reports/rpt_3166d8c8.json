@@ -1,0 +1,167 @@
+{
+  "report_id": "rpt_3166d8c8",
+  "strategy_version_id": "research_3818a425_gen4_v1",
+  "config": {
+    "date_start": "2020-01-01",
+    "date_end": "2026-02-20",
+    "universe": [
+      "APLS",
+      "ARWR",
+      "BEAM",
+      "HALO",
+      "INSM",
+      "KRTX",
+      "PRCT",
+      "RVMD",
+      "IOVA",
+      "ANET",
+      "ALRM",
+      "BRZE",
+      "CALX",
+      "CRDO",
+      "DDOG",
+      "ESTC",
+      "JAMF",
+      "NTNX",
+      "SMCI",
+      "BROS",
+      "CAVA",
+      "CROX",
+      "DNUT",
+      "FIGS",
+      "SHAK",
+      "WRBY",
+      "AFRM",
+      "BILL",
+      "HOOD",
+      "SOFI",
+      "TOST",
+      "UPST",
+      "ARRY",
+      "ENPH",
+      "RUN",
+      "SEDG",
+      "SHLS",
+      "ASTS",
+      "IONQ",
+      "JOBY",
+      "LUNR",
+      "RKLB",
+      "AG",
+      "CCJ",
+      "MP",
+      "PAAS",
+      "BWXT",
+      "POWL",
+      "MARA",
+      "RIOT"
+    ],
+    "timeframes": [
+      "1wk"
+    ],
+    "data_snapshot": {
+      "path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\validator-snapshots\\snapshot_92883d5c07146a3a.json",
+      "loaded_from_cache": true
+    },
+    "costs": {
+      "commission_per_trade": 5,
+      "slippage_pct": 0.001
+    },
+    "validation_thresholds": {
+      "min_trades_pass": 300,
+      "min_trades_fail": 200,
+      "max_oos_degradation_pct": 50,
+      "min_wf_profitable_windows": 0.6,
+      "max_mc_p95_dd_pct": 30,
+      "max_mc_p99_dd_pct": 50,
+      "max_sensitivity_score": 40,
+      "r_to_pct": 2
+    },
+    "tier_runtime_profile": "tier1_baseline_only",
+    "tier1_early_stop_reason": null,
+    "tier1_symbols_processed": 50,
+    "validation_tier": "tier1",
+    "asset_class": "stocks"
+  },
+  "trades_summary": {
+    "total_trades": 24,
+    "winners": 2,
+    "losers": 22,
+    "win_rate": 0.08333333333333333,
+    "avg_win_R": 0.13632848542546314,
+    "avg_loss_R": -6.621328963605708,
+    "expectancy_R": -6.058190842853111,
+    "profit_factor": 0.0018717539550086187,
+    "largest_win_R": 0.13766898478734424,
+    "largest_loss_R": -42.8062599335474
+  },
+  "risk_summary": {
+    "max_drawdown_pct": 290.7931604569493,
+    "max_drawdown_R": 145.39658022847465,
+    "time_under_water_bars": 24,
+    "expected_recovery_time_bars": 24,
+    "sharpe_ratio": -3.5671565734916917,
+    "calmar_ratio": -0.04166666666666667,
+    "longest_losing_streak": 14,
+    "avg_losing_streak": 7.333333333333333,
+    "longest_winning_streak": 1
+  },
+  "robustness": {
+    "out_of_sample": {
+      "is_expectancy": -6.058190842853111,
+      "is_n": 24,
+      "oos_expectancy": -6.058190842853111,
+      "oos_n": 24,
+      "split_date": "2026-02-20",
+      "oos_degradation_pct": 0
+    },
+    "walk_forward": {
+      "windows": [],
+      "avg_test_expectancy": -6.058190842853111,
+      "pct_profitable_windows": 0
+    },
+    "monte_carlo": {
+      "simulations": 0,
+      "median_dd_pct": 290.7931604569493,
+      "p95_dd_pct": 290.7931604569493,
+      "p99_dd_pct": 290.7931604569493,
+      "median_final_R": -145.39658022847465,
+      "p5_final_R": -42.8062599335474
+    },
+    "parameter_sensitivity": {
+      "params_tested": [],
+      "base_expectancy": -6.058190842853111,
+      "nudged_results": [],
+      "sensitivity_score": 0
+    }
+  },
+  "execution_stats": {
+    "rules_active": false,
+    "breakeven_triggers": 0,
+    "ladder_lock_triggers": 0,
+    "green_to_red_exits": 0,
+    "scale_out_triggers": 0,
+    "time_stop_exits": 0,
+    "profit_retrace_exits": 0,
+    "daily_cap_triggers": 0,
+    "avg_giveback_from_peak_R": 2.2567034123724325,
+    "pct_trades_hitting_breakeven": 0,
+    "pct_trades_hitting_scale_out": 0,
+    "expectancy_without_rules_R": -6.058190842853111,
+    "expectancy_with_rules_R": -6.058190842853111
+  },
+  "pass_fail": "FAIL",
+  "pass_fail_reasons": [
+    "Too few trades for Tier 1 confidence: 24 < 200",
+    "Expectancy not positive: -6.058R",
+    "Profit factor < 1.0: 0.002",
+    "Drawdown above Tier 1 risk ceiling: 290.8% > 30.0%"
+  ],
+  "decision_log": {
+    "decision": "pending",
+    "decided_by": "",
+    "decided_at": null,
+    "notes": ""
+  },
+  "created_at": "2026-02-20T19:29:32.796343Z"
+}

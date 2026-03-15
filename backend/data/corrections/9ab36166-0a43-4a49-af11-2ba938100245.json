@@ -1,0 +1,19 @@
+{
+    "candidateId":  "MNQ=F_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_355",
+    "userId":  "default",
+    "symbol":  "MNQ=F",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  21985.875,
+                     "detectedBaseBottom":  16675.875
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  20012.59,
+                      "baseBottomPrice":  18294.62,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "9ab36166-0a43-4a49-af11-2ba938100245",
+    "timestamp":  "2026-02-23T05:31:45.055Z"
+}

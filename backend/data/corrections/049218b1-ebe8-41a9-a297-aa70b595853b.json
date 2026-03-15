@@ -1,0 +1,21 @@
+{
+  "candidateId": "AMRX_W_scan_rdp_wiggle_base_v1_9797e66f_0_407",
+  "userId": "default",
+  "symbol": "AMRX",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 14.18,
+    "baseBottomPrice": 1.28,
+    "baseStartTime": "2018-12-24",
+    "baseEndTime": "2026-01-19",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "049218b1-ebe8-41a9-a297-aa70b595853b",
+  "timestamp": "2026-02-26T05:34:35.552Z"
+}

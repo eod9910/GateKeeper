@@ -1,0 +1,21 @@
+{
+  "candidateId": "ADEA_W_scan_rdp_wiggle_base_v1_22bed501_0_1163",
+  "userId": "default",
+  "symbol": "ADEA",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 6.13,
+    "baseBottomPrice": 2.14,
+    "baseStartTime": "2008-03-17",
+    "baseEndTime": "2014-11-17",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "1f3c139d-350c-4ae1-bcf5-a819f25e774e",
+  "timestamp": "2026-02-26T03:42:13.522Z"
+}

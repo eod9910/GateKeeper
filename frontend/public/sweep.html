@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parameter Sweep — Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ── Sweep layout ───────────────────────────────────────── */
+    .sweep-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 0;
+      height: 100%;
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+    }
+
+    /* ── Config panel (left) ────────────────────────────────── */
+    .sweep-config-panel {
+      background: var(--color-surface);
+      border-right: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sweep-config-panel .panel-header {
+      padding: var(--space-12) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .sweep-config-panel .panel-body {
+      padding: var(--space-16);
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+    }
+
+    /* ── Results panel (right) ──────────────────────────────── */
+    .sweep-results-panel {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      background: var(--color-bg);
+    }
+    .results-panel {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .results-panel > .panel-header {
+      padding: var(--space-12) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      background: var(--color-surface);
+    }
+
+    /* ── Form elements ──────────────────────────────────────── */
+    .form-label {
+      display: block;
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-bottom: var(--space-6);
+    }
+    .form-select, .form-input {
+      width: 100%;
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text);
+      padding: var(--space-8) var(--space-12);
+      font-size: var(--text-small);
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .form-select:focus, .form-input:focus { outline: none; border-color: var(--color-accent); }
+
+    .form-group { display: flex; flex-direction: column; gap: 0; }
+
+    /* ── Section dividers ───────────────────────────────────── */
+    .sweep-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .sweep-section-label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    /* ── Preset grid ────────────────────────────────────────── */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-6);
+    }
+    .preset-btn {
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-subtle);
+      font-size: 11px;
+      padding: var(--space-8) var(--space-10);
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+    .preset-btn:hover { border-color: var(--color-accent); color: var(--color-text); }
+    .preset-btn.active { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 8%, transparent); color: var(--color-accent); }
+    .preset-btn .preset-sub { color: var(--color-text-muted); font-family: var(--font-mono); font-size: 10px; }
+
+    /* ── Values pills ───────────────────────────────────────── */
+    .values-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      min-height: 30px;
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-6) var(--space-8);
+      align-items: center;
+    }
+    .value-pill {
+      background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+      border-radius: 3px;
+      color: var(--color-accent);
+      font-size: 11px;
+      padding: 2px 7px;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .value-pill button { background: none; border: none; color: inherit; cursor: pointer; padding: 0; font-size: 13px; line-height: 1; opacity: 0.6; }
+    .value-pill button:hover { opacity: 1; }
+
+    .add-value-row {
+      display: flex;
+      gap: var(--space-6);
+      margin-top: var(--space-6);
+    }
+    .add-value-row input {
+      flex: 1;
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text);
+      padding: var(--space-6) var(--space-8);
+      font-size: var(--text-small);
+      font-family: var(--font-mono);
+    }
+    .add-value-row input:focus { outline: none; border-color: var(--color-accent); }
+    .add-value-row button {
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-muted);
+      padding: var(--space-6) var(--space-12);
+      font-size: var(--text-small);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .add-value-row button:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+    /* ── Run button ─────────────────────────────────────────── */
+    .btn-run-sweep {
+      width: 100%;
+      padding: var(--space-10) var(--space-16);
+      background: var(--color-accent);
+      color: #000;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: var(--text-small);
+      font-weight: 700;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-run-sweep:hover { opacity: 0.85; }
+    .btn-run-sweep:active { transform: translateY(1px); }
+    .btn-run-sweep:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Selected config summary ────────────────────────────── */
+    .selected-config-summary {
+      padding: var(--space-10) var(--space-12);
+      background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-caption);
+    }
+    .selected-config-summary .config-label {
+      color: var(--color-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 10px;
+    }
+    .selected-config-summary .config-text { color: var(--color-text); font-family: var(--font-mono); }
+
+    /* ── Sweep history ──────────────────────────────────────── */
+    .sweep-history-item {
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-10) var(--space-12);
+      cursor: pointer;
+      transition: border-color 0.15s;
+      margin-bottom: var(--space-6);
+    }
+    .sweep-history-item:hover, .sweep-history-item.active { border-color: var(--color-accent); }
+    .sweep-history-item .sweep-name { font-size: var(--text-small); font-weight: 500; color: var(--color-text); }
+    .sweep-history-item .sweep-meta { font-size: 11px; color: var(--color-text-muted); margin-top: 3px; font-family: var(--font-mono); }
+
+    /* ── Results table ──────────────────────────────────────── */
+    .sweep-progress {
+      padding: var(--space-12) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+    }
+    .sweep-progress-bar-track {
+      flex: 1;
+      height: 4px;
+      background: var(--color-void);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .sweep-progress-bar-fill {
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .sweep-progress-label { font-size: var(--text-caption); color: var(--color-text-muted); white-space: nowrap; font-family: var(--font-mono); }
+
+    .results-table { width: 100%; border-collapse: collapse; font-size: var(--text-small); }
+    .results-table th {
+      padding: var(--space-8) var(--space-12);
+      text-align: left;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface);
+      font-family: var(--font-mono);
+      position: sticky;
+      top: 0;
+    }
+    .results-table td {
+      padding: var(--space-10) var(--space-12);
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+      color: var(--color-text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .results-table tr:last-child td { border-bottom: none; }
+    .results-table tr.winner-row td { background: color-mix(in srgb, var(--color-positive) 6%, transparent); }
+    .results-table tr.winner-row td:first-child { border-left: 3px solid var(--color-positive); }
+    .results-table tr.running-row td { color: var(--color-text-muted); }
+    .results-table tr.failed-row td { color: color-mix(in srgb, var(--color-negative) 70%, var(--color-text-muted)); }
+
+    /* ── Badges ─────────────────────────────────────────────── */
+    .badge-status {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      letter-spacing: 0.03em;
+    }
+    .badge-pending { background: color-mix(in srgb, var(--color-text-muted) 12%, transparent); color: var(--color-text-muted); }
+    .badge-running { background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-accent); }
+    .badge-completed { background: color-mix(in srgb, var(--color-positive) 12%, transparent); color: var(--color-positive); }
+    .badge-failed { background: color-mix(in srgb, var(--color-negative) 12%, transparent); color: var(--color-negative); }
+    .badge-winner { background: color-mix(in srgb, var(--color-positive) 18%, transparent); color: var(--color-positive); border: 1px solid var(--color-positive); }
+
+    /* ── Winner banner ──────────────────────────────────────── */
+    .winner-banner {
+      padding: var(--space-14) var(--space-16);
+      background: color-mix(in srgb, var(--color-positive) 6%, transparent);
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .winner-banner-text { font-size: var(--text-small); color: var(--color-text); }
+    .winner-banner-text strong { color: var(--color-positive); }
+    .btn-promote {
+      padding: var(--space-8) var(--space-14);
+      background: var(--color-positive);
+      color: #000;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: var(--text-small);
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-promote:hover { opacity: 0.85; }
+
+    /* ── Empty state ────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 20px;
+      color: var(--color-text-muted);
+      gap: var(--space-12);
+      text-align: center;
+      flex: 1;
+    }
+    .empty-state-icon { font-size: 36px; opacity: 0.3; }
+    .empty-state-title { font-size: var(--text-small); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+    .empty-state-subtitle { font-size: var(--text-caption); max-width: 340px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="research.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Agent</span></a>
+        <a href="sweep.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+      </nav>
+    </aside>
+
+    <main class="app-main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Parameter Sweep</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">Test parameter variants across parallel backtests. Find the optimal stop type, ATR multiplier, take-profit R, and more.</span>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-16) var(--space-24);overflow:hidden;height:calc(100vh - 80px);">
+        <div class="sweep-layout">
+
+          <!-- Left: Config panel -->
+          <div class="sweep-config-panel">
+            <div class="panel-header">Configuration</div>
+            <div class="panel-body">
+
+              <!-- Strategy selector -->
+              <div class="sweep-section">
+                <label class="form-label">Strategy</label>
+                <select id="sweep-strategy-select" class="form-select">
+                  <option value="">— Select a strategy —</option>
+                </select>
+              </div>
+
+              <!-- Tier selector -->
+              <div class="sweep-section">
+                <label class="form-label">Validation Tier</label>
+                <select id="sweep-tier-select" class="form-select">
+                  <option value="tier1" selected>Tier 1 — Fast (10 symbols, early stop)</option>
+                  <option value="tier2">Tier 2 — Full Universe (all symbols)</option>
+                </select>
+              </div>
+
+              <!-- Presets -->
+              <div class="sweep-section">
+                <div class="sweep-section-label">Quick Presets</div>
+                <div class="preset-grid" id="preset-grid">
+                  <button class="preset-btn" data-preset="stop_type">Stop Type<br><span class="preset-sub">% vs ATR vs swing</span></button>
+                  <button class="preset-btn" data-preset="atr_multiplier">ATR Multiplier<br><span class="preset-sub">0.75x &rarr; 3.0x</span></button>
+                  <button class="preset-btn" data-preset="stop_pct">Stop %<br><span class="preset-sub">3% &rarr; 15%</span></button>
+                  <button class="preset-btn" data-preset="take_profit_r">Take Profit R<br><span class="preset-sub">1.5R &rarr; 4.0R</span></button>
+                  <button class="preset-btn" data-preset="max_hold_bars">Max Hold Bars<br><span class="preset-sub">13 &rarr; 52 wks</span></button>
+                  <button class="preset-btn" data-preset="rsi_oversold">RSI Oversold<br><span class="preset-sub">20 &rarr; 40</span></button>
+                  <button class="preset-btn" data-preset="rdp_epsilon">RDP Epsilon<br><span class="preset-sub">1% &rarr; 15%</span></button>
+                  <button class="preset-btn" data-preset="max_concurrent">Max Positions<br><span class="preset-sub">3 &rarr; 20</span></button>
+                </div>
+              </div>
+
+              <!-- Custom param -->
+              <div class="sweep-section">
+                <div class="sweep-section-label">Custom Parameter</div>
+                <div class="form-group">
+                  <label class="form-label">Parameter Path</label>
+                  <input id="custom-param-path" class="form-input" type="text" placeholder="e.g. risk_config.stop_value" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Label</label>
+                  <input id="custom-param-label" class="form-input" type="text" placeholder="e.g. Stop %" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Values to Test</label>
+                  <div class="values-pills" id="values-pills"></div>
+                  <div class="add-value-row">
+                    <input id="add-value-input" type="text" placeholder="e.g. 0.05" />
+                    <button onclick="addCustomValue()">+ Add</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Selected config summary -->
+              <div id="selected-config-summary" class="selected-config-summary" style="display:none;">
+                <div class="config-label">Selected</div>
+                <div id="selected-config-text" class="config-text"></div>
+              </div>
+
+              <button id="btn-run-sweep" class="btn-run-sweep" onclick="runSweep()" disabled>
+                Run Sweep
+              </button>
+
+              <!-- Recent sweeps -->
+              <div class="sweep-section">
+                <div class="sweep-section-label">Recent Sweeps</div>
+                <div id="sweep-history-list">
+                  <div style="font-size:var(--text-caption); color:var(--color-text-muted); font-family:var(--font-mono);">No sweeps yet.</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Right: Results panel -->
+          <div class="sweep-results-panel" id="sweep-results-panel">
+            <div class="results-panel">
+              <div class="panel-header">
+                <span>Results</span>
+                <span id="results-sweep-id" style="font-size:10px; color:var(--color-text-muted); font-family:var(--font-mono);"></span>
+              </div>
+              <div id="results-body">
+                <div class="empty-state">
+                  <div class="empty-state-icon">&#9889;</div>
+                  <div class="empty-state-title">No sweep running</div>
+                  <div class="empty-state-subtitle">Select a strategy, pick a preset or custom parameter, then click Run Sweep.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="sweep.js"></script>
+</body>
+</html>
+

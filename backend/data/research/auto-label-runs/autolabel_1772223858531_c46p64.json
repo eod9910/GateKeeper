@@ -1,0 +1,100 @@
+{
+  "job": {
+    "jobId": "autolabel_1772223858531_c46p64",
+    "status": "completed",
+    "createdAt": "2026-02-27T20:24:18.531Z",
+    "progress": 1,
+    "stage": "completed",
+    "request": {
+      "patternId": "rdp_wiggle_base",
+      "timeframe": "W",
+      "maxItems": 39,
+      "candidateCountRequest": 39,
+      "dryRun": true,
+      "labelThreshold": 0.9,
+      "correctionThreshold": 0.92,
+      "saveCorrections": true,
+      "unreviewedOnly": true,
+      "userId": "ai"
+    },
+    "counters": {
+      "total": 39,
+      "processed": 39,
+      "autoLabeled": 0,
+      "autoCorrected": 0,
+      "reviewRequired": 3,
+      "skippedReviewed": 35,
+      "errors": 0
+    },
+    "startedAt": "2026-02-27T20:24:18.531Z",
+    "detail": "Processed 39/39.",
+    "completedAt": "2026-02-27T20:24:22.074Z"
+  },
+  "decisions": [
+    {
+      "candidateId": "SMCI_W_scan_rdp_wiggle_base_v1_22bed501_0_987",
+      "symbol": "SMCI",
+      "timeframe": "W",
+      "label": "no",
+      "labelConfidence": 1,
+      "needsCorrection": false,
+      "baseTop": 0,
+      "baseBottom": 0,
+      "correctionConfidence": 0,
+      "reviewRequired": false,
+      "autoLabeled": false,
+      "autoCorrected": false,
+      "reason": "ML classifier (100% conf)",
+      "modelVersion": "feedback_v1_rf"
+    },
+    {
+      "candidateId": "ACDC_W_scan_rdp_wiggle_base_v1_22bed501_0_198",
+      "symbol": "ACDC",
+      "timeframe": "W",
+      "label": "no",
+      "labelConfidence": 0.7472,
+      "needsCorrection": false,
+      "baseTop": 0,
+      "baseBottom": 0,
+      "correctionConfidence": 0,
+      "reviewRequired": true,
+      "autoLabeled": false,
+      "autoCorrected": false,
+      "reason": "ML classifier (75% conf)",
+      "modelVersion": "feedback_v1_rf"
+    },
+    {
+      "candidateId": "ACVA_W_scan_rdp_wiggle_base_v1_22bed501_0_257",
+      "symbol": "ACVA",
+      "timeframe": "W",
+      "label": "no",
+      "labelConfidence": 0.7372,
+      "needsCorrection": false,
+      "baseTop": 0,
+      "baseBottom": 0,
+      "correctionConfidence": 0,
+      "reviewRequired": true,
+      "autoLabeled": false,
+      "autoCorrected": false,
+      "reason": "ML classifier (74% conf)",
+      "modelVersion": "feedback_v1_rf"
+    },
+    {
+      "candidateId": "ABEO_W_scan_rdp_wiggle_base_v1_22bed501_0_2371",
+      "symbol": "ABEO",
+      "timeframe": "W",
+      "label": "no",
+      "labelConfidence": 0.8464,
+      "needsCorrection": false,
+      "baseTop": 0,
+      "baseBottom": 0,
+      "correctionConfidence": 0,
+      "reviewRequired": true,
+      "autoLabeled": false,
+      "autoCorrected": false,
+      "reason": "ML classifier (85% conf)",
+      "modelVersion": "feedback_v1_rf"
+    }
+  ],
+  "generatedAt": "2026-02-27T20:24:22.074Z"
+}

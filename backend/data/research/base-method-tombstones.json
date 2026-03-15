@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-03-01T04:02:07.591Z",
+  "entries": [
+    {
+      "pattern_id": "rdp_base_75",
+      "name": "RDP Base 75% (Primitive)",
+      "tombstoned_at": "2026-02-28T20:26:15.122Z",
+      "source": "workshop_dropdown_x",
+      "reason": "User tombstoned from workshop pattern picker"
+    },
+    {
+      "pattern_id": "base_box_detector_rdp_hybrid_v1_pattern",
+      "name": "Base Box Detector RDP Hybrid V1 (Pattern)",
+      "tombstoned_at": "2026-02-28T21:01:53.716Z",
+      "source": "workshop_dropdown_x",
+      "reason": "User tombstoned from workshop pattern picker"
+    },
+    {
+      "pattern_id": "rdp_regression_flat_base",
+      "name": "RDP Regression Flat Base (Primitive)",
+      "tombstoned_at": "2026-03-01T04:02:07.588Z",
+      "source": "workshop_dropdown_x",
+      "reason": "User tombstoned from workshop pattern picker"
+    }
+  ]
+}

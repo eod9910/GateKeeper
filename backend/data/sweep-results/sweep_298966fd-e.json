@@ -1,0 +1,136 @@
+{
+  "sweep_id": "sweep_298966fd-e",
+  "base_strategy_version_id": "pullback_uptrend_entry_composite_v1_sweep_winner_v1771733344106_sweep_winner_v1771734925018_sweep_winner_v1771745210926",
+  "sweep_params": [
+    {
+      "label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "values": [
+        0.01,
+        0.02,
+        0.03,
+        0.05,
+        0.07,
+        0.1,
+        0.15
+      ]
+    }
+  ],
+  "tier": "tier1",
+  "interval": "1d",
+  "status": "cancelled",
+  "variants": [
+    {
+      "variant_id": "sweep_298966fd-e_0_01",
+      "strategy_version_id": "sweep_298966fd-e_0_01",
+      "param_label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "param_value": 0.01,
+      "job_id": "job_31798fb6-3",
+      "status": "completed",
+      "report_id": "rpt_2c9580cd",
+      "metrics": {
+        "total_trades": 317,
+        "expectancy_R": 0.26869410328098087,
+        "win_rate": 0.416403785488959,
+        "profit_factor": 1.5027464131021548,
+        "max_drawdown_pct": 53.39321651737694,
+        "sharpe_ratio": 2.780522674850322,
+        "fitness_score": 0.384
+      }
+    },
+    {
+      "variant_id": "sweep_298966fd-e_0_02",
+      "strategy_version_id": "sweep_298966fd-e_0_02",
+      "param_label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "param_value": 0.02,
+      "job_id": "job_a1afca05-7",
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Validation cancelled by user"
+    },
+    {
+      "variant_id": "sweep_298966fd-e_0_03",
+      "strategy_version_id": "sweep_298966fd-e_0_03",
+      "param_label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "param_value": 0.03,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_298966fd-e_0_05",
+      "strategy_version_id": "sweep_298966fd-e_0_05",
+      "param_label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "param_value": 0.05,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_298966fd-e_0_07",
+      "strategy_version_id": "sweep_298966fd-e_0_07",
+      "param_label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "param_value": 0.07,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_298966fd-e_0_1",
+      "strategy_version_id": "sweep_298966fd-e_0_1",
+      "param_label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "param_value": 0.1,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    },
+    {
+      "variant_id": "sweep_298966fd-e_0_15",
+      "strategy_version_id": "sweep_298966fd-e_0_15",
+      "param_label": "RDP Epsilon %",
+      "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+      "param_value": 0.15,
+      "job_id": null,
+      "status": "failed",
+      "report_id": null,
+      "metrics": null,
+      "error": "Cancelled by user"
+    }
+  ],
+  "winner": {
+    "variant_id": "sweep_298966fd-e_0_01",
+    "strategy_version_id": "sweep_298966fd-e_0_01",
+    "param_label": "RDP Epsilon %",
+    "param_path": "setup_config.composite_spec.stages.0.params.epsilon_pct",
+    "param_value": 0.01,
+    "job_id": "job_31798fb6-3",
+    "status": "completed",
+    "report_id": "rpt_2c9580cd",
+    "metrics": {
+      "total_trades": 317,
+      "expectancy_R": 0.26869410328098087,
+      "win_rate": 0.416403785488959,
+      "profit_factor": 1.5027464131021548,
+      "max_drawdown_pct": 53.39321651737694,
+      "sharpe_ratio": 2.780522674850322,
+      "fitness_score": 0.384
+    }
+  },
+  "created_at": "2026-02-22T07:37:34.714Z",
+  "completed_at": "2026-02-22T07:39:55.085Z"
+}

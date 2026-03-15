@@ -1,0 +1,19 @@
+{
+  "candidateId": "HPP_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_818",
+  "userId": "default",
+  "symbol": "HPP",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 191.15443742873683,
+    "detectedBaseBottom": 103.17207958573867
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 191.15,
+    "baseBottomPrice": 146.55,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "ae1255da-310a-48e6-a8cd-14e7ff149a58",
+  "timestamp": "2026-02-24T20:24:57.927Z"
+}

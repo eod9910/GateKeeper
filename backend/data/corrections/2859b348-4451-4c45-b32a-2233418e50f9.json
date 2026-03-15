@@ -1,0 +1,21 @@
+{
+  "candidateId": "AHR_W_scan_rdp_wiggle_base_v1_9797e66f_0_107",
+  "userId": "default",
+  "symbol": "AHR",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 29.11,
+    "baseBottomPrice": 25.59,
+    "baseStartTime": "2024-11-25",
+    "baseEndTime": "2025-04-07",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "2859b348-4451-4c45-b32a-2233418e50f9",
+  "timestamp": "2026-02-26T03:58:37.319Z"
+}

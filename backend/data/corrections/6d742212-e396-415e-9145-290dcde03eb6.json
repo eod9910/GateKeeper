@@ -1,0 +1,19 @@
+{
+    "candidateId":  "ESTC_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_385",
+    "userId":  "default",
+    "symbol":  "ESTC",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  127.44999694824219,
+                     "detectedBaseBottom":  69.28750038146973
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  97.83,
+                      "baseBottomPrice":  47.62,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "6d742212-e396-415e-9145-290dcde03eb6",
+    "timestamp":  "2026-02-23T07:30:29.057Z"
+}

@@ -1,0 +1,61 @@
+{
+  "symbol": "SPY",
+  "timeframe": "1d",
+  "period": "5y",
+  "reversal_multiple_atr": 2.0,
+  "grouping_version": "v1",
+  "total_unique_families": 128,
+  "split_boundaries": {
+    "discovery": {
+      "count": 93,
+      "start_entry_bar_index": 40,
+      "end_entry_bar_index": 752,
+      "start_entry_timestamp": "2021-05-11 00:00:00-04:00",
+      "end_entry_timestamp": "2024-03-11 00:00:00-04:00"
+    },
+    "validation": {
+      "count": 31,
+      "start_entry_bar_index": 759,
+      "end_entry_bar_index": 1022,
+      "start_entry_timestamp": "2024-03-20 00:00:00-04:00",
+      "end_entry_timestamp": "2025-04-08 00:00:00-04:00"
+    },
+    "holdout": {
+      "count": 31,
+      "start_entry_bar_index": 1030,
+      "end_entry_bar_index": 1255,
+      "start_entry_timestamp": "2025-04-21 00:00:00-04:00",
+      "end_entry_timestamp": "2026-03-13 00:00:00-04:00"
+    }
+  },
+  "families_with_split_coverage_all_three": 4,
+  "families_with_min_occurrences": 1,
+  "families_with_min_valid10": 1,
+  "families_passing_discovery_and_validation_counts": 0,
+  "candidate_family_count": 1,
+  "families_sign_consistent_across_splits": 2,
+  "top_10_avg_forward_10_return_atr": [
+    {
+      "family_id": "family_000020",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 6,
+      "avg_forward_10_return_atr": 1.6781451438623847
+    }
+  ],
+  "top_10_hit_plus_1atr_first_rate": [
+    {
+      "family_id": "family_000020",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 6,
+      "hit_plus_1atr_first_rate": 0.5
+    }
+  ],
+  "bottom_10_avg_forward_10_return_atr": [
+    {
+      "family_id": "family_000020",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 6,
+      "avg_forward_10_return_atr": 1.6781451438623847
+    }
+  ]
+}

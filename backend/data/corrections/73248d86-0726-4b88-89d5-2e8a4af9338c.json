@@ -1,0 +1,21 @@
+{
+  "candidateId": "ADPT_W_scan_rdp_wiggle_base_v1_9797e66f_0_348",
+  "userId": "default",
+  "symbol": "ADPT",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 12.73,
+    "baseBottomPrice": 5.58,
+    "baseStartTime": "2022-06-06",
+    "baseEndTime": "2025-08-18",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "73248d86-0726-4b88-89d5-2e8a4af9338c",
+  "timestamp": "2026-02-26T03:43:32.913Z"
+}

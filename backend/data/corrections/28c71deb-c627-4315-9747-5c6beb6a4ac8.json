@@ -1,0 +1,19 @@
+{
+  "candidateId": "ABX_W_scan_rdp_wiggle_base_v1_22bed501_0_284",
+  "userId": "default",
+  "symbol": "ABX",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 8.93,
+    "baseBottomPrice": 4.49,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "28c71deb-c627-4315-9747-5c6beb6a4ac8",
+  "timestamp": "2026-02-26T03:24:05.899Z"
+}

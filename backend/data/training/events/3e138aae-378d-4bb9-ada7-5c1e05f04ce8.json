@@ -1,0 +1,11 @@
+{
+  "type": "session_started",
+  "sessionId": "994fdd74-97d9-4eba-b581-5a161c17d350",
+  "contractId": "pullback_v1",
+  "payload": {
+    "userId": "local-user",
+    "contractVersion": "1.0.0"
+  },
+  "id": "3e138aae-378d-4bb9-ada7-5c1e05f04ce8",
+  "timestamp": "2026-03-04T06:12:22.956Z"
+}

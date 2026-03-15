@@ -1,0 +1,19 @@
+{
+  "candidateId": "RDVT_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_45bf43ee_0_413",
+  "userId": "default",
+  "symbol": "RDVT",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": 42.45348064229605,
+    "detectedBaseBottom": 14.920900281694571
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 24.96,
+    "baseBottomPrice": 14.92,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "627bc2b1-500a-4191-9aec-e705a32bd1e7",
+  "timestamp": "2026-02-24T20:31:59.209Z"
+}

@@ -1,0 +1,19 @@
+{
+    "candidateId":  "ARLO_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_394",
+    "userId":  "default",
+    "symbol":  "ARLO",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  18.789999961853027,
+                     "detectedBaseBottom":  7.805000066757202
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  4.99,
+                      "baseBottomPrice":  2.32,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "d754eecc-e0b0-40f5-b9dd-fd9907322f7e",
+    "timestamp":  "2026-02-23T06:51:48.597Z"
+}

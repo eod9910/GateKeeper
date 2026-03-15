@@ -1,0 +1,19 @@
+{
+    "candidateId":  "PALL_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_841",
+    "userId":  "default",
+    "symbol":  "PALL",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  285.1225051879883,
+                     "detectedBaseBottom":  140.28499603271484
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  110.42,
+                      "baseBottomPrice":  80.69,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "e5df976e-eaf9-446d-a58b-c28587ded951",
+    "timestamp":  "2026-02-23T22:56:45.944Z"
+}

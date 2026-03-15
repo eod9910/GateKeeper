@@ -1,0 +1,59 @@
+{
+  "pattern_id": "rdp_fib_pullback_entry_composite",
+  "name": "RDP Fib Pullback Entry Composite",
+  "category": "indicator_signals",
+  "description": "Composite entry indicator generated in local fallback mode.",
+  "author": "user",
+  "version": "1.0.0",
+  "plugin_file": "plugins/composite_runner.py",
+  "plugin_function": "run_composite_plugin",
+  "pattern_type": "rdp_fib_pullback_entry_composite",
+  "chart_indicator": true,
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "rdp_fib_pullback_entry_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "structure",
+          "pattern_id": "rdp_swing_structure",
+          "params": {}
+        },
+        {
+          "id": "location",
+          "pattern_id": "fib_location_primitive",
+          "params": {}
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "structure",
+          "location"
+        ]
+      }
+    }
+  },
+  "default_entry": {
+    "entry_type": "market_on_close"
+  },
+  "default_risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 2,
+    "take_profit_R": 2,
+    "max_hold_bars": 30
+  },
+  "tunable_params": [],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 60,
+  "artifact_type": "indicator",
+  "composition": "composite",
+  "indicator_role": "entry_composite"
+}

@@ -1,0 +1,19 @@
+{
+    "candidateId":  "HCC_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_462",
+    "userId":  "default",
+    "symbol":  "HCC",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  73.33097320573337,
+                     "detectedBaseBottom":  50.563262484947614
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  49.41,
+                      "baseBottomPrice":  43.75,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "dabc6d94-ef92-4cd1-a9ad-c5e484f15d16",
+    "timestamp":  "2026-02-24T01:25:36.088Z"
+}

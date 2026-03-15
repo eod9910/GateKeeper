@@ -1,0 +1,19 @@
+{
+    "candidateId":  "LQD_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_1229",
+    "userId":  "default",
+    "symbol":  "LQD",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  113.1844491287653,
+                     "detectedBaseBottom":  85.09612226136865
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  99.24,
+                      "baseBottomPrice":  90.97,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "2acf0a35-dbd0-4c88-a277-a5fda901b9af",
+    "timestamp":  "2026-02-24T01:22:48.742Z"
+}

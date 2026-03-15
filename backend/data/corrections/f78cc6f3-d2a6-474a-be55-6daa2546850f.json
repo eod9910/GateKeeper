@@ -1,0 +1,21 @@
+{
+  "candidateId": "ANGI_W_scan_rdp_wiggle_base_v1_9797e66f_0_745",
+  "userId": "default",
+  "symbol": "ANGI",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 41.52,
+    "baseBottomPrice": 16.68,
+    "baseStartTime": "2022-10-24",
+    "baseEndTime": "2026-02-02",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "f78cc6f3-d2a6-474a-be55-6daa2546850f",
+  "timestamp": "2026-02-26T22:15:42.197Z"
+}

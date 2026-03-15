@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vision Lab - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .vision-lab-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: var(--space-16);
+    }
+    .vision-lab-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .vision-lab-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .vision-lab-field label {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .vision-lab-textarea {
+      width: 100%;
+      min-height: 180px;
+      resize: vertical;
+    }
+    .vision-lab-dropzone {
+      border: 1px dashed var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-16);
+      background: color-mix(in srgb, var(--color-surface) 88%, var(--color-void) 12%);
+      min-height: 220px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .vision-lab-dropzone.is-loaded {
+      justify-content: flex-start;
+      align-items: stretch;
+      text-align: left;
+    }
+    .vision-lab-dropzone img {
+      display: block;
+      width: auto;
+      max-width: 100%;
+      max-height: 360px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 1px solid var(--color-border);
+      background: var(--color-void);
+    }
+    .vision-lab-preview-stage {
+      position: relative;
+      display: inline-block;
+      align-self: center;
+      max-width: 100%;
+      cursor: crosshair;
+      user-select: none;
+    }
+    .vision-lab-preview-stage img {
+      cursor: crosshair;
+    }
+    .vision-lab-crop-layer {
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .vision-lab-crop-layer.is-active {
+      pointer-events: auto;
+    }
+    .vision-lab-crop-mask {
+      position: absolute;
+      inset: 0;
+      background: rgba(6, 12, 24, 0.42);
+    }
+    .vision-lab-crop-box {
+      position: absolute;
+      border: 2px solid #5aa7ff;
+      background: rgba(90, 167, 255, 0.16);
+      box-shadow: 0 0 0 9999px rgba(5, 9, 18, 0.42);
+      display: none;
+    }
+    .vision-lab-crop-box.is-visible {
+      display: block;
+    }
+    .vision-lab-crop-box::after {
+      content: '';
+      position: absolute;
+      right: -5px;
+      bottom: -5px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #5aa7ff;
+      box-shadow: 0 0 0 2px rgba(5, 9, 18, 0.9);
+    }
+    .vision-lab-crop-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      align-items: center;
+      justify-content: space-between;
+      margin-top: var(--space-8);
+    }
+    .vision-lab-actions {
+      display: flex;
+      gap: var(--space-8);
+      flex-wrap: wrap;
+      margin-top: var(--space-12);
+    }
+    .vision-lab-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .vision-lab-stat {
+      padding: var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+    }
+    .vision-lab-stat__label {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      margin-bottom: 4px;
+    }
+    .vision-lab-stat__value {
+      font-size: var(--text-body);
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .vision-lab-log,
+    .vision-lab-response {
+      width: 100%;
+      min-height: 260px;
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-void) 85%, black 15%);
+      color: var(--color-text);
+      padding: var(--space-12);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      line-height: 1.55;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .vision-lab-upload {
+      display: none;
+    }
+    @media (max-width: 1180px) {
+      .vision-lab-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 900px) {
+      .vision-lab-controls,
+      .vision-lab-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="research.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Agent</span></a>
+        <a href="sweep.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="vision-lab.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Vision Lab</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+      </nav>
+    </aside>
+
+    <div class="app-main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Vision Lab</h1>
+          <p class="page-subtitle">Directly test text, pasted images, uploads, and chart-analysis payloads without the Scanner layer.</p>
+        </div>
+        <div class="vision-lab-actions" style="margin-top:0;">
+          <button class="btn btn-ghost" id="vision-lab-refresh-status">Refresh Status</button>
+          <button class="btn btn-ghost" id="vision-lab-clear-all">Clear</button>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-16) var(--space-24);display:flex;flex-direction:column;gap:var(--space-16);">
+        <div class="vision-lab-meta">
+          <div class="vision-lab-stat">
+            <div class="vision-lab-stat__label">Provider</div>
+            <div id="vision-lab-provider" class="vision-lab-stat__value">--</div>
+          </div>
+          <div class="vision-lab-stat">
+            <div class="vision-lab-stat__label">Model Ready</div>
+            <div id="vision-lab-ready" class="vision-lab-stat__value">--</div>
+          </div>
+          <div class="vision-lab-stat">
+            <div class="vision-lab-stat__label">Image Attached</div>
+            <div id="vision-lab-image-state" class="vision-lab-stat__value">No</div>
+          </div>
+          <div class="vision-lab-stat">
+            <div class="vision-lab-stat__label">Last Run</div>
+            <div id="vision-lab-last-run" class="vision-lab-stat__value">--</div>
+          </div>
+        </div>
+
+        <div class="vision-lab-grid">
+          <div style="display:flex;flex-direction:column;gap:var(--space-16);">
+            <div class="panel" style="padding:var(--space-16);">
+              <div class="text-label" style="margin-bottom:var(--space-12);">Request Builder</div>
+              <div class="vision-lab-controls">
+                <div class="vision-lab-field">
+                  <label for="vision-lab-role">Chat Role</label>
+                  <select id="vision-lab-role" class="input-field">
+                    <option value="literal_chart_reader">literal_chart_reader</option>
+                    <option value="contextual_ranker">contextual_ranker</option>
+                    <option value="pattern_analyst">pattern_analyst</option>
+                    <option value="copilot">copilot</option>
+                  </select>
+                </div>
+                <div class="vision-lab-field">
+                  <label for="vision-lab-analysis-mode">Analyze Mode</label>
+                  <select id="vision-lab-analysis-mode" class="input-field">
+                    <option value="pattern_discovery">pattern_discovery</option>
+                    <option value="detector_adjudication">detector_adjudication</option>
+                  </select>
+                </div>
+                <div class="vision-lab-field">
+                  <label for="vision-lab-symbol">Symbol</label>
+                  <input id="vision-lab-symbol" class="input-field" placeholder="Optional for literal vision tests" />
+                </div>
+                <div class="vision-lab-field">
+                  <label for="vision-lab-model">Model Override</label>
+                  <input id="vision-lab-model" class="input-field" placeholder="Optional, e.g. gpt-4o" />
+                </div>
+                <div class="vision-lab-field">
+                  <label for="vision-lab-upscale">Export Upscale</label>
+                  <select id="vision-lab-upscale" class="input-field">
+                    <option value="1">1x</option>
+                    <option value="2" selected>2x</option>
+                    <option value="3">3x</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="vision-lab-field" style="margin-top:var(--space-16);">
+                <label for="vision-lab-message">Message</label>
+                <textarea id="vision-lab-message" class="input-field vision-lab-textarea" placeholder="Ask exactly what visible labels, numbers, and drawn lines the model sees.">Tell me exactly what visible labels, numbers, swing-point markers, and drawn lines you see. Start by listing the visible labels literally before any interpretation.</textarea>
+              </div>
+              <div class="text-muted" id="vision-lab-hint" style="font-size:var(--text-small);margin-top:var(--space-8);">
+                Use <span class="text-mono">literal_chart_reader</span> with <span class="text-mono">Send Chat</span> for exact label reading. Leave Symbol blank unless you intentionally want to inject symbol context.
+              </div>
+
+              <div class="vision-lab-actions">
+                <button class="btn btn-ghost" id="vision-lab-send-chat">Send Chat</button>
+                <button class="btn btn-ghost" id="vision-lab-send-analyze">Send Analyze</button>
+                <button class="btn btn-ghost" id="vision-lab-upload-trigger">Upload Image</button>
+                <button class="btn btn-ghost" id="vision-lab-remove-image">Remove Image</button>
+                <button class="btn btn-ghost" id="vision-lab-clear-crop">Clear Crop</button>
+              </div>
+              <input id="vision-lab-upload" class="vision-lab-upload" type="file" accept="image/*" />
+            </div>
+
+            <div class="panel" style="padding:var(--space-16);">
+              <div class="text-label" style="margin-bottom:var(--space-12);">Image Payload</div>
+              <div id="vision-lab-dropzone" class="vision-lab-dropzone" tabindex="0">
+                <div id="vision-lab-dropzone-empty">
+                  <div style="font-weight:700;margin-bottom:var(--space-8);">Paste, drop, or upload an image</div>
+                  <div class="text-muted">This sends the exact data URL payload to the backend, outside the Scanner flow.</div>
+                </div>
+                <div id="vision-lab-preview-shell" class="hidden">
+                  <div id="vision-lab-preview-stage" class="vision-lab-preview-stage">
+                    <img id="vision-lab-preview" alt="Vision lab image preview">
+                    <div id="vision-lab-crop-layer" class="vision-lab-crop-layer">
+                      <div class="vision-lab-crop-mask"></div>
+                      <div id="vision-lab-crop-box" class="vision-lab-crop-box"></div>
+                    </div>
+                  </div>
+                  <div class="vision-lab-crop-meta">
+                    <div id="vision-lab-image-meta" class="text-muted"></div>
+                    <div id="vision-lab-crop-status" class="text-muted">Crop: full image</div>
+                  </div>
+                  <div class="text-muted" style="font-size:var(--text-small);">Click and drag on the image to crop to the chart area. Send Chat and Send Analyze use the crop when active, then export that region at the selected upscale factor.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:var(--space-16);">
+            <div class="panel" style="padding:var(--space-16);">
+              <div class="text-label" style="margin-bottom:var(--space-12);">Run Summary</div>
+              <pre id="vision-lab-log" class="vision-lab-log">Waiting for a request...</pre>
+            </div>
+            <div class="panel" style="padding:var(--space-16);">
+              <div class="text-label" style="margin-bottom:var(--space-12);">Raw Response</div>
+              <pre id="vision-lab-response" class="vision-lab-response">No response yet.</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="vision-lab.js"></script>
+</body>
+</html>

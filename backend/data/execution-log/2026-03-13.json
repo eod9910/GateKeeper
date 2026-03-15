@@ -1,0 +1,774 @@
+[
+  {
+    "timestamp": "2026-03-13T00:37:21.942Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 100001.7
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:00.869Z",
+    "event": "exit_orders_repaired",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "PALL",
+    "details": {
+      "order_id": "6ca01b89-e2cb-421d-9ffe-2a1a9ff6fa20",
+      "qty": 10,
+      "entry_price": 151.21,
+      "stop_price": 140.60143807547433,
+      "take_profit_price": 193.64424769810267,
+      "cancelled_orders": []
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:02.790Z",
+    "event": "scan_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "universe_size": 140,
+      "requested_universe_size": 297,
+      "broker_filtered_out": 157,
+      "interval": "1d",
+      "period": "2y"
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.197Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "LQD",
+    "details": {
+      "score": 0.95,
+      "entry_price": 108.56999969482422,
+      "stop_distance": 1.1725584852065896
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.199Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "PGNY",
+    "details": {
+      "score": 0.95,
+      "entry_price": 17.5,
+      "stop_distance": 2.32428468976702
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.200Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "SEMR",
+    "details": {
+      "score": 0.95,
+      "entry_price": 11.920000076293945,
+      "stop_distance": 0.06571388244628906
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.201Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "BRZE",
+    "details": {
+      "score": 0.95,
+      "entry_price": 18.579999923706055,
+      "stop_distance": 2.65414251599993
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.202Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "CWAN",
+    "details": {
+      "score": 0.95,
+      "entry_price": 23.149999618530273,
+      "stop_distance": 0.43257113865443636
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.202Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "DCBO",
+    "details": {
+      "score": 0.95,
+      "entry_price": 19.670000076293945,
+      "stop_distance": 2.527857099260603
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.203Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "EVCM",
+    "details": {
+      "score": 0.95,
+      "entry_price": 12.050000190734863,
+      "stop_distance": 1.3597146442958288
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.204Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "WEAV",
+    "details": {
+      "score": 0.95,
+      "entry_price": 4.75,
+      "stop_distance": 0.676142965044294
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.205Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "PRCH",
+    "details": {
+      "score": 0.95,
+      "entry_price": 7.170000076293945,
+      "stop_distance": 0.9235716547284808
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.206Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "CXAI",
+    "details": {
+      "score": 0.95,
+      "entry_price": 0.2199999988079071,
+      "stop_distance": 0.05542857093470437
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.206Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "SDGR",
+    "details": {
+      "score": 0.95,
+      "entry_price": 12.15999984741211,
+      "stop_distance": 1.5588572365897042
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.207Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "RLAY",
+    "details": {
+      "score": 0.95,
+      "entry_price": 10.550000190734863,
+      "stop_distance": 1.581571442740304
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.208Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "BIRD",
+    "details": {
+      "score": 0.95,
+      "entry_price": 3.059999942779541,
+      "stop_distance": 0.7098571232386998
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.208Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "COOK",
+    "details": {
+      "score": 0.95,
+      "entry_price": 0.5899999737739563,
+      "stop_distance": 0.1460143199988774
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.210Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "FIGS",
+    "details": {
+      "score": 0.95,
+      "entry_price": 15,
+      "stop_distance": 2.2821426391601562
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.212Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "MAXN",
+    "details": {
+      "score": 0.95,
+      "entry_price": 2.309999942779541,
+      "stop_distance": 0.29200005531311035
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.213Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "JOBY",
+    "details": {
+      "score": 0.95,
+      "entry_price": 9.739999771118164,
+      "stop_distance": 1.3042855943952287
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.213Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "OPEN",
+    "details": {
+      "score": 0.95,
+      "entry_price": 4.840000152587891,
+      "stop_distance": 0.8257143838065011
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.214Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "PSFE",
+    "details": {
+      "score": 0.95,
+      "entry_price": 6.989999771118164,
+      "stop_distance": 0.9797143254961286
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.214Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "ORGN",
+    "details": {
+      "score": 0.95,
+      "entry_price": 0.125,
+      "stop_distance": 0.03259999730757305
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.215Z",
+    "event": "signal_detected",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "MNTS",
+    "details": {
+      "score": 0.95,
+      "entry_price": 3.9200000762939453,
+      "stop_distance": 0.6902143955230713
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:14.216Z",
+    "event": "scan_completed",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "universe_scanned": 140,
+      "total_candidates": 140,
+      "actionable_signals": 21,
+      "symbols_with_signals": [
+        "LQD",
+        "PGNY",
+        "SEMR",
+        "BRZE",
+        "CWAN",
+        "DCBO",
+        "EVCM",
+        "WEAV",
+        "PRCH",
+        "CXAI",
+        "SDGR",
+        "RLAY",
+        "BIRD",
+        "COOK",
+        "FIGS",
+        "MAXN",
+        "JOBY",
+        "OPEN",
+        "PSFE",
+        "ORGN",
+        "MNTS"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.449Z",
+    "event": "order_submitted",
+    "symbol": "LQD",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "order_id": "2d70b700-fdb7-4a8b-83ea-6e5333e44da1",
+      "qty": 852,
+      "entry_price": 108.56999969482422,
+      "stop_price": 107.39744120961763,
+      "take_profit_price": 113.26023363565058,
+      "stop_distance": 1.1725584852065896,
+      "risk_pct": 0.01,
+      "score": 0.95
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.670Z",
+    "event": "order_submitted",
+    "symbol": "PGNY",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "order_id": "9e8b98ca-9374-4541-b215-5a070ace56ca",
+      "qty": 430,
+      "entry_price": 17.5,
+      "stop_price": 15.175715310232981,
+      "take_profit_price": 26.79713875906808,
+      "stop_distance": 2.32428468976702,
+      "risk_pct": 0.01,
+      "score": 0.95
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.672Z",
+    "event": "signal_filtered",
+    "symbol": "SEMR",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.673Z",
+    "event": "signal_filtered",
+    "symbol": "BRZE",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.673Z",
+    "event": "signal_filtered",
+    "symbol": "CWAN",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.674Z",
+    "event": "signal_filtered",
+    "symbol": "DCBO",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.674Z",
+    "event": "signal_filtered",
+    "symbol": "EVCM",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.675Z",
+    "event": "signal_filtered",
+    "symbol": "WEAV",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.676Z",
+    "event": "signal_filtered",
+    "symbol": "PRCH",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.677Z",
+    "event": "signal_filtered",
+    "symbol": "CXAI",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.677Z",
+    "event": "signal_filtered",
+    "symbol": "SDGR",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.678Z",
+    "event": "signal_filtered",
+    "symbol": "RLAY",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.678Z",
+    "event": "signal_filtered",
+    "symbol": "BIRD",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.679Z",
+    "event": "signal_filtered",
+    "symbol": "COOK",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.679Z",
+    "event": "signal_filtered",
+    "symbol": "FIGS",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.680Z",
+    "event": "signal_filtered",
+    "symbol": "MAXN",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.680Z",
+    "event": "signal_filtered",
+    "symbol": "JOBY",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.681Z",
+    "event": "signal_filtered",
+    "symbol": "OPEN",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.681Z",
+    "event": "signal_filtered",
+    "symbol": "PSFE",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.682Z",
+    "event": "signal_filtered",
+    "symbol": "ORGN",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.683Z",
+    "event": "signal_filtered",
+    "symbol": "MNTS",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "reason": "max_concurrent_reached",
+      "current": 3,
+      "max": 3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T01:00:16.683Z",
+    "event": "scan_completed",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "signals": 21,
+      "orders_placed": 2,
+      "orders_failed": 0
+    }
+  },
+  {
+    "timestamp": "2026-03-13T02:40:25.257Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99976.9
+    }
+  },
+  {
+    "timestamp": "2026-03-13T07:19:36.352Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99948
+    }
+  },
+  {
+    "timestamp": "2026-03-13T07:23:08.868Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99948
+    }
+  },
+  {
+    "timestamp": "2026-03-13T07:32:08.682Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99945.9
+    }
+  },
+  {
+    "timestamp": "2026-03-13T07:44:15.630Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99945.9
+    }
+  },
+  {
+    "timestamp": "2026-03-13T07:50:25.920Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99945.9
+    }
+  },
+  {
+    "timestamp": "2026-03-13T07:59:12.020Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99945.9
+    }
+  },
+  {
+    "timestamp": "2026-03-13T08:22:29.864Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99958.3
+    }
+  },
+  {
+    "timestamp": "2026-03-13T13:30:32.898Z",
+    "event": "position_closed",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "LQD",
+    "details": {
+      "entry_price": 108.56999969482422,
+      "stop_price": 107.39744120961763,
+      "take_profit_price": 113.26023363565058,
+      "reason": "detected_closed_at_broker"
+    }
+  },
+  {
+    "timestamp": "2026-03-13T13:30:32.910Z",
+    "event": "position_closed",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "PGNY",
+    "details": {
+      "entry_price": 17.5,
+      "stop_price": 15.175715310232981,
+      "take_profit_price": 26.79713875906808,
+      "reason": "detected_closed_at_broker"
+    }
+  },
+  {
+    "timestamp": "2026-03-13T17:44:02.743Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99076.7
+    }
+  },
+  {
+    "timestamp": "2026-03-13T17:46:57.602Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99064.96
+    }
+  },
+  {
+    "timestamp": "2026-03-13T17:58:24.613Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 98978.14
+    }
+  },
+  {
+    "timestamp": "2026-03-13T18:34:56.056Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99006.94
+    }
+  },
+  {
+    "timestamp": "2026-03-13T18:41:21.946Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99072.88
+    }
+  },
+  {
+    "timestamp": "2026-03-13T19:51:23.216Z",
+    "event": "position_closed",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "symbol": "PALL",
+    "details": {
+      "entry_price": 151.21,
+      "stop_price": 140.60143807547433,
+      "take_profit_price": 193.64424769810267,
+      "reason": "detected_closed_at_broker"
+    }
+  },
+  {
+    "timestamp": "2026-03-13T19:55:13.771Z",
+    "event": "bridge_started",
+    "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+    "details": {
+      "mode": "paper",
+      "max_concurrent": 3,
+      "risk_pct": 0.01,
+      "scan_cron": "0 21 * * 1-5",
+      "timezone": "America/New_York",
+      "session_equity": 99158.54
+    }
+  }
+]

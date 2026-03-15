@@ -1,0 +1,19 @@
+{
+  "candidateId": "ACRE_W_scan_rdp_wiggle_base_v1_22bed501_0_722",
+  "userId": "default",
+  "symbol": "ACRE",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 5.1,
+    "baseBottomPrice": 3.13,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "355365f3-8020-4bae-8d9e-5f4b522cb867",
+  "timestamp": "2026-02-26T03:27:51.389Z"
+}

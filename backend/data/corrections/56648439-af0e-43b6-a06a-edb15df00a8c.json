@@ -1,0 +1,19 @@
+{
+  "candidateId": "ACLX_W_scan_rdp_wiggle_base_v1_22bed501_0_212",
+  "userId": "default",
+  "symbol": "ACLX",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 73.44,
+    "baseBottomPrice": 49.02,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "56648439-af0e-43b6-a06a-edb15df00a8c",
+  "timestamp": "2026-02-26T03:26:53.132Z"
+}

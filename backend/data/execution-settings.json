@@ -1,0 +1,13 @@
+{
+  "alpaca_api_key": "PKKJ65VWDPB6TOIHOHWWYMKE6W",
+  "alpaca_secret_key": "41MdWoAa1jvt8y15e8aE2q3uJGeCsEYr5hbcezMd58Jw",
+  "alpaca_base_url": "https://paper-api.alpaca.markets",
+  "alpaca_mode": "paper",
+  "broker_provider": "oanda",
+  "oanda_api_token": "1bdc5859ecfade75c9dc25dd3c15a0b2-d1b0141bb2658b9e3e5b6463561b5abb",
+  "oanda_account_id": "001-001-2023190-001",
+  "oanda_environment": "live",
+  "execution_broker_provider": "alpaca",
+  "robinhood_username": "eod9910@gmail.com",
+  "robinhood_password": "MUvpS^q$r#fUqi7"
+}

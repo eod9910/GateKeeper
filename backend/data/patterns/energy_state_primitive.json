@@ -1,0 +1,55 @@
+{
+  "pattern_id": "energy_state_primitive",
+  "name": "Energy State (Primitive)",
+  "category": "indicator_signals",
+  "description": "Primitive STATE filter. Checks whether energy character and pressure constraints are valid.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/energy_state_primitive.py",
+  "plugin_function": "run_energy_state_primitive_plugin",
+  "pattern_type": "energy_state_primitive",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "energy_state_primitive",
+    "fib_proximity": 3.0,
+    "energy_allowed_states": [
+      "EXHAUSTED",
+      "RECOVERING",
+      "WANING"
+    ],
+    "energy_require_pressure_max": true,
+    "energy_pressure_max": 30.0,
+    "energy_require_declining_pressure": false
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "energy_pressure_max",
+      "label": "Max Pressure",
+      "type": "float",
+      "min": 0.0,
+      "max": 100.0,
+      "default": 30.0
+    },
+    {
+      "key": "energy_require_declining_pressure",
+      "label": "Require Declining Pressure",
+      "type": "bool",
+      "default": false
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 220,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "state_filter",
+  "chart_indicator": false
+}

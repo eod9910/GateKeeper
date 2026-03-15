@@ -1,0 +1,136 @@
+{
+  "pattern_id": "three_drives_pattern",
+  "name": "Three Drives Pattern",
+  "category": "chart_patterns",
+  "description": "Experimental RDP-confirmed three-drives reversal detector. Finds six-pivot bullish or bearish three-drives structure, validates harmonic-style retracements and extensions, and only surfaces the setup while price remains in the post-drive-3 reaction zone.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/three_drives_pattern.py",
+  "plugin_function": "run_three_drives_pattern_plugin",
+  "pattern_type": "three_drives_pattern",
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "reversal_structure_pattern",
+  "indicator_role": "context",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true
+  },
+  "default_setup_params": {
+    "pattern_type": "three_drives_pattern",
+    "lookback_bars": 220,
+    "pivot_source": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true,
+    "correction_retrace_min_level": 0.5,
+    "correction_retrace_max_level": 0.786,
+    "extension_min_level": 1.13,
+    "extension_max_level": 1.786,
+    "drive_symmetry_pct": 0.4,
+    "reaction_zone_max_level": 0.382,
+    "min_score": 0.58,
+    "max_candidates": 2
+  },
+  "default_entry": {
+    "entry_type": "reaction_zone_reversal"
+  },
+  "tunable_params": [
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.005,
+      "default": 0.08
+    },
+    {
+      "key": "use_exact_epsilon",
+      "label": "Exact Epsilon",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Bars",
+      "type": "int",
+      "min": 80,
+      "max": 500,
+      "default": 220
+    },
+    {
+      "key": "pivot_source",
+      "label": "Pivot Source",
+      "type": "select",
+      "options": ["rdp", "structure", "auto"],
+      "default": "rdp"
+    },
+    {
+      "key": "correction_retrace_min_level",
+      "label": "Correction Min",
+      "type": "float",
+      "min": 0.236,
+      "max": 0.786,
+      "step": 0.01,
+      "default": 0.5
+    },
+    {
+      "key": "correction_retrace_max_level",
+      "label": "Correction Max",
+      "type": "float",
+      "min": 0.382,
+      "max": 1.0,
+      "step": 0.01,
+      "default": 0.786
+    },
+    {
+      "key": "extension_min_level",
+      "label": "Extension Min",
+      "type": "float",
+      "min": 1.0,
+      "max": 2.0,
+      "step": 0.01,
+      "default": 1.13
+    },
+    {
+      "key": "extension_max_level",
+      "label": "Extension Max",
+      "type": "float",
+      "min": 1.13,
+      "max": 2.618,
+      "step": 0.01,
+      "default": 1.786
+    },
+    {
+      "key": "drive_symmetry_pct",
+      "label": "Drive Symmetry",
+      "type": "float",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.05,
+      "default": 0.4
+    },
+    {
+      "key": "reaction_zone_max_level",
+      "label": "Reaction Zone Max",
+      "type": "float",
+      "min": 0.05,
+      "max": 0.618,
+      "step": 0.01,
+      "default": 0.382
+    },
+    {
+      "key": "min_score",
+      "label": "Min Score",
+      "type": "float",
+      "min": 0.25,
+      "max": 0.95,
+      "step": 0.05,
+      "default": 0.58
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 50,
+  "status": "experimental"
+}

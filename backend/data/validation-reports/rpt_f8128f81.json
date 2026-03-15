@@ -1,0 +1,165 @@
+{
+  "report_id": "rpt_f8128f81",
+  "strategy_version_id": "sweep_8f4bf281-b_7",
+  "config": {
+    "date_start": "2020-01-01",
+    "date_end": "2026-02-22",
+    "universe": [
+      "APLS",
+      "ARWR",
+      "BEAM",
+      "HALO",
+      "INSM",
+      "KRTX",
+      "PRCT",
+      "RVMD",
+      "IOVA",
+      "ANET",
+      "ALRM",
+      "BRZE",
+      "CALX",
+      "CRDO",
+      "DDOG",
+      "ESTC",
+      "JAMF",
+      "NTNX",
+      "SMCI",
+      "BROS",
+      "CAVA",
+      "CROX",
+      "DNUT",
+      "FIGS",
+      "SHAK",
+      "WRBY",
+      "AFRM",
+      "BILL",
+      "HOOD",
+      "SOFI",
+      "TOST",
+      "UPST",
+      "ARRY",
+      "ENPH",
+      "RUN",
+      "SEDG",
+      "SHLS",
+      "ASTS",
+      "IONQ",
+      "JOBY",
+      "LUNR",
+      "RKLB",
+      "AG",
+      "CCJ",
+      "MP",
+      "PAAS",
+      "BWXT",
+      "POWL",
+      "MARA",
+      "RIOT"
+    ],
+    "timeframes": [
+      "1d"
+    ],
+    "data_snapshot": {
+      "path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\validator-snapshots\\snapshot_ea8d5b124007f0b0.json",
+      "loaded_from_cache": true
+    },
+    "costs": {
+      "commission_per_trade": 0,
+      "slippage_pct": 0.001
+    },
+    "validation_thresholds": {
+      "min_trades_pass": 300,
+      "min_trades_fail": 200,
+      "max_oos_degradation_pct": 50,
+      "min_wf_profitable_windows": 0.6,
+      "max_mc_p95_dd_pct": 30,
+      "max_mc_p99_dd_pct": 50,
+      "max_sensitivity_score": 40,
+      "r_to_pct": 2
+    },
+    "tier_runtime_profile": "tier1_baseline_only",
+    "tier1_early_stop_reason": "Tier 1 early pass evidence reached after 302 trades (expectancy=0.276R, pf=1.513).",
+    "tier1_symbols_processed": 18,
+    "validation_tier": "tier1",
+    "asset_class": "stocks"
+  },
+  "trades_summary": {
+    "total_trades": 302,
+    "winners": 125,
+    "losers": 177,
+    "win_rate": 0.4139072847682119,
+    "avg_win_R": 1.9647752453881424,
+    "avg_loss_R": -0.9168686633507508,
+    "expectancy_R": 0.27586474258422167,
+    "profit_factor": 1.5133608496635829,
+    "largest_win_R": 6.999790035587109,
+    "largest_loss_R": -1.000481787960021
+  },
+  "risk_summary": {
+    "max_drawdown_pct": 20.161180249075713,
+    "max_drawdown_R": 10.080590124537856,
+    "time_under_water_bars": 84,
+    "expected_recovery_time_bars": 84,
+    "sharpe_ratio": 2.6297942635916054,
+    "calmar_ratio": 0.027365931872651038,
+    "longest_losing_streak": 9,
+    "avg_losing_streak": 2.2987012987012987,
+    "longest_winning_streak": 5
+  },
+  "robustness": {
+    "out_of_sample": {
+      "is_expectancy": 0.27586474258422167,
+      "is_n": 302,
+      "oos_expectancy": 0.27586474258422167,
+      "oos_n": 302,
+      "split_date": "2026-02-22",
+      "oos_degradation_pct": 0
+    },
+    "walk_forward": {
+      "windows": [],
+      "avg_test_expectancy": 0.27586474258422167,
+      "pct_profitable_windows": 1
+    },
+    "monte_carlo": {
+      "simulations": 0,
+      "median_dd_pct": 20.161180249075713,
+      "p95_dd_pct": 20.161180249075713,
+      "p99_dd_pct": 20.161180249075713,
+      "median_final_R": 83.31115226043495,
+      "p5_final_R": -1.000481787960021
+    },
+    "parameter_sensitivity": {
+      "params_tested": [],
+      "base_expectancy": 0.27586474258422167,
+      "nudged_results": [],
+      "sensitivity_score": 0
+    }
+  },
+  "execution_stats": {
+    "rules_active": false,
+    "breakeven_triggers": 0,
+    "ladder_lock_triggers": 0,
+    "green_to_red_exits": 0,
+    "scale_out_triggers": 0,
+    "time_stop_exits": 0,
+    "profit_retrace_exits": 0,
+    "daily_cap_triggers": 0,
+    "avg_giveback_from_peak_R": 0.5984414616694077,
+    "pct_trades_hitting_breakeven": 0,
+    "pct_trades_hitting_scale_out": 0,
+    "expectancy_without_rules_R": 0.27586474258422167,
+    "expectancy_with_rules_R": 0.27586474258422167
+  },
+  "pass_fail": "PASS",
+  "pass_fail_reasons": [
+    "Trade count meets Tier 1 pass threshold (302).",
+    "Tier 1 robustness suite deferred to Tier 2/3 by design."
+  ],
+  "decision_log": {
+    "decision": "pending",
+    "decided_by": "",
+    "decided_at": null,
+    "notes": ""
+  },
+  "created_at": "2026-02-22T04:31:57.790160Z"
+}

@@ -1,0 +1,21 @@
+{
+  "candidateId": "AHCO_W_scan_rdp_wiggle_base_v1_9797e66f_0_404",
+  "userId": "default",
+  "symbol": "AHCO",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 11.78,
+    "baseBottomPrice": 6.3,
+    "baseStartTime": "2023-10-30",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "90ed2426-072b-4dd9-81a8-3319f045a11d",
+  "timestamp": "2026-02-26T03:57:48.870Z"
+}

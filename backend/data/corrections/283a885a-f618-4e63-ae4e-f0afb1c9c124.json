@@ -1,0 +1,62 @@
+{
+  "candidateId": "UUUU_W_WP_94_965",
+  "userId": "default",
+  "symbol": "UUUU",
+  "timeframe": "W",
+  "patternType": "wyckoff_drawing",
+  "drawings": {
+    "peak": {
+      "type": "point",
+      "time": "2011-02-14",
+      "price": 80.41409977528838
+    },
+    "markdown": {
+      "type": "lineDown",
+      "time1": "2011-01-03",
+      "price1": 83.70700737006393,
+      "time2": "2013-03-11",
+      "price2": 4.677225095450666
+    },
+    "base": {
+      "type": "box",
+      "time1": "2011-07-04",
+      "price1": 21.800344588283536,
+      "time2": "2021-11-22",
+      "price2": 0.7257359817200069
+    },
+    "markup": {
+      "type": "lineUp",
+      "time1": "2020-07-20",
+      "price1": 0.7257359817200069,
+      "time2": "2022-03-28",
+      "price2": 11.921621803956889
+    },
+    "pullback": {
+      "type": "lineDown",
+      "time1": "2022-01-03",
+      "price1": 11.263040285001779,
+      "time2": "2024-05-20",
+      "price2": 3.3600620575404534
+    },
+    "breakout": {
+      "type": "hline",
+      "price": 23.776089145148873
+    }
+  },
+  "canvasSize": {
+    "width": 825,
+    "height": 500
+  },
+  "chartTimeRange": {
+    "start": "2007-03-19",
+    "end": "2026-02-09"
+  },
+  "chartPriceRange": {
+    "low": 0.7799999713897705,
+    "high": 240
+  },
+  "original": null,
+  "corrected": null,
+  "id": "283a885a-f618-4e63-ae4e-f0afb1c9c124",
+  "timestamp": "2026-02-11T00:10:36.525Z"
+}

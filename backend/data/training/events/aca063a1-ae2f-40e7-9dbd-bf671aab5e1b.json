@@ -1,0 +1,14 @@
+{
+  "type": "attempt_resolved",
+  "sessionId": "f147252f-dbc7-4e9e-a677-64bf390ff60b",
+  "attemptId": "9d47042a-42d2-4686-b85a-a1bab9f14407",
+  "contractId": "pullback_v1",
+  "payload": {
+    "status": "resolved",
+    "symbol": "DIA",
+    "timeframe": "1d",
+    "rMultiple": -1
+  },
+  "id": "aca063a1-ae2f-40e7-9dbd-bf671aab5e1b",
+  "timestamp": "2026-03-04T06:48:05.172Z"
+}

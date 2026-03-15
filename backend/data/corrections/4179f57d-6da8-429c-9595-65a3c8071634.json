@@ -1,0 +1,19 @@
+{
+    "candidateId":  "AEO_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_1662",
+    "userId":  "default",
+    "symbol":  "AEO",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  21.478058825729253,
+                     "detectedBaseBottom":  7.728147399124619
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  16.92,
+                      "baseBottomPrice":  7.73,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "4179f57d-6da8-429c-9595-65a3c8071634",
+    "timestamp":  "2026-02-23T07:18:32.664Z"
+}

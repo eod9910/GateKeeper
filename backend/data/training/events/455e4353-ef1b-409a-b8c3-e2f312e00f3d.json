@@ -1,0 +1,11 @@
+{
+  "type": "session_started",
+  "sessionId": "114d22ef-3263-4522-bae6-93d9d8049c71",
+  "contractId": "base_breakout_long_v1",
+  "payload": {
+    "userId": "local-user",
+    "contractVersion": "1.0.0"
+  },
+  "id": "455e4353-ef1b-409a-b8c3-e2f312e00f3d",
+  "timestamp": "2026-03-03T23:51:09.991Z"
+}

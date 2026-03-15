@@ -1,0 +1,19 @@
+{
+    "candidateId":  "CCJ_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_1562",
+    "userId":  "default",
+    "symbol":  "CCJ",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  60.82672366851819,
+                     "detectedBaseBottom":  35.02208439311233
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  21.41,
+                      "baseBottomPrice":  9.03,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "76e81cca-6ba6-4352-a95a-627f1e134e7a",
+    "timestamp":  "2026-02-23T06:54:12.304Z"
+}

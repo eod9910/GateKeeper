@@ -1,0 +1,19 @@
+{
+    "candidateId":  "CPRX_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_1006",
+    "userId":  "default",
+    "symbol":  "CPRX",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  26.09499979019165,
+                     "detectedBaseBottom":  19.07499933242798
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  22.18,
+                      "baseBottomPrice":  19.07,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "282373c1-add5-4bfd-8976-ac9b306ca201",
+    "timestamp":  "2026-02-23T06:56:15.549Z"
+}

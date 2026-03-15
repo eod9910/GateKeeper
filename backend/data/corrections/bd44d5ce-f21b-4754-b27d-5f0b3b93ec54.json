@@ -1,0 +1,21 @@
+{
+  "candidateId": "AMBP_W_scan_rdp_wiggle_base_v1_9797e66f_0_238",
+  "userId": "default",
+  "symbol": "AMBP",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 4.12,
+    "baseBottomPrice": 2.18,
+    "baseStartTime": "2023-01-30",
+    "baseEndTime": "2025-07-21",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "bd44d5ce-f21b-4754-b27d-5f0b3b93ec54",
+  "timestamp": "2026-02-26T05:32:29.073Z"
+}

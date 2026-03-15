@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Execution Training - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="drawing-tools.css">
+  <style>
+    .training-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-16);
+      min-height: 0;
+    }
+    .training-left {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      min-height: 0;
+    }
+    .training-right {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      min-height: 0;
+    }
+    .training-bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-12);
+      margin-top: var(--space-12);
+      width: 100%;
+    }
+    .mono { font-family: var(--font-mono); }
+    .kpi-grid {
+      display:grid;
+      grid-template-columns:repeat(6,minmax(0,1fr));
+      gap: var(--space-8);
+    }
+    .kpi {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-void);
+      padding: var(--space-8);
+    }
+    .kpi .label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+      font-family: var(--font-mono);
+    }
+    .kpi .value {
+      font-size: var(--text-small);
+      font-weight: 600;
+      color: var(--color-text);
+      font-family: var(--font-mono);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text);
+      padding: 7px 10px;
+      font-size: var(--text-small);
+      font-family: var(--font-mono);
+    }
+    .field textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+    #training-chart {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--color-void);
+    }
+    .list-box {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-void);
+      padding: var(--space-8);
+      max-height: 280px;
+      overflow: auto;
+    }
+    .rule-item,
+    .session-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-8);
+      padding: 8px 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    }
+    .rule-item:last-child,
+    .session-item:last-child { border-bottom: none; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      border: 1px solid var(--color-border);
+    }
+    .tag.good { color: var(--color-positive); border-color: color-mix(in srgb, var(--color-positive) 45%, var(--color-border)); }
+    .tag.bad { color: var(--color-negative); border-color: color-mix(in srgb, var(--color-negative) 45%, var(--color-border)); }
+    .tag.warn { color: var(--color-warning, #d6a44d); border-color: color-mix(in srgb, #d6a44d 45%, var(--color-border)); }
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-8);
+    }
+    .attempt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-caption);
+    }
+    .attempt-table th,
+    .attempt-table td {
+      padding: 8px;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+      text-align: left;
+      font-family: var(--font-mono);
+    }
+    .attempt-table th {
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 10px;
+      position: sticky;
+      top: 0;
+      background: var(--color-surface);
+    }
+    .contract-note {
+      color: var(--color-text-muted);
+      font-size: var(--text-caption);
+      line-height: 1.5;
+    }
+    .status-line {
+      min-height: 22px;
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+    }
+    @media (max-width: 900px) {
+      .training-layout {
+        grid-template-columns: 1fr;
+      }
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .row { grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="training.html" class="sidebar-logo" aria-label="Training home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Execution Training</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="research.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Agent</span></a>
+        <a href="sweep.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="training.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Training</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main class="app-main">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-12) var(--space-24);border-bottom:1px solid var(--color-border);gap:var(--space-16);">
+        <div>
+          <h1 class="page-title">Execution Training &amp; Forward Test</h1>
+          <div class="text-muted" style="font-size:var(--text-caption);">
+            Contract-gated entry practice with immediate bar-forward resolution and session scoring.
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-8);flex:1;max-width:620px;">
+          <input id="training-symbol" class="input input-sm text-mono" style="flex:1;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;" value="AAPL" placeholder="Symbol (e.g. AAPL)">
+          <select id="training-timeframe" class="select select-sm" style="width:92px;">
+            <option value="1wk">1wk</option>
+            <option value="1d" selected>1d</option>
+            <option value="4h">4h</option>
+            <option value="1h">1h</option>
+          </select>
+          <div class="direction-toggle" style="flex-shrink:0;">
+            <button id="btn-training-long" class="direction-toggle-btn direction-toggle-btn--active">LONG</button>
+            <button id="btn-training-short" class="direction-toggle-btn">SHORT</button>
+          </div>
+          <button id="btn-load-bars" class="btn btn-primary btn-sm">Go</button>
+          <button id="btn-randomize" class="btn btn-sm" style="background:var(--color-accent-alt,#6366f1);color:#fff;" title="Random symbol &amp; random date">&#x1f3b2; Random</button>
+        </div>
+        <div class="status-line" id="training-status">Loading training module...</div>
+      </div>
+
+      <div class="content" style="padding:var(--space-12) var(--space-24) var(--space-24);">
+        <div class="training-layout">
+          <div class="training-left">
+            <section class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;">
+              <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);flex-shrink:0;">
+                <div style="display:flex;align-items:center;gap:var(--space-8);flex-shrink:0;">
+                  <span id="chart-symbol" class="text-mono" style="font-size:var(--text-body);font-weight:700;white-space:nowrap;">AAPL</span>
+                  <span id="chart-interval-display" class="badge" style="font-size:var(--text-caption);padding:2px 6px;">D</span>
+                </div>
+                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+                  <button id="btn-marker-entry" class="toolbar-btn">Entry</button>
+                  <button id="btn-marker-stop" class="toolbar-btn">Stop</button>
+                  <button id="btn-marker-tp" class="toolbar-btn">Set Take Profit</button>
+                  <button id="btn-fit-chart" class="toolbar-btn">Fit</button>
+                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 4px;"></div>
+                  <label class="sidebar-field-label" for="chart-indicator-select" style="margin:0;">Indicators</label>
+                  <select id="chart-indicator-select" class="select select-sm" style="width:160px;" onchange="if(this.value){_ciToggleIndicator(this.value);this.value='';_ciPopulateIndicatorSelect();}">
+                    <option value="">-- Add / Remove --</option>
+                  </select>
+                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 4px;"></div>
+                  <button id="btn-clear-training" class="toolbar-btn">Clear</button>
+                  <span id="drawing-status" class="text-muted text-caption" style="margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;"></span>
+                </div>
+              </div>
+              <div class="panel-body" style="padding:0;display:flex;flex-direction:column;min-height:0;flex:1;">
+                <div id="chart-indicator-badges" style="display:flex;gap:4px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--color-border);background:var(--color-surface);"></div>
+                <div class="dt-chart-shell" style="flex:1;min-height:0;padding:12px;">
+                  <aside class="dt-chart-rail" aria-label="Chart drawing tools">
+                    <div id="training-dt-toolbar" data-dt-for="training-chart" class="dt-toolbar dt-toolbar--dock dt-toolbar--grouped"></div>
+                  </aside>
+                  <div class="dt-chart-stage" style="background:#1e1e1e;">
+                    <div id="training-chart"></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header" style="padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);">
+                <span style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Key Levels</span>
+              </div>
+              <div class="panel-body" style="padding:var(--space-12);">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:var(--space-12);">
+                  <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Entry</div><div id="kl-entry" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div></div>
+                  <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Stop</div><div id="kl-stop" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:#ef4444;">--</div></div>
+                  <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Take Profit</div><div id="kl-tp" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:#a855f7;">--</div></div>
+                  <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">R/R</div><div id="kl-rr" class="text-mono" style="font-size:var(--text-body);font-weight:700;">--</div></div>
+                  <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Risk %</div><div id="kl-risk" class="text-mono" style="font-size:var(--text-body);font-weight:700;">--</div></div>
+                  <div><div style="font-size:var(--text-caption);color:var(--color-accent);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Cutoff</div><div id="kl-entry-bar" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:var(--color-accent);">--</div></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header" style="padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);">
+                <span style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Training Setup</span>
+              </div>
+              <div class="panel-body">
+                <div class="row">
+                  <div class="field" style="grid-column: span 2;">
+                    <label for="training-contract">Contract</label>
+                    <select id="training-contract"></select>
+                  </div>
+                  <div class="field">
+                    <label for="training-period">Period</label>
+                    <select id="training-period">
+                      <option value="2y">2y</option>
+                      <option value="5y">5y</option>
+                      <option value="10y">10y</option>
+                      <option value="max" selected>max</option>
+                    </select>
+                  </div>
+                  <div class="field" style="justify-content:flex-end;">
+                    <label>&nbsp;</label>
+                    <button id="btn-start-session" class="btn btn-primary">Start Session</button>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="field">
+                    <label for="training-scenario-offset">Context Window</label>
+                    <select id="training-scenario-offset">
+                      <option value="6m">6 Months</option>
+                      <option value="1y">1 Year</option>
+                      <option value="3y">3 Years</option>
+                      <option value="5y">5 Years</option>
+                      <option value="all" selected>All</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="training-cutoff">Start Here</label>
+                    <input id="training-cutoff" type="date">
+                  </div>
+                  <div class="field" style="grid-column: span 2;">
+                    <label>Forward State</label>
+                    <div id="forward-lock-status" class="contract-note">Locked until setup is validated.</div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="field" style="grid-column: span 2;">
+                    <label>Contract Notes</label>
+                    <div id="contract-notes" class="contract-note">Select a contract to inspect the rules.</div>
+                  </div>
+                  <div class="field" style="grid-column: span 2;">
+                    <label>Guidance</label>
+                    <div class="contract-note">The chart only shows data up to the replay date. You cannot manually exit; the run resolves only on stop or take profit.</div>
+                  </div>
+                  <div class="field" style="justify-content:flex-end;display:none;">
+                    <label>&nbsp;</label>
+                    <button id="btn-end-session" class="btn btn-ghost">End Session</button>
+                  </div>
+                </div>
+                <div class="status-line" id="session-status" style="margin-bottom:var(--space-8);">No active session.</div>
+                <div id="recent-sessions" style="display:none;"></div>
+                <div id="training-flow-note" class="contract-note" style="margin-bottom:var(--space-12);">
+                  Draw the base box or fib on the chart, then use the toolbar to place <code>Entry</code>, <code>Stop</code>, and <code>Set Take Profit</code>. When all three are set, run forward. The replay will wait for entry to be touched, then continue until stop or take profit is hit.
+                </div>
+                <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                  <button id="btn-seed-levels" class="btn btn-ghost">Auto Fill From Box</button>
+                  <button id="btn-validate" class="btn btn-ghost">Check Setup</button>
+                  <button id="btn-run-attempt" class="btn btn-primary">Walk Forward Until Exit</button>
+                </div>
+                <div style="display:none;">
+                  <input id="box-start" type="date">
+                  <input id="box-end" type="date">
+                  <input id="box-top" type="number" step="0.01">
+                  <input id="box-bottom" type="number" step="0.01">
+                  <select id="entry-bar"></select>
+                  <input id="entry-price" type="number" step="0.01">
+                  <input id="stop-price" type="number" step="0.01">
+                  <input id="tp-price" type="number" step="0.01">
+                  <input id="risk-pct" type="number" step="0.1" value="1">
+                  <input id="max-hold" type="number" step="1" value="20">
+                  <select id="tie-break">
+                    <option value="stop_first" selected>Stop First</option>
+                    <option value="target_first">Target First</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header"><span class="panel-header-title">Rule Checklist</span></div>
+              <div class="panel-body">
+                <div class="list-box" id="rule-checklist">
+                  <div class="contract-note">Validate an attempt to see the contract gate list.</div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+        </div>
+
+        <div style="margin-top:var(--space-12);">
+          <section class="panel">
+            <div class="panel-header">
+              <span class="panel-header-title">Attempts</span>
+              <span id="aggregate-stats" class="mono text-muted">No aggregate stats yet.</span>
+            </div>
+            <div class="panel-body" style="padding:0;">
+              <div class="list-box" style="max-height:340px;border:none;border-radius:0;">
+                <table class="attempt-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Symbol</th>
+                      <th>Side</th>
+                      <th>Status</th>
+                      <th>Exit</th>
+                      <th>R</th>
+                      <th>Process</th>
+                      <th>Composite</th>
+                    </tr>
+                  </thead>
+                  <tbody id="attempts-table-body">
+                    <tr><td colspan="8" class="contract-note">No attempts yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="training-bottom-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <span class="panel-header-title">Session Scoreboard</span>
+              <span id="cooldown-badge" class="tag">Idle</span>
+            </div>
+            <div class="panel-body">
+              <div class="contract-note" style="margin-bottom:var(--space-8);">Session totals and most recent trade result.</div>
+              <div class="kpi-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+                <div class="kpi"><div class="label">Attempts</div><div id="kpi-attempts" class="value">0</div></div>
+                <div class="kpi"><div class="label">Resolved</div><div id="kpi-resolved" class="value">0</div></div>
+                <div class="kpi"><div class="label">Win Rate</div><div id="kpi-win-rate" class="value">0%</div></div>
+                <div class="kpi"><div class="label">Avg R</div><div id="kpi-avg-r" class="value">0.00</div></div>
+                <div class="kpi"><div class="label">Expectancy</div><div id="kpi-expectancy" class="value">0.00</div></div>
+                <div class="kpi"><div class="label">Process</div><div id="kpi-process" class="value">0</div></div>
+                <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="kpi-confidence" class="value" style="font-size:0.85rem;">LOW - &lt; 50 trades, not yet meaningful</div></div>
+                <div class="kpi"><div class="label">Status</div><div id="result-status" class="value">--</div></div>
+                <div class="kpi"><div class="label">Exit Reason</div><div id="result-exit" class="value">--</div></div>
+                <div class="kpi"><div class="label">Bars Held</div><div id="result-bars-held" class="value">--</div></div>
+                <div class="kpi"><div class="label">R Multiple</div><div id="result-r" class="value">--</div></div>
+                <div class="kpi"><div class="label">Process Score</div><div id="result-process" class="value">--</div></div>
+                <div class="kpi"><div class="label">Composite Score</div><div id="result-composite" class="value">--</div></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="chart-indicators.js"></script>
+  <script src="drawing-tools.js"></script>
+  <script src="training-module.js"></script>
+</body>
+</html>
+
+

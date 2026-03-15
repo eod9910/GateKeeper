@@ -1,0 +1,45 @@
+{
+  "strategy_id": "sma_50_200_benchmark",
+  "strategy_version_id": "sma_50_200_benchmark_v1",
+  "version": 1,
+  "name": "SMA 50/200 Golden Cross Benchmark",
+  "description": "Classic 50/200 SMA crossover (Golden Cross) with trend filter. Long-only, bull-market regime: only enters when price is above the 200 SMA. Used as a benchmark to validate our backtest engine against published results. Expected: ~55-60% win rate, modest positive expectancy, ~20-30% max drawdown on diversified stocks.",
+  "status": "testing",
+  "asset_class": "stocks",
+  "interval": "1wk",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "major",
+    "swing_epsilon_pct": 0.05
+  },
+  "setup_config": {
+    "pattern_type": "ma_crossover",
+    "fast_period": 50,
+    "slow_period": 200,
+    "ma_type": "sma",
+    "cross_direction": "bullish",
+    "volume_multiple": 0,
+    "lookback_bars": 1000,
+    "trend_filter": true,
+    "confirmation_bars": 1
+  },
+  "entry_config": {
+    "entry_type": "market_on_close",
+    "confirmation_bars": 1
+  },
+  "risk_config": {
+    "stop_type": "percentage",
+    "stop_value": 0.08,
+    "take_profit_R": 3.0,
+    "risk_per_trade_pct": 0.01,
+    "max_hold_bars": 52
+  },
+  "exit_config": {},
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {},
+  "created_at": "2026-02-21T00:00:00.000Z",
+  "updated_at": "2026-02-21T00:00:00.000Z"
+}

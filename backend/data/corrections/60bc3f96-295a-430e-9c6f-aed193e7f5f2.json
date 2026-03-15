@@ -1,0 +1,21 @@
+{
+  "candidateId": "AGX_W_scan_rdp_wiggle_base_v1_9797e66f_0_1593",
+  "userId": "default",
+  "symbol": "AGX",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 43.25,
+    "baseBottomPrice": 30.61,
+    "baseStartTime": "2018-06-11",
+    "baseEndTime": "2024-01-29",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "60bc3f96-295a-430e-9c6f-aed193e7f5f2",
+  "timestamp": "2026-02-26T03:56:35.213Z"
+}

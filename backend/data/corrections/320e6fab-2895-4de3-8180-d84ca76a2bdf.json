@@ -1,0 +1,19 @@
+{
+  "candidateId": "ACMR_W_scan_rdp_wiggle_base_v1_22bed501_0_434",
+  "userId": "default",
+  "symbol": "ACMR",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 24.92,
+    "baseBottomPrice": 13.37,
+    "correctionMode": "manual_base_levels"
+  },
+  "id": "320e6fab-2895-4de3-8180-d84ca76a2bdf",
+  "timestamp": "2026-02-26T03:27:15.232Z"
+}

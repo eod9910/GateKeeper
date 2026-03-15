@@ -1,0 +1,42 @@
+{
+  "pattern_id": "fib_signal_trigger_primitive",
+  "name": "Fib Signal Trigger (Primitive)",
+  "category": "indicator_signals",
+  "description": "Primitive TRIGGER indicator. Checks whether configured Fib/Energy signal state fired now.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/fib_signal_trigger_primitive.py",
+  "plugin_function": "run_fib_signal_trigger_primitive_plugin",
+  "pattern_type": "fib_signal_trigger_primitive",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "fib_signal_trigger_primitive",
+    "fib_proximity": 3.0,
+    "trigger_allowed_signals": [
+      "POTENTIAL_ENTRY",
+      "CONFIRMED_ENTRY"
+    ]
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "trigger_allowed_signals",
+      "label": "Allowed Trigger Signals",
+      "type": "string",
+      "default": "POTENTIAL_ENTRY,CONFIRMED_ENTRY"
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 220,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}

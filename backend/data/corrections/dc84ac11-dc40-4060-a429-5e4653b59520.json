@@ -1,0 +1,21 @@
+{
+  "candidateId": "APEI_W_scan_rdp_wiggle_base_v1_9797e66f_0_955",
+  "userId": "default",
+  "symbol": "APEI",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 6.4,
+    "baseBottomPrice": 3.92,
+    "baseStartTime": "2023-03-20",
+    "baseEndTime": "2023-11-27",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "dc84ac11-dc40-4060-a429-5e4653b59520",
+  "timestamp": "2026-02-26T22:17:47.437Z"
+}

@@ -1,0 +1,21 @@
+{
+  "candidateId": "AKR_W_scan_rdp_wiggle_base_v1_9797e66f_0_1709",
+  "userId": "default",
+  "symbol": "AKR",
+  "timeframe": "W",
+  "original": {
+    "auto": true,
+    "detectedBaseTop": null,
+    "detectedBaseBottom": null
+  },
+  "corrected": {
+    "notes": "",
+    "baseTopPrice": 21.12,
+    "baseBottomPrice": 16.43,
+    "baseStartTime": "2025-04-07",
+    "baseEndTime": "2026-02-23",
+    "correctionMode": "manual_base_box"
+  },
+  "id": "cdbba503-2455-4773-8da4-9ce8f25dacb9",
+  "timestamp": "2026-02-26T05:25:38.197Z"
+}

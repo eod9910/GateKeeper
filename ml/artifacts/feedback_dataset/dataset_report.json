@@ -1,0 +1,21 @@
+{
+  "labels_total": 311,
+  "labels_used": 166,
+  "labels_skipped": 145,
+  "corrections_total": 211,
+  "corrections_used": 122,
+  "corrections_skipped": 89,
+  "candidate_resolution_methods": {
+    "direct_file": 281,
+    "fallback_symbol_timeframe": 11,
+    "cache_by_id": 83,
+    "unresolved": 5
+  },
+  "skip_reasons": {
+    "label_not_used": 142,
+    "no_candidate_files_for_symbol_timeframe": 5,
+    "missing_base_levels_for_regression": 87
+  },
+  "classifier_rows": 166,
+  "regressor_rows": 122
+}

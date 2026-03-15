@@ -1,0 +1,19 @@
+{
+    "candidateId":  "CWAN_W_scan_base_box_detector_rdp_hybrid_v1_pattern_v1_6a4f6c82_0_230",
+    "userId":  "default",
+    "symbol":  "CWAN",
+    "timeframe":  "W",
+    "original":  {
+                     "auto":  true,
+                     "detectedBaseTop":  22.295000076293945,
+                     "detectedBaseBottom":  12.122499942779541
+                 },
+    "corrected":  {
+                      "notes":  "",
+                      "baseTopPrice":  19.67,
+                      "baseBottomPrice":  12.12,
+                      "correctionMode":  "manual_base_levels"
+                  },
+    "id":  "62443feb-bfce-41ef-b4b6-3dcb0ef2dbbe",
+    "timestamp":  "2026-02-23T07:26:49.982Z"
+}

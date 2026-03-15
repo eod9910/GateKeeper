@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: var(--space-24);
+      height: 100%;
+      max-width: 860px;
+    }
+    .settings-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .settings-nav-item {
+      padding: var(--space-8) var(--space-12);
+      border-radius: var(--radius);
+      font-size: var(--text-small);
+      color: var(--color-text-subtle);
+      cursor: pointer;
+      border: none;
+      background: none;
+      text-align: left;
+      width: 100%;
+      transition: background var(--transition), color var(--transition);
+    }
+    .settings-nav-item:hover { background: var(--color-surface-hover); color: var(--color-text); }
+    .settings-nav-item.active { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600; }
+    .settings-tab { display: none; }
+    .settings-tab.active { display: block; }
+    .settings-section {
+      margin-bottom: var(--space-32);
+    }
+    .settings-section-title {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      margin-bottom: var(--space-16);
+      padding-bottom: var(--space-8);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-16);
+    }
+    .settings-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+    }
+    .settings-field.full { grid-column: 1 / -1; }
+    .settings-textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+      line-height: 1.45;
+    }
+    .settings-label {
+      font-size: var(--text-small);
+      color: var(--color-text-muted);
+      font-weight: 500;
+    }
+    .settings-hint {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      margin-top: 2px;
+    }
+    .settings-save-bar {
+      position: sticky;
+      bottom: 0;
+      background: var(--color-bg);
+      border-top: 1px solid var(--color-border);
+      padding: var(--space-12) 0;
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+    }
+    .save-status {
+      font-size: var(--text-caption);
+      color: var(--color-positive);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .save-status.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="auto-labeler.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Auto Labeler</span></a>
+        <a href="research.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Research Agent</span>
+        </a>
+        <a href="sweep.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Parameter Sweep</span>
+        </a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item active" aria-current="page" style="margin-top:auto;"><span class="nav-dot"></span><span class="sidebar-label-text">⚙ Settings</span></a>
+      </nav>
+    </aside>
+
+    <div class="app-main" id="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Settings</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">Global account, risk, and AI configuration</span>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-24);overflow-y:auto;height:calc(100vh - 80px);">
+        <div class="settings-layout">
+
+          <!-- Left nav -->
+          <nav class="settings-nav">
+            <button class="settings-nav-item active" onclick="showTab('account')">Account</button>
+            <button class="settings-nav-item" onclick="showTab('risk')">Risk Rules</button>
+            <button class="settings-nav-item" onclick="showTab('ai')">AI</button>
+          </nav>
+
+          <!-- Right content -->
+          <div>
+
+            <!-- ACCOUNT TAB -->
+            <div id="tab-account" class="settings-tab active">
+              <div class="settings-section">
+                <div class="settings-section-title">Account</div>
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-account-size">Account Size ($)</label>
+                    <input type="number" id="s-account-size" class="input input-sm" value="50000" onchange="saveSetting()">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-available-balance">Available Balance ($)</label>
+                    <input type="number" id="s-available-balance" class="input input-sm" value="50000" onchange="saveSetting()">
+                    <span class="settings-hint">After open positions</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-daily-loss-limit">Daily Loss Limit (%)</label>
+                    <input type="number" id="s-daily-loss-limit" class="input input-sm" value="5" step="0.5" min="1" max="20" onchange="saveSetting()">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-max-open-positions">Max Open Positions</label>
+                    <input type="number" id="s-max-open-positions" class="input input-sm" value="5" step="1" min="1" max="20" onchange="saveSetting()">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-execution-max-concurrent">Execution Max Concurrent</label>
+                    <input type="number" id="s-execution-max-concurrent" class="input input-sm" value="3" step="1" min="1" max="20" onchange="saveSetting()">
+                    <span class="settings-hint">Used by the automated bridge when opening new positions.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- RISK TAB -->
+            <div id="tab-risk" class="settings-tab">
+
+              <div class="settings-section">
+                <div class="settings-section-title">Position Sizing</div>
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-risk-percent">Risk per Trade (%)</label>
+                    <input type="number" id="s-risk-percent" class="input input-sm" value="2" step="0.5" min="0.5" max="10" onchange="saveSetting()">
+                    <span class="settings-hint">% of account risked per position</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-max-position">Max Position Size (%)</label>
+                    <input type="number" id="s-max-position" class="input input-sm" value="25" step="5" min="5" max="100" onchange="saveSetting()">
+                    <span class="settings-hint">% of account per trade</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Default Stop Loss</div>
+                <span class="settings-hint" style="display:block;margin-bottom:var(--space-12);">Used as defaults when the Strategy Copilot or Research Agent generates a new strategy.</span>
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-default-stop-type">Stop Type</label>
+                    <select id="s-default-stop-type" class="select select-sm" onchange="toggleStopFields(); saveSetting()">
+                      <option value="atr_multiple">ATR Multiple</option>
+                      <option value="fixed_pct">Fixed Percentage</option>
+                      <option value="structural">Structural (base low)</option>
+                      <option value="swing_low">Swing Low</option>
+                    </select>
+                  </div>
+                  <div class="settings-field" id="stop-value-field">
+                    <label class="settings-label" for="s-default-stop-value" id="stop-value-label">ATR Multiplier</label>
+                    <input type="number" id="s-default-stop-value" class="input input-sm" value="2.0" step="0.5" min="0.5" max="10" onchange="saveSetting()">
+                    <span class="settings-hint" id="stop-value-hint">e.g., 2.0 = stop at 2x ATR below entry</span>
+                  </div>
+                  <div class="settings-field" id="stop-buffer-field">
+                    <label class="settings-label" for="s-default-stop-buffer">Stop Buffer (%)</label>
+                    <input type="number" id="s-default-stop-buffer" class="input input-sm" value="2" step="0.5" min="0" max="10" onchange="saveSetting()">
+                    <span class="settings-hint">Extra buffer below the structural/swing level</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Default Take Profit &amp; Exit</div>
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-min-rr">Min R:R Ratio</label>
+                    <input type="number" id="s-min-rr" class="input input-sm" value="1.5" step="0.5" min="1" max="10" onchange="saveSetting()">
+                    <span class="settings-hint">Reject strategies below this reward-to-risk</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-default-take-profit-r">Take Profit (R)</label>
+                    <input type="number" id="s-default-take-profit-r" class="input input-sm" value="2.0" step="0.5" min="1" max="10" onchange="saveSetting()">
+                    <span class="settings-hint">Default profit target in R-multiples</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-default-max-hold">Max Hold (bars)</label>
+                    <input type="number" id="s-default-max-hold" class="input input-sm" value="30" step="5" min="5" max="200" onchange="saveSetting()">
+                    <span class="settings-hint">Exit after N bars regardless of P&amp;L</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-default-breakeven-r">Breakeven Trigger (R)</label>
+                    <input type="number" id="s-default-breakeven-r" class="input input-sm" value="1.0" step="0.5" min="0.5" max="5" onchange="saveSetting()">
+                    <span class="settings-hint">Move stop to breakeven when trade reaches this R</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Default Trailing Stop</div>
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-default-trailing-type">Trailing Type</label>
+                    <select id="s-default-trailing-type" class="select select-sm" onchange="saveSetting()">
+                      <option value="none">None</option>
+                      <option value="fixed_pct">Fixed % Trail</option>
+                      <option value="atr_trail">ATR Trail</option>
+                      <option value="r_ladder">R-Multiple Ladder</option>
+                    </select>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-default-trailing-value">Trail Value</label>
+                    <input type="number" id="s-default-trailing-value" class="input input-sm" value="2.0" step="0.5" min="0.5" max="10" onchange="saveSetting()">
+                    <span class="settings-hint">% for fixed trail, ATR multiple for ATR trail</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Circuit Breakers</div>
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-max-daily-trades">Max Daily Trades</label>
+                    <input type="number" id="s-max-daily-trades" class="input input-sm" value="3" step="1" min="1" max="20" onchange="saveSetting()">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-max-consecutive-losses">Consecutive Loss Limit</label>
+                    <input type="number" id="s-max-consecutive-losses" class="input input-sm" value="3" step="1" min="1" max="10" onchange="saveSetting()">
+                    <span class="settings-hint">Stop trading after N losses in a row</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-max-drawdown">Max Drawdown (%)</label>
+                    <input type="number" id="s-max-drawdown" class="input input-sm" value="10" step="1" min="1" max="50" onchange="saveSetting()">
+                    <span class="settings-hint">Circuit breaker from account peak</span>
+                  </div>
+                  <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                    <input type="checkbox" id="s-require-approval" checked onchange="saveSetting()">
+                    <label class="settings-label" for="s-require-approval" style="cursor:pointer;">Require AI approval before entry</label>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- AI TAB -->
+            <div id="tab-ai" class="settings-tab">
+              <div class="settings-section">
+                <div class="settings-section-title">Backend Credentials</div>
+                <div class="settings-grid">
+                  <div class="settings-field full">
+                    <label class="settings-label" for="s-openai-api-key">OpenAI API Key</label>
+                    <input type="password" id="s-openai-api-key" class="input input-sm" placeholder="sk-..." autocomplete="off">
+                    <span class="settings-hint">Stored on the backend for Scanner Copilot, vision analysis, and other server-side AI features.</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label">Current Backend Status</label>
+                    <div id="s-openai-backend-status" class="text-muted" style="font-size:var(--text-small);">Loading...</div>
+                  </div>
+                  <div class="settings-field" style="justify-content:flex-end;">
+                    <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                      <button class="btn btn-primary btn-sm" type="button" onclick="saveBackendAISettings()">Save Backend AI Settings</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="testBackendAISettings()">Test Key</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Provider</div>
+                <div class="settings-grid">
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ai-provider">AI Provider</label>
+                    <select id="s-ai-provider" class="select select-sm" onchange="saveSetting()">
+                      <option value="openai">OpenAI</option>
+                      <option value="ollama">Ollama (Local)</option>
+                    </select>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ai-temperature">Temperature</label>
+                    <input type="range" id="s-ai-temperature" min="0" max="1" step="0.1" value="0.7"
+                           style="width:100%;max-width:320px;" onchange="updateTempLabel(); saveSetting()">
+                    <div style="display:flex;gap:var(--space-8);font-size:var(--text-caption);color:var(--color-text-subtle);max-width:320px;">
+                      <span>Precise</span>
+                      <span id="s-temp-value" style="margin-left:auto;margin-right:auto;color:var(--color-text-muted);">0.7</span>
+                      <span>Creative</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Model Per AI Role</div>
+                <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                  Each AI in the system can use a different model. GPT-5.4 is the strongest general analysis option here; reasoning models like o3-mini and o1 are still useful for slower, deliberate workflows.
+                </div>
+                <div class="settings-grid">
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ai-model">Co-Pilot Chat</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Trading Desk &amp; Scanner chat</div>
+                    <select id="s-ai-model" class="select select-sm" onchange="saveSetting()">
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5.4" selected>GPT-5.4 (Recommended)</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Reasoning">
+                        <option value="o3-mini">o3-mini</option>
+                        <option value="o1-mini">o1-mini</option>
+                        <option value="o1">o1</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Latest">
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                      <optgroup label="Local (Ollama)">
+                        <option value="minicpm-v">MiniCPM-V (Vision/OCR)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-plugin-engineer-model">Plugin Engineer</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Indicator Studio code generation</div>
+                    <select id="s-plugin-engineer-model" class="select select-sm" onchange="saveSetting()">
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5.4">GPT-5.4</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Reasoning">
+                        <option value="o3-mini" selected>o3-mini (Recommended)</option>
+                        <option value="o1-mini">o1-mini</option>
+                        <option value="o1">o1</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Latest">
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-research-strategist-model">Research Strategist</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Hypothesis generation &amp; strategy design</div>
+                    <select id="s-research-strategist-model" class="select select-sm" onchange="saveSetting()">
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5.4">GPT-5.4</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o" selected>GPT-4o (Recommended)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Reasoning">
+                        <option value="o3-mini">o3-mini</option>
+                        <option value="o1-mini">o1-mini</option>
+                        <option value="o1">o1</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Latest">
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-research-analyst-model">Research Analyst</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Backtest reflection &amp; forensic trade analysis</div>
+                    <select id="s-research-analyst-model" class="select select-sm" onchange="saveSetting()">
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5.4">GPT-5.4</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Reasoning">
+                        <option value="o3-mini" selected>o3-mini (Recommended)</option>
+                        <option value="o1-mini">o1-mini</option>
+                        <option value="o1">o1</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Latest">
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-validator-analyst-model">Validator Analyst</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Backtest report interpretation &amp; failure analysis</div>
+                    <select id="s-validator-analyst-model" class="select select-sm" onchange="saveSetting()">
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5.4">GPT-5.4</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o" selected>GPT-4o (Recommended)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Reasoning">
+                        <option value="o3-mini">o3-mini</option>
+                        <option value="o1-mini">o1-mini</option>
+                        <option value="o1">o1</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Latest">
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">System Prompt Per AI Role</div>
+                <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                  These prompts are stored on the backend and applied per role. Use <code>{{DEFAULT_PROMPT}}</code> if you want to inject the built-in prompt at a specific point instead of just prepending your custom instructions.
+                </div>
+                <div class="settings-grid">
+                  <div class="settings-field full">
+                    <label class="settings-label" for="s-copilot-system-prompt">Scanner / Trading Copilot Prompt</label>
+                    <textarea id="s-copilot-system-prompt" class="input input-sm settings-textarea" placeholder="Optional override for scanner and trading copilot behavior."></textarea>
+                  </div>
+                  <div class="settings-field full">
+                    <label class="settings-label" for="s-plugin-engineer-system-prompt">Plugin Engineer Prompt</label>
+                    <textarea id="s-plugin-engineer-system-prompt" class="input input-sm settings-textarea" placeholder="Optional override for plugin/code generation behavior."></textarea>
+                  </div>
+                  <div class="settings-field full">
+                    <label class="settings-label" for="s-research-strategist-system-prompt">Research Strategist Prompt</label>
+                    <textarea id="s-research-strategist-system-prompt" class="input input-sm settings-textarea" placeholder="Optional override for strategy ideation and draft generation."></textarea>
+                  </div>
+                  <div class="settings-field full">
+                    <label class="settings-label" for="s-research-analyst-system-prompt">Research Analyst Prompt</label>
+                    <textarea id="s-research-analyst-system-prompt" class="input input-sm settings-textarea" placeholder="Optional override for backtest reflection and forensic analysis."></textarea>
+                  </div>
+                  <div class="settings-field full">
+                    <label class="settings-label" for="s-validator-analyst-system-prompt">Validator Analyst Prompt</label>
+                    <textarea id="s-validator-analyst-system-prompt" class="input input-sm settings-textarea" placeholder="Optional override for validator/statistical interpretation."></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Save bar -->
+            <div class="settings-save-bar">
+              <button class="btn btn-primary btn-sm" onclick="saveSetting(true)">Save</button>
+              <span id="save-status" class="save-status">Saved</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
