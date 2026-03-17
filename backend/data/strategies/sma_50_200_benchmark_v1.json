@@ -1,0 +1,169 @@
+{
+  "strategy_id": "sma_50_200_benchmark",
+  "strategy_version_id": "sma_50_200_benchmark_v1",
+  "version": 1,
+  "name": "SMA 50/200 Golden Cross Benchmark",
+  "description": "Classic 50/200 SMA crossover (Golden Cross) with trend filter. Long-only, bull-market regime: only enters when price is above the 200 SMA. Used as a benchmark to validate our backtest engine against published results. Expected: ~55-60% win rate, modest positive expectancy, ~20-30% max drawdown on diversified stocks.",
+  "status": "rejected",
+  "asset_class": "stocks",
+  "interval": "1wk",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "major",
+    "swing_epsilon_pct": 0.05
+  },
+  "setup_config": {
+    "pattern_type": "ma_crossover",
+    "fast_period": 50,
+    "slow_period": 200,
+    "ma_type": "sma",
+    "cross_direction": "bullish",
+    "volume_multiple": 0,
+    "lookback_bars": 1000,
+    "trend_filter": true,
+    "confirmation_bars": 1
+  },
+  "entry_config": {
+    "entry_type": "market_on_close",
+    "confirmation_bars": 1
+  },
+  "risk_config": {
+    "stop_type": "percentage",
+    "stop_value": 0.08,
+    "take_profit_R": 3,
+    "risk_per_trade_pct": 0.01,
+    "max_hold_bars": 52
+  },
+  "exit_config": {},
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {},
+  "created_at": "2026-02-21T00:00:00.000Z",
+  "updated_at": "2026-03-17T01:26:10.536Z",
+  "spec_hash": "e803650f6b68c8d611d999dbebf22a15074680d580e03caafdfa56a7fedcb310",
+  "parameter_manifest": [
+    {
+      "key": "fast_period",
+      "label": "Fast MA Length",
+      "path": "setup_config.fast_period",
+      "anatomy": "structure",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        5,
+        6,
+        7
+      ],
+      "min": 5,
+      "max": 100,
+      "step": 1,
+      "priority": 100,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    },
+    {
+      "key": "slow_period",
+      "label": "Slow MA Length",
+      "path": "setup_config.slow_period",
+      "anatomy": "structure",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        20,
+        25,
+        30
+      ],
+      "min": 20,
+      "max": 300,
+      "step": 5,
+      "priority": 100,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    },
+    {
+      "key": "ma_type",
+      "label": "MA Type",
+      "path": "setup_config.ma_type",
+      "anatomy": "structure",
+      "type": "enum",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        "sma",
+        "ema"
+      ],
+      "priority": 70
+    },
+    {
+      "key": "volume_multiple",
+      "label": "Volume Multiple",
+      "path": "setup_config.volume_multiple",
+      "anatomy": "regime_filter",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        0.25,
+        0.5
+      ],
+      "min": 0,
+      "max": 5,
+      "step": 0.25,
+      "priority": 60,
+      "failure_modes_targeted": [
+        "high_drawdown"
+      ]
+    },
+    {
+      "key": "trend_filter",
+      "label": "Trend Filter",
+      "path": "setup_config.trend_filter",
+      "anatomy": "regime_filter",
+      "type": "bool",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        false,
+        true
+      ],
+      "priority": 50
+    },
+    {
+      "key": "confirmation_bars",
+      "label": "Confirmation Bars",
+      "path": "entry_config.confirmation_bars",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        1,
+        2
+      ],
+      "min": 0,
+      "max": 5,
+      "step": 1,
+      "priority": 80,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "high_drawdown"
+      ]
+    }
+  ]
+}

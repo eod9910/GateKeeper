@@ -1,0 +1,62 @@
+{
+  "strategy_id": "wyckoff_accumulation",
+  "version": 1,
+  "strategy_version_id": "wyckoff_accumulation_v1",
+  "name": "Wyckoff Accumulation",
+  "description": "Fixture strategy for validator tests",
+  "status": "testing",
+  "scan_mode": "wyckoff",
+  "trade_direction": "long",
+  "interval": "1d",
+  "universe": ["SPY"],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05,
+    "swing_left_bars": 5,
+    "swing_right_bars": 5,
+    "swing_first_peak_decline": 0.5,
+    "swing_subsequent_decline": 0.25,
+    "base_min_duration": 8,
+    "base_max_duration": 80,
+    "base_max_range_pct": 0.3,
+    "base_volatility_threshold": 0.08
+  },
+  "setup_config": {
+    "pattern_type": "wyckoff_accumulation",
+    "min_markdown_pct": 0.5,
+    "pullback_retracement_min": 0.5,
+    "pullback_retracement_max": 0.88
+  },
+  "entry_config": {
+    "trigger": "second_breakout",
+    "confirmation_bars": 1,
+    "enter_next_open": true
+  },
+  "risk_config": {
+    "stop_type": "fixed_pct",
+    "stop_value": 0.08,
+    "take_profit_R": 2,
+    "max_hold_bars": 30
+  },
+  "cost_config": {
+    "commission_per_trade": 1,
+    "slippage_pct": 0.05
+  },
+  "execution_config": {
+    "auto_breakeven_r": 1,
+    "lock_in_r_ladder": [
+      { "at_r": 2, "lock_r": 1 }
+    ],
+    "profit_retrace_exit": {
+      "peak_r": 1,
+      "giveback_r": 0.5,
+      "action": "close_market"
+    },
+    "production_lock": true
+  },
+  "backtest_config": {
+    "signal_source": "legacy_sma"
+  },
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "updated_at": "2026-01-01T00:00:00.000Z"
+}

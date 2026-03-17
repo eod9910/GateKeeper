@@ -1,0 +1,10 @@
+{
+  "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+  "scan_cron": "0 21 * * 1-5",
+  "timezone": "America/New_York",
+  "max_concurrent": 3,
+  "risk_pct_per_trade": 0.01,
+  "max_account_dd_pct": 15,
+  "max_daily_loss_pct": 3,
+  "monitor_interval_ms": 60000
+}

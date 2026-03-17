@@ -1,0 +1,32 @@
+    .trade-card { transition: all 0.2s ease; }
+    .trade-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
+    
+    .status-planned { border-left: 4px solid #eab308; }
+    .status-open { border-left: 4px solid #3b82f6; }
+    .status-closed { border-left: 4px solid #6b7280; }
+    .outcome-won { border-left: 4px solid #22c55e; }
+    .outcome-lost { border-left: 4px solid #ef4444; }
+    .outcome-breakeven { border-left: 4px solid #a855f7; }
+    .outcome-cancelled { border-left: 4px solid #6b7280; }
+    
+    .tab { padding: 0.75rem 1.5rem; cursor: pointer; border-bottom: 2px solid transparent; }
+    .tab:hover { background-color: rgba(255,255,255,0.05); }
+    .tab.active { border-bottom-color: #3b82f6; color: white; }
+    
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+    .modal.active { display: flex; }
+    
+    .sidebar { transition: width 0.3s; }
+    .sidebar.collapsed { width: 60px; }
+    .sidebar.collapsed .sidebar-text { display: none; }
+    
+    .sidebar-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; color: #9ca3af; cursor: pointer; }
+    .sidebar-item:hover { background: rgba(255,255,255,0.1); color: white; }
+    .sidebar-item.active { background: rgba(59,130,246,0.3); color: white; }
+    
+    .stat-card { background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.05)); }
+    .stat-positive { color: #22c55e; }
+    .stat-negative { color: #ef4444; }
+    
+    .input-field { background: #374151; border: 1px solid #4b5563; border-radius: 0.375rem; padding: 0.5rem; color: white; width: 100%; }
+    .input-field:focus { outline: none; border-color: #3b82f6; }

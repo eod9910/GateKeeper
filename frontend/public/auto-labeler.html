@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Labeler - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .auto-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+      gap: var(--space-16);
+      min-height: 0;
+      height: calc(100vh - 140px);
+    }
+    .auto-panel {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .auto-panel-header {
+      padding: var(--space-12) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted);
+    }
+    .auto-panel-body {
+      padding: var(--space-16);
+      overflow: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+    }
+    .auto-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-10);
+    }
+    .auto-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .auto-field.full {
+      grid-column: 1 / -1;
+    }
+    .auto-progress {
+      width: 100%;
+      height: 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.03);
+      overflow: hidden;
+    }
+    .auto-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%);
+      transition: width 180ms ease;
+    }
+    .auto-job-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-small);
+    }
+    .auto-job-table th, .auto-job-table td {
+      padding: 8px;
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    .auto-job-table th {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      position: sticky;
+      top: 0;
+      background: var(--color-surface);
+      z-index: 1;
+    }
+    .auto-job-row { cursor: pointer; }
+    .auto-job-row.active { background: rgba(34,197,94,0.08); }
+    .auto-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+    .auto-pill.running { color: #22c55e; border-color: rgba(34,197,94,0.4); }
+    .auto-pill.failed { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+    .auto-pill.completed { color: #60a5fa; border-color: rgba(96,165,250,0.4); }
+    .auto-pill.cancelled { color: #f59e0b; border-color: rgba(245,158,11,0.4); }
+    @media (max-width: 1200px) {
+      .auto-grid { grid-template-columns: 1fr; height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="auto-labeler.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Auto Labeler</span></a>
+        <a href="research.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Agent</span></a>
+        <a href="sweep.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main class="app-main" id="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Auto Labeler</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">
+            Run AI labeling jobs with confidence thresholds and review gating.
+          </span>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-16);">
+        <div class="auto-grid">
+          <section class="auto-panel">
+            <div class="auto-panel-header">Run Configuration</div>
+            <div class="auto-panel-body">
+              <div class="auto-form-grid">
+                <div class="auto-field full">
+                  <label for="auto-pattern">Pattern</label>
+                  <select id="auto-pattern" class="select"></select>
+                </div>
+
+                <div class="auto-field">
+                  <label for="auto-timeframe">Timeframe</label>
+                  <select id="auto-timeframe" class="select">
+                    <option value="W" selected>Weekly</option>
+                    <option value="D">Daily</option>
+                    <option value="M">Monthly</option>
+                  </select>
+                </div>
+                <div class="auto-field">
+                  <label for="auto-max-items">Max Items</label>
+                  <input id="auto-max-items" class="input input-sm" type="number" value="200" min="1" max="5000" />
+                </div>
+
+                <div class="auto-field">
+                  <label for="auto-label-threshold">Label Threshold</label>
+                  <input id="auto-label-threshold" class="input input-sm" type="number" step="0.01" min="0" max="1" value="0.90" />
+                </div>
+                <div class="auto-field">
+                  <label for="auto-correction-threshold">Correction Threshold</label>
+                  <input id="auto-correction-threshold" class="input input-sm" type="number" step="0.01" min="0" max="1" value="0.92" />
+                </div>
+
+                <div class="auto-field full">
+                  <label class="text-muted" style="display:flex;gap:8px;align-items:center;">
+                    <input id="auto-dry-run" type="checkbox" checked />
+                    Dry Run (no writes)
+                  </label>
+                  <label class="text-muted" style="display:flex;gap:8px;align-items:center;">
+                    <input id="auto-save-corrections" type="checkbox" checked />
+                    Save corrections when confidence passes threshold
+                  </label>
+                  <label class="text-muted" style="display:flex;gap:8px;align-items:center;">
+                    <input id="auto-unreviewed-only" type="checkbox" checked />
+                    Unreviewed only
+                  </label>
+                </div>
+
+                <div class="auto-field full">
+                  <label for="auto-candidate-ids">Candidate IDs (optional, comma/newline)</label>
+                  <textarea id="auto-candidate-ids" class="input" rows="3" placeholder="Leave blank to use filtered candidate pool"></textarea>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-primary" onclick="startAutoLabelJob()">Start Job</button>
+                <button class="btn btn-ghost" onclick="refreshAutoLabelJobs()">Refresh Jobs</button>
+                <button class="btn btn-ghost" onclick="cancelActiveAutoLabelJob()">Cancel Active</button>
+              </div>
+
+              <div style="border-top:1px solid var(--color-border);padding-top:12px;">
+                <div class="text-muted" style="font-size:12px;margin-bottom:6px;">Active Job Progress</div>
+                <div id="auto-progress-text" class="text-muted" style="font-size:12px;margin-bottom:6px;">No active job.</div>
+                <div class="auto-progress">
+                  <div id="auto-progress-bar" class="auto-progress-bar"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="auto-panel">
+            <div class="auto-panel-header">Recent Jobs</div>
+            <div class="auto-panel-body" style="padding:0;">
+              <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--color-border);">
+                <div id="auto-status" class="text-muted">Ready</div>
+                <div id="auto-active-job" class="text-muted">Active: none</div>
+              </div>
+              <div style="overflow:auto;min-height:0;flex:1;">
+                <table class="auto-job-table">
+                  <thead>
+                    <tr>
+                      <th>Job</th>
+                      <th>Status</th>
+                      <th>Progress</th>
+                      <th>Auto Labels</th>
+                      <th>Auto Corr</th>
+                      <th>Review</th>
+                      <th>Errors</th>
+                      <th>Dry</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auto-jobs-body">
+                    <tr><td colspan="8" class="text-muted">Loading jobs...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="auto-labeler.js"></script>
+</body>
+</html>
+

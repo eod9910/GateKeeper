@@ -1,0 +1,25 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Operator Reliability Score",
+    "type": "object",
+    "required": [
+      "operator_id",
+      "current_score",
+      "calculation_window_trades"
+    ],
+    "properties": {
+      "operator_id": { "type": "string" },
+      "current_score": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "calculation_window_trades": { "type": "integer" },
+      "deviation_rate": { "type": "number" },
+      "last_updated": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  }
+  

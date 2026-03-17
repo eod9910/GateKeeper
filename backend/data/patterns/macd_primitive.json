@@ -1,0 +1,122 @@
+{
+  "pattern_id": "macd_primitive",
+  "name": "MACD (Primitive)",
+  "category": "indicator_signals",
+  "description": "MACD crossover detector. Fully tunable fast/slow/signal periods and cross direction.",
+  "author": "ai_generated",
+  "version": "1.0.0",
+  "plugin_file": "plugins/macd_primitive.py",
+  "plugin_function": "run_macd_primitive_plugin",
+  "pattern_type": "macd_primitive",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "macd_primitive",
+    "fast_period": 12,
+    "slow_period": 26,
+    "signal_period": 9,
+    "cross_direction": "bullish",
+    "histogram_min": 0,
+    "lookback_bars": 500
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "fast_period",
+      "label": "Fast EMA Period",
+      "type": "int",
+      "min": 2,
+      "max": 50,
+      "default": 12,
+      "description": "Fast EMA period"
+    },
+    {
+      "key": "slow_period",
+      "label": "Slow EMA Period",
+      "type": "int",
+      "min": 10,
+      "max": 200,
+      "default": 26,
+      "description": "Slow EMA period"
+    },
+    {
+      "key": "signal_period",
+      "label": "Signal Period",
+      "type": "int",
+      "min": 2,
+      "max": 50,
+      "default": 9,
+      "description": "Signal smoothing period"
+    },
+    {
+      "key": "cross_direction",
+      "label": "Cross Direction",
+      "type": "enum",
+      "options": [
+        "bullish",
+        "bearish"
+      ],
+      "default": "bullish",
+      "description": "Bullish = MACD crosses above signal. Bearish = below."
+    },
+    {
+      "key": "histogram_min",
+      "label": "Min Histogram",
+      "type": "float",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "description": "Minimum absolute histogram value to trigger"
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Window",
+      "type": "int",
+      "min": 1,
+      "max": 1000,
+      "default": 500,
+      "description": "Search window"
+    }
+  ],
+  "examples": [
+    {
+      "name": "MACD Classic (12/26/9 Bullish)",
+      "setup_config": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "cross_direction": "bullish"
+      }
+    },
+    {
+      "name": "MACD Short Signal (Bearish)",
+      "setup_config": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "cross_direction": "bearish"
+      }
+    },
+    {
+      "name": "MACD Fast (5/13/8)",
+      "setup_config": {
+        "fast_period": 5,
+        "slow_period": 13,
+        "signal_period": 8,
+        "cross_direction": "bullish"
+      }
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 200,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}

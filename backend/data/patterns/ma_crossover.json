@@ -1,0 +1,151 @@
+{
+  "pattern_id": "ma_crossover",
+  "name": "Moving Average Crossover",
+  "category": "indicator_signals",
+  "description": "Detects when a fast moving average crosses a slow moving average. The classic 50/200 version is known as the Golden Cross (bullish) or Death Cross (bearish). This is one of the most widely used trend-following signals in technical analysis.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/ma_crossover.py",
+  "plugin_function": "run_ma_crossover_plugin",
+  "pattern_type": "ma_crossover",
+  "default_structure_config": {
+    "swing_method": "major",
+    "swing_epsilon_pct": 0.05,
+    "base_min_duration": 10,
+    "base_max_duration": 500,
+    "base_max_range_pct": 1.0
+  },
+  "default_setup_params": {
+    "fast_period": 50,
+    "slow_period": 200,
+    "ma_type": "sma",
+    "cross_direction": "bullish",
+    "volume_multiple": 1.2,
+    "lookback_bars": 500,
+    "trend_filter": false,
+    "score_min": 0.0,
+    "pattern_type": "ma_crossover"
+  },
+  "default_entry": {
+    "confirmation_bars": 1,
+    "entry_type": "market_on_close",
+    "description": "Enter on the close of the bar where the crossover is confirmed"
+  },
+  "tunable_params": [
+    {
+      "key": "fast_period",
+      "label": "Fast MA Period",
+      "type": "int",
+      "min": 5,
+      "max": 100,
+      "default": 50,
+      "description": "Number of bars for the fast (short-term) moving average"
+    },
+    {
+      "key": "slow_period",
+      "label": "Slow MA Period",
+      "type": "int",
+      "min": 20,
+      "max": 500,
+      "default": 200,
+      "description": "Number of bars for the slow (long-term) moving average"
+    },
+    {
+      "key": "ma_type",
+      "label": "MA Type",
+      "type": "enum",
+      "options": [
+        "sma",
+        "ema"
+      ],
+      "default": "sma",
+      "description": "Simple Moving Average (SMA) or Exponential Moving Average (EMA)"
+    },
+    {
+      "key": "cross_direction",
+      "label": "Cross Direction",
+      "type": "enum",
+      "options": [
+        "bullish",
+        "bearish"
+      ],
+      "default": "bullish",
+      "description": "Bullish = fast crosses ABOVE slow (Golden Cross). Bearish = fast crosses BELOW slow (Death Cross)."
+    },
+    {
+      "key": "volume_multiple",
+      "label": "Min Volume Multiple",
+      "type": "float",
+      "min": 0.0,
+      "max": 5.0,
+      "default": 1.2,
+      "description": "Minimum volume relative to 20-bar average. 0 = no filter."
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Window",
+      "type": "int",
+      "min": 1,
+      "max": 1000,
+      "default": 500,
+      "description": "Only search for crossovers in the last N bars"
+    },
+    {
+      "key": "trend_filter",
+      "label": "Trend Filter",
+      "type": "bool",
+      "default": false,
+      "description": "Require price to be on the correct side of the slow MA"
+    },
+    {
+      "key": "confirmation_bars",
+      "label": "Confirmation Bars",
+      "type": "int",
+      "min": 0,
+      "max": 5,
+      "default": 1,
+      "description": "Number of bars the cross must hold before it is considered confirmed"
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 220,
+  "examples": [
+    {
+      "name": "Golden Cross (Classic)",
+      "setup_config": {
+        "pattern_type": "ma_crossover",
+        "fast_period": 50,
+        "slow_period": 200,
+        "ma_type": "sma",
+        "cross_direction": "bullish"
+      }
+    },
+    {
+      "name": "Fast EMA Cross (Swing Trading)",
+      "setup_config": {
+        "pattern_type": "ma_crossover",
+        "fast_period": 9,
+        "slow_period": 21,
+        "ma_type": "ema",
+        "cross_direction": "bullish",
+        "lookback_bars": 5
+      }
+    },
+    {
+      "name": "Death Cross (Short Signal)",
+      "setup_config": {
+        "pattern_type": "ma_crossover",
+        "fast_period": 50,
+        "slow_period": 200,
+        "ma_type": "sma",
+        "cross_direction": "bearish"
+      }
+    }
+  ],
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}

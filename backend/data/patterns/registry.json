@@ -1,0 +1,443 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-03-17T02:18:41.167Z",
+  "categories": [
+    {
+      "id": "chart_patterns",
+      "name": "Chart Patterns",
+      "description": "Classical price structure patterns (Wyckoff, Head & Shoulders, Flags, etc.)"
+    },
+    {
+      "id": "indicator_signals",
+      "name": "Indicator Signals",
+      "description": "Signals derived from technical indicators (MA crossover, RSI divergence, MACD, etc.)"
+    },
+    {
+      "id": "price_action",
+      "name": "Price Action",
+      "description": "Raw price behavior patterns (pin bars, engulfing candles, inside bars, etc.)"
+    },
+    {
+      "id": "custom",
+      "name": "Custom",
+      "description": "User-defined or AI-generated detection plugins"
+    },
+    {
+      "id": "scan_pipelines",
+      "name": "Scan Pipelines",
+      "description": "Composite scanner workflows that combine multiple indicators or passes."
+    }
+  ],
+  "patterns": [
+    {
+      "pattern_id": "wyckoff_accumulation_rdp",
+      "name": "Wyckoff Accumulation (RDP)",
+      "category": "chart_patterns",
+      "definition_file": "wyckoff_accumulation_rdp.json",
+      "status": "stable",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "wyckoff_accumulation_major",
+      "name": "Wyckoff Accumulation (Major Peaks)",
+      "category": "chart_patterns",
+      "definition_file": "wyckoff_accumulation_major.json",
+      "status": "rejected",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "ma_crossover",
+      "name": "Moving Average Crossover (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "ma_crossover.json",
+      "status": "stable",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    },
+    {
+      "pattern_id": "fib_location_primitive",
+      "name": "Fib Location (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "fib_location_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "location"
+    },
+    {
+      "pattern_id": "energy_state_primitive",
+      "name": "Energy State (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "energy_state_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "state_filter"
+    },
+    {
+      "pattern_id": "fib_signal_trigger_primitive",
+      "name": "Fib Signal Trigger (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "fib_signal_trigger_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    },
+    {
+      "pattern_id": "regime_filter",
+      "name": "Regime Filter (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "regime_filter.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "regime_state"
+    },
+    {
+      "pattern_id": "rdp_swing_structure",
+      "name": "RDP Pivots (Primitive)",
+      "category": "price_action",
+      "definition_file": "rdp_swing_structure.json",
+      "status": "draft",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "anchor_structure"
+    },
+    {
+      "pattern_id": "impulse_trough_primitive",
+      "name": "Impulse Trough (Primitive)",
+      "category": "price_action",
+      "definition_file": "impulse_trough_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "anchor_structure"
+    },
+    {
+      "pattern_id": "rsi_primitive",
+      "name": "RSI (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "rsi_primitive.json",
+      "status": "stable",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    },
+    {
+      "pattern_id": "macd_primitive",
+      "name": "MACD (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "macd_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    },
+    {
+      "pattern_id": "rdp_fib_pullback_rsi_entry_composite",
+      "name": "RDP Fib Pullback RSI Entry Composite",
+      "category": "indicator_signals",
+      "definition_file": "rdp_fib_pullback_rsi_entry_composite.json",
+      "status": "rejected",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
+    },
+    {
+      "pattern_id": "order_blocks",
+      "name": "Order Blocks (Primitive)",
+      "category": "price_action",
+      "definition_file": "order_blocks_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "base_breakout",
+      "name": "Base Breakout (Primitive)",
+      "category": "price_action",
+      "definition_file": "base_breakout_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "heartbeat_base",
+      "name": "Heartbeat Base (Statistical)",
+      "category": "price_action",
+      "definition_file": "heartbeat_base_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "base_box_retest",
+      "name": "BT/BF (Primitive)",
+      "category": "price_action",
+      "definition_file": "base_box_retest_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "rdp_regression_flat_base",
+      "name": "RDP Regression Flat Base (Primitive)",
+      "category": "price_action",
+      "definition_file": "rdp_regression_flat_base_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "fvg",
+      "name": "Fair Value Gaps (Primitive)",
+      "category": "price_action",
+      "definition_file": "fvg_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "rdp_energy_swing_detector_v1_primitive",
+      "name": "RDP Energy Swing Detector V1 (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "rdp_energy_swing_detector_v1_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    },
+    {
+      "pattern_id": "rdp_exhaustion_entry_composite",
+      "name": "RDP Exhaustion Entry Composite",
+      "category": "indicator_signals",
+      "definition_file": "rdp_exhaustion_entry_composite.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
+    },
+    {
+      "pattern_id": "regression_channel_primitive",
+      "name": "Regression Channel (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "regression_channel_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "structure_filter"
+    },
+    {
+      "pattern_id": "ob_regime_long_entry_composite",
+      "name": "Order Blocks + Regime Filter (Long Entry)",
+      "category": "indicator_signals",
+      "definition_file": "ob_regime_long_entry_composite.json",
+      "status": "active",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
+    },
+    {
+      "pattern_id": "rdp_base_75",
+      "name": "RDP Base 75% (Primitive)",
+      "category": "price_action",
+      "definition_file": "rdp_base_75_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "rdp_wiggle_base",
+      "name": "RDP Wiggle Base (Primitive)",
+      "category": "price_action",
+      "definition_file": "rdp_wiggle_base_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context"
+    },
+    {
+      "pattern_id": "wiggle_base_box_v2_pattern",
+      "name": "Wiggle Base Box V2 (Pattern)",
+      "category": "price_action",
+      "definition_file": "wiggle_base_box_v2_pattern.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "base_breakout_entry_composite",
+      "name": "Base Breakout Entry Composite",
+      "category": "indicator_signals",
+      "definition_file": "base_breakout_entry_composite.json",
+      "status": "rejected",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
+    },
+    {
+      "pattern_id": "trend_following_with_regime_gate_composite",
+      "name": "Trend Following with Regime Gate Composite",
+      "category": "indicator_signals",
+      "definition_file": "trend_following_with_regime_gate_composite.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
+    },
+    {
+      "pattern_id": "macd_divergence_primitive_v2",
+      "name": "MACD Divergence (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "macd_divergence_primitive_v2.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    },
+    {
+      "pattern_id": "macd_histogram",
+      "name": "MACD Histogram (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "macd_histogram.json",
+      "status": "active",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    },
+    {
+      "pattern_id": "pullback_uptrend_entry_composite",
+      "name": "Pullback in Uptrend Entry Composite",
+      "category": "indicator_signals",
+      "definition_file": "pullback_uptrend_entry_composite.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
+    },
+    {
+      "pattern_id": "base_box_detector_v1_primitive",
+      "name": "Base Box Detector V1 (Pattern)",
+      "category": "price_action",
+      "definition_file": "base_box_detector_v1_primitive.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "base_box_detector_rdp_v1_pattern",
+      "name": "Base Box Detector RDP V1 (Pattern)",
+      "category": "price_action",
+      "definition_file": "base_box_detector_rdp_v1_pattern.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "base_box_detector_rdp_hybrid_v1_pattern",
+      "name": "Base Box Detector RDP Hybrid V1 (Pattern)",
+      "category": "price_action",
+      "definition_file": "base_box_detector_rdp_hybrid_v1_pattern.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "compression_box_recurrence_v1_pattern",
+      "name": "Compression Box Recurrence V1 (Pattern)",
+      "category": "price_action",
+      "definition_file": "compression_box_recurrence_v1_pattern.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "preset",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "wyckoff_accumulation_major_v2",
+      "name": "Wyckoff Accumulation V2 (Major Peaks)",
+      "category": "chart_patterns",
+      "definition_file": "wyckoff_accumulation_major_v2.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "rdp_fib_pullback_entry_composite",
+      "name": "RDP Fib Pullback Entry Composite",
+      "category": "indicator_signals",
+      "definition_file": "rdp_fib_pullback_entry_composite.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
+    },
+    {
+      "pattern_id": "density_base_detector_v1_pattern",
+      "name": "Density Base Detector V1 (Pattern)",
+      "category": "price_action",
+      "definition_file": "density_base_detector_v1_pattern.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "density_base_detector_v2_pattern",
+      "name": "Density Base Detector V2 (Multi-Scale)",
+      "category": "price_action",
+      "definition_file": "density_base_detector_v2_pattern.json",
+      "status": "rejected",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "phase_structure_pattern"
+    },
+    {
+      "pattern_id": "head_shoulders_context_pattern",
+      "name": "Head and Shoulders (Pattern)",
+      "category": "chart_patterns",
+      "definition_file": "head_shoulders_context_pattern.json",
+      "status": "rejected",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "reversal_structure_pattern"
+    },
+    {
+      "pattern_id": "three_drives_pattern",
+      "name": "Three Drives Pattern",
+      "category": "chart_patterns",
+      "definition_file": "three_drives_pattern.json",
+      "status": "rejected",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "reversal_structure_pattern"
+    },
+    {
+      "pattern_id": "structural_family_signal",
+      "name": "Structural Family Signal",
+      "category": "indicator_signals",
+      "definition_file": "structural_family_signal.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
+    }
+  ]
+}

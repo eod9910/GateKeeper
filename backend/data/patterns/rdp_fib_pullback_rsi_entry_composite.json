@@ -1,0 +1,73 @@
+{
+  "pattern_id": "rdp_fib_pullback_rsi_entry_composite",
+  "name": "RDP Fib Pullback RSI Entry Composite",
+  "category": "indicator_signals",
+  "description": "Pipeline composite indicator generated from node graph.",
+  "author": "user",
+  "version": "1.0.0",
+  "plugin_file": "plugins/composite_runner.py",
+  "plugin_function": "run_composite_plugin",
+  "pattern_type": "rdp_fib_pullback_rsi_entry_composite",
+  "artifact_type": "indicator",
+  "composition": "composite",
+  "indicator_role": "entry_composite",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "rdp_fib_pullback_rsi_entry_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "mode": "pipeline",
+      "stages": [
+        {
+          "id": "node_0",
+          "pattern_id": "rdp_swing_structure",
+          "params": {}
+        },
+        {
+          "id": "node_1",
+          "pattern_id": "impulse_trough_primitive",
+          "params": {}
+        },
+        {
+          "id": "node_2",
+          "pattern_id": "fib_location_primitive",
+          "params": {}
+        },
+        {
+          "id": "node_3",
+          "pattern_id": "rsi_primitive",
+          "params": {}
+        }
+      ],
+      "edges": [
+        {
+          "from": "node_1",
+          "from_port": "impulse_leg",
+          "to": "node_2",
+          "to_port": "leg"
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "node_0",
+          "node_1",
+          "node_2",
+          "node_3"
+        ]
+      }
+    }
+  },
+  "default_entry": {
+    "entry_type": "market_on_close"
+  },
+  "tunable_params": [],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 220
+}

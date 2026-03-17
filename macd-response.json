@@ -1,0 +1,6 @@
+{
+  "success": true,
+  "data": {
+    "response": "To build a MACD (Moving Average Convergence Divergence) primitive, you'll need to set up an indicator that calculates the relationship between two moving averages of a stock's price. Here's how you can construct it:\n\n1. **Calculate the Fast EMA (Exponential Moving Average):**\n   - Typically a 12-period EMA of the stock's closing price.\n\n2. **Calculate the Slow EMA:**\n   - Typically a 26-period EMA of the stock's closing price.\n\n3. **Compute the MACD Line:**\n   - Subtract the Slow EMA from the Fast EMA: `MACD Line = Fast EMA - Slow EMA`.\n\n4. **Calculate the Signal Line:**\n   - A 9-period EMA of the MACD Line.\n\n5. **Compute the MACD Histogram:**\n   - Subtract the Signal Line from the MACD Line: `MACD Histogram = MACD Line - Signal Line`.\n\nThe MACD primitive will provide you with the MACD Line, Signal Line, and Histogram, which are used to identify potential buy and sell signals based on crossovers and divergences.\n\n### Composition\nSince the MACD is constructed from basic moving averages and their differences, it falls under `composition: primitive`.\n\nUse these calculations in your trading analysis to help evaluate momentum and potential entry/exit points based on the MACD's behavior relative to your investment strategy."
+  }
+}

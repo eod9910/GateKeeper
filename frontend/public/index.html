@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scanner - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="drawing-tools.css">
+  <style>
+    #scanner-main-grid.chat-collapsed { grid-template-columns: 1fr !important; }
+    .scanner-chat-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      flex: 1;
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+    }
+    .scanner-chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .scanner-chat-messages {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      padding: var(--space-12);
+      background: var(--color-bg);
+    }
+    .scanner-chat-bubble {
+      padding: var(--space-12);
+      border-radius: var(--radius);
+      font-size: var(--text-small);
+      line-height: var(--leading-body);
+      max-width: 95%;
+      border: 1px solid var(--color-border);
+      white-space: pre-wrap;
+    }
+    .scanner-chat-bubble.ai {
+      background: var(--color-surface);
+      color: var(--color-text-muted);
+      align-self: flex-start;
+    }
+    .scanner-chat-bubble.user {
+      background: var(--color-accent-soft);
+      border: 1px solid rgba(93, 122, 146, 0.35);
+      color: var(--color-text);
+      align-self: flex-end;
+    }
+    .scanner-chat-input-row {
+      position: relative;
+      display: block;
+      padding: var(--space-12);
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface);
+      flex-shrink: 0;
+    }
+    .scanner-chat-input-row.has-attachment {
+      padding-bottom: 72px;
+    }
+    #scanner-chat-input {
+      width: 100%;
+      display: block;
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-void) 82%, black 18%);
+      color: var(--color-text);
+      font-size: var(--text-small);
+      line-height: var(--leading-body);
+      padding: var(--space-12) 140px var(--space-12) var(--space-12);
+      min-height: 82px;
+      max-height: 180px;
+      resize: none;
+      overflow-y: auto;
+    }
+    .scanner-chat-input-row.has-attachment #scanner-chat-input {
+      min-height: 124px;
+      padding-top: 72px;
+    }
+    .scanner-send-btn {
+      position: absolute;
+      right: 24px;
+      bottom: 24px;
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      transition:
+        border-color 180ms ease,
+        background-color 180ms ease,
+        color 180ms ease,
+        box-shadow 220ms ease,
+        transform 140ms ease;
+    }
+    .scanner-send-btn:hover {
+      border-color: var(--ui-hover-border);
+      background: var(--ui-hover-bg);
+      color: var(--ui-hover-text);
+      box-shadow: var(--ui-hover-shadow);
+    }
+    .scanner-send-btn:active { transform: translateY(1px); }
+    .scanner-chart-btn {
+      right: 64px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+    }
+    .scanner-chart-btn--preview {
+      right: 104px;
+    }
+    .chat-attachment-tray {
+      position: absolute;
+      left: 24px;
+      right: 140px;
+      top: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .chat-attachment-tray.hidden {
+      display: none;
+    }
+    .chat-attachment-chip {
+      width: min(100%, 360px);
+      display: flex;
+      align-items: center;
+      gap: var(--space-10);
+      padding: var(--space-8) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--color-surface) 88%, var(--color-accent-soft) 12%);
+      pointer-events: auto;
+    }
+    .chat-attachment-chip img {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--color-border);
+      background: var(--color-void);
+      flex-shrink: 0;
+    }
+    .chat-attachment-chip__body {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+    }
+    .chat-attachment-chip__label {
+      font-size: var(--text-small);
+      color: var(--color-text);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chat-attachment-chip__meta {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+    }
+    .chat-attachment-chip__remove {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      transition:
+        border-color 180ms ease,
+        background-color 180ms ease,
+        color 180ms ease;
+    }
+    .chat-attachment-chip__remove:hover {
+      border-color: var(--ui-hover-border);
+      background: var(--ui-hover-bg);
+      color: var(--ui-hover-text);
+    }
+    .scanner-chat-actions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-12) var(--space-12);
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface);
+      flex-shrink: 0;
+    }
+    .scanner-chat-actions .btn {
+      font-size: var(--text-caption);
+      letter-spacing: 0.07em;
+      padding: var(--space-8) var(--space-8);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      min-height: 38px;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+    }
+    .scanner-chat-actions .btn:first-child { color: var(--color-text); }
+    .fundamentals-chat-panel {
+      margin-top: var(--space-16);
+      border-top: 1px solid var(--color-border);
+      padding-top: var(--space-12);
+    }
+    .fundamentals-chat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+    .fundamentals-chat-messages {
+      min-height: 132px;
+      max-height: 260px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-bg);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      padding: var(--space-12);
+      margin-bottom: var(--space-8);
+    }
+    .fundamentals-chat-composer {
+      position: relative;
+      margin-bottom: var(--space-8);
+    }
+    .fundamentals-chat-composer.has-attachment {
+      padding-bottom: 60px;
+    }
+    #fundamentals-chat-input {
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-void) 82%, black 18%);
+      color: var(--color-text);
+      font-size: var(--text-small);
+      line-height: var(--leading-body);
+      padding: var(--space-12) 98px var(--space-12) var(--space-12);
+      min-height: 82px;
+      max-height: 180px;
+      resize: none;
+      overflow-y: auto;
+      width: 100%;
+      display: block;
+    }
+    .fundamentals-chat-composer.has-attachment #fundamentals-chat-input {
+      min-height: 118px;
+      padding-top: 68px;
+    }
+    .fundamentals-send-btn {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      transition:
+        border-color 180ms ease,
+        background-color 180ms ease,
+        color 180ms ease,
+        box-shadow 220ms ease,
+        transform 140ms ease;
+    }
+    .fundamentals-send-btn:hover {
+      border-color: var(--ui-hover-border);
+      background: var(--ui-hover-bg);
+      color: var(--ui-hover-text);
+      box-shadow: var(--ui-hover-shadow);
+    }
+    .fundamentals-send-btn:active { transform: translateY(1px); }
+    .fundamentals-chart-btn {
+      right: 52px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+    }
+    .fundamentals-send-btn:disabled {
+      opacity: 0.55;
+      cursor: default;
+      box-shadow: none;
+    }
+    .scanner-capture-preview {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(8, 10, 15, 0.84);
+    }
+    .scanner-capture-preview.hidden {
+      display: none;
+    }
+    .scanner-capture-preview__panel {
+      width: min(1400px, 96vw);
+      height: min(920px, 92vh);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      background: #11161f;
+      border: 1px solid #2a3442;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+    }
+    .scanner-capture-preview__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #2a3442;
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+    .scanner-capture-preview__body {
+      overflow: auto;
+      padding: 16px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      background: #0f1319;
+    }
+    .scanner-capture-preview__stage {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      cursor: crosshair;
+      user-select: none;
+    }
+    .scanner-capture-preview__body img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #2a3442;
+      background: #1e1e1e;
+      cursor: crosshair;
+    }
+    .scanner-capture-preview__crop-layer {
+      position: absolute;
+      inset: 0;
+      border-radius: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .scanner-capture-preview__crop-box {
+      position: absolute;
+      border: 2px solid #5aa7ff;
+      background: rgba(90, 167, 255, 0.16);
+      box-shadow: 0 0 0 9999px rgba(5, 9, 18, 0.38);
+      display: none;
+    }
+    .scanner-capture-preview__crop-box.is-visible {
+      display: block;
+    }
+    .scanner-capture-preview__crop-box::after {
+      content: '';
+      position: absolute;
+      right: -5px;
+      bottom: -5px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #5aa7ff;
+      box-shadow: 0 0 0 2px rgba(5, 9, 18, 0.9);
+    }
+    .scanner-capture-preview__meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      color: var(--color-text-muted);
+      font-size: 12px;
+    }
+    .scanner-capture-preview__close {
+      border: 1px solid #374151;
+      background: #151b23;
+      color: #e5e7eb;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .scanner-capture-preview__actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .scanner-analysis-card {
+      width: 100%;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      padding: var(--space-16);
+      background: color-mix(in srgb, var(--color-surface) 88%, black 12%);
+    }
+    .scanner-analysis-overview {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .scanner-analysis-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+    }
+    .scanner-analysis-pattern {
+      font-size: 18px;
+      line-height: 1.2;
+      color: var(--color-text);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .scanner-analysis-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+    }
+    .scanner-analysis-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--color-border);
+      background: rgba(255,255,255,0.03);
+      border-radius: 999px;
+      min-height: 32px;
+    }
+    .scanner-analysis-chip-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+    }
+    .scanner-analysis-chip-value {
+      font-size: var(--text-small);
+      color: var(--color-text);
+      font-weight: 500;
+    }
+    .scanner-analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .scanner-analysis-section {
+      border: 1px solid var(--color-border);
+      background: rgba(255,255,255,0.02);
+      padding: var(--space-12);
+    }
+    .scanner-analysis-section-title {
+      margin-bottom: var(--space-8);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+    }
+    .scanner-analysis-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+    }
+    .scanner-analysis-list li {
+      position: relative;
+      padding-left: 14px;
+      color: var(--color-text-muted);
+      line-height: 1.45;
+    }
+    .scanner-analysis-list li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--color-text-subtle);
+    }
+    .scanner-analysis-list li.is-empty {
+      padding-left: 0;
+      color: var(--color-text-subtle);
+    }
+    .scanner-analysis-list li.is-empty::before {
+      content: '';
+    }
+    .scanner-analysis-explanation {
+      margin: 0;
+      color: var(--color-text-muted);
+      line-height: 1.6;
+    }
+    @media (max-width: 900px) {
+      .scanner-analysis-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .chart-indicator-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 1px 6px; font-size: 11px; background: rgba(255,255,255,0.06);
+      border: 1px solid #4b5563; border-radius: 3px; color: #e5e7eb;
+    }
+    .chart-indicator-badge-x {
+      cursor: pointer; color: #9ca3af; font-size: 13px; line-height: 1;
+    }
+    .chart-indicator-badge-x:hover { color: #ef4444; }
+    .chart-indicator-badge-collapse:hover { color: #60a5fa !important; }
+    .ci-panel-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 12px; border-bottom: 1px solid #374151;
+      color: #e5e7eb; font-size: 13px;
+    }
+    .ci-panel-row:last-child { border-bottom: none; }
+    .ci-toggle-btn {
+      padding: 2px 10px; font-size: 11px; border-radius: 3px; cursor: pointer;
+      border: 1px solid #4b5563; background: #374151; color: #9ca3af;
+    }
+    .ci-toggle-btn.ci-active {
+      background: #065f46; color: #34d399; border-color: #059669;
+    }
+    .ci-toggle-btn:hover { border-color: #6b7280; }
+    @keyframes universe-progress-sweep {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .universe-job-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: var(--space-8);
+      margin-bottom: var(--space-12);
+    }
+    .universe-job-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--color-surface) 88%, black 12%);
+      padding: var(--space-10) var(--space-12);
+      min-height: 68px;
+    }
+    .universe-job-card-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+      margin-bottom: 6px;
+    }
+    .universe-job-card-value {
+      color: var(--color-text);
+      font-size: var(--text-small);
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .universe-progress-bar--indeterminate {
+      width: 35% !important;
+      background: linear-gradient(
+        90deg,
+        rgba(93, 122, 146, 0.15) 0%,
+        rgba(93, 122, 146, 0.95) 45%,
+        rgba(93, 122, 146, 0.15) 100%
+      ) !important;
+      background-size: 220% 100%;
+      animation: universe-progress-sweep 1.6s linear infinite;
+    }
+    .universe-metrics-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      margin-bottom: var(--space-12);
+    }
+    .universe-metric-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.03);
+      min-height: 32px;
+    }
+    .universe-metric-pill-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+    }
+    .universe-metric-pill-value {
+      color: var(--color-text);
+      font-size: var(--text-caption);
+      font-weight: 600;
+    }
+    .universe-log-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+    
+      <nav class="sidebar-nav">
+        <div class="sidebar-nav-item active" aria-current="page" id="nav-scanner" onclick="showPage('scanner')" style="cursor:pointer;">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Scanner</span>
+        </div>
+        <a href="copilot.html" class="sidebar-nav-item" id="nav-copilot">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Trading Desk</span>
+        </a>
+        <a href="history.html" class="sidebar-nav-item" id="nav-history">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Position Book</span>
+        </a>
+        <a href="validator.html" class="sidebar-nav-item" id="nav-validator">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Validator</span>
+        </a>
+        <a href="workshop.html" class="sidebar-nav-item" id="nav-workshop">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Indicator Studio</span>
+        </a>
+        <a href="auto-labeler.html" class="sidebar-nav-item" id="nav-auto-labeler">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Auto Labeler</span>
+        </a>
+        <a href="research.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Research Agent</span>
+        </a>
+        <a href="sweep.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Parameter Sweep</span>
+        </a>
+        <a href="execution.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Execution Desk</span>
+        </a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">⚙ Settings</span></a>
+      </nav>
+    
+    </aside>
+  
+    <div class="app-main" id="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" id="page-title">Scanner</h1>
+          <p class="page-subtitle" id="scanner-stats">
+            Candidate <span id="current-index">0</span> of <span id="total-count">0</span>
+          </p>
+          <div id="candidate-nav-controls" class="hidden" style="display:flex;gap:12px;align-items:center;margin-top:8px;">
+            <button id="btn-prev-candidate" class="btn btn-ghost" onclick="goToPreviousCandidate()" disabled
+              style="padding:6px 16px;font-size:14px;font-weight:600;border:1px solid var(--color-border);border-radius:6px;min-width:100px;">
+              &#9664; Previous
+            </button>
+            <span id="nav-symbol-label" style="font-size:14px;font-weight:700;color:var(--color-text);min-width:120px;text-align:center;font-family:var(--font-mono);"></span>
+            <button id="btn-next-candidate" class="btn btn-ghost" onclick="goToNextCandidateFromNav()" disabled
+              style="padding:6px 16px;font-size:14px;font-weight:600;border:1px solid var(--color-border);border-radius:6px;min-width:100px;">
+              Next &#9654;
+            </button>
+            <span style="font-size:12px;color:var(--color-text-muted);margin-left:8px;">or use ← → arrow keys</span>
+          </div>
+        </div>
+        <div class="workshop-header-actions">
+          <div class="workshop-tabbar" role="tablist" aria-label="Scanner views">
+            <button id="tab-scanner" class="workshop-tab scanner-page-tab active" role="tab" aria-selected="true" onclick="showPage('scanner')">Scanner</button>
+            <button id="tab-training" class="workshop-tab scanner-page-tab" role="tab" aria-selected="false" onclick="showPage('training')">Training Data</button>
+            <button id="tab-saved" class="workshop-tab scanner-page-tab" role="tab" aria-selected="false" onclick="showPage('saved')">Saved Symbols</button>
+            <button id="tab-settings" class="workshop-tab scanner-page-tab" role="tab" aria-selected="false" onclick="showPage('settings')">Settings</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Scanner Content (main page) -->
+      <div id="scanner-content" class="content">
+
+      <!-- Scan Controls -->
+      <div class="panel">
+        <div class="panel-body">
+          <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;align-items:flex-end;">
+            <div style="min-width:220px;">
+              <label class="sidebar-field-label" for="scan-indicator-select">Indicator</label>
+              <select id="scan-indicator-select" class="select" style="width:220px;">
+                <option value="">-- Select an indicator --</option>
+              </select>
+            </div>
+            <div style="min-width:140px;">
+              <label class="sidebar-field-label" for="scan-indicator-type">Type</label>
+              <select id="scan-indicator-type" class="select" style="width:160px;">
+                <option value="all" selected>All</option>
+                <option value="primitive">Primitives</option>
+                <option value="indicator">Indicators</option>
+                <option value="pattern">Patterns</option>
+              </select>
+            </div>
+            <div style="min-width:140px;">
+              <label class="sidebar-field-label" for="scan-asset-class">Asset Class</label>
+              <select id="scan-asset-class" class="select" style="width:160px;">
+                <option value="all" selected>All (Full Library)</option>
+                <option value="indices">Indices</option>
+                <option value="sectors">Sectors</option>
+                <option value="smallcaps">Small Caps</option>
+                <option value="optionable">Optionable</option>
+                <option value="commodities">Commodities</option>
+                <option value="futures">Futures</option>
+                <option value="crypto">Crypto</option>
+                <option value="forex">Forex</option>
+                <option value="international">International</option>
+                <option value="bonds">Bonds</option>
+              </select>
+            </div>
+            <div>
+              <label class="sidebar-field-label" for="scan-period">Period</label>
+              <select id="scan-period" class="select" style="width:110px;">
+                <option value="5y">5 years</option>
+                <option value="10y">10 years</option>
+                <option value="15y">15 years</option>
+                <option value="max" selected>Max</option>
+              </select>
+            </div>
+            <div>
+              <label class="sidebar-field-label" for="scan-interval">Interval</label>
+              <select id="scan-interval" class="select" style="width:100px;">
+                <option value="1h">Hourly</option>
+                <option value="4h">4-Hour</option>
+                <option value="1d">Daily</option>
+                <option value="1wk" selected>Weekly</option>
+                <option value="1mo">Monthly</option>
+              </select>
+            </div>
+            <button id="btn-scan" onclick="runScan()" class="btn btn-primary">Scan</button>
+          </div>
+          <div style="border-top:1px solid var(--color-border);margin-top:var(--space-12);padding-top:var(--space-12);display:flex;gap:var(--space-8);flex-wrap:wrap;align-items:flex-end;">
+            <div style="min-width:160px;">
+              <label class="sidebar-field-label" for="scan-single-symbol">Single Symbol (Optional)</label>
+              <input type="text" id="scan-single-symbol" class="input" style="width:160px;" placeholder="e.g. AAPL" list="symbol-suggestions" />
+              <datalist id="symbol-suggestions"></datalist>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="quickLoadSymbol(document.getElementById('scan-single-symbol').value)">Load</button>
+            <div>
+              <label class="sidebar-field-label" for="chart-indicator-select">Chart Indicators</label>
+              <select id="chart-indicator-select" class="select" style="width:200px;" onchange="if(this.value){_ciToggleIndicator(this.value);this.value='';}_ciPopulateIndicatorSelect();">
+                <option value="">-- Add / Remove --</option>
+              </select>
+            </div>
+            <div style="min-width:140px;">
+              <label class="sidebar-field-label" for="scan-limit">Limit Symbols</label>
+              <input type="number" id="scan-limit" class="input" style="width:140px;" placeholder="All" min="1" step="1" />
+            </div>
+            <div style="min-width:110px;">
+              <label class="sidebar-field-label" for="scan-min-price">Min Price</label>
+              <input type="number" id="scan-min-price" class="input" style="width:110px;" placeholder="Any" min="0" step="0.01" />
+            </div>
+            <div style="min-width:110px;">
+              <label class="sidebar-field-label" for="scan-max-price">Max Price</label>
+              <input type="number" id="scan-max-price" class="input" style="width:110px;" placeholder="Any" min="0" step="0.01" />
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--color-border);margin-top:var(--space-12);padding-top:var(--space-12);display:flex;gap:var(--space-8);align-items:flex-end;">
+            <div id="scan-status" class="text-muted" style="flex:1;"></div>
+            <button id="btn-save-scan-results" class="btn btn-ghost btn-sm" type="button" onclick="saveCurrentScanResults()">Save Results</button>
+            <button id="btn-restore-scan-results" class="btn btn-ghost btn-sm" type="button" onclick="restoreSavedScanResults()">Restore Saved</button>
+            <button id="btn-clear-scan-results" class="btn btn-ghost btn-sm" type="button" onclick="clearSavedScanResults()">Clear Saved</button>
+          </div>
+          <div id="saved-scan-status" class="text-muted" style="margin-top:var(--space-8);font-size:var(--text-caption);">No saved scan results yet.</div>
+          <div id="batch-progress" class="hidden" style="margin-top:var(--space-12);">
+            <div style="display:flex;justify-content:space-between;font-size:var(--text-small);color:var(--color-text-muted);margin-bottom:4px;">
+              <span id="progress-text">Scanning...</span>
+              <div style="display:flex;gap:var(--space-8);align-items:center;">
+                <span id="progress-count">0/0</span>
+                <button id="btn-scan-cancel" class="btn btn-ghost btn-sm hidden" onclick="cancelActiveScan()">Cancel</button>
+              </div>
+            </div>
+            <div class="progress-bar">
+              <div id="progress-bar" class="progress-fill" style="width:0%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- Discount Zone Results Table -->
+    <div id="discount-results-panel" class="hidden bg-gray-800 rounded-lg p-4 mb-4" style="display:none;">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-bold text-white">Discount Zone Candidates</h3>
+        <div class="flex gap-2">
+          <span id="discount-count" class="text-sm text-gray-400">0 results</span>
+          <button onclick="loadDiscountCandidates()" class="btn btn-sm">Refresh</button>
+          <button onclick="clearDiscountCandidates()" class="btn btn-sm">Clear All</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs text-gray-400 uppercase border-b border-gray-700">
+            <tr>
+              <th class="px-3 py-2">#</th>
+              <th class="px-3 py-2">Symbol</th>
+              <th class="px-3 py-2">Price</th>
+              <th class="px-3 py-2">Retracement</th>
+              <th class="px-3 py-2">Tier</th>
+              <th class="px-3 py-2">Energy</th>
+              <th class="px-3 py-2">Pressure</th>
+              <th class="px-3 py-2">Score</th>
+              <th class="px-3 py-2">Wyckoff</th>
+              <th class="px-3 py-2">Label</th>
+              <th class="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="discount-results-body" class="text-gray-300">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+      <!-- Main Content: Chart + Sidebar -->
+      <div id="scanner-main-grid" style="display:grid;grid-template-columns:1fr;gap:var(--space-24);align-items:stretch;transition:grid-template-columns 0.2s ease;">
+        
+        <!-- LEFT COLUMN: Chart + Current Candidate Info Below -->
+        <div style="display:flex;flex-direction:column;gap:var(--space-24);min-height:0;">
+          
+          <!-- Chart -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-header-title">
+                <span class="text-mono" style="font-weight:700;color:var(--color-text);" id="chart-symbol"></span>
+                <span style="color:var(--color-text-subtle);" id="chart-title">Pattern View</span>
+              </span>
+              <div id="chart-timeframe-btns" style="display:flex;gap:2px;margin-left:12px;">
+                <button class="chart-tf-btn" data-tf="1h" style="padding:2px 6px;font-size:11px;background:#374151;color:#9ca3af;border:1px solid #4b5563;border-radius:3px;cursor:pointer;">1H</button>
+                <button class="chart-tf-btn" data-tf="4h" style="padding:2px 6px;font-size:11px;background:#374151;color:#9ca3af;border:1px solid #4b5563;border-radius:3px;cursor:pointer;">4H</button>
+                <button class="chart-tf-btn" data-tf="1d" style="padding:2px 6px;font-size:11px;background:#374151;color:#9ca3af;border:1px solid #4b5563;border-radius:3px;cursor:pointer;">D</button>
+                <button class="chart-tf-btn" data-tf="1wk" style="padding:2px 6px;font-size:11px;background:#374151;color:#9ca3af;border:1px solid #4b5563;border-radius:3px;cursor:pointer;">W</button>
+                <button class="chart-tf-btn" data-tf="1mo" style="padding:2px 6px;font-size:11px;background:#374151;color:#9ca3af;border:1px solid #4b5563;border-radius:3px;cursor:pointer;">M</button>
+              </div>
+              <button id="btn-toggle-ai-levels" type="button" class="btn btn-ghost btn-sm" onclick="toggleAILevelsVisibility()" title="Show or hide AI chart levels" style="margin-left:8px;display:none;">
+                Hide AI Set
+              </button>
+              
+              <div id="chart-indicator-badges" style="display:flex;gap:4px;margin-left:8px;flex-wrap:wrap;"></div>
+              <div class="chart-legend">
+                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#7a4040;"></span>Pk</span>
+                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#7a5a35;"></span>Dst</span>
+                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#3a7a50;"></span>Bas</span>
+                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#3a5a7a;"></span>Mkp</span>
+                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#7a7a3a;"></span>Pul</span>
+                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#5a3a7a;"></span>Brk</span>
+              </div>
+            </div>
+            <div class="dt-chart-shell" style="padding:var(--space-12) var(--space-12) 0;">
+              <aside class="dt-chart-rail" aria-label="Chart drawing tools">
+                <div id="scanner-dt-toolbar" data-dt-for="pattern-chart" class="dt-toolbar dt-toolbar--dock dt-toolbar--grouped"></div>
+              </aside>
+              <div class="dt-chart-stage">
+                <div id="chart-container" tabindex="0" aria-label="Pattern chart navigation" title="Click chart, then use ←/→ to move instruments" style="position:relative;height:480px;background:#1e1e1e;outline:none;">
+                  <div id="pattern-chart" style="position:absolute;inset:0;"></div>
+                  <canvas id="drawing-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:10;display:none;"></canvas>
+                  <div id="ci-pane-labels-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:50;"></div>
+                </div>
+              </div>
+            </div>
+            <div id="scanner-chart-actions" style="display:flex;justify-content:flex-end;gap:var(--space-8);padding-top:var(--space-12);border-top:1px solid var(--color-border);">
+              <button id="btn-send-to-desk-visible" onclick="sendTradingDesk()" class="btn btn-sm" title="Open this symbol in the Trading Desk for deeper analysis">
+                Analyze in Trading Desk &#8599;
+              </button>
+            </div>
+          </div>
+        
+          <!-- Current Candidate Info (BELOW CHART) -->
+          <div id="candidate-info-panel" class="panel hidden" style="display:none !important;">
+            <div class="panel-body">
+              <div id="candidate-info">
+                <div id="candidate-details" class="hidden">
+                  <!-- Strategy badge + entry ready + score row -->
+                  <div id="candidate-strategy-bar" style="display:flex;gap:var(--space-8);align-items:center;margin-bottom:var(--space-12);flex-wrap:wrap;">
+                    <span id="info-strategy-badge" class="badge" style="font-size:var(--text-caption);"></span>
+                    <span id="info-candidate-role" class="badge" style="font-size:var(--text-caption);display:none;"></span>
+                    <span id="info-entry-ready" style="font-size:var(--text-caption);font-weight:600;"></span>
+                    <span id="info-rules-summary" style="font-size:var(--text-caption);color:var(--color-text-muted);"></span>
+                  </div>
+                  <div style="display:flex;gap:var(--space-24);align-items:flex-start;margin-bottom:var(--space-16);">
+                    <div style="flex-shrink:0;">
+                      <div class="metric-group">
+                        <div class="metric-item">
+                          <span class="metric-label">Symbol</span>
+                          <span id="info-symbol" class="metric-value text-mono"></span>
+                        </div>
+                        <div class="metric-item">
+                          <span class="metric-label">Retracement</span>
+                          <span id="info-retracement" class="metric-value text-mono"></span>
+                        </div>
+                        <div class="metric-item">
+                          <span class="metric-label">Score</span>
+                          <span id="info-score" class="metric-value text-mono"></span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="flex:1;">
+                      <div class="wyckoff-phases" id="wyckoff-phases">
+                        <div class="wyckoff-phase wyckoff-phase--peak">
+                          <div class="wyckoff-phase-label">1. PEAK</div>
+                          <div id="info-peak-data" class="wyckoff-phase-data"></div>
+                        </div>
+                        <div class="wyckoff-phase wyckoff-phase--dist">
+                          <div class="wyckoff-phase-label">2. DIST</div>
+                          <div id="info-markdown-data" class="wyckoff-phase-data"></div>
+                        </div>
+                        <div class="wyckoff-phase wyckoff-phase--base">
+                          <div class="wyckoff-phase-label">3. BASE</div>
+                          <div id="info-base-dates" class="wyckoff-phase-data"></div>
+                          <div id="info-base-prices" class="wyckoff-phase-data"></div>
+                        </div>
+                        <div class="wyckoff-phase wyckoff-phase--markup">
+                          <div class="wyckoff-phase-label">4. MKP</div>
+                          <div id="info-markup-dates" class="wyckoff-phase-data"></div>
+                          <div id="info-markup-prices" class="wyckoff-phase-data"></div>
+                        </div>
+                        <div class="wyckoff-phase wyckoff-phase--pullback">
+                          <div class="wyckoff-phase-label">5. PUL</div>
+                          <div id="info-pullback-dates" class="wyckoff-phase-data"></div>
+                          <div id="info-pullback-prices" class="wyckoff-phase-data"></div>
+                        </div>
+                        <div class="wyckoff-phase wyckoff-phase--breakout">
+                          <div class="wyckoff-phase-label">6. BRK</div>
+                          <div id="info-breakout-data" class="wyckoff-phase-data"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Rule Checklist (new) -->
+                  <div id="rule-checklist-panel" style="display:none;border-top:1px solid var(--color-border);padding-top:var(--space-8);margin-bottom:var(--space-8);">
+                    <div style="font-size:var(--text-caption);color:var(--color-text-muted);margin-bottom:4px;font-weight:600;">Rule Checklist</div>
+                    <div id="rule-checklist-items" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+                  </div>
+                  <div id="fundamentals-panel" style="display:none;border-top:1px solid var(--color-border);padding-top:var(--space-12);margin-bottom:var(--space-8);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-8);margin-bottom:var(--space-8);flex-wrap:wrap;">
+                      <div style="font-size:var(--text-caption);color:var(--color-text-muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Fundamentals Snapshot</div>
+                      <div id="fundamentals-status" style="font-size:var(--text-caption);color:var(--color-text-muted);">Waiting for symbol...</div>
+                    </div>
+                    <div id="fundamentals-summary" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-8);margin-bottom:var(--space-12);"></div>
+                    <div id="fundamentals-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-12);"></div>
+                    <div id="fundamentals-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-12);"></div>
+                    <div class="fundamentals-chat-panel">
+                      <div class="fundamentals-chat-header">
+                        <span>Fundamentals Copilot</span>
+                        <span id="fundamentals-chat-status">Ready</span>
+                      </div>
+                      <div id="fundamentals-chat-messages" class="fundamentals-chat-messages">
+                        <div class="scanner-chat-bubble ai">Ask how these fundamentals change the quality, risk, or timing of the current scanner setup.</div>
+                      </div>
+                      <div id="fundamentals-chat-composer" class="fundamentals-chat-composer">
+                        <textarea id="fundamentals-chat-input" placeholder="Ask about the fundamentals and setup..." oninput="autoResizeScannerChatInput('fundamentals-chat-input')" onkeydown="handleFundamentalsChatKeydown(event)" onpaste="handleFundamentalsChatPaste(event)"></textarea>
+                        <button class="fundamentals-send-btn fundamentals-chart-btn" type="button" title="Send current chart with this message" aria-label="Send fundamentals chat message with current chart screenshot" onclick="sendFundamentalsChatWithChart()">Img</button>
+                        <button class="fundamentals-send-btn" type="button" aria-label="Send fundamentals chat message" onclick="sendFundamentalsChat()">&#8593;</button>
+                        <div id="fundamentals-chat-attachment" class="chat-attachment-tray hidden"></div>
+                      </div>
+                      <div class="scanner-chat-actions" style="padding-left:0;padding-right:0;padding-bottom:0;border-top:none;background:transparent;">
+                        <button onclick="askFundamentalsQuality()" class="btn btn-ghost">Explain Quality</button>
+                        <button onclick="askFundamentalsRisk()" class="btn btn-ghost">Explain Risk</button>
+                        <button onclick="askFundamentalsCatalyst()" class="btn btn-ghost">Explain Catalyst</button>
+                        <button onclick="clearFundamentalsChatSession()" class="btn btn-ghost">Clear</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="ai-review-panel" class="panel hidden">
+            <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-12);">
+              <span class="panel-header-title">AI Review</span>
+              <span id="ai-review-status" class="text-muted" style="font-size:var(--text-caption);">Run Analyze Chart</span>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:var(--space-16);">
+              <div id="ai-review-analysis-slot"></div>
+
+              <div id="ai-base-review" class="hidden" style="border-top:1px solid var(--color-border);padding-top:var(--space-16);">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-12);margin-bottom:var(--space-12);flex-wrap:wrap;">
+                  <div style="font-size:var(--text-caption);color:var(--color-text-muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">AI Base Review</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">Persistent training correction for base levels</div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-12);margin-bottom:var(--space-12);">
+                  <div style="padding:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);">
+                    <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-4);">Detector Base</div>
+                    <div id="ai-detector-base" class="text-mono" style="font-size:var(--text-body);font-weight:600;">-</div>
+                  </div>
+                  <div style="padding:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);">
+                    <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-4);">AI Base</div>
+                    <div id="ai-model-base" class="text-mono" style="font-size:var(--text-body);font-weight:600;">-</div>
+                  </div>
+                  <div style="padding:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);">
+                    <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-4);">Corrected Base</div>
+                    <div id="ai-corrected-base" class="text-mono" style="font-size:var(--text-body);font-weight:600;">-</div>
+                  </div>
+                </div>
+                <p id="ai-base-review-note" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                  Adjust the AI base lines on the chart, then save the corrected base range as durable training data.
+                </p>
+                <div style="display:flex;gap:var(--space-8);align-items:center;flex-wrap:wrap;">
+                  <button onclick="toggleDragMode()" id="btn-drag-levels"
+                          class="hidden btn btn-ghost btn-sm">
+                    Adjust On Chart
+                  </button>
+                  <span id="correction-count" class="hidden text-xs text-yellow-400"></span>
+                  <button onclick="saveLevelCorrections()" id="btn-save-corrections"
+                          class="hidden btn btn-sm">
+                    Save Base Correction
+                  </button>
+                </div>
+                <p id="drag-instruction" class="hidden" style="font-size:var(--text-caption);color:var(--color-warning);margin-top:var(--space-8);">
+                  Click and drag the AI base lines on the chart. Adjusted lines turn gold.
+                </p>
+                <p id="ai-correction-status" class="hidden" style="font-size:var(--text-caption);margin-top:var(--space-8);"></p>
+              </div>
+
+              <div id="ai-review-ml-slot"></div>
+              <div id="ai-review-feedback-slot"></div>
+            </div>
+          </div>
+
+          <div id="scanner-fundamentals-shell" class="panel hidden">
+            <div class="panel-body" id="scanner-fundamentals-host"></div>
+          </div>
+        </div><!-- end left column -->
+
+        <!-- RIGHT COLUMN: Drawing Panel + Labeling Buttons -->
+        <div style="display:flex;flex-direction:column;gap:var(--space-24);">
+          
+          <!-- Correction/Drawing Mode Panel (TOP) -->
+          <div id="correction-panel" class="hidden panel" style="border:2px solid var(--color-warning);display:none;">
+            <!-- Content populated by enterCorrectionMode() -->
+          </div>
+        
+          <!-- Labeling Buttons Panel -->
+          <div class="panel" style="display:none;">
+            <div class="panel-body">
+              <h3 style="font-size:var(--text-body);font-weight:500;margin-bottom:var(--space-12);">Is this your pattern?</h3>
+              <div class="label-grid">
+                <button onclick="submitLabel('yes')" class="label-btn">YES</button>
+                <button onclick="submitLabel('no')" class="label-btn">NO</button>
+                <button onclick="enterCorrectionMode()" class="label-btn">CORRECT IT</button>
+                <button onclick="skipCandidate()" class="label-btn">SKIP</button>
+              </div>
+              <p style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:var(--space-8);">
+                CORRECT IT = Draw annotations on chart
+              </p>
+              <button onclick="saveCurrentChart()" class="btn btn-ghost" style="width:100%;margin-top:var(--space-12);">
+                Save Chart
+              </button>
+            </div>
+          </div>
+
+          <!-- AI Analysis Panel -->
+          <div id="scanner-chat-shell">
+          <div id="ai-panel" class="scanner-chat-panel cc-panel" data-resizable-height="true" data-skip-viewport-clamp="true" data-resize-storage-key="scanner-chat-panel-height" data-resize-default="420" data-resize-min="220" data-resize-max="760" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;width:100%;">
+            <div class="scanner-chat-header cc-header">
+              <button class="cc-toggle-btn" onclick="toggleChat('ai-panel','scanner-main-grid','chat-collapsed')" title="Collapse panel">&#8250;</button>
+              <span class="cc-title">Scanner Copilot</span>
+              <span id="ai-status" class="cc-status">Ready</span>
+              <span class="cc-vert-label" onclick="toggleChat('ai-panel','scanner-main-grid','chat-collapsed')">Scanner Copilot</span>
+            </div>
+            <div id="scanner-chat-messages" class="scanner-chat-messages">
+              <div class="scanner-chat-bubble ai">
+                Welcome. Ask about this setup, or run AI chart analysis.
+              </div>
+          <div id="ai-result" class="hidden scanner-chat-bubble ai scanner-analysis-card">
+            <div class="scanner-analysis-overview">
+              <div class="scanner-analysis-eyebrow">Pattern Read</div>
+              <div id="ai-primary-pattern" class="scanner-analysis-pattern">-</div>
+              <div class="scanner-analysis-chip-row">
+                <div class="scanner-analysis-chip">
+                  <span class="scanner-analysis-chip-label">Alt</span>
+                  <span id="ai-alternative-pattern" class="scanner-analysis-chip-value">-</span>
+                </div>
+                <div class="scanner-analysis-chip">
+                  <span class="scanner-analysis-chip-label">State</span>
+                  <span id="ai-state-assessment" class="scanner-analysis-chip-value">-</span>
+                </div>
+                <div class="scanner-analysis-chip">
+                  <span class="scanner-analysis-chip-label">Timing</span>
+                  <span id="ai-timing" class="scanner-analysis-chip-value">-</span>
+                </div>
+              </div>
+            </div>
+            <div class="scanner-analysis-grid">
+              <section class="scanner-analysis-section">
+                <div class="scanner-analysis-section-title">Reasons</div>
+                <ul id="ai-top-reasons" class="scanner-analysis-list">
+                  <li class="is-empty">-</li>
+                </ul>
+              </section>
+              <section class="scanner-analysis-section">
+                <div class="scanner-analysis-section-title">Risks</div>
+                <ul id="ai-top-risks" class="scanner-analysis-list">
+                  <li class="is-empty">-</li>
+                </ul>
+              </section>
+            </div>
+            <section class="scanner-analysis-section">
+              <div class="scanner-analysis-section-title">Read</div>
+              <p id="ai-explanation" class="scanner-analysis-explanation">-</p>
+            </section>
+            <div id="ai-suggestions" class="hidden"></div>
+            
+            <!-- ML Vector Scores -->
+            <div id="ml-scores" class="hidden mt-3 p-2 bg-gray-900 rounded border border-purple-600">
+              <p class="text-xs font-bold text-purple-400 mb-2">📊 ML Vector (Training Data)</p>
+              <div class="grid grid-cols-5 gap-1 text-xs">
+                <div class="text-center">
+                  <div id="ml-pattern" class="text-lg font-bold">-</div>
+                  <div class="text-gray-500">Detector</div>
+                </div>
+                <div class="text-center">
+                  <div id="ml-clarity" class="text-lg font-bold">-</div>
+                  <div class="text-gray-500">Structure</div>
+                </div>
+                <div class="text-center">
+                  <div id="ml-phases" class="text-lg font-bold">-</div>
+                  <div class="text-gray-500">Clarity</div>
+                </div>
+                <div class="text-center">
+                  <div id="ml-risk" class="text-lg font-bold">-</div>
+                  <div class="text-gray-500">Risk</div>
+                </div>
+                <div class="text-center">
+                  <div id="ml-entry" class="text-lg font-bold">-</div>
+                  <div class="text-gray-500">Timing</div>
+                </div>
+              </div>
+              <div id="ml-vector-raw" class="mt-2 text-xs text-gray-500 font-mono"></div>
+            </div>
+            
+            <!-- AI Feedback Buttons -->
+            <div id="ai-feedback" class="mt-3 pt-2 border-t border-gray-600">
+              <p class="text-xs text-gray-400 mb-2">Was this AI analysis correct?</p>
+              <div class="flex gap-2">
+                <button onclick="submitAIFeedback(true)" id="btn-ai-correct"
+                        class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-2 rounded">
+                  ✓ Correct
+                </button>
+                <button onclick="submitAIFeedback(false)" id="btn-ai-incorrect"
+                        class="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1.5 px-2 rounded">
+                  ✗ Incorrect
+                </button>
+              </div>
+              <p id="ai-feedback-saved" class="hidden text-xs text-green-400 mt-1 text-center">✓ Feedback saved!</p>
+              
+              <!-- Level Adjustment Controls -->
+              <div class="mt-3 pt-2 border-t border-gray-600">
+                <p class="text-xs text-gray-400 mb-2">Or adjust the AI's levels:</p>
+                <button onclick="toggleDragMode()" id="btn-drag-levels"
+                        class="hidden w-full bg-purple-600 hover:bg-purple-700 text-white text-xs py-1.5 px-2 rounded mb-2">
+                  ✋ Adjust AI Levels
+                </button>
+                <p id="drag-instruction" class="hidden text-xs text-yellow-400 mb-2">
+                  Click and drag any line to adjust. Lines turn gold when adjusted.
+                </p>
+                <span id="correction-count" class="hidden text-xs text-yellow-400"></span>
+                <button onclick="saveLevelCorrections()" id="btn-save-corrections"
+                        class="hidden w-full bg-orange-600 hover:bg-orange-700 text-white text-xs py-1.5 px-2 rounded">
+                   Save Level Corrections
+                </button>
+              </div>
+            </div>
+          </div>
+          <p id="ai-error" class="hidden scanner-chat-bubble ai text-xs text-red-400"></p>
+            </div>
+            <div id="scanner-chat-input-row" class="scanner-chat-input-row">
+              <textarea id="scanner-chat-input" placeholder="Ask..." oninput="autoResizeScannerChatInput()" onkeydown="handleScannerChatKeydown(event)" onpaste="handleScannerChatPaste(event)"></textarea>
+              <button class="scanner-send-btn scanner-chart-btn" type="button" title="Send current chart with this message" aria-label="Send scanner chat message with current chart screenshot" onclick="sendScannerChatWithChart()">Img</button>
+              <button class="scanner-send-btn scanner-chart-btn scanner-chart-btn--preview" type="button" title="Preview the exact screenshot sent to Scanner AI" aria-label="Preview scanner chart screenshot" onclick="previewScannerChartCapture()">Prev</button>
+              <button class="scanner-send-btn" type="button" aria-label="Send scanner chat message" onclick="sendScannerChat()">&#8593;</button>
+              <div id="scanner-chat-attachment" class="chat-attachment-tray hidden"></div>
+            </div>
+            <div class="scanner-chat-actions">
+              <button onclick="askAI()" id="btn-ask-ai" class="btn btn-ghost">Analyze Chart</button>
+              <button onclick="askScannerWhy()" class="btn btn-ghost">Explain Setup</button>
+              <button onclick="askScannerEdits()" class="btn btn-ghost">Improve Rules</button>
+              <button onclick="clearScannerChatSession()" class="btn btn-ghost">Clear Session</button>
+            </div>
+          </div>
+          <div class="panel-resize-handle panel-resize-handle--vertical" data-resize-target="ai-panel" title="Drag to resize scanner chat. Double-click to reset."></div>
+          </div>
+        </div><!-- end right column -->
+      </div><!-- end grid -->
+
+      <div id="scanner-capture-preview" class="scanner-capture-preview hidden" aria-hidden="true">
+        <div class="scanner-capture-preview__panel">
+          <div class="scanner-capture-preview__header">
+            <div>
+              <strong style="color:#fff;">Scanner Chart Capture Preview</strong>
+              <div>This preview controls the exact chart crop sent to Scanner AI.</div>
+            </div>
+            <div class="scanner-capture-preview__actions">
+              <button type="button" class="scanner-capture-preview__close" onclick="clearScannerChartCaptureCrop()">Clear Crop</button>
+              <button type="button" class="scanner-capture-preview__close" onclick="closeScannerChartCapturePreview()">Close</button>
+            </div>
+          </div>
+          <div class="scanner-capture-preview__body">
+            <div>
+              <div id="scanner-capture-preview-stage" class="scanner-capture-preview__stage">
+                <img id="scanner-capture-preview-image" alt="Scanner chart capture preview">
+                <div class="scanner-capture-preview__crop-layer">
+                  <div id="scanner-capture-preview-crop-box" class="scanner-capture-preview__crop-box"></div>
+                </div>
+              </div>
+              <div class="scanner-capture-preview__meta">
+                <div id="scanner-capture-preview-status">Crop: full image</div>
+                <div>Click and drag on the preview to crop just the chart area before sending.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- Scan Results Table (below chart) -->
+    <div id="scan-results-panel" class="panel hidden" style="margin-top:var(--space-16);">
+      <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="panel-header-title">Scan Results</span>
+        <div style="display:flex;gap:var(--space-8);align-items:center;">
+          <span id="scan-results-count" class="text-muted">0 candidates</span>
+          <button onclick="exportCandidates()" class="btn btn-ghost btn-sm">Export JSON</button>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:0;">
+        <div id="scan-results-list" style="max-height:360px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+      </div><!-- End scanner-content -->
+      
+      <!-- Training Data Content -->
+      <div id="training-content" class="content hidden">
+        <div class="panel" style="margin-bottom:var(--space-16);">
+          <div class="panel-body" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-12);">
+            <div>
+              <div class="text-label">Symbols</div>
+              <div class="text-mono" id="nav-symbols-count">(0)</div>
+            </div>
+            <div>
+              <div class="text-label">Candidates</div>
+              <div class="text-mono" id="nav-candidates-count">(0)</div>
+            </div>
+            <div>
+              <div class="text-label">Labels</div>
+              <div class="text-mono" id="nav-labels-count">(0)</div>
+            </div>
+            <div>
+              <div class="text-label">Corrections</div>
+              <div class="text-mono" id="nav-corrections-count">(0)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:var(--space-16);">
+          <div class="panel-header">
+            <span class="panel-header-title">Symbols</span>
+          </div>
+          <div class="panel-body">
+            <div id="symbols-list"></div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:var(--space-16);">
+          <div class="panel-header">
+            <span class="panel-header-title">Candidates</span>
+            <button onclick="clearAllCandidates()" class="btn btn-ghost btn-sm">Clear All</button>
+          </div>
+          <div class="panel-body">
+            <div id="candidates-list-full"></div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:var(--space-16);">
+          <div class="panel-header">
+            <span class="panel-header-title">Labels</span>
+          </div>
+          <div class="panel-body">
+            <div id="labels-list"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-header-title">Corrections</span>
+          </div>
+          <div class="panel-body">
+            <div id="corrections-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saved Symbols Content -->
+      <div id="saved-content" class="content hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-header-title">Saved Symbols</span>
+            <button onclick="updateSavedChartsList()" class="btn btn-ghost btn-sm">Refresh</button>
+          </div>
+          <div class="panel-body">
+            <p class="text-muted" style="margin-bottom:var(--space-12);">Saved charts and symbols from Scanner.</p>
+            <div id="saved-charts-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Content -->
+      <div id="settings-content" class="content hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-header-title">Settings</span>
+          </div>
+          <div class="panel-body">
+
+            <!-- Universe Management -->
+            <div class="settings-section-title" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:var(--space-16);padding-bottom:var(--space-8);border-bottom:1px solid var(--color-border);">
+              Scanning Universe (Broad Optionable Underlyings)
+            </div>
+            <div id="universe-status-bar" style="font-size:var(--text-small);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+              Loading universe status...
+            </div>
+            <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;margin-bottom:var(--space-16);">
+              <button id="btn-build-universe" class="btn btn-primary btn-sm" onclick="universeBuild()">
+                Build Universe
+              </button>
+              <button id="btn-update-universe" class="btn btn-ghost btn-sm" onclick="universeUpdate()">
+                Update Now
+              </button>
+              <button id="btn-rebuild-optionable" class="btn btn-ghost btn-sm" onclick="universeRebuildOptionable()">
+                Rebuild Optionable
+              </button>
+              <button id="btn-cancel-universe-job" class="btn btn-ghost btn-sm" onclick="universeCancelJob()" style="display:none;">
+                Cancel Job
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="universeRefreshStatus()">
+                Refresh Status
+              </button>
+            </div>
+            <div id="universe-progress-wrap" style="display:none;margin-bottom:var(--space-16);">
+              <div style="height:6px;background:var(--color-surface-raised);border-radius:3px;overflow:hidden;margin-bottom:var(--space-8);">
+                <div id="universe-progress-bar" style="height:100%;width:0%;background:var(--color-accent);border-radius:3px;transition:width 0.4s ease;"></div>
+              </div>
+              <div id="universe-progress-label" style="font-size:var(--text-caption);color:var(--color-text-subtle);"></div>
+            </div>
+            <div id="universe-job-meta" class="universe-job-grid" style="display:none;"></div>
+            <div id="universe-metrics" class="universe-metrics-row" style="display:none;"></div>
+            <div id="universe-log-shell" style="display:none;margin-bottom:var(--space-16);">
+              <div class="universe-log-head">
+                <span>Recent Output</span>
+                <span id="universe-log-updated"></span>
+              </div>
+              <div id="universe-log" style="display:block;font-size:var(--text-caption);font-family:var(--font-mono);background:var(--color-surface-raised);border-radius:var(--radius);padding:var(--space-12);max-height:280px;overflow-y:auto;color:var(--color-text-subtle);white-space:pre-wrap;"></div>
+            </div>
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);line-height:1.6;">
+              <strong>Build Universe</strong> - Downloads a broad US-listed optionable stock library and 5 years of history. Run once. Can take 60-180 min.<br>
+              <strong>Update Now</strong> - Fetches only new bars since last update. Takes 3-8 min. Runs automatically each week.
+            </div>
+
+            <div style="margin-top:var(--space-24);border-top:1px solid var(--color-border);padding-top:var(--space-16);">
+              <div class="settings-section-title" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:var(--space-16);">
+                Scanner Settings
+              </div>
+              <div class="sidebar-field" style="max-width:420px;">
+                <label class="sidebar-field-label" for="scanner-swing-sensitivity">Swing Sensitivity</label>
+                <input type="range" id="scanner-swing-sensitivity" min="1" max="15" step="1" value="5" style="width:100%;">
+                <div style="display:flex;justify-content:space-between;font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;">
+                  <span>Fewer</span>
+                  <span id="scanner-swing-label" style="color:var(--color-text-muted);">5</span>
+                  <span>More</span>
+                </div>
+              </div>
+              <div style="margin-top:var(--space-16);font-size:var(--text-small);color:var(--color-text-muted);">
+                Vision AI Status: <span id="sidebar-ai-status">-</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div><!-- end .app-main -->
+  </div><!-- end .app -->
+
+  <!-- Libraries loaded above in <head> -->
+  <!-- Modules (order matters: dependencies first) -->
+  <script src="app.js"></script>
+  <script src="drawing-tools.js"></script>
+  <script src="trade-plan-store.js"></script>
+  <script src="chart.js"></script>
+  <script src="chart-indicators.js"></script>
+  <script src="drawing.js"></script>
+  <script src="correction.js"></script>
+  <script src="ai-handoffs.js"></script>
+  <script src="ai-chat.js"></script>
+  <script src="training.js"></script>
+  <script src="discount.js"></script>
+  <script src="scanner.js"></script>
+  <script src="index.js"></script>
+</body>
+</html>

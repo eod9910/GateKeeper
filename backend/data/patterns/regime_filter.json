@@ -1,0 +1,65 @@
+{
+  "pattern_id": "regime_filter",
+  "name": "Regime Filter",
+  "category": "indicator_signals",
+  "description": "Determines market regime using RDP swing structure (Dow Theory): Higher Highs + Higher Lows = uptrend, Lower Highs + Lower Lows = downtrend. Optionally checks a reference/benchmark symbol (e.g. SPY for stocks, BTC-USD for crypto) instead of the chart symbol itself.",
+  "author": "system",
+  "version": "2.0.0",
+  "plugin_file": "plugins/regime_filter.py",
+  "plugin_function": "run_regime_filter_plugin",
+  "pattern_type": "regime_filter",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "regime_filter",
+    "reference_symbol": "",
+    "required_regime": "expansion",
+    "epsilon_pct": 0.05,
+    "majority_pct": 0.6
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "reference_symbol",
+      "label": "Reference Symbol",
+      "type": "string",
+      "default": "",
+      "description": "Benchmark to check regime against. Leave empty to use the chart symbol's own structure. Use SPY/IWM for stocks, BTC-USD/ETH-USD for crypto."
+    },
+    {
+      "key": "required_regime",
+      "label": "Required Regime",
+      "type": "select",
+      "options": ["expansion", "distribution", "any"],
+      "default": "expansion",
+      "description": "expansion = longs only, distribution = shorts only, any = either direction"
+    },
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.05,
+      "description": "RDP sensitivity for swing detection. Higher = fewer, larger swings."
+    },
+    {
+      "key": "majority_pct",
+      "label": "Majority Threshold",
+      "type": "float",
+      "min": 0.5,
+      "max": 0.9,
+      "step": 0.05,
+      "default": 0.6,
+      "description": "Fraction of swing transitions that must agree to classify as uptrend or downtrend. 0.6 = 60% of highs falling + 60% of lows falling → downtrend."
+    }
+  ],
+  "suggested_timeframes": ["W", "D", "4H"],
+  "min_data_bars": 30,
+  "status": "active",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "regime_state"
+}

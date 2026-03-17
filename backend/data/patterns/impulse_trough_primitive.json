@@ -1,0 +1,46 @@
+{
+  "pattern_id": "impulse_trough_primitive",
+  "name": "Impulse Trough (Primitive)",
+  "category": "price_action",
+  "description": "Mechanical trough finder for pullback Fib anchoring. Walks backward from the highest high to find where the impulse rally started. No RDP epsilon dependency.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/impulse_trough_primitive.py",
+  "plugin_function": "run_impulse_trough_plugin",
+  "pattern_type": "impulse_trough_primitive",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "impulse_trough_primitive",
+    "rally_threshold_pct": 0.15
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "rally_threshold_pct",
+      "label": "Rally Threshold (%)",
+      "type": "float",
+      "min": 0.05,
+      "max": 0.40,
+      "default": 0.15
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Max Lookback Bars",
+      "type": "int",
+      "min": 50,
+      "max": 1000,
+      "default": null
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 50,
+  "status": "experimental",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "structure_filter"
+}

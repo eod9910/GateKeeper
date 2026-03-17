@@ -1,0 +1,10 @@
+{
+  "total_trades": 3,
+  "expectancy_R": 1.155664,
+  "first_exit_reason": "time",
+  "execution_stats": {
+    "breakeven_triggers": 2,
+    "ladder_lock_triggers": 0,
+    "profit_retrace_exits": 0
+  }
+}

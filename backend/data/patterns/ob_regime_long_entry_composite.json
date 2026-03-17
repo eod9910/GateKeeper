@@ -1,0 +1,88 @@
+{
+  "pattern_id": "ob_regime_long_entry_composite",
+  "name": "Order Blocks + Regime Filter (Long Entry)",
+  "category": "indicator_signals",
+  "description": "Regime-filtered order block pullback strategy. Only takes long entries when the reference index (default: SPY) is in an uptrend (Higher Highs + Higher Lows via RDP Dow Theory). Entry fires when price returns to a bullish order block zone while the market regime confirms expansion. Designed for stocks and ETFs.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/composite_runner.py",
+  "plugin_function": "run_composite_plugin",
+  "pattern_type": "ob_regime_long_entry_composite",
+  "artifact_type": "indicator",
+  "composition": "composite",
+  "indicator_role": "entry_composite",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "ob_regime_long_entry_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "mode": "filter",
+      "stages": [
+        {
+          "id": "regime",
+          "pattern_id": "regime_filter",
+          "params": {
+            "reference_symbol": "SPY",
+            "required_regime": "expansion",
+            "epsilon_pct": 0.05
+          }
+        },
+        {
+          "id": "order_blocks",
+          "pattern_id": "order_blocks",
+          "params": {
+            "direction": "long",
+            "epsilon_pct": 0.025
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": ["regime", "order_blocks"]
+      }
+    }
+  },
+  "default_entry": {
+    "entry_type": "market_on_close"
+  },
+  "default_exit": {
+    "exit_type": "fixed_target",
+    "target_r": 2.0
+  },
+  "default_risk": {
+    "stop_type": "atr",
+    "atr_multiplier": 1.5,
+    "risk_per_trade_pct": 1.0
+  },
+  "tunable_params": [
+    {
+      "key": "reference_symbol",
+      "label": "Regime Reference Symbol",
+      "type": "string",
+      "default": "SPY",
+      "description": "Index to check for market regime. Use SPY/IWM for stocks, BTC-USD for crypto."
+    },
+    {
+      "key": "required_regime",
+      "label": "Required Regime",
+      "type": "select",
+      "options": ["expansion", "distribution", "any"],
+      "default": "expansion"
+    },
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon (Order Blocks)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.10,
+      "step": 0.005,
+      "default": 0.025
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 100,
+  "status": "active"
+}

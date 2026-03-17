@@ -1,0 +1,204 @@
+The MACD (Moving Average Convergence Divergence) is a popular technical indicator used to identify potential buy and sell signals based on the relationship between two moving averages of a security's price. The MACD line is calculated by subtracting the long-term EMA (Exponential Moving Average) from the short-term EMA, and a signal line is then derived from the MACD line.
+
+Here's what the MACD primitive will do:
+- Detect when the MACD line crosses the signal line.
+- Allow configuration of the fast, slow, and signal periods.
+- Support both bullish and bearish cross directions.
+- Include a minimum histogram value to filter out weak signals.
+
+Let's proceed with the MACD primitive implementation.
+
+===PLUGIN_CODE===
+```python
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import json
+import sys
+from datetime import datetime
+from typing import Any, Dict, List
+
+from patternScanner import OHLCV
+
+
+def compute_spec_hash(spec: Dict[str, Any]) -> str:
+    payload = {
+        "cost_config": spec.get("cost_config") or None,
+        "entry_config": spec.get("entry_config") or None,
+        "exit_config": spec.get("exit_config") or None,
+        "risk_config": spec.get("risk_config") or None,
+        "setup_config": spec.get("setup_config") or None,
+        "strategy_id": spec.get("strategy_id"),
+        "structure_config": spec.get("structure_config") or None,
+        "version": spec.get("version"),
+    }
+    def canonicalize(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {k: canonicalize(value[k]) for k in sorted(value.keys())}
+        if isinstance(value, list):
+            return [canonicalize(v) for v in value]
+        return value
+    json_str = json.dumps(canonicalize(payload), separators=(",", ":"))
+    return hashlib.sha256(json_str.encode("utf-8")).hexdigest()
+
+
+def run_macd_primitive_plugin(
+    data: List[OHLCV],
+    structure: Any,
+    spec: Dict[str, Any],
+    symbol: str,
+    timeframe: str,
+    **kwargs: Any,
+) -> List[Dict[str, Any]]:
+    """
+    Primitive: MACD (Moving Average Convergence Divergence).
+    Answers ONE question: Did the MACD line cross the signal line?
+
+    ALL behavior is controlled via tunable params in setup_config:
+      fast_period:       int   (default 12)
+      slow_period:       int   (default 26)
+      signal_period:     int   (default 9)
+      cross_direction:   str   (default "bullish") — "bullish" or "bearish"
+      histogram_min:     float (default 0.0) — min abs histogram value
+      lookback_bars:     int   (default 500)
+    """
+    import numpy as np
+
+    setup = spec.get("setup_config", {}) or {}
+    fast_period = int(setup.get("fast_period", 12))
+    slow_period = int(setup.get("slow_period", 26))
+    signal_period = int(setup.get("signal_period", 9))
+    cross_dir = str(setup.get("cross_direction", "bullish")).lower().strip()
+    histogram_min = float(setup.get("histogram_min", 0.0))
+    lookback_bars = int(setup.get("lookback_bars", 500))
+
+    n = len(data)
+    if n < slow_period + signal_period + 5:
+        print(f"[MACD] Not enough data: {n} bars", file=sys.stderr)
+        return []
+
+    closes = np.array([float(bar.close) for bar in data], dtype=float)
+
+    def calc_ema(arr, period):
+        out = np.full_like(arr, np.nan)
+        mult = 2.0 / (period + 1)
+        out[period - 1] = np.mean(arr[:period])
+        for i in range(period, len(arr)):
+            out[i] = (arr[i] - out[i - 1]) * mult + out[i - 1]
+        return out
+
+    fast_ema = calc_ema(closes, fast_period)
+    slow_ema = calc_ema(closes, slow_period)
+    macd_line = fast_ema - slow_ema
+    signal_line = calc_ema(macd_line[~np.isnan(macd_line)], signal_period)
+
+    # Align signal_line with macd_line
+    sig_full = np.full_like(macd_line, np.nan)
+    valid_start = np.argmax(~np.isnan(macd_line))
+    if len(signal_line) > 0:
+        sig_full[valid_start + signal_period - 1:valid_start + signal_period - 1 + len(signal_line)] = signal_line
+
+    histogram = macd_line - sig_full
+
+    spec_hash = spec.get("spec_hash") or compute_spec_hash(spec)
+    spec_hash_short = spec_hash[:12]
+    svid = spec.get("strategy_version_id", f"macd_primitive_v1")
+
+    search_start = max(slow_period + signal_period, n - lookback_bars) if lookback_bars > 0 else slow_period + signal_period
+    candidates = []
+
+    for i in range(search_start, n):
+        if np.isnan(macd_line[i]) or np.isnan(sig_full[i]) or np.isnan(macd_line[i-1]) or np.isnan(sig_full[i-1]):
+            continue
+        if cross_dir == "bullish":
+            crossed = bool(macd_line[i] > sig_full[i] and macd_line[i-1] <= sig_full[i-1])
+        else:
+            crossed = bool(macd_line[i] < sig_full[i] and macd_line[i-1] >= sig_full[i-1])
+        if not crossed:
+            continue
+
+        hist_val = float(histogram[i]) if not np.isnan(histogram[i]) else 0.0
+        if abs(hist_val) < histogram_min:
+            continue
+
+        score = min(1.0, 0.5 + abs(hist_val) * 10)
+        cid = f"{symbol}_{timeframe}_{svid}_{spec_hash_short}_{i}"
+
+        reason = f"MACD {'bullish' if cross_dir == 'bullish' else 'bearish'} cross (hist={hist_val:.4f})"
+        candidates.append({
+            "candidate_id": cid, "id": cid,
+            "strategy_version_id": svid, "spec_hash": spec_hash,
+            "symbol": symbol, "timeframe": timeframe,
+            "score": round(float(score), 3), "entry_ready": True,
+            "rule_checklist": [
+                {"rule_name": "MACD Signal Cross", "passed": True, "value": round(float(macd_line[i]), 4), "threshold": round(float(sig_full[i]), 4)},
+                {"rule_name": "Histogram Strength", "passed": abs(hist_val) >= histogram_min, "value": round(hist_val, 4), "threshold": histogram_min},
+            ],
+            "anchors": {"cross_bar": {"index": i, "timestamp": data[i].timestamp}},
+            "window_start": i, "window_end": i,
+            "pattern_type": "macd_primitive",
+            "created_at": datetime.utcnow().isoformat() + "Z",
+            "chart_data": [],
+            "node_result": {
+                "passed": True, "score": round(float(score), 3),
+                "features": {"fast": fast_period, "slow": slow_period, "signal": signal_period, "cross_dir": cross_dir, "histogram": round(hist_val, 4)},
+                "anchors": {"cross_bar": {"index": i}},
+                "reason": reason,
+            },
+            "output_ports": {
+                "signal": {"passed": True, "score": round(float(score), 3), "reason": reason},
+            },
+        })
+
+    print(f"[MACD] Found {len(candidates)} signals for {symbol}", file=sys.stderr)
+    return candidates
+```
+===END_PLUGIN_CODE===
+
+===PLUGIN_DEFINITION===
+```json
+{
+  "pattern_id": "macd_primitive",
+  "name": "MACD (Primitive)",
+  "category": "indicator_signals",
+  "description": "MACD crossover detector. Fully tunable fast/slow/signal periods and cross direction.",
+  "author": "ai_generated",
+  "version": "1.0.0",
+  "plugin_file": "plugins/macd_primitive.py",
+  "plugin_function": "run_macd_primitive_plugin",
+  "pattern_type": "macd_primitive",
+  "default_structure_config": { "swing_method": "rdp", "swing_epsilon_pct": 0.05 },
+  "default_setup_params": {
+    "pattern_type": "macd_primitive",
+    "fast_period": 12,
+    "slow_period": 26,
+    "signal_period": 9,
+    "cross_direction": "bullish",
+    "histogram_min": 0.0,
+    "lookback_bars": 500
+  },
+  "default_entry": { "entry_type": "analysis_only" },
+  "tunable_params": [
+    { "key": "fast_period", "label": "Fast EMA Period", "type": "int", "min": 2, "max": 50, "default": 12, "description": "Fast EMA period" },
+    { "key": "slow_period", "label": "Slow EMA Period", "type": "int", "min": 10, "max": 200, "default": 26, "description": "Slow EMA period" },
+    { "key": "signal_period", "label": "Signal Period", "type": "int", "min": 2, "max": 50, "default": 9, "description": "Signal smoothing period" },
+    { "key": "cross_direction", "label": "Cross Direction", "type": "enum", "options": ["bullish", "bearish"], "default": "bullish", "description": "Bullish = MACD crosses above signal. Bearish = below." },
+    { "key": "histogram_min", "label": "Min Histogram", "type": "float", "min": 0.0, "max": 1.0, "default": 0.0, "description": "Minimum absolute histogram value to trigger" },
+    { "key": "lookback_bars", "label": "Lookback Window", "type": "int", "min": 1, "max": 1000, "default": 500, "description": "Search window" }
+  ],
+  "examples": [
+    { "name": "MACD Classic (12/26/9 Bullish)", "setup_config": { "fast_period": 12, "slow_period": 26, "signal_period": 9, "cross_direction": "bullish" } },
+    { "name": "MACD Short Signal (Bearish)", "setup_config": { "fast_period": 12, "slow_period": 26, "signal_period": 9, "cross_direction": "bearish" } },
+    { "name": "MACD Fast (5/13/8)", "setup_config": { "fast_period": 5, "slow_period": 13, "signal_period": 8, "cross_direction": "bullish" } }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 200,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}
+```
+===END_PLUGIN_DEFINITION===
+
+This MACD primitive is fully configurable, allowing you to adjust the fast, slow, and signal periods, as well as the cross direction and minimum histogram value. Let me know if you need any further adjustments or explanations!

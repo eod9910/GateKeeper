@@ -1,0 +1,126 @@
+{
+  "pattern_id": "heartbeat_base",
+  "name": "Heartbeat Base (Statistical)",
+  "category": "price_action",
+  "description": "Statistical baseline-plus-pulse base detector. Finds compression bases with repeated top/floor touches, requires prior decline, confirms breakout by significance (z-score vs base volatility), and keeps setup valid while price holds above base floor.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/heartbeat_base_primitive.py",
+  "plugin_function": "run_heartbeat_base_primitive_plugin",
+  "pattern_type": "heartbeat_base",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "heartbeat_base",
+    "base_lookback": 26,
+    "prior_lookback": 26,
+    "max_base_range_pct": 0.35,
+    "top_tolerance_pct": 0.03,
+    "floor_tolerance_pct": 0.04,
+    "min_top_touches": 3,
+    "min_floor_touches": 2,
+    "breakout_margin_pct": 0.02,
+    "pulse_sigma_mult": 2.0,
+    "entry_zone_pct": 0.40
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "base_lookback",
+      "label": "Base Lookback (bars)",
+      "type": "int",
+      "min": 8,
+      "max": 80,
+      "step": 1,
+      "default": 26
+    },
+    {
+      "key": "prior_lookback",
+      "label": "Prior Context Lookback (bars)",
+      "type": "int",
+      "min": 8,
+      "max": 80,
+      "step": 1,
+      "default": 26
+    },
+    {
+      "key": "max_base_range_pct",
+      "label": "Max Base Range (%)",
+      "type": "float",
+      "min": 0.10,
+      "max": 0.80,
+      "step": 0.01,
+      "default": 0.35
+    },
+    {
+      "key": "top_tolerance_pct",
+      "label": "Top Touch Tolerance (%)",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.10,
+      "step": 0.005,
+      "default": 0.03
+    },
+    {
+      "key": "floor_tolerance_pct",
+      "label": "Floor Touch Tolerance (%)",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.12,
+      "step": 0.005,
+      "default": 0.04
+    },
+    {
+      "key": "min_top_touches",
+      "label": "Min Top Touches",
+      "type": "int",
+      "min": 2,
+      "max": 8,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "key": "min_floor_touches",
+      "label": "Min Floor Touches",
+      "type": "int",
+      "min": 1,
+      "max": 8,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "key": "breakout_margin_pct",
+      "label": "Breakout Margin (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.10,
+      "step": 0.005,
+      "default": 0.02
+    },
+    {
+      "key": "pulse_sigma_mult",
+      "label": "Breakout Significance (sigma)",
+      "type": "float",
+      "min": 0.5,
+      "max": 5.0,
+      "step": 0.1,
+      "default": 2.0
+    },
+    {
+      "key": "entry_zone_pct",
+      "label": "Entry Zone (% above ceiling)",
+      "type": "float",
+      "min": 0.05,
+      "max": 1.00,
+      "step": 0.05,
+      "default": 0.40
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 80,
+  "status": "experimental"
+}

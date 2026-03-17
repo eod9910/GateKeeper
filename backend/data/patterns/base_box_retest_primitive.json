@@ -1,0 +1,48 @@
+{
+  "pattern_id": "base_box_retest",
+  "name": "BT/BF (Primitive)",
+  "category": "price_action",
+  "description": "BT/BF support-anchor detector. BT marks Base Top touches and BF marks Base Floor touches inside a rolling box, with breakout-above-ceiling and hold-above-floor checks. Useful as structural context even when full base-pattern logic is imperfect.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/base_box_retest_primitive.py",
+  "plugin_function": "run_base_box_retest_primitive_plugin",
+  "pattern_type": "base_box_retest",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "base_box_retest",
+    "base_lookbacks": "30,60,90,120,180",
+    "base_lookback": 30,
+    "prior_lookback": 30,
+    "max_base_range_pct": 0.45,
+    "top_tolerance_pct": 0.03,
+    "floor_tolerance_pct": 0.05,
+    "min_top_touches": 2,
+    "min_floor_touches": 2,
+    "breakout_margin_pct": 0.02,
+    "min_hold_bars_after_breakout": 2,
+    "entry_zone_pct": 0.35
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    { "key": "base_lookbacks", "label": "Base Lookbacks CSV", "type": "string", "default": "30,60,90,120,180" },
+    { "key": "base_lookback", "label": "Base Lookback (bars)", "type": "int", "min": 8, "max": 80, "step": 1, "default": 30 },
+    { "key": "prior_lookback", "label": "Prior Lookback (bars)", "type": "int", "min": 8, "max": 80, "step": 1, "default": 30 },
+    { "key": "max_base_range_pct", "label": "Max Base Range (%)", "type": "float", "min": 0.10, "max": 0.90, "step": 0.01, "default": 0.45 },
+    { "key": "top_tolerance_pct", "label": "Top Touch Tolerance (%)", "type": "float", "min": 0.01, "max": 0.12, "step": 0.005, "default": 0.03 },
+    { "key": "floor_tolerance_pct", "label": "Floor Touch Tolerance (%)", "type": "float", "min": 0.01, "max": 0.15, "step": 0.005, "default": 0.05 },
+    { "key": "min_top_touches", "label": "Min Top Touches", "type": "int", "min": 2, "max": 8, "step": 1, "default": 2 },
+    { "key": "min_floor_touches", "label": "Min Floor Touches", "type": "int", "min": 1, "max": 8, "step": 1, "default": 2 },
+    { "key": "breakout_margin_pct", "label": "Breakout Margin (%)", "type": "float", "min": 0.005, "max": 0.12, "step": 0.005, "default": 0.02 },
+    { "key": "min_hold_bars_after_breakout", "label": "Min Hold Bars After Breakout", "type": "int", "min": 0, "max": 20, "step": 1, "default": 2 },
+    { "key": "entry_zone_pct", "label": "Entry Zone (% above ceiling)", "type": "float", "min": 0.05, "max": 1.00, "step": 0.05, "default": 0.35 }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 80,
+  "status": "experimental"
+}

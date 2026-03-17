@@ -1,0 +1,51 @@
+{
+  "name": "pattern-detector-backend",
+  "version": "0.1.0",
+  "description": "Pattern detection with human-in-the-loop active learning",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "concurrently -k -n py,node -c blue,green \"npm run py:service\" \"npm run node:dev\"",
+    "node:dev": "cross-env VALIDATOR_USE_PY_SERVICE=1 tsx src/server.ts",
+    "node:dev:no-py": "tsx src/server.ts",
+    "scan": "py services/patternScanner.py",
+    "py:service": "py services/plugin_service.py --port 8100",
+    "manifest:audit": "tsx scripts/auditParameterManifest.ts",
+    "manifest:backfill": "tsx scripts/backfillParameterManifest.ts",
+    "robinhood:positions:test": "py scripts/test_robinhood_positions.py",
+    "base:suite": "py scripts/run_base_method_suite.py",
+    "training:test": "tsx src/services/training/forwardResolver.test.ts",
+    "vision:test": "tsx src/services/visionService.test.ts",
+    "candidates:test": "tsx src/services/candidateFilters.test.ts",
+    "candidate-semantics:test": "tsx src/services/candidateSemantics.test.ts",
+    "candidate-persistence:test": "tsx src/services/candidatePersistence.test.ts",
+    "broker:test": "tsx src/services/brokerClient.test.ts",
+    "chart:test": "tsx src/services/chartData.test.ts",
+    "contracts:test": "tsx src/services/contractValidation.test.ts",
+    "signal-scanner:test": "tsx src/services/signalScanner.test.ts",
+    "py:test": "py -m unittest tests.test_validator_fixtures tests.test_fundamentals_service tests.test_density_base_detector_v2_pattern tests.test_pattern_framework tests.test_atr_pivot_research tests.test_structure_discovery_pipeline tests.test_structure_discovery_outcomes tests.test_structure_discovery_families tests.test_structure_discovery_inspection tests.test_structure_discovery_multi_symbol tests.test_structure_discovery_stability tests.test_structure_discovery_direction",
+    "test": "npm run training:test && npm run vision:test && npm run candidates:test && npm run candidate-semantics:test && npm run candidate-persistence:test && npm run broker:test && npm run chart:test && npm run contracts:test && npm run signal-scanner:test && npm run py:test"
+  },
+  "dependencies": {
+    "@alpacahq/alpaca-trade-api": "^3.1.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^2.7.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.0",
+    "@types/node-fetch": "^2.6.13",
+    "@types/uuid": "^9.0.7",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.0"
+  }
+}

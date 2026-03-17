@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strategy Details - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .strategy-layout { display:grid; grid-template-columns:280px minmax(0,1fr) 360px; gap:var(--space-16); height:100%; overflow:hidden; transition: grid-template-columns 0.2s ease; }
+    .strategy-layout.chat-collapsed { grid-template-columns:280px minmax(0,1fr) 36px; }
+    .strategy-layout.list-collapsed { grid-template-columns:36px minmax(0,1fr) 360px; }
+    .strategy-layout.list-collapsed.chat-collapsed { grid-template-columns:36px minmax(0,1fr) 36px; }
+    /* Left panel collapsed state */
+    .left-panel.collapsed .list { display:none; }
+    .left-panel.collapsed .left-header {
+      flex-direction:column; align-items:center; border-bottom:none;
+      height:100%; padding:var(--space-8) 0; gap:var(--space-4); justify-content:flex-start;
+    }
+    .left-panel.collapsed .lh-label,
+    .left-panel.collapsed .lh-actions { display:none !important; }
+    .left-panel.collapsed .lh-vert-label { display:block; }
+    .lh-vert-label {
+      display:none; writing-mode:vertical-rl; text-orientation:mixed;
+      transform:rotate(180deg); font-size:var(--text-caption); color:var(--color-text-subtle);
+      text-transform:uppercase; letter-spacing:0.1em; font-family:var(--font-mono);
+      cursor:pointer; padding:var(--space-8) 0; user-select:none;
+    }
+    .lh-vert-label:hover { color:var(--color-text); }
+    .left-panel { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; }
+    .left-header { padding:var(--space-12) var(--space-16); border-bottom:1px solid var(--color-border); display:flex; justify-content:space-between; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.06em; font-size:var(--text-caption); }
+    .list { flex:1; overflow-y:auto; padding:var(--space-8) 0; }
+    .item { padding:var(--space-8) var(--space-16); border-left:2px solid transparent; cursor:pointer; }
+    .item:hover { background:var(--color-surface-hover); }
+    .item.active { background:var(--color-accent-soft); border-left-color:var(--color-accent); }
+    .group { padding:var(--space-8) var(--space-16) var(--space-4); font-size:.68rem; color:var(--color-text-subtle); text-transform:uppercase; letter-spacing:.1em; font-weight:600; }
+    .status-badge { display:inline-block; padding:1px 6px; border-radius:2px; font-size:.62rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+    .status-badge.draft { background:var(--color-surface-alt); color:var(--color-text-muted); }
+    .status-badge.testing { background:rgba(93,122,146,.15); color:var(--color-accent); }
+    .status-badge.approved { background:rgba(79,170,114,.12); color:var(--color-positive); }
+    .status-badge.rejected { background:rgba(176,84,84,.12); color:var(--color-negative); }
+    .validation-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      flex-shrink:0;
+      padding:1px 6px;
+      border-radius:999px;
+      font-size:.62rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      border:1px solid transparent;
+      font-family:var(--font-mono);
+    }
+    .validation-badge.pass {
+      background:rgba(79,170,114,.12);
+      border-color:rgba(79,170,114,.28);
+      color:var(--color-positive);
+    }
+    .validation-badge.fail {
+      background:rgba(176,84,84,.12);
+      border-color:rgba(176,84,84,.28);
+      color:var(--color-negative);
+    }
+    .validation-badge.hard-fail {
+      background:rgba(176,84,84,.2);
+      border-color:rgba(176,84,84,.4);
+      color:#ffb0b0;
+    }
+    .validation-badge.review {
+      background:rgba(210,169,93,.12);
+      border-color:rgba(210,169,93,.28);
+      color:var(--color-warning, #d2a95d);
+    }
+    .validation-badge.untested {
+      background:rgba(93,122,146,.12);
+      border-color:rgba(93,122,146,.24);
+      color:var(--color-text-subtle);
+    }
+    .tier-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:1px 6px;
+      border-radius:999px;
+      font-size:.62rem;
+      font-weight:700;
+      letter-spacing:.06em;
+      font-family:var(--font-mono);
+      color:var(--color-accent);
+      background:rgba(93,122,146,.12);
+      border:1px solid rgba(93,122,146,.28);
+    }
+    .details { overflow-y:auto; padding-bottom:var(--space-24); }
+    .section-title { font-size:var(--text-caption); color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.08em; margin:var(--space-20) 0 var(--space-10); padding-bottom:var(--space-8); border-bottom:1px solid var(--color-border-subtle); }
+    .card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); padding:var(--space-12) var(--space-16); }
+    pre { margin:0; white-space:pre-wrap; word-break:break-word; font-size:var(--text-caption); color:var(--color-text-muted); font-family:var(--font-mono); }
+    .strategy-top-actions { display:flex; gap:var(--space-8); align-items:center; }
+    .strategy-editor-header { display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); margin-bottom:var(--space-8); }
+    .strategy-editor-title { display:flex; align-items:center; gap:var(--space-10); }
+    .strategy-editor-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-12); }
+    .strategy-editor-span-full { grid-column:1 / -1; }
+    .strategy-editor-actions { display:flex; gap:var(--space-8); align-items:center; justify-content:flex-end; margin-top:var(--space-14); }
+    .strategy-editor-label {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      margin-bottom: var(--space-6);
+      display: block;
+    }
+    .strategy-editor-input,
+    .strategy-editor-select,
+    .strategy-editor-textarea {
+      width: 100%;
+      font-family: var(--font-sans);
+      font-size: var(--text-small);
+      color: var(--color-text);
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-8) var(--space-10);
+      min-height: 36px;
+      transition: border-color var(--transition);
+    }
+    .strategy-editor-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='%23858a95' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 32px;
+    }
+    .strategy-editor-textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: var(--leading-body);
+    }
+    .strategy-editor-json {
+      width: 100%;
+      min-height: 220px;
+      resize: vertical;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-void);
+      color: var(--color-text-muted);
+      padding: var(--space-10) var(--space-12);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      line-height: 1.45;
+      transition: border-color var(--transition);
+    }
+    .strategy-editor-input:focus,
+    .strategy-editor-select:focus,
+    .strategy-editor-textarea:focus,
+    .strategy-editor-json:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+    .strategy-editor-input::placeholder,
+    .strategy-editor-textarea::placeholder,
+    .strategy-editor-json::placeholder {
+      color: var(--color-text-subtle);
+    }
+    .strategy-editor-status {
+      margin-top: var(--space-8);
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+    }
+    .strategy-editor-hidden {
+      display: none;
+    }
+
+    .validator-chat-panel {
+      background: var(--color-surface);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      align-self: stretch;
+    }
+    .validator-chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .validator-chat-messages {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      padding: var(--space-12);
+      background: var(--color-bg);
+    }
+    .validator-chat-bubble {
+      padding: var(--space-12);
+      border-radius: var(--radius);
+      font-size: var(--text-small);
+      line-height: var(--leading-body);
+      max-width: 95%;
+      border: 1px solid var(--color-border);
+      white-space: pre-wrap;
+    }
+    .validator-chat-bubble.ai {
+      background: var(--color-surface);
+      color: var(--color-text-muted);
+      align-self: flex-start;
+    }
+    .validator-chat-bubble.user {
+      background: var(--color-accent-soft);
+      border: 1px solid rgba(93, 122, 146, 0.35);
+      color: var(--color-text);
+      align-self: flex-end;
+    }
+    .validator-chat-thought {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      margin-top: 2px;
+      margin-bottom: 2px;
+    }
+    .validator-chat-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-12) var(--space-12);
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
+    .validator-chat-actions .btn {
+      font-size: var(--text-caption);
+      letter-spacing: 0.07em;
+      padding: var(--space-8) var(--space-8);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      min-height: 38px;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+    }
+    .validator-chat-actions .btn:last-child { color: var(--color-text); }
+    .validator-chat-input-row {
+      position: relative;
+      display: block;
+      padding: var(--space-12);
+      border-top: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
+    #strategy-chat-input {
+      width: 100%;
+      display: block;
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-void) 82%, black 18%);
+      color: var(--color-text);
+      font-size: var(--text-small);
+      line-height: var(--leading-body);
+      padding: var(--space-12) 56px var(--space-12) var(--space-12);
+      min-height: 82px;
+      max-height: 180px;
+      resize: none;
+      overflow-y: auto;
+    }
+    .validator-send-btn {
+      position: absolute;
+      right: 24px;
+      bottom: 24px;
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      transition:
+        border-color 180ms ease,
+        background-color 180ms ease,
+        color 180ms ease,
+        box-shadow 220ms ease,
+        transform 140ms ease;
+    }
+    .validator-send-btn:hover {
+      border-color: var(--ui-hover-border);
+      background: var(--ui-hover-bg);
+      color: var(--ui-hover-text);
+      box-shadow: var(--ui-hover-shadow);
+    }
+    .validator-send-btn:active { transform: translateY(1px); }
+    .run-validation-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-12);
+    }
+    .run-validation-note {
+      margin-top: var(--space-8);
+      padding: var(--space-10) var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      color: var(--color-text-muted);
+      font-size: var(--text-caption);
+      line-height: var(--leading-body);
+    }
+    .run-validation-status {
+      margin-top: var(--space-8);
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      min-height: 1.2em;
+    }
+    @media (max-width: 1200px) {
+      .strategy-layout { grid-template-columns: 280px minmax(0,1fr); }
+      .validator-chat-panel { grid-column: 1 / -1; min-height: 420px; }
+    }
+    @media (max-width: 980px) {
+      .strategy-editor-grid { grid-template-columns: 1fr; }
+      .strategy-editor-span-full { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="validator.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+      </nav>
+    </aside>
+
+    <div class="app-main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Strategy Details</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">Separate view for strategy config and status</span>
+        </div>
+        <div style="display:flex;gap:var(--space-12);align-items:center;align-self:flex-start;padding-top:4px;">
+          <a href="validator.html" class="btn btn-ghost btn-sm">← Validator</a>
+          <a href="strategy.html"  class="btn btn-ghost btn-sm" style="color:var(--color-accent);border-color:var(--color-accent);">Strategy Page</a>
+          <a href="validator-symbol-library.html" class="btn btn-ghost btn-sm">Symbol Library</a>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-16) var(--space-24);overflow:hidden;height:calc(100vh - 80px);">
+        <div class="strategy-layout" id="strategy-layout">
+          <div class="left-panel" id="strategy-left-panel">
+            <div class="left-header">
+              <span class="lh-label">Strategies</span>
+              <div class="lh-actions" style="display:flex;gap:var(--space-6);align-items:center;">
+                <span id="strategy-count" class="text-mono">0</span>
+                <button id="btn-top-strategy" class="btn btn-ghost btn-sm" onclick="openStrategyEditor('edit')" disabled style="font-size:10px;padding:2px 6px;">Edit</button>
+                <button id="btn-top-new-strategy" class="btn btn-ghost btn-sm" onclick="openStrategyEditor('new')" style="font-size:10px;padding:2px 6px;color:var(--color-positive);">+ New</button>
+                <button class="cc-toggle-btn" id="strategy-left-toggle-btn" onclick="toggleStrategyList()" title="Collapse strategies panel" style="margin-left:var(--space-4);padding-left:var(--space-8);border-left:1px solid var(--color-border);">&#8249;</button>
+              </div>
+              <span class="lh-vert-label" onclick="toggleStrategyList()">Strategies</span>
+            </div>
+            <div id="strategy-list" class="list"></div>
+          </div>
+          <div class="details" id="strategy-details">
+            <div class="empty-state"><div class="empty-state-icon">&#9881;</div><div>Select a strategy to inspect details</div></div>
+          </div>
+          <div class="validator-chat-panel cc-panel" id="strategy-chat-panel">
+            <div class="validator-chat-header cc-header">
+              <button class="cc-toggle-btn" onclick="toggleChat('strategy-chat-panel','strategy-layout','chat-collapsed')" title="Collapse panel">&#8250;</button>
+              <span class="cc-title">Strategy Reviewer</span>
+              <span id="strategy-chat-status" class="cc-status">Ready</span>
+              <span class="cc-vert-label" onclick="toggleChat('strategy-chat-panel','strategy-layout','chat-collapsed')">Strategy Reviewer</span>
+            </div>
+            <div id="strategy-chat-messages" class="validator-chat-messages"></div>
+            <div class="validator-chat-input-row">
+              <textarea id="strategy-chat-input" placeholder="Ask..." oninput="autoResizeStrategyChatInput()" onkeydown="handleStrategyChatKeydown(event)"></textarea>
+              <button class="validator-send-btn" type="button" aria-label="Send strategy chat message" onclick="sendStrategyChat()">&#8593;</button>
+            </div>
+            <div class="validator-chat-actions">
+              <button class="btn btn-ghost" onclick="askStrategySummary()">Analyze</button>
+              <button class="btn btn-ghost" onclick="askStrategyRisks()">Risk Gaps</button>
+              <button class="btn btn-ghost" onclick="askStrategyTests()">Test Plan</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="strategy.js"></script>
+</body>
+</html>

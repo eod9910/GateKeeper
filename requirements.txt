@@ -1,0 +1,23 @@
+# Pattern Detector - Python Dependencies
+
+# Core data processing
+pandas>=2.0.0
+numpy>=1.24.0
+numba>=0.61.0
+
+# Market data fetching (optional)
+yfinance>=0.2.0
+robin_stocks>=3.4.0
+
+# Swing point detection (RDP line simplification)
+fastrdp>=0.3.0
+
+# Persistent Python execution layer (Phase 1B)
+fastapi>=0.115.0
+uvicorn>=0.30.0
+pydantic>=2.8.0
+
+# Future: ML training
+# scikit-learn>=1.3.0
+# xgboost>=2.0.0
+# dtw-python>=1.3.0  # Dynamic Time Warping

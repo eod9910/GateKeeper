@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scanner Interaction Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #fff; }
+        .log { margin: 5px 0; padding: 5px; background: #2d2d2d; border-left: 3px solid #4a9eff; }
+        .error { border-left-color: #ff4444; }
+        .success { border-left-color: #44ff44; }
+        button { margin: 10px 5px; padding: 10px 20px; background: #4a9eff; color: #fff; border: none; cursor: pointer; }
+        button:hover { background: #3a7edf; }
+        iframe { width: 100%; height: 600px; border: 2px solid #444; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>Pattern Detector Scanner - Interaction Test</h1>
+    <div id="logs"></div>
+    <div>
+        <button onclick="checkControls()">1. Check Controls</button>
+        <button onclick="selectRSI()">2. Select RSI Primitive</button>
+        <button onclick="enterSymbol()">3. Enter AAPL</button>
+        <button onclick="clickScan()">4. Click Scan</button>
+        <button onclick="checkChart()">5. Check Chart</button>
+    </div>
+    <iframe id="scannerFrame" src="http://localhost:3002/"></iframe>
+
+    <script>
+        const frame = document.getElementById('scannerFrame');
+        const logs = document.getElementById('logs');
+
+        function log(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        frame.onload = () => {
+            log('Scanner page loaded', 'success');
+        };
+
+        function getDoc() {
+            return frame.contentDocument || frame.contentWindow.document;
+        }
+
+        function checkControls() {
+            try {
+                const doc = getDoc();
+                const indicatorSelect = doc.getElementById('scan-indicator-select');
+                const assetClassSelect = doc.getElementById('scan-asset-class');
+                const scanBtn = doc.getElementById('btn-scan');
+                const symbolInput = doc.querySelector('input[placeholder*="AAPL"]');
+
+                log(`Indicator dropdown: ${indicatorSelect ? 'FOUND' : 'NOT FOUND'}`);
+                log(`Asset class dropdown: ${assetClassSelect ? 'FOUND' : 'NOT FOUND'}`);
+                log(`Scan button: ${scanBtn ? 'FOUND' : 'NOT FOUND'}`);
+                log(`Symbol input: ${symbolInput ? 'FOUND' : 'NOT FOUND'}`);
+
+                if (indicatorSelect) {
+                    log(`Indicator options: ${indicatorSelect.options.length} options`);
+                    for (let i = 0; i < Math.min(5, indicatorSelect.options.length); i++) {
+                        log(`  - ${indicatorSelect.options[i].text} (value: ${indicatorSelect.options[i].value})`);
+                    }
+                }
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function selectRSI() {
+            try {
+                const doc = getDoc();
+                const indicatorSelect = doc.getElementById('scan-indicator-select');
+                if (!indicatorSelect) {
+                    log('Indicator dropdown not found!', 'error');
+                    return;
+                }
+
+                // Look for RSI option
+                let rsiOption = null;
+                for (let i = 0; i < indicatorSelect.options.length; i++) {
+                    const text = indicatorSelect.options[i].text.toLowerCase();
+                    if (text.includes('rsi')) {
+                        rsiOption = indicatorSelect.options[i];
+                        break;
+                    }
+                }
+
+                if (rsiOption) {
+                    indicatorSelect.value = rsiOption.value;
+                    indicatorSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    log(`Selected: ${rsiOption.text}`, 'success');
+                } else {
+                    log('RSI option not found, selecting first available option');
+                    if (indicatorSelect.options.length > 0) {
+                        indicatorSelect.selectedIndex = 0;
+                        indicatorSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        log(`Selected: ${indicatorSelect.options[0].text}`, 'success');
+                    }
+                }
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function enterSymbol() {
+            try {
+                const doc = getDoc();
+                const symbolInput = doc.querySelector('input[placeholder*="AAPL"]') || 
+                                   doc.querySelector('input[placeholder*="Symbol"]') ||
+                                   doc.getElementById('scan-symbol-input');
+                
+                if (!symbolInput) {
+                    log('Symbol input not found!', 'error');
+                    return;
+                }
+
+                symbolInput.value = 'AAPL';
+                symbolInput.dispatchEvent(new Event('input', { bubbles: true }));
+                symbolInput.dispatchEvent(new Event('change', { bubbles: true }));
+                log('Entered symbol: AAPL', 'success');
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function clickScan() {
+            try {
+                const doc = getDoc();
+                const scanBtn = doc.getElementById('btn-scan');
+                
+                if (!scanBtn) {
+                    log('Scan button not found!', 'error');
+                    return;
+                }
+
+                log('Clicking scan button...', 'success');
+                scanBtn.click();
+                
+                setTimeout(() => {
+                    log('Scan initiated. Waiting for results...');
+                }, 500);
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function checkChart() {
+            try {
+                const doc = getDoc();
+                const chartContainer = doc.getElementById('chart-container');
+                
+                if (!chartContainer) {
+                    log('Chart container not found!', 'error');
+                    return;
+                }
+
+                log(`Chart container found: ${chartContainer.offsetWidth}x${chartContainer.offsetHeight}px`);
+                
+                // Check for chart canvas
+                const canvas = chartContainer.querySelector('canvas');
+                if (canvas) {
+                    log(`Chart canvas found: ${canvas.width}x${canvas.height}px`, 'success');
+                } else {
+                    log('Chart canvas not found', 'error');
+                }
+
+                // Check for any error messages
+                const errors = doc.querySelectorAll('.error, [class*="error"]');
+                if (errors.length > 0) {
+                    log(`Found ${errors.length} error elements`);
+                }
+            } catch (e) {
+                log(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        // Auto-check controls after page loads
+        setTimeout(() => {
+            checkControls();
+        }, 3000);
+    </script>
+</body>
+</html>

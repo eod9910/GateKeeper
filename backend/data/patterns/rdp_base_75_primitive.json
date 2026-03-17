@@ -1,0 +1,56 @@
+{
+  "pattern_id": "rdp_base_75",
+  "name": "RDP Base 75% (Primitive)",
+  "category": "price_action",
+  "description": "Uses RDP swing detection to find High-Low pairs. The base is defined as the lower 25% of the High-to-Low range (75% below the high). If price is above the base ceiling, it has broken out.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/rdp_base_75_primitive.py",
+  "plugin_function": "run_rdp_base_75_primitive_plugin",
+  "pattern_type": "rdp_base_75",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "rdp_base_75",
+    "epsilon_pct": 0.05,
+    "base_pct": 0.25,
+    "max_marked_bases": 5
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.05
+    },
+    {
+      "key": "base_pct",
+      "label": "Base % of Range (0.25 = lower 25%)",
+      "type": "float",
+      "min": 0.10,
+      "max": 0.50,
+      "step": 0.05,
+      "default": 0.25
+    },
+    {
+      "key": "max_marked_bases",
+      "label": "Max Marked Bases",
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 5
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 40,
+  "status": "experimental"
+}

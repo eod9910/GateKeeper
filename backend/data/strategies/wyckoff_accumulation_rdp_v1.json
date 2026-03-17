@@ -1,0 +1,188 @@
+{
+  "strategy_id": "wyckoff_accumulation_rdp",
+  "name": "Wyckoff Accumulation (RDP)",
+  "description": "Wyckoff accumulation detector using RDP swing detection as the default structure method for more geometric pivot reduction.",
+  "status": "rejected",
+  "composition": "monolithic",
+  "artifact_type": "pattern",
+  "category": "chart_patterns",
+  "pattern_id": "wyckoff_accumulation_rdp",
+  "asset_class": "stocks",
+  "interval": "1wk",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05,
+    "swing_first_peak_decline": 0.5,
+    "swing_subsequent_decline": 0.25,
+    "base_min_duration": 15,
+    "base_max_duration": 500,
+    "base_max_range_pct": 0.8,
+    "base_volatility_threshold": 0.1
+  },
+  "setup_config": {
+    "pattern_type": "wyckoff_accumulation_rdp",
+    "min_prominence": 0.2,
+    "peak_lookback": 50,
+    "min_markdown_pct": 0.7,
+    "markdown_lookback": 300,
+    "base_resistance_closes": 3,
+    "markup_lookforward": 100,
+    "markup_min_breakout_bars": 2,
+    "pullback_lookforward": 200,
+    "pullback_retracement_min": 0.3,
+    "pullback_retracement_max": 5,
+    "double_bottom_tolerance": 1.05,
+    "breakout_multiplier": 1.02,
+    "score_min": 0
+  },
+  "entry_config": {
+    "entry_type": "breakout",
+    "breakout_pct_above": 0.02,
+    "confirmation_bars": 1
+  },
+  "risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 2,
+    "take_profit_R": 2,
+    "max_hold_bars": 30
+  },
+  "exit_config": {
+    "target_type": "R_multiple",
+    "target_level": 2,
+    "time_stop_bars": 30,
+    "trailing": null
+  },
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {
+    "auto_breakeven_r": 1,
+    "production_lock": true
+  },
+  "updated_at": "2026-03-17T02:28:27.090Z",
+  "source": "registry",
+  "passed_tiers": [],
+  "execution_eligible": false,
+  "version": 1,
+  "strategy_version_id": "wyckoff_accumulation_rdp_v1",
+  "created_at": "2026-03-17T01:34:28.038Z",
+  "spec_hash": "f9195a40bb757ea6aaac211b83be7366da9245b6240eb84e7e778a5c9d276762",
+  "parameter_manifest": [
+    {
+      "key": "pullback_retracement_min",
+      "label": "Min Retracement",
+      "path": "setup_config.pullback_retracement_min",
+      "anatomy": "location",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.2,
+        0.25,
+        0.3
+      ],
+      "min": 0.2,
+      "max": 0.5,
+      "step": 0.05,
+      "priority": 85,
+      "failure_modes_targeted": [
+        "high_drawdown",
+        "high_sensitivity"
+      ]
+    },
+    {
+      "key": "pullback_retracement_max",
+      "label": "Max Retracement",
+      "path": "setup_config.pullback_retracement_max",
+      "anatomy": "location",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.8,
+        1,
+        1.2
+      ],
+      "min": 0.8,
+      "max": 5,
+      "step": 0.2,
+      "priority": 85,
+      "failure_modes_targeted": [
+        "high_drawdown",
+        "high_sensitivity"
+      ]
+    },
+    {
+      "key": "breakout_pct_above",
+      "label": "Breakout % Above",
+      "path": "entry_config.breakout_pct_above",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        0.005,
+        0.01
+      ],
+      "min": 0,
+      "max": 0.05,
+      "step": 0.005,
+      "priority": 70,
+      "failure_modes_targeted": [
+        "high_drawdown"
+      ]
+    },
+    {
+      "key": "confirmation_bars",
+      "label": "Confirmation Bars",
+      "path": "entry_config.confirmation_bars",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        1,
+        2
+      ],
+      "min": 0,
+      "max": 5,
+      "step": 1,
+      "priority": 65,
+      "failure_modes_targeted": [
+        "high_drawdown",
+        "high_sensitivity"
+      ]
+    },
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon %",
+      "path": "structure_config.swing_epsilon_pct",
+      "anatomy": "structure",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.01,
+        0.02,
+        0.03
+      ],
+      "min": 0.01,
+      "max": 0.15,
+      "step": 0.01,
+      "priority": 100,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    }
+  ]
+}

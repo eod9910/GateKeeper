@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Execution Desk - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .execution-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .card { grid-column: span 12; }
+    .card-half { grid-column: span 12; }
+    .card-third { grid-column: span 12; }
+    .mono { font-family: var(--font-mono); }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: var(--space-8);
+    }
+    .kpi {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-void);
+      padding: var(--space-8);
+    }
+    .kpi .label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .kpi .value {
+      font-size: var(--text-small);
+      font-weight: 600;
+      color: var(--color-text);
+      font-family: var(--font-mono);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+    }
+    .row.actions {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: var(--space-12);
+      margin-bottom: 0;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .field input, .field select {
+      width: 100%;
+      background: var(--color-void);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text);
+      padding: 7px 10px;
+      font-size: var(--text-small);
+      font-family: var(--font-mono);
+    }
+    .mode-badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+      color: var(--color-text-muted);
+    }
+    .mode-paper { color: var(--color-positive); border-color: color-mix(in srgb, var(--color-positive) 50%, var(--color-border)); }
+    .mode-live { color: var(--color-negative); border-color: color-mix(in srgb, var(--color-negative) 50%, var(--color-border)); }
+    .kill-btn {
+      background: color-mix(in srgb, var(--color-negative) 22%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-negative) 45%, var(--color-border));
+      color: var(--color-negative);
+      font-weight: 700;
+      letter-spacing: 0.07em;
+    }
+    .kill-btn:hover {
+      border-color: var(--color-negative);
+      background: color-mix(in srgb, var(--color-negative) 30%, transparent);
+    }
+    .table-wrap { max-height: 280px; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+    .table-wrap table { width: 100%; border-collapse: collapse; font-size: var(--text-caption); }
+    .table-wrap th {
+      position: sticky;
+      top: 0;
+      background: var(--color-surface);
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid var(--color-border);
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+    }
+    .table-wrap td {
+      padding: 8px;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+      font-family: var(--font-mono);
+    }
+    .table-wrap tr:last-child td { border-bottom: none; }
+    .good { color: var(--color-positive); }
+    .bad { color: var(--color-negative); }
+    .muted { color: var(--color-text-muted); }
+    .headline-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      margin-bottom: var(--space-10);
+    }
+    .position-row {
+      transition: background-color 160ms ease, box-shadow 160ms ease;
+    }
+    .position-row--interactive {
+      cursor: pointer;
+    }
+    .position-row--interactive:hover,
+    .position-row--interactive:focus {
+      background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+      outline: none;
+    }
+    .position-row--focused {
+      box-shadow: inset 3px 0 0 var(--color-accent);
+      background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    }
+    .position-cell-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .position-meta-note {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .position-modal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .position-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-8);
+    }
+    .position-summary-item {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-void);
+      padding: var(--space-8);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .position-summary-item .label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+    }
+    .position-summary-item .value {
+      font-size: var(--text-small);
+      color: var(--color-text);
+      font-family: var(--font-mono);
+    }
+    .position-modal-note {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      line-height: 1.5;
+    }
+    @media (min-width: 960px) {
+      .card-half { grid-column: span 6; }
+      .card-third { grid-column: span 4; }
+    }
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .row { grid-template-columns: 1fr; }
+      .row.actions { grid-template-columns: 1fr 1fr; }
+      .position-modal-grid,
+      .position-summary-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="research.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Agent</span></a>
+        <a href="sweep.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="execution.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main class="app-main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Execution Desk</h1>
+          <div class="text-muted" style="font-size:var(--text-caption);">
+            Trading Desk -> Execution Desk -> Position Book
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="mode-badge" class="mode-badge">offline</span>
+          <button class="btn kill-btn" id="btn-kill">KILL SWITCH</button>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-16) var(--space-24);">
+        <div class="execution-grid">
+
+          <section class="panel card">
+            <div class="panel-header">
+              <span class="panel-header-title">Execution Desk Account</span>
+              <span id="account-updated" class="muted mono">--</span>
+            </div>
+            <div class="panel-body">
+              <div class="muted mono" style="margin-bottom:10px;">
+                Provider: <span id="account-provider">--</span>
+              </div>
+              <div class="kpi-grid">
+                <div class="kpi"><div class="label">Equity</div><div id="kpi-equity" class="value">--</div></div>
+                <div class="kpi"><div class="label">Cash</div><div id="kpi-cash" class="value">--</div></div>
+                <div class="kpi"><div class="label">Buying Power</div><div id="kpi-buying-power" class="value">--</div></div>
+                <div class="kpi"><div class="label">Day PnL</div><div id="kpi-day-pnl" class="value">--</div></div>
+                <div class="kpi"><div class="label">Day PnL %</div><div id="kpi-day-pnl-pct" class="value">--</div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel card">
+            <div class="headline-row">
+              <span class="panel-header-title">Brokers</span>
+              <span id="connected-brokers-count" class="mono muted">3</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Broker</th>
+                    <th>Role</th>
+                    <th>Mode</th>
+                    <th>Configured</th>
+                    <th>Equity</th>
+                    <th>Cash</th>
+                    <th>Buying Power</th>
+                    <th>Positions</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="connected-brokers-body">
+                  <tr><td colspan="9" class="muted">Loading brokers...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel card-half">
+            <div class="panel-header"><span class="panel-header-title">Bridge Controls</span></div>
+            <div class="panel-body">
+              <div class="row">
+                <div class="field" style="grid-column: span 2;">
+                  <label for="strategy-version">Strategy Version</label>
+                  <select id="strategy-version"></select>
+                  <div id="strategy-version-hint" class="position-modal-note" style="margin-top:6px;">Execution requires an approved strategy with a T3 badge.</div>
+                </div>
+                <div class="field">
+                  <label for="scan-cron">Scan Cron</label>
+                  <input id="scan-cron" value="0 21 * * 1-5">
+                </div>
+                <div class="field">
+                  <label for="scan-timezone">Timezone</label>
+                  <input id="scan-timezone" value="America/New_York">
+                </div>
+              </div>
+              <div class="position-modal-note">Concurrency, risk per trade, drawdown kill, and daily loss kill are sourced from <a href="settings.html">Settings</a>. Execution Desk shows them here but does not own them.</div>
+              <div class="position-summary-grid" style="margin-top:var(--space-12);">
+                <div class="position-summary-item"><div class="label">Max Concurrent</div><div id="bridge-rule-max-concurrent" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Risk / Trade</div><div id="bridge-rule-risk" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Account DD Kill</div><div id="bridge-rule-dd" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Daily Loss Kill</div><div id="bridge-rule-daily" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Rules Source</div><div id="bridge-rule-source" class="value">Settings</div></div>
+              </div>
+              <div class="row actions">
+                <button id="btn-start" class="btn btn-primary">Start</button>
+                <button id="btn-stop" class="btn btn-ghost">Stop</button>
+                <button id="btn-scan" class="btn btn-ghost">Manual Scan</button>
+                <button id="btn-refresh" class="btn btn-ghost">Refresh</button>
+              </div>
+              <div id="bridge-action-message" class="muted mono" style="margin-top:8px;font-size:var(--text-caption);display:none;"></div>
+              <div class="muted mono" style="margin-top:10px;font-size:var(--text-caption);">
+                Start arms the bridge. Orders are only evaluated on the next cron run or when you click Manual Scan.
+              </div>
+            </div>
+          </section>
+
+          <section class="panel card-half">
+            <div class="panel-header"><span class="panel-header-title">Bridge Status</span></div>
+            <div class="panel-body">
+              <div class="kpi-grid">
+                <div class="kpi"><div class="label">Enabled</div><div id="status-enabled" class="value">false</div></div>
+                <div class="kpi"><div class="label">Kill Switch</div><div id="status-kill" class="value">false</div></div>
+                <div class="kpi"><div class="label">Managed Positions</div><div id="status-managed" class="value">0</div></div>
+                <div class="kpi"><div class="label">Last Scan Signals</div><div id="status-signals" class="value">0</div></div>
+                <div class="kpi"><div class="label">Session Start Equity</div><div id="status-session-equity" class="value">--</div></div>
+              </div>
+              <div style="margin-top:10px;" class="mono muted">
+                <div>Execution Broker: <span id="status-execution-broker">--</span></div>
+                <div>Active Strategy: <span id="status-strategy">--</span></div>
+                <div>Last Scan Time: <span id="status-last-scan">--</span></div>
+                <div>Kill Reason: <span id="status-kill-reason">--</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel card-half">
+            <div class="panel-header"><span class="panel-header-title">Trading Desk Ticket</span></div>
+            <div class="panel-body">
+              <div id="execution-ticket-summary" class="position-modal-note">Trading Desk owns order planning. Send a trade from Trading Desk to stage an execution ticket here.</div>
+              <div class="position-summary-grid" style="margin-top:var(--space-12);">
+                <div class="position-summary-item"><div class="label">Broker</div><div id="ticket-broker" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Symbol</div><div id="ticket-symbol" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Side</div><div id="ticket-side" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Order Type</div><div id="ticket-order-type" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Qty / Units</div><div id="ticket-qty" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Entry</div><div id="ticket-entry" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Stop Loss</div><div id="ticket-stop" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Take Profit</div><div id="ticket-target" class="value">--</div></div>
+                <div class="position-summary-item"><div class="label">Strategy</div><div id="ticket-strategy" class="value">--</div></div>
+              </div>
+              <div id="execution-ticket-notes" class="mono muted" style="margin-top:var(--space-12);padding:7px 10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);font-size:var(--text-caption);">
+                No Trading Desk ticket loaded.
+              </div>
+              <div class="row actions">
+                <button id="btn-execute-ticket" class="btn btn-primary">Execute Ticket</button>
+                <button id="btn-ticket-review" class="btn btn-ghost">Open Trading Desk</button>
+                <button id="btn-ticket-clear" class="btn btn-ghost">Clear Ticket</button>
+                <div class="field" style="grid-column: span 1;">
+                  <label>Source</label>
+                  <div id="ticket-created-at" class="mono muted" style="padding:7px 10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);font-size:var(--text-caption);">
+                    --
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel card">
+            <div class="headline-row">
+              <span class="panel-header-title">Positions</span>
+              <span id="positions-count" class="mono muted">0</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Broker</th>
+                    <th>Strategy</th>
+                    <th>Side</th>
+                    <th>Qty</th>
+                    <th>Entry</th>
+                    <th>Current</th>
+                    <th>Unrealized</th>
+                    <th>Unrealized %</th>
+                    <th>Stop</th>
+                    <th>Take Profit</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="positions-body">
+                  <tr><td colspan="12" class="muted">No positions</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel card">
+            <div class="headline-row">
+              <span class="panel-header-title">Execution Desk Log</span>
+              <div style="display:flex;gap:8px;">
+                <select id="logs-days" class="mono" style="background:var(--color-void);border:1px solid var(--color-border);color:var(--color-text);border-radius:var(--radius-sm);padding:4px 8px;">
+                  <option value="1">1d</option>
+                  <option value="3" selected>3d</option>
+                  <option value="7">7d</option>
+                  <option value="14">14d</option>
+                </select>
+                <button id="btn-load-logs" class="btn btn-ghost btn-sm">Load Logs</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Event</th>
+                    <th>Strategy</th>
+                    <th>Symbol</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="logs-body">
+                  <tr><td colspan="5" class="muted">No log entries</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="position-modal" class="modal" onclick="closePositionModal(event)">
+    <div class="modal-content" style="max-width:920px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Adjust Position Exits</h3>
+        <button onclick="closePositionModal()" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="position-modal-summary" class="modal-summary">Select a position row to manage its stop-loss and take-profit from Execution Desk.</div>
+        <div class="position-summary-grid">
+          <div class="position-summary-item">
+            <span class="label">Mode</span>
+            <span id="position-modal-mode" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Entry</span>
+            <span id="position-modal-entry-view" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Current</span>
+            <span id="position-modal-current-view" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Live Stop</span>
+            <span id="position-modal-live-stop" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Live Target</span>
+            <span id="position-modal-live-target" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Strategy Suggestion</span>
+            <span id="position-modal-suggestion-view" class="value">--</span>
+          </div>
+        </div>
+        <div class="position-modal-grid">
+          <div class="modal-section">
+            <label class="modal-label" for="position-modal-strategy">Exit Template</label>
+            <select id="position-modal-strategy" class="select"></select>
+            <div id="position-modal-template-summary" class="text-muted" style="font-size:var(--text-small);line-height:1.6;white-space:pre-line;border:1px solid var(--color-border);padding:var(--space-8);background:var(--color-void);min-height:92px;"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button id="btn-position-modal-use-live" class="btn btn-ghost btn-sm">Use Live Values</button>
+              <button id="btn-position-modal-use-suggested" class="btn btn-ghost btn-sm">Use Suggested</button>
+              <button id="btn-position-modal-apply-template" class="btn btn-ghost btn-sm">Apply Template</button>
+            </div>
+          </div>
+          <div class="modal-section">
+            <div class="position-modal-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+              <div class="modal-section">
+                <label class="modal-label" for="position-modal-entry">Entry</label>
+                <input id="position-modal-entry" type="number" min="0" step="0.01" class="input">
+              </div>
+              <div class="modal-section">
+                <label class="modal-label" for="position-modal-stop">Stop Loss</label>
+                <input id="position-modal-stop" type="number" min="0" step="0.01" class="input">
+              </div>
+              <div class="modal-section">
+                <label class="modal-label" for="position-modal-target">Take Profit</label>
+                <input id="position-modal-target" type="number" min="0" step="0.01" class="input">
+              </div>
+            </div>
+            <div id="position-modal-note" class="position-modal-note">Live broker-native values load first when available. If the broker has no protection on file, you can seed the fields from a strategy suggestion or apply a different template.</div>
+            <div id="position-modal-message" class="mono muted" style="font-size:var(--text-caption);display:none;"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button onclick="closePositionModal()" class="btn btn-ghost">Cancel</button>
+          <button id="btn-position-modal-save" class="btn btn-primary">Save Exits</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="broker-modal" class="modal" onclick="closeBrokerModal(event)">
+    <div class="modal-content" style="max-width:980px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="broker-modal-title" class="modal-title">Broker</h3>
+        <button onclick="closeBrokerModal()" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="broker-modal-summary" class="modal-summary">Click a broker row to configure credentials, test the connection, and manage provider-specific actions.</div>
+        <div class="position-summary-grid">
+          <div class="position-summary-item">
+            <span class="label">Configured</span>
+            <span id="broker-modal-configured" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Mode</span>
+            <span id="broker-modal-mode" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Role</span>
+            <span id="broker-modal-role" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Status</span>
+            <span id="broker-modal-status" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Positions</span>
+            <span id="broker-modal-positions" class="value">--</span>
+          </div>
+          <div class="position-summary-item">
+            <span class="label">Equity</span>
+            <span id="broker-modal-equity" class="value">--</span>
+          </div>
+        </div>
+
+        <input id="setting-broker-provider" type="hidden" value="alpaca">
+
+        <div id="broker-execution-actions" class="modal-section">
+          <label class="modal-label">Execution Role</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="btn-broker-set-execution" class="btn btn-ghost btn-sm">Set As Execution Broker</button>
+            <span id="broker-execution-note" class="mono muted" style="font-size:var(--text-caption);">--</span>
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <label class="modal-label">Provider Notes</label>
+          <div id="provider-note" class="mono muted" style="padding:7px 10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);font-size:var(--text-caption);">
+            Select a broker row to view its settings.
+          </div>
+        </div>
+
+        <div id="alpaca-settings-fields">
+          <div class="position-modal-grid">
+            <div class="modal-section">
+              <label class="modal-label" for="setting-api-key">Alpaca API Key</label>
+              <input id="setting-api-key" type="password" class="input" placeholder="PK...">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-secret-key">Alpaca Secret Key</label>
+              <input id="setting-secret-key" type="password" class="input" placeholder="Secret key">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-base-url">Base URL</label>
+              <select id="setting-base-url" class="select">
+                <option value="https://paper-api.alpaca.markets">Paper Trading (paper-api.alpaca.markets)</option>
+                <option value="https://api.alpaca.markets">Live Trading (api.alpaca.markets)</option>
+              </select>
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-mode">Mode</label>
+              <select id="setting-mode" class="select">
+                <option value="paper">Paper</option>
+                <option value="live">Live</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="oanda-settings-fields">
+          <div class="position-modal-grid">
+            <div class="modal-section">
+              <label class="modal-label" for="setting-oanda-token">OANDA API Token</label>
+              <input id="setting-oanda-token" type="password" class="input" placeholder="Personal access token">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-oanda-account-id">OANDA Account ID</label>
+              <input id="setting-oanda-account-id" type="text" class="input" placeholder="Optional if token resolves one account">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-oanda-environment">Environment</label>
+              <select id="setting-oanda-environment" class="select">
+                <option value="practice">Practice</option>
+                <option value="live">Live</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="robinhood-settings-fields">
+          <div class="position-modal-grid">
+            <div class="modal-section">
+              <label class="modal-label" for="setting-rh-username">Robinhood Username</label>
+              <input id="setting-rh-username" type="text" class="input" placeholder="Email or username">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-rh-password">Robinhood Password</label>
+              <input id="setting-rh-password" type="password" class="input" placeholder="Password">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-rh-totp">Robinhood TOTP Secret</label>
+              <input id="setting-rh-totp" type="password" class="input" placeholder="Recommended for repeat logins">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" for="setting-rh-mfa">One-Time MFA Code</label>
+              <input id="setting-rh-mfa" type="text" class="input" placeholder="Optional, used for testing only">
+            </div>
+          </div>
+          <div class="row actions" style="margin-top:var(--space-8);">
+            <button id="btn-rh-start" class="btn btn-ghost">Start Robinhood Login</button>
+            <button id="btn-rh-status" class="btn btn-ghost">Check Status</button>
+            <button id="btn-rh-verify" class="btn btn-ghost">Verify Code</button>
+            <button id="btn-rh-fetch" class="btn btn-ghost">Fetch Positions</button>
+          </div>
+          <div id="robinhood-auth-message" class="mono muted" style="margin-top:8px;font-size:var(--text-caption);">Robinhood auth idle.</div>
+          <div class="table-wrap" style="margin-top:10px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Symbol</th>
+                  <th>Qty</th>
+                  <th>Entry</th>
+                  <th>Mark</th>
+                </tr>
+              </thead>
+              <tbody id="robinhood-preview-body">
+                <tr><td colspan="5" class="muted">No Robinhood positions loaded</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button onclick="closeBrokerModal()" class="btn btn-ghost">Cancel</button>
+          <button id="btn-test-settings" class="btn btn-ghost">Test Connection</button>
+          <button id="btn-save-settings" class="btn btn-primary">Save Broker</button>
+        </div>
+        <div id="settings-message" class="mono" style="font-size:var(--text-caption);display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="external-position-modal" class="modal" onclick="closeExternalPositionModal(event)">
+    <div class="modal-content" style="max-width:920px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Adopt External Position</h3>
+        <button onclick="closeExternalPositionModal()" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-summary">Use this when a live broker position exists but cannot be pulled automatically yet. Execution will mirror it, and Position Book will receive it from that mirror.</div>
+        <div class="position-modal-grid">
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-provider">Broker</label>
+            <select id="external-position-provider" class="select">
+              <option value="robinhood">Robinhood</option>
+              <option value="oanda">OANDA</option>
+              <option value="alpaca">Alpaca</option>
+            </select>
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-instrument">Instrument</label>
+            <select id="external-position-instrument" class="select">
+              <option value="futures">Futures</option>
+              <option value="stock">Stock / ETF</option>
+              <option value="forex">Forex</option>
+              <option value="crypto">Crypto</option>
+              <option value="options">Options</option>
+            </select>
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-symbol">Symbol</label>
+            <input id="external-position-symbol" type="text" class="input" placeholder="MESM2026">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-display-symbol">Display Symbol</label>
+            <input id="external-position-display-symbol" type="text" class="input" placeholder="Optional label shown in the table">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-side">Side</label>
+            <select id="external-position-side" class="select">
+              <option value="long">Long</option>
+              <option value="short">Short</option>
+            </select>
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-qty">Qty / Contracts</label>
+            <input id="external-position-qty" type="number" min="0" step="1" class="input" value="1">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-entry">Entry Price</label>
+            <input id="external-position-entry" type="number" min="0" step="0.01" class="input">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-current">Current Price</label>
+            <input id="external-position-current" type="number" min="0" step="0.01" class="input" placeholder="Optional, defaults to entry">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-stop">Stop Loss</label>
+            <input id="external-position-stop" type="number" min="0" step="0.01" class="input" placeholder="Optional">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-target">Take Profit</label>
+            <input id="external-position-target" type="number" min="0" step="0.01" class="input" placeholder="Optional">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label" for="external-position-multiplier">Contract Multiplier / Point Value</label>
+            <input id="external-position-multiplier" type="number" min="0" step="0.01" class="input" placeholder="For futures/options dollar PnL">
+          </div>
+        </div>
+        <div class="position-modal-note">For futures, enter the contract point value if you want unrealized PnL and Position Book risk math to reflect the contract correctly. Saving here does not send anything to the broker.</div>
+        <div id="external-position-message" class="mono muted" style="font-size:var(--text-caption);display:none;"></div>
+        <div class="modal-actions">
+          <button onclick="closeExternalPositionModal()" class="btn btn-ghost">Cancel</button>
+          <button id="btn-save-external-position" class="btn btn-primary">Add Position</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="trade-plan-store.js"></script>
+  <script src="trade-intent.js"></script>
+  <script src="execution-core.js"></script>
+  <script src="execution-brokers.js"></script>
+  <script src="execution-positions.js"></script>
+  <script src="execution-external-positions.js"></script>
+  <script src="execution-ticket.js"></script>
+  <script src="execution-status.js"></script>
+  <script>
+    const state = {
+      logs: [],
+      status: null,
+      settings: null,
+      sharedSettings: null,
+      brokerRows: [],
+      brokerModalProvider: null,
+      pollTimer: null,
+      focusTrade: null,
+      pendingIntent: null,
+      positionRows: [],
+      positionStrategyCatalog: [],
+      positionModalRow: null,
+      positionModalChartCache: {},
+      tradePlanStoreBound: false,
+    };
+
+    const {
+      api,
+      asIso,
+      brokerSupportsExecution,
+      escapeHtml,
+      fmtIntentPrice,
+      fmtMoney,
+      fmtPct,
+      getBrokerSavedMode,
+      getConfiguredFlag,
+      normalizeBrokerProvider,
+      normalizeExecutionIntent,
+      normalizeIntentBrokerProvider,
+      providerLabel,
+      readSharedCopilotSettings,
+      roundPriceInput,
+    } = window.ExecutionDeskCore;
+
+    function getExecutionProvider() {
+      return window.ExecutionDeskCore.getExecutionProvider(state);
+    }
+
+    function getExecutionRulesFromSharedSettings() {
+      return window.ExecutionDeskCore.getExecutionRulesFromSharedSettings(state);
+    }
+
+    function renderBridgeRulesSummary(activeConfig) {
+      return window.ExecutionDeskCore.renderBridgeRulesSummary(activeConfig, state);
+    }
+
+    function positionNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function inferInstrumentType(provider, symbol, explicitType) {
+      const declared = String(explicitType || '').trim().toLowerCase();
+      if (declared) return declared;
+      const normalized = String(symbol || '').trim().toUpperCase();
+      if (provider === 'oanda' || normalized.endsWith('=X')) return 'forex';
+      if (normalized.endsWith('-USD')) return 'crypto';
+      return 'stock';
+    }
+
+    function getPositionPricePrecision(row) {
+      const instrumentType = String(row?.instrumentType || '').trim().toLowerCase();
+      const symbol = String(row?.apiSymbol || row?.symbol || '').trim().toUpperCase();
+      if (instrumentType === 'forex') {
+        return /JPY(?:=X)?$/i.test(symbol) ? 3 : 5;
+      }
+      if (instrumentType === 'crypto') {
+        const current = positionNumber(row?.current);
+        return current && current >= 100 ? 2 : 4;
+      }
+      return 2;
+    }
+
+    function getPositionPriceStep(row) {
+      const precision = getPositionPricePrecision(row);
+      if (precision <= 0) return '1';
+      return (1 / (10 ** precision)).toFixed(precision);
+    }
+
+    function roundPositionPrice(row, value) {
+      const num = positionNumber(value);
+      if (num === null) return null;
+      const precision = getPositionPricePrecision(row);
+      return Number(num.toFixed(precision));
+    }
+
+    function fmtPositionPrice(value, row) {
+      const num = positionNumber(value);
+      if (num === null) return '--';
+      const precision = getPositionPricePrecision(row);
+      return '$' + Number(num).toLocaleString(undefined, {
+        minimumFractionDigits: precision,
+        maximumFractionDigits: precision,
+      });
+    }
+
+    function inferAtrFromChartData(chartData) {
+      if (!Array.isArray(chartData) || chartData.length < 2) return null;
+      const trueRanges = [];
+      for (let i = 1; i < chartData.length; i += 1) {
+        const prevClose = positionNumber(chartData[i - 1]?.Close ?? chartData[i - 1]?.close);
+        const high = positionNumber(chartData[i]?.High ?? chartData[i]?.high);
+        const low = positionNumber(chartData[i]?.Low ?? chartData[i]?.low);
+        if (prevClose === null || high === null || low === null) continue;
+        const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+        if (Number.isFinite(tr) && tr > 0) {
+          trueRanges.push(tr);
+        }
+      }
+      if (!trueRanges.length) return null;
+      const sample = trueRanges.slice(-14);
+      return sample.reduce((sum, value) => sum + value, 0) / sample.length;
+    }
+
+    function isPositionDirectionalLevelValid(level, row, entry, kind) {
+      const price = positionNumber(level);
+      const ref = positionNumber(entry);
+      if (!(price > 0) || !(ref > 0)) return false;
+      const isShort = String(row?.side || '').toLowerCase() === 'short';
+      if (isShort) {
+        return kind === 'stop' ? price > ref : price < ref;
+      }
+      return kind === 'stop' ? price < ref : price > ref;
+    }
+
+    function describePositionTemplateStop(riskConfig) {
+      return window.ExecutionDeskPositions.describePositionTemplateStop(riskConfig);
+    }
+
+    function describePositionTemplateTarget(exitConfig, riskConfig) {
+      return window.ExecutionDeskPositions.describePositionTemplateTarget(exitConfig, riskConfig);
+    }
+
+    function getPositionEditMode(row) {
+      return window.ExecutionDeskPositions.getPositionEditMode(row);
+    }
+
+    function getPositionModeLabel(row) {
+      return window.ExecutionDeskPositions.getPositionModeLabel({ providerLabel }, row);
+    }
+
+    async function fetchPositionChartData(symbol, interval, period = '6mo') {
+      return window.ExecutionDeskPositions.fetchPositionChartData({}, symbol, interval, period);
+    }
+
+    async function loadPositionStrategyCatalog() {
+      return window.ExecutionDeskPositions.loadPositionStrategyCatalog({ api, state });
+    }
+
+    function findPositionStrategy(strategyVersionId) {
+      return window.ExecutionDeskPositions.findPositionStrategy({ state }, strategyVersionId);
+    }
+
+    function getPositionStrategyOptions(row) {
+      return window.ExecutionDeskPositions.getPositionStrategyOptions({ state }, row);
+    }
+
+    function showPositionModalMessage(text, isError = false) {
+      return window.ExecutionDeskPositions.showPositionModalMessage(text, isError);
+    }
+
+    function showExternalPositionMessage(text, isError = false) {
+      return window.ExecutionDeskExternalPositions.showExternalPositionMessage(text, isError);
+    }
+
+    function renderAccount(account, provider) {
+      return window.ExecutionDeskStatus.renderAccount({
+        asIso,
+        fmtMoney,
+        fmtPct,
+        providerLabel,
+      }, account, provider);
+    }
+
+    function openBrokerModalByIndex(index) {
+      return window.ExecutionDeskBrokers.openBrokerModalByIndex({
+        state,
+        openBrokerModal,
+      }, index);
+    }
+
+    function closeBrokerModal(event) {
+      return window.ExecutionDeskBrokers.closeBrokerModal({
+        state,
+        showSettingsMsg,
+      }, event);
+    }
+
+    function describeBrokerRole(row) {
+      return window.ExecutionDeskBrokers.describeBrokerRole({
+        getExecutionProvider,
+      }, row);
+    }
+
+    function describeBrokerStatus(row) {
+      return window.ExecutionDeskBrokers.describeBrokerStatus(row);
+    }
+
+    function renderConnectedBrokers(data) {
+      return window.ExecutionDeskBrokers.renderConnectedBrokers({
+        state,
+        escapeHtml,
+        fmtMoney,
+        getBrokerSavedMode,
+        getConfiguredFlag,
+        getExecutionProvider,
+        normalizeBrokerProvider,
+        providerLabel,
+        updateBrokerSettingsForm,
+      }, data);
+    }
+
+    function updateBrokerSettingsForm(provider, data = {}) {
+      return window.ExecutionDeskBrokers.updateBrokerSettingsForm({
+        state,
+        brokerSupportsExecution,
+        describeBrokerRole,
+        describeBrokerStatus,
+        fmtMoney,
+        getBrokerSavedMode,
+        getConfiguredFlag,
+        getExecutionProvider,
+        normalizeBrokerProvider,
+        providerLabel,
+      }, provider, data);
+    }
+
+    function openBrokerModal(provider) {
+      return window.ExecutionDeskBrokers.openBrokerModal({
+        state,
+        showSettingsMsg,
+        updateBrokerSettingsForm,
+      }, provider);
+    }
+
+    function handleBrokerRowKey(event, index) {
+      return window.ExecutionDeskBrokers.handleBrokerRowKey({
+        openBrokerModalByIndex,
+      }, event, index);
+    }
+
+    function renderStatus(data) {
+      return window.ExecutionDeskStatus.renderStatus({
+        asIso,
+        fmtMoney,
+        providerLabel,
+        renderBridgeRulesSummary,
+        setPollInterval,
+        state,
+      }, data);
+    }
+
+    function populatePositionStrategySelect(row) {
+      return window.ExecutionDeskPositions.populatePositionStrategySelect({ escapeHtml, state }, row);
+    }
+
+    async function getPositionTemplateAtr(row, spec) {
+      return window.ExecutionDeskPositions.getPositionTemplateAtr({ inferAtrFromChartData, positionNumber, state }, row, spec);
+    }
+
+    async function updatePositionModalTemplateSummary() {
+      return window.ExecutionDeskPositions.updatePositionModalTemplateSummary({
+        describePositionTemplateStop,
+        describePositionTemplateTarget,
+        positionNumber,
+        roundPositionPrice,
+        state,
+      });
+    }
+
+    function setPositionModalInputSteps(row) {
+      return window.ExecutionDeskPositions.setPositionModalInputSteps({ getPositionPriceStep }, row);
+    }
+
+    function setPositionModalValues(row, values = {}) {
+      return window.ExecutionDeskPositions.setPositionModalValues({ roundPositionPrice }, row, values);
+    }
+
+    function usePositionModalLiveValues() {
+      return window.ExecutionDeskPositions.usePositionModalLiveValues({ positionNumber, state });
+    }
+
+    function usePositionModalSuggestedValues() {
+      return window.ExecutionDeskPositions.usePositionModalSuggestedValues({ positionNumber, state });
+    }
+
+    async function applyPositionTemplate() {
+      return window.ExecutionDeskPositions.applyPositionTemplate({
+        isPositionDirectionalLevelValid,
+        positionNumber,
+        roundPositionPrice,
+        state,
+      });
+    }
+
+    function handlePositionRowKey(event, index) {
+      return window.ExecutionDeskPositions.handlePositionRowKey({ openPositionModalByIndex }, event, index);
+    }
+
+    async function openPositionModalByIndex(index) {
+      return window.ExecutionDeskPositions.openPositionModalByIndex({ openPositionModal, state }, index);
+    }
+
+    async function openPositionModal(row) {
+      return window.ExecutionDeskPositions.openPositionModal({
+        api,
+        describePositionTemplateStop,
+        describePositionTemplateTarget,
+        escapeHtml,
+        fmtPositionPrice,
+        getPositionPriceStep,
+        providerLabel,
+        positionNumber,
+        roundPositionPrice,
+        setPositionModalValues,
+        state,
+        inferAtrFromChartData,
+      }, row);
+    }
+
+    function closePositionModal(event) {
+      return window.ExecutionDeskPositions.closePositionModal({ state }, event);
+    }
+
+    async function savePositionModal() {
+      return window.ExecutionDeskPositions.savePositionModal({
+        api,
+        fmtPositionPrice,
+        isPositionDirectionalLevelValid,
+        loadLogs,
+        refreshStatus,
+        roundPositionPrice,
+        showBridgeActionMessage,
+        state,
+      });
+    }
+
+    function resetExternalPositionModal() {
+      return window.ExecutionDeskExternalPositions.resetExternalPositionModal();
+    }
+
+    function openExternalPositionModal() {
+      return window.ExecutionDeskExternalPositions.openExternalPositionModal();
+    }
+
+    function closeExternalPositionModal(event) {
+      return window.ExecutionDeskExternalPositions.closeExternalPositionModal(event);
+    }
+
+    async function saveExternalPosition() {
+      return window.ExecutionDeskExternalPositions.saveExternalPosition({
+        api,
+        isPositionDirectionalLevelValid,
+        loadLogs,
+        normalizeBrokerProvider,
+        positionNumber,
+        providerLabel,
+        refreshStatus,
+        showBridgeActionMessage,
+      });
+    }
+
+    async function removeExternalPosition(id, symbol) {
+      return window.ExecutionDeskExternalPositions.removeExternalPosition({
+        api,
+        closePositionModal,
+        loadLogs,
+        refreshStatus,
+        showBridgeActionMessage,
+        state,
+      }, id, symbol);
+    }
+
+    function renderPositions(data) {
+      return window.ExecutionDeskExternalPositions.renderPositions({
+        escapeHtml,
+        fmtMoney,
+        fmtPct,
+        fmtPositionPrice,
+        getPositionEditMode,
+        inferInstrumentType,
+        positionNumber,
+        providerLabel,
+        state,
+      }, data);
+    }
+
+    function renderLogs() {
+      return window.ExecutionDeskStatus.renderLogs({
+        asIso,
+        state,
+      });
+    }
+
+    async function loadStrategies() {
+      return window.ExecutionDeskStatus.loadStrategies({
+        api,
+        state,
+      });
+    }
+
+    async function refreshStatus() {
+      return window.ExecutionDeskStatus.refreshStatus({
+        api,
+        renderAccount,
+        renderConnectedBrokers,
+        renderPositions,
+        renderStatus,
+        state,
+      });
+    }
+
+    async function loadLogs() {
+      return window.ExecutionDeskStatus.loadLogs({
+        api,
+        asIso,
+        state,
+      });
+    }
+
+    function getStartPayload() {
+      return window.ExecutionDeskStatus.getStartPayload({
+        getExecutionRulesFromSharedSettings,
+      });
+    }
+
+    async function startBridge() {
+      return window.ExecutionDeskStatus.startBridge({
+        api,
+        getStartPayload,
+        loadLogs,
+        refreshStatus,
+        state,
+      });
+    }
+
+    async function stopBridge() {
+      return window.ExecutionDeskStatus.stopBridge({
+        api,
+        loadLogs,
+        refreshStatus,
+      });
+    }
+
+    async function manualScan() {
+      return window.ExecutionDeskStatus.manualScan({
+        api,
+        asIso,
+        loadLogs,
+        refreshStatus,
+        showBridgeActionMessage,
+        state,
+      });
+    }
+
+    async function closeBrokerPosition(provider, symbol, side) {
+      return window.ExecutionDeskStatus.closeBrokerPosition({
+        api,
+        loadLogs,
+        providerLabel,
+        refreshStatus,
+      }, provider, symbol, side);
+    }
+
+    async function killBridge() {
+      return window.ExecutionDeskStatus.killBridge({
+        api,
+        loadLogs,
+        refreshStatus,
+      });
+    }
+
+    function setPollInterval(ms) {
+      return window.ExecutionDeskStatus.setPollInterval({
+        refreshStatus,
+        state,
+      }, ms);
+    }
+
+    async function loadSettings() {
+      return window.ExecutionDeskStatus.loadSettings({
+        api,
+        readSharedCopilotSettings,
+        renderBridgeRulesSummary,
+        renderConnectedBrokers,
+        renderPendingExecutionTicket,
+        showSettingsMsg,
+        state,
+        updateBrokerSettingsForm,
+      });
+    }
+
+    function showSettingsMsg(text, isError) {
+      return window.ExecutionDeskBrokers.showSettingsMsg(text, isError);
+    }
+
+    function showBridgeActionMessage(text, isError = false) {
+      const el = document.getElementById('bridge-action-message');
+      if (!el) return;
+      el.textContent = text;
+      el.style.display = text ? '' : 'none';
+      el.style.color = isError ? 'var(--color-negative)' : 'var(--color-text-muted)';
+    }
+
+    function renderPendingExecutionTicket() {
+      return window.ExecutionDeskTicket.renderPendingExecutionTicket({
+        state,
+        asIso,
+        brokerSupportsExecution,
+        fmtIntentPrice,
+        getConfiguredFlag,
+        providerLabel,
+      });
+    }
+
+    function clearPendingExecutionTicket(showMessage = true) {
+      return window.ExecutionDeskTicket.clearPendingExecutionTicket({
+        state,
+        renderPendingExecutionTicket,
+        showBridgeActionMessage,
+      }, showMessage);
+    }
+
+    async function submitPendingExecutionTicket() {
+      return window.ExecutionDeskTicket.submitPendingExecutionTicket({
+        state,
+        api,
+        brokerSupportsExecution,
+        clearPendingExecutionTicket,
+        loadLogs,
+        normalizeIntentBrokerProvider,
+        providerLabel,
+        refreshStatus,
+        showBridgeActionMessage,
+      });
+    }
+
+    function openPendingTicketInTradingDesk() {
+      return window.ExecutionDeskTicket.openPendingTicketInTradingDesk({ state });
+    }
+
+    function applyTradingDeskExecutionIntent() {
+      return window.ExecutionDeskTicket.applyTradingDeskExecutionIntent({
+        state,
+        normalizeExecutionIntent,
+        renderPendingExecutionTicket,
+        showBridgeActionMessage,
+      });
+    }
+
+    function getRobinhoodPayload() {
+      return window.ExecutionDeskBrokers.getRobinhoodPayload();
+    }
+
+    function showRobinhoodAuthMessage(text, isError = false) {
+      return window.ExecutionDeskBrokers.showRobinhoodAuthMessage(text, isError);
+    }
+
+    function renderRobinhoodPositions(snapshot) {
+      return window.ExecutionDeskBrokers.renderRobinhoodPositions({
+        fmtMoney,
+      }, snapshot);
+    }
+
+    function handleRobinhoodResult(data, fallbackMessage) {
+      return window.ExecutionDeskBrokers.handleRobinhoodResult({
+        renderRobinhoodPositions,
+        showRobinhoodAuthMessage,
+      }, data, fallbackMessage);
+    }
+
+    async function startRobinhoodLoginFlow() {
+      return window.ExecutionDeskBrokers.startRobinhoodLoginFlow({
+        api,
+        getRobinhoodPayload,
+        handleRobinhoodResult,
+        showRobinhoodAuthMessage,
+      });
+    }
+
+    async function checkRobinhoodLoginFlow() {
+      return window.ExecutionDeskBrokers.checkRobinhoodLoginFlow({
+        api,
+        getRobinhoodPayload,
+        handleRobinhoodResult,
+        showRobinhoodAuthMessage,
+      });
+    }
+
+    async function verifyRobinhoodLoginFlow() {
+      return window.ExecutionDeskBrokers.verifyRobinhoodLoginFlow({
+        api,
+        getRobinhoodPayload,
+        handleRobinhoodResult,
+        showRobinhoodAuthMessage,
+      });
+    }
+
+    async function fetchRobinhoodPositionsPreview() {
+      return window.ExecutionDeskBrokers.fetchRobinhoodPositionsPreview({
+        api,
+        getRobinhoodPayload,
+        handleRobinhoodResult,
+        showRobinhoodAuthMessage,
+      });
+    }
+
+    async function saveSettingsAction(options = {}) {
+      return window.ExecutionDeskBrokers.saveSettingsAction({
+        state,
+        api,
+        brokerSupportsExecution,
+        getExecutionProvider,
+        loadSettings,
+        normalizeBrokerProvider,
+        providerLabel,
+        refreshStatus,
+        showSettingsMsg,
+      }, options);
+    }
+
+    async function testConnection(providerOverride) {
+      return window.ExecutionDeskBrokers.testConnection({
+        state,
+        getExecutionProvider,
+        normalizeBrokerProvider,
+        providerLabel,
+        refreshStatus,
+        showSettingsMsg,
+      }, providerOverride);
+    }
+
+    async function setBrokerAsExecutionProvider() {
+      return window.ExecutionDeskBrokers.setBrokerAsExecutionProvider({
+        state,
+        brokerSupportsExecution,
+        normalizeBrokerProvider,
+        saveSettingsAction,
+        showSettingsMsg,
+        updateBrokerSettingsForm,
+      });
+    }
+
+    function bindEvents() {
+      return window.ExecutionDeskStatus.bindEvents({
+        applyPositionTemplate,
+        checkRobinhoodLoginFlow,
+        clearPendingExecutionTicket,
+        closeBrokerModal,
+        closeExternalPositionModal,
+        closePositionModal,
+        fetchRobinhoodPositionsPreview,
+        killBridge,
+        loadLogs,
+        manualScan,
+        openPendingTicketInTradingDesk,
+        saveExternalPosition,
+        savePositionModal,
+        saveSettingsAction,
+        setBrokerAsExecutionProvider,
+        showExternalPositionMessage,
+        showPositionModalMessage,
+        showRobinhoodAuthMessage,
+        showSettingsMsg,
+        state,
+        startBridge,
+        startRobinhoodLoginFlow,
+        stopBridge,
+        submitPendingExecutionTicket,
+        testConnection,
+        updatePositionModalTemplateSummary,
+        usePositionModalLiveValues,
+        usePositionModalSuggestedValues,
+        verifyRobinhoodLoginFlow,
+      });
+    }
+
+    async function init() {
+      return window.ExecutionDeskStatus.init({
+        applyTradingDeskExecutionIntent,
+        bindEvents,
+        loadLogs,
+        loadSettings,
+        loadStrategies,
+        readSharedCopilotSettings,
+        refreshStatus,
+        renderBridgeRulesSummary,
+        renderPendingExecutionTicket,
+        setPollInterval,
+        showBridgeActionMessage,
+        state,
+      });
+    }
+
+    init().catch((err) => {
+      console.error(err);
+      alert('Failed to initialize execution dashboard: ' + (err.message || err));
+    });
+  </script>
+</body>
+</html>

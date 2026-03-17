@@ -1,0 +1,97 @@
+{
+  "pattern_id": "macd_divergence_primitive_v2",
+  "name": "MACD Divergence (Primitive)",
+  "category": "indicator_signals",
+  "description": "Detects divergence between the MACD and price swings computed via the RDP algorithm. Adds an overlay series for MACD and signal lines.",
+  "author": "ai_generated",
+  "version": "1.0.0",
+  "plugin_file": "plugins/macd_divergence_primitive_v2.py",
+  "plugin_function": "run_macd_divergence_primitive_v2_plugin",
+  "pattern_type": "macd_divergence_primitive_v2",
+  "chart_indicator": true,
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "macd_divergence_primitive",
+    "fast_period": 12,
+    "slow_period": 26,
+    "signal_period": 9,
+    "divergence_type": "both",
+    "epsilon_pct": 0.05
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "fast_period",
+      "label": "Fast Period",
+      "type": "int",
+      "min": 2,
+      "max": 50,
+      "default": 12,
+      "description": "Fast period for MACD calculation"
+    },
+    {
+      "key": "slow_period",
+      "label": "Slow Period",
+      "type": "int",
+      "min": 10,
+      "max": 100,
+      "default": 26,
+      "description": "Slow period for MACD calculation"
+    },
+    {
+      "key": "signal_period",
+      "label": "Signal Period",
+      "type": "int",
+      "min": 5,
+      "max": 50,
+      "default": 9,
+      "description": "Signal period for MACD calculation"
+    },
+    {
+      "key": "divergence_type",
+      "label": "Divergence Type",
+      "type": "enum",
+      "options": [
+        "bullish",
+        "bearish",
+        "both"
+      ],
+      "default": "both",
+      "description": "Type of divergence to detect"
+    },
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon %",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "default": 0.05,
+      "description": "Sensitivity for swing point detection"
+    }
+  ],
+  "examples": [
+    {
+      "name": "Standard MACD Divergence",
+      "setup_config": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "divergence_type": "both",
+        "epsilon_pct": 0.05
+      }
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 50,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}

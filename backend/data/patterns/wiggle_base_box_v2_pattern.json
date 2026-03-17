@@ -1,0 +1,147 @@
+{
+  "pattern_id": "wiggle_base_box_v2_pattern",
+  "name": "Wiggle Base Box V2 (Pattern)",
+  "category": "price_action",
+  "description": "Purposeful base detector: RDP wiggle anchor + explicit box geometry + volume compression confirmation.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/wiggle_base_box_v2_pattern.py",
+  "plugin_function": "run_wiggle_base_box_v2_pattern_plugin",
+  "pattern_type": "wiggle_base_box_v2_pattern",
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "phase_structure_pattern",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "wiggle_base_box_v2_pattern",
+    "epsilon_coarse": 0.05,
+    "epsilon_fine": 0.01,
+    "window_n": 8,
+    "persist_m": 2,
+    "wiggle_threshold": 0.3,
+    "k_expand": 2.0,
+    "use_local_atr": true,
+    "local_atr_window": 20,
+    "min_base_bars": 20,
+    "max_base_bars": 220,
+    "max_base_range_pct": 0.65,
+    "top_tolerance_pct": 0.08,
+    "bottom_tolerance_pct": 0.08,
+    "min_top_touches": 2,
+    "min_bottom_touches": 1,
+    "max_slope_pct_per_bar": 0.008,
+    "floor_break_pct": 0.08,
+    "min_wiggle_score": 0.3,
+    "ceiling_quantile": 0.88,
+    "pre_base_bars": 40,
+    "require_volume_compression": false,
+    "max_quiet_ratio": 1.1,
+    "max_base_vol_cv": 1.6,
+    "max_cv_ratio": 1.25,
+    "min_final_score": 0.45,
+    "breakout_help_pct": 0.01,
+    "emit_when_missing": false,
+    "max_setups": 20
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "epsilon_coarse",
+      "label": "Coarse RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.02,
+      "max": 0.15,
+      "step": 0.005,
+      "default": 0.05
+    },
+    {
+      "key": "epsilon_fine",
+      "label": "Fine RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.05,
+      "step": 0.002,
+      "default": 0.01
+    },
+    {
+      "key": "min_base_bars",
+      "label": "Min Base Bars",
+      "type": "int",
+      "min": 10,
+      "max": 300,
+      "step": 1,
+      "default": 20
+    },
+    {
+      "key": "max_base_range_pct",
+      "label": "Max Base Range (%)",
+      "type": "float",
+      "min": 0.1,
+      "max": 0.8,
+      "step": 0.01,
+      "default": 0.65
+    },
+    {
+      "key": "min_top_touches",
+      "label": "Min Top Touches",
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "key": "min_bottom_touches",
+      "label": "Min Bottom Touches",
+      "type": "int",
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "key": "min_wiggle_score",
+      "label": "Min Wiggle Score",
+      "type": "float",
+      "min": 0.1,
+      "max": 0.95,
+      "step": 0.05,
+      "default": 0.3
+    },
+    {
+      "key": "require_volume_compression",
+      "label": "Require Volume Compression",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "max_quiet_ratio",
+      "label": "Max Base/Pre Volume Ratio",
+      "type": "float",
+      "min": 0.3,
+      "max": 1.2,
+      "step": 0.05,
+      "default": 1.1
+    },
+    {
+      "key": "min_final_score",
+      "label": "Min Final Score",
+      "type": "float",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.05,
+      "default": 0.45
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 120,
+  "status": "experimental"
+}

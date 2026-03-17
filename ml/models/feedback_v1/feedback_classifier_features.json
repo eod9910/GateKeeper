@@ -1,0 +1,26 @@
+{
+  "feature_columns": [
+    "score",
+    "entry_ready",
+    "rule_pass_ratio",
+    "rule_count",
+    "window_len",
+    "chart_len",
+    "base_high",
+    "base_low",
+    "base_range_pct",
+    "base_duration",
+    "current_close",
+    "current_pos_in_base",
+    "touches_top",
+    "touches_bottom",
+    "pivot_switches",
+    "window_pivots",
+    "trendiness",
+    "slope_pct_per_bar",
+    "rdp_swing_count_total",
+    "rdp_swing_count_highs",
+    "rdp_swing_count_lows",
+    "node_score"
+  ]
+}

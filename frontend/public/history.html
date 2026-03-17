@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Position Book - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="history-page">
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="index.html" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Scanner</span>
+        </a>
+        <a href="copilot.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Trading Desk</span>
+        </a>
+        <a href="history.html" class="sidebar-nav-item active" aria-current="page">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Position Book</span>
+        </a>
+        <a href="validator.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Validator</span>
+        </a>
+        <a href="workshop.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Indicator Studio</span>
+        </a>
+        <a href="research.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Research Agent</span>
+        </a>
+        <a href="sweep.html" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Parameter Sweep</span>
+        </a>
+        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+      </nav>
+      
+      <div class="sidebar-section" id="sect-period">
+        <div class="sidebar-section-label" onclick="toggleSection('sect-period')">
+          <span>Period</span>
+          <span class="section-arrow">&#9660;</span>
+        </div>
+        <div class="sidebar-section-content">
+          <select id="filter-period" class="select select-sm" style="width:100%;" onchange="applyFilters()">
+            <option value="all" selected>All time</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+            <option value="quarter">This quarter</option>
+            <option value="year">This year</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sidebar-section" id="sect-filter">
+        <div class="sidebar-section-label" onclick="toggleSection('sect-filter')">
+          <span>Filter</span>
+          <span class="section-arrow">&#9660;</span>
+        </div>
+        <div class="sidebar-section-content">
+          <div class="sidebar-field">
+            <label class="sidebar-field-label">Status</label>
+            <select id="filter-status" class="select select-sm" style="width:100%;" onchange="applyFilters()">
+              <option value="all" selected>All</option>
+              <option value="planned">Planned</option>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div class="sidebar-field">
+            <label class="sidebar-field-label">Strategy</label>
+            <select id="filter-strategy" class="select select-sm" style="width:100%;" onchange="applyFilters()">
+              <option value="all" selected>All</option>
+              <option value="wyckoff">Wyckoff</option>
+              <option value="fibonacci">Fibonacci</option>
+              <option value="trend">Trend Following</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:var(--space-12);border-top:1px solid var(--color-border);">
+        <button onclick="openSettingsModal()" class="btn btn-ghost" style="width:100%;">Settings</button>
+      </div>
+    </aside>
+    
+    <div class="app-main" style="overflow:visible;">
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Position Book</h1>
+          <span id="trade-count-subtitle" class="text-muted" style="font-size:var(--text-caption);">0 trades</span>
+        </div>
+        <button onclick="exportTrades()" class="btn btn-ghost">Export</button>
+      </div>
+
+      <div class="content" style="padding:var(--space-16) var(--space-24);overflow:visible;">
+        <!-- Row 1: Key Metrics (5 cards) -->
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-12);margin-bottom:var(--space-12);">
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Net P&L</div>
+            <div id="stat-pnl" class="text-mono" style="font-size:var(--text-large);font-weight:700;">$0.00</div>
+          </div>
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Win Rate</div>
+            <div id="stat-winrate" class="text-mono" style="font-size:var(--text-large);font-weight:700;">0%</div>
+          </div>
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Avg R</div>
+            <div id="stat-avgr" class="text-mono" style="font-size:var(--text-large);font-weight:700;">0.00</div>
+          </div>
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Max DD</div>
+            <div id="stat-maxdd" class="text-mono" style="font-size:var(--text-large);font-weight:700;">0%</div>
+          </div>
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Expectancy</div>
+            <div id="stat-expectancy" class="text-mono" style="font-size:var(--text-large);font-weight:700;">+0.00</div>
+          </div>
+        </div>
+
+        <!-- Row 2: Trade Counts (4 cards) -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-12);margin-bottom:var(--space-16);">
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Total</div>
+            <div id="stat-total" class="text-mono" style="font-size:var(--text-large);font-weight:700;">0</div>
+          </div>
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Open</div>
+            <div id="stat-open" class="text-mono" style="font-size:var(--text-large);font-weight:700;">0</div>
+          </div>
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Wins</div>
+            <div id="stat-wins" class="text-mono" style="font-size:var(--text-large);font-weight:700;">0</div>
+          </div>
+          <div class="panel" style="padding:var(--space-12) var(--space-16);">
+            <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:var(--space-4);">Losses</div>
+            <div id="stat-losses" class="text-mono" style="font-size:var(--text-large);font-weight:700;">0</div>
+          </div>
+        </div>
+
+        <!-- Equity Curve -->
+        <div class="panel" style="margin-bottom:var(--space-16);overflow:hidden;">
+          <div style="padding:var(--space-8) var(--space-16);border-bottom:1px solid var(--color-border);font-size:var(--text-caption);color:var(--color-text-muted);">Equity</div>
+          <div style="position:relative;height:200px;background:var(--color-bg);">
+            <canvas id="equity-canvas" style="width:100%;height:100%;"></canvas>
+            <div id="equity-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--color-text-subtle);font-family:var(--font-mono);font-size:var(--text-caption);text-transform:uppercase;letter-spacing:0.15em;">Equity Curve</div>
+          </div>
+        </div>
+
+        <!-- Tabs + Trade List -->
+        <div class="tabs">
+          <div class="tab-item active" data-tab="planned" onclick="switchTab('planned')">
+            Planned <span id="badge-planned" class="badge">0</span>
+          </div>
+          <div class="tab-item" data-tab="open" onclick="switchTab('open')">
+            Open <span id="badge-open" class="badge">0</span>
+          </div>
+          <div class="tab-item" data-tab="closed" onclick="switchTab('closed')">
+            Closed <span id="badge-closed" class="badge">0</span>
+          </div>
+        </div>
+        <div id="trade-list">
+          <p class="text-muted" style="text-align:center;padding:var(--space-32) 0;">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Hidden elements for JS compatibility -->
+      <div style="display:none;">
+        <span id="stat-planned">0</span>
+        <span id="stat-closed">0</span>
+        <span id="daily-pnl">$0.00</span>
+        <span id="open-risk">$0.00</span>
+        <span id="max-loss">-$500</span>
+        <div class="progress-bar"><div id="risk-bar" class="progress-fill" style="width:0%;"></div></div>
+        <div id="enhanced-stats"></div>
+      </div>
+    </div>
+  </div><!-- end .app -->
+
+  <!-- EXECUTION MODAL -->
+  <div id="execution-modal" class="modal" onclick="closeModal('execution-modal', event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Log Execution</h3>
+        <button onclick="closeModal('execution-modal')" class="modal-close">&times;</button>
+      </div>
+      <input type="hidden" id="exec-trade-id">
+      
+      <div class="modal-body">
+        <div id="exec-summary" class="modal-summary"></div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Fill Price *</label>
+          <input type="number" step="0.01" id="exec-fill-price" class="input-field" placeholder="Actual entry price">
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Shares Filled *</label>
+          <input type="number" id="exec-shares" class="input-field" placeholder="Number of shares">
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Execution Time</label>
+          <input type="datetime-local" id="exec-time" class="input-field">
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Notes</label>
+          <textarea id="exec-notes" class="input-field" style="height:80px;" placeholder="Slippage, market conditions, etc."></textarea>
+        </div>
+        
+        <div class="modal-actions">
+          <button onclick="closeModal('execution-modal')" class="btn btn-ghost">Cancel</button>
+          <button onclick="submitExecution()" class="btn btn-primary" style="flex:1;">
+            âœ… Mark as Executed
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLOSEOUT MODAL -->
+  <div id="closeout-modal" class="modal" onclick="closeModal('closeout-modal', event)">
+    <div class="modal-content" style="max-width:550px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">&#127937; Close Position</h3>
+        <button onclick="closeModal('closeout-modal')" class="modal-close">&times;</button>
+      </div>
+      <input type="hidden" id="close-trade-id">
+      
+      <div class="modal-body">
+        <!-- Trade Summary -->
+        <div id="close-summary" class="modal-summary"></div>
+        
+        <!-- P&L Display (prominent) -->
+        <div id="close-pnl-preview" style="background:var(--color-void);border:1px solid var(--color-border);border-radius:var(--radius);padding:var(--space-16);text-align:center;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-16);margin-bottom:var(--space-12);font-size:var(--text-small);">
+            <div>
+              <div style="color:var(--color-text-subtle);font-size:var(--text-caption);">Entry</div>
+              <div id="close-entry-display" style="font-weight:700;color:var(--color-text);">--</div>
+            </div>
+            <div>
+              <div style="color:var(--color-text-subtle);font-size:var(--text-caption);">Exit (Current)</div>
+              <div id="close-exit-display" style="font-weight:700;color:var(--color-text);">--</div>
+            </div>
+            <div>
+              <div style="color:var(--color-text-subtle);font-size:var(--text-caption);">Size</div>
+              <div id="close-size-display" style="font-weight:700;color:var(--color-text);">--</div>
+            </div>
+          </div>
+          <div style="font-size:var(--text-caption);color:var(--color-text-muted);margin-bottom:var(--space-4);">Profit / Loss</div>
+          <div id="close-pnl-value" style="font-size:2rem;font-weight:700;font-family:var(--font-mono);">--</div>
+          <div id="close-r-value" style="font-size:var(--text-small);color:var(--color-text-muted);margin-top:var(--space-4);">-- R</div>
+        </div>
+        
+        <!-- Exit Price (pre-filled with current, editable) -->
+        <div class="modal-section">
+          <label class="modal-label">Exit Price <span id="close-price-hint" style="font-size:var(--text-caption);color:var(--color-text-subtle);">(fetching current price...)</span></label>
+          <input type="number" step="0.01" id="close-exit-price" class="input-field" placeholder="Exit price">
+        </div>
+        
+        <!-- Reason & Outcome side by side -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-16);">
+          <div class="modal-section">
+            <label class="modal-label">Exit Reason</label>
+            <select id="close-reason" class="input-field">
+              <option value="manual">&#9995; Manual Exit</option>
+              <option value="target">&#127919; Hit Target</option>
+              <option value="stopped">&#128721; Stopped Out</option>
+              <option value="trailed">&#128200; Trailing Stop</option>
+              <option value="time">&#9200; Time-based</option>
+            </select>
+          </div>
+          <div class="modal-section">
+            <label class="modal-label">Outcome</label>
+            <select id="close-outcome" class="input-field">
+              <option value="won">&#9989; Won</option>
+              <option value="lost">&#10060; Lost</option>
+              <option value="breakeven">&#10134; Breakeven</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Exit Time</label>
+          <input type="datetime-local" id="close-time" class="input-field">
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Notes (optional)</label>
+          <textarea id="close-review" class="input-field" style="height:64px;" placeholder="Any notes about the trade..."></textarea>
+        </div>
+        
+        <div class="modal-actions">
+          <button onclick="closeModal('closeout-modal')" class="btn btn-ghost">Cancel</button>
+          <button onclick="submitCloseout()" class="btn btn-success" style="flex:1;font-size:var(--text-large);">
+            &#9989; Close Position
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL MODAL -->
+  <div id="detail-modal" class="modal" onclick="closeModal('detail-modal', event)">
+    <div class="modal-content" style="max-width:700px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="detail-title" class="modal-title">Trade Details</h3>
+        <button onclick="closeModal('detail-modal')" class="modal-close">&times;</button>
+      </div>
+      <div id="detail-content"></div>
+    </div>
+  </div>
+
+  <!-- JOURNAL MODAL -->
+  <div id="journal-modal" class="modal" onclick="closeModal('journal-modal', event)">
+    <div class="modal-content" style="max-width:600px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Trade Journal</h3>
+        <button onclick="closeModal('journal-modal')" class="modal-close">&times;</button>
+      </div>
+      <input type="hidden" id="journal-trade-id">
+      
+      <div class="modal-body">
+        <div class="modal-section">
+          <label class="modal-label">Pre-Trade Plan</label>
+          <textarea id="journal-plan" class="input-field" style="height:96px;" placeholder="Why are you taking this trade? What's your thesis?"></textarea>
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Tags</label>
+          <input type="text" id="journal-tags" class="input-field" placeholder="trend, breakout, reversal (comma separated)">
+        </div>
+        
+        <div class="modal-actions">
+          <button onclick="closeModal('journal-modal')" class="btn btn-ghost">Cancel</button>
+          <button onclick="saveJournal()" class="btn btn-primary" style="flex:1;">
+             Save Journal
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT TRADE MODAL -->
+  <div id="edit-modal" class="modal" onclick="closeModal('edit-modal', event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">&#9998; Edit Trade</h3>
+        <button onclick="closeModal('edit-modal')" class="modal-close">&times;</button>
+      </div>
+      <input type="hidden" id="edit-trade-id">
+      
+      <div class="modal-body">
+        <div id="edit-summary" class="modal-summary"></div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-16);">
+          <div class="modal-section">
+            <label class="modal-label">Direction</label>
+            <select id="edit-direction" class="input-field">
+              <option value="1">LONG</option>
+              <option value="-1">SHORT</option>
+            </select>
+          </div>
+          <div class="modal-section">
+            <label class="modal-label">Instrument</label>
+            <select id="edit-instrument" class="input-field" onchange="document.getElementById('edit-option-premium-row').style.display = this.value === 'options' ? '' : 'none'">
+              <option value="stock">Stock/ETF</option>
+              <option value="futures">Futures</option>
+              <option value="options">Options</option>
+              <option value="forex">Forex</option>
+              <option value="crypto">Crypto</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-16);">
+          <div class="modal-section">
+            <label class="modal-label">Entry Price</label>
+            <input type="number" step="0.01" id="edit-entry" class="input-field" placeholder="Entry price">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label">Position Size</label>
+            <input type="number" id="edit-size" class="input-field" placeholder="Shares / contracts">
+          </div>
+        </div>
+
+        <div id="edit-option-premium-row" style="display:none;">
+          <div class="modal-section">
+            <label class="modal-label" style="color:var(--color-accent);">Option Premium (per share)</label>
+            <input type="number" step="0.01" id="edit-option-premium" class="input-field" placeholder="e.g. 15.30">
+            <p style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:var(--space-4);">The price you paid per share for this option contract</p>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-16);margin-top:var(--space-12);">
+            <div class="modal-section">
+              <label class="modal-label">Strike Price</label>
+              <input type="number" step="0.5" id="edit-option-strike" class="input-field" placeholder="e.g. 2.50">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label">Expiry Date</label>
+              <input type="date" id="edit-option-expiry" class="input-field">
+            </div>
+            <div class="modal-section">
+              <label class="modal-label">Type</label>
+              <select id="edit-option-type" class="input-field">
+                <option value="call">Call</option>
+                <option value="put">Put</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:var(--space-12);">
+            <div class="modal-section">
+              <label class="modal-label">Underlying Stock Price at Entry</label>
+              <input type="number" step="0.01" id="edit-underlying-entry" class="input-field" placeholder="e.g. 75.00">
+              <p style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:var(--space-4);">Stock price when you entered - used with delta to estimate premium projections</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-16);margin-top:var(--space-12);">
+            <div class="modal-section">
+              <label class="modal-label" style="color:#4a8a60;">Target Premium (per share)</label>
+              <input type="number" step="0.01" id="edit-option-target-premium" class="input-field" placeholder="e.g. 22.00">
+              <p style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:var(--space-4);">Expected premium at your take-profit level</p>
+            </div>
+            <div class="modal-section">
+              <label class="modal-label" style="color:#9a5050;">Stop Premium (per share)</label>
+              <input type="number" step="0.01" id="edit-option-stop-premium" class="input-field" placeholder="e.g. 8.00">
+              <p style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:var(--space-4);">Expected premium at your stop level</p>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-16);">
+          <div class="modal-section">
+            <label class="modal-label">Stop Loss</label>
+            <input type="number" step="0.01" id="edit-stop" class="input-field" placeholder="Stop loss price">
+          </div>
+          <div class="modal-section">
+            <label class="modal-label">Take Profit</label>
+            <input type="number" step="0.01" id="edit-target" class="input-field" placeholder="Target price">
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <label class="modal-label">Status</label>
+          <select id="edit-status" class="input-field">
+            <option value="planned">Planned</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+
+        <div class="modal-actions">
+          <button onclick="closeModal('edit-modal')" class="btn btn-ghost">Cancel</button>
+          <button onclick="submitEdit()" class="btn btn-primary" style="flex:1;">
+            &#128190; Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-modal" class="modal" onclick="closeModal('settings-modal', event)">
+    <div class="modal-content" style="max-width:400px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Risk Settings</h3>
+        <button onclick="closeModal('settings-modal')" class="modal-close">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="modal-section">
+          <label class="modal-label">Daily Loss Limit ($)</label>
+          <input type="number" id="setting-daily-limit" class="input-field" value="500">
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Max Open Positions</label>
+          <input type="number" id="setting-max-positions" class="input-field" value="3">
+        </div>
+        
+        <div class="modal-section">
+          <label class="modal-label">Max Risk Per Trade (%)</label>
+          <input type="number" step="0.5" id="setting-max-risk" class="input-field" value="2">
+        </div>
+        
+        <button onclick="saveSettings()" class="btn btn-primary" style="width:100%;">
+          Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="history.js"></script>
+</body>
+</html>
+

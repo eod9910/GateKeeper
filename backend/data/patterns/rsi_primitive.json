@@ -1,0 +1,129 @@
+{
+  "pattern_id": "rsi_primitive",
+  "name": "RSI (Primitive)",
+  "category": "indicator_signals",
+  "description": "Relative Strength Index crossover detector. Detects when RSI crosses above or below configurable threshold levels (overbought/oversold). Fully tunable period, levels, and cross direction.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/rsi_primitive.py",
+  "plugin_function": "run_rsi_primitive_plugin",
+  "pattern_type": "rsi_primitive",
+  "default_structure_config": {
+    "swing_method": "major",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "rsi_primitive",
+    "rsi_period": 14,
+    "rsi_threshold": 30,
+    "cross_direction": "below",
+    "overbought_level": 70,
+    "oversold_level": 30,
+    "lookback_bars": 500,
+    "score_min": 0.0
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "rsi_period",
+      "label": "RSI Period",
+      "type": "int",
+      "min": 2,
+      "max": 100,
+      "default": 14,
+      "description": "Number of bars for the RSI calculation (standard is 14)"
+    },
+    {
+      "key": "rsi_threshold",
+      "label": "Trigger Level",
+      "type": "float",
+      "min": 5,
+      "max": 95,
+      "default": 30,
+      "description": "RSI level that triggers the signal when crossed"
+    },
+    {
+      "key": "cross_direction",
+      "label": "Cross Direction",
+      "type": "enum",
+      "options": ["below", "above"],
+      "default": "below",
+      "description": "Below = RSI crosses below threshold (oversold entry). Above = RSI crosses above threshold (overbought exit)."
+    },
+    {
+      "key": "overbought_level",
+      "label": "Overbought Level",
+      "type": "float",
+      "min": 50,
+      "max": 95,
+      "default": 70,
+      "description": "RSI level considered overbought (informational / scoring)"
+    },
+    {
+      "key": "oversold_level",
+      "label": "Oversold Level",
+      "type": "float",
+      "min": 5,
+      "max": 50,
+      "default": 30,
+      "description": "RSI level considered oversold (informational / scoring)"
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Window",
+      "type": "int",
+      "min": 1,
+      "max": 1000,
+      "default": 500,
+      "description": "Only search for crossovers in the last N bars"
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 200,
+  "examples": [
+    {
+      "name": "RSI Oversold (Classic 30)",
+      "setup_config": {
+        "pattern_type": "rsi_primitive",
+        "rsi_period": 14,
+        "rsi_threshold": 30,
+        "cross_direction": "below"
+      }
+    },
+    {
+      "name": "RSI Overbought (Classic 70)",
+      "setup_config": {
+        "pattern_type": "rsi_primitive",
+        "rsi_period": 14,
+        "rsi_threshold": 70,
+        "cross_direction": "above"
+      }
+    },
+    {
+      "name": "RSI Fast Oversold (7-period, 25 level)",
+      "setup_config": {
+        "pattern_type": "rsi_primitive",
+        "rsi_period": 7,
+        "rsi_threshold": 25,
+        "cross_direction": "below"
+      }
+    },
+    {
+      "name": "RSI Slow Overbought (21-period, 80 level)",
+      "setup_config": {
+        "pattern_type": "rsi_primitive",
+        "rsi_period": 21,
+        "rsi_threshold": 80,
+        "cross_direction": "above"
+      }
+    }
+  ],
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}

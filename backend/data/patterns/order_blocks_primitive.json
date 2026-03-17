@@ -1,0 +1,51 @@
+{
+  "pattern_id": "order_blocks",
+  "name": "Order Blocks (Primitive)",
+  "category": "price_action",
+  "description": "Identifies Order Blocks anchored to deterministic Swing Structure. An Order Block is the last opposite-direction candle before a strong impulse move. Uses unified Swing Structure (RDP + Backtrack) as foundation.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/order_blocks_primitive.py",
+  "plugin_function": "run_order_blocks_primitive_plugin",
+  "pattern_type": "order_blocks",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "order_blocks",
+    "rally_threshold_pct": 0.15,
+    "epsilon_pct": 0.05
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "rally_threshold_pct",
+      "label": "Rally Threshold (%)",
+      "type": "float",
+      "min": 0.03,
+      "max": 0.30,
+      "step": 0.01,
+      "default": 0.15
+    },
+    {
+      "key": "epsilon_pct",
+      "label": "RDP Epsilon (%)",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.15,
+      "step": 0.01,
+      "default": 0.05
+    }
+  ],
+  "suggested_timeframes": [
+    "1h",
+    "4h",
+    "D",
+    "W"
+  ],
+  "min_data_bars": 20,
+  "status": "experimental",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context"
+}

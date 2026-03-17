@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Research Agent — Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ── Research layout ─────────────────────────────────────── */
+    .research-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: var(--space-16);
+      height: 100%;
+      overflow: hidden;
+    }
+    .research-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      overflow-y: auto;
+      padding-right: var(--space-4);
+    }
+    .research-main {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+      overflow-y: auto;
+    }
+
+    /* ── Panel base ──────────────────────────────────────────── */
+    .panel {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: var(--space-12) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .panel-body { padding: var(--space-16); }
+
+    /* ── New session form ────────────────────────────────────── */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      margin-bottom: var(--space-12);
+    }
+    .form-label {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: var(--font-mono);
+    }
+    .form-input, .form-select, .form-textarea {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      color: var(--color-text);
+      font-size: var(--text-small);
+      font-family: var(--font-sans);
+      padding: var(--space-8) var(--space-12);
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .form-textarea {
+      min-height: 72px;
+      resize: vertical;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-8);
+    }
+    .btn-primary {
+      background: var(--color-accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: var(--space-8) var(--space-16);
+      font-size: var(--text-small);
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--color-accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-danger {
+      background: transparent;
+      color: #e05c5c;
+      border: 1px solid rgba(224, 92, 92, 0.35);
+      border-radius: var(--radius);
+      padding: var(--space-4) var(--space-8);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-danger:hover { background: rgba(224, 92, 92, 0.1); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--color-accent);
+      border: 1px solid rgba(93, 122, 146, 0.35);
+      border-radius: var(--radius);
+      padding: var(--space-4) var(--space-8);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-ghost:hover { background: var(--color-accent-soft); }
+
+    /* ── Session list ─────────────────────────────────────────── */
+    .session-list { display: flex; flex-direction: column; gap: var(--space-8); }
+    .session-item {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .session-item:hover { border-color: var(--color-accent); background: var(--color-surface-hover); }
+    .session-item.active { border-color: var(--color-accent); background: var(--color-accent-soft); }
+    .session-item-name {
+      font-size: var(--text-small);
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+    }
+    .session-item-meta {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+    }
+    .session-item.archived {
+      opacity: 0.45;
+      border-style: dashed;
+    }
+    .session-item.archived:hover { opacity: 0.7; }
+    .session-item-actions {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+    .session-item-actions button {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      color: var(--color-text-subtle);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px 6px;
+      line-height: 1;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .session-item-actions button:hover {
+      color: var(--color-text);
+      border-color: var(--color-border);
+      background: var(--color-surface-hover);
+    }
+    .session-item-actions .btn-delete:hover {
+      color: #e05c5c;
+      border-color: rgba(224,92,92,0.3);
+      background: rgba(224,92,92,0.08);
+    }
+    .session-toggle-archived {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--color-text-subtle);
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 0;
+    }
+    .session-toggle-archived input { cursor: pointer; accent-color: var(--color-accent); }
+
+    /* ── Status badges ───────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-running  { background: rgba(80, 180, 120, 0.15); color: #50b478; border: 1px solid rgba(80,180,120,0.3); }
+    .badge-completed { background: rgba(93,122,146,0.15); color: var(--color-accent); border: 1px solid rgba(93,122,146,0.3); }
+    .badge-stopped  { background: rgba(180,140,80,0.15); color: #b48c50; border: 1px solid rgba(180,140,80,0.3); }
+    .badge-error    { background: rgba(224,92,92,0.15); color: #e05c5c; border: 1px solid rgba(224,92,92,0.3); }
+    .badge-promoted { background: rgba(130,200,80,0.15); color: #82c850; border: 1px solid rgba(130,200,80,0.3); }
+    .badge-kept     { background: rgba(93,122,146,0.15); color: var(--color-accent); border: 1px solid rgba(93,122,146,0.3); }
+    .badge-discarded { background: rgba(140,140,140,0.1); color: var(--color-text-subtle); border: 1px solid var(--color-border); }
+    .badge-failed   { background: rgba(224,92,92,0.1); color: #e05c5c; border: 1px solid rgba(224,92,92,0.25); }
+
+    /* ── Session detail ──────────────────────────────────────── */
+    .session-detail-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-12);
+      flex-wrap: wrap;
+    }
+    .session-name {
+      font-size: var(--text-body);
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .session-meta {
+      display: flex;
+      gap: var(--space-16);
+      margin-top: var(--space-8);
+      flex-wrap: wrap;
+    }
+    .meta-item { display: flex; flex-direction: column; gap: 2px; }
+    .meta-label { font-size: 10px; color: var(--color-text-subtle); text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--font-mono); }
+    .meta-value { font-size: var(--text-small); color: var(--color-text); font-weight: 600; }
+
+    /* ── Progress bar ────────────────────────────────────────── */
+    .progress-container { margin: var(--space-12) 0; }
+    .progress-bar-bg {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 2px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      margin-top: var(--space-4);
+    }
+
+    /* ── Live hypothesis box ─────────────────────────────────── */
+    .hypothesis-live {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--color-accent);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      font-size: var(--text-small);
+      color: var(--color-text);
+      line-height: var(--leading-body);
+      margin: var(--space-12) 0;
+      min-height: 48px;
+    }
+    .hypothesis-live.empty { color: var(--color-text-subtle); font-style: italic; }
+
+    /* ── Generation timeline ─────────────────────────────────── */
+    .generation-timeline { display: flex; flex-direction: column; gap: var(--space-8); }
+    .gen-entry {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .gen-entry:hover { border-color: var(--color-accent); }
+    .gen-entry.selected { border-color: var(--color-accent); background: var(--color-accent-soft); }
+    .gen-entry-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+    }
+    .gen-number {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-subtle);
+      min-width: 28px;
+    }
+    .gen-hypothesis {
+      font-size: var(--text-small);
+      color: var(--color-text);
+      line-height: 1.4;
+      flex: 1;
+    }
+    .gen-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-8);
+      margin-top: var(--space-8);
+    }
+    .gen-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .gen-metric-label { font-size: 9px; color: var(--color-text-subtle); text-transform: uppercase; font-family: var(--font-mono); }
+    .gen-metric-value { font-size: 12px; color: var(--color-text); font-weight: 600; font-family: var(--font-mono); }
+
+    /* ── Leaderboard ─────────────────────────────────────────── */
+    .leaderboard-table { width: 100%; border-collapse: collapse; }
+    .leaderboard-table th {
+      text-align: left;
+      font-size: 10px;
+      color: var(--color-text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: var(--font-mono);
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      font-weight: 600;
+    }
+    .leaderboard-table td {
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--color-border-subtle);
+      font-size: var(--text-small);
+      color: var(--color-text);
+      vertical-align: top;
+    }
+    .leaderboard-table tr:hover td { background: var(--color-surface-hover); }
+    .leaderboard-table td.mono { font-family: var(--font-mono); font-size: 12px; }
+    .fitness-bar-inline {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+    }
+    .fitness-bar-bg {
+      flex: 1;
+      background: var(--color-bg);
+      border-radius: 2px;
+      height: 4px;
+      overflow: hidden;
+    }
+    .fitness-bar-fill {
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: 2px;
+    }
+    .fitness-val { font-family: var(--font-mono); font-size: 11px; min-width: 36px; text-align: right; }
+
+    /* ── Detail drawer ───────────────────────────────────────── */
+    .detail-drawer {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-16);
+    }
+    .detail-section { margin-bottom: var(--space-16); }
+    .detail-section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-family: var(--font-mono);
+      color: var(--color-text-subtle);
+      margin-bottom: var(--space-8);
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: var(--space-8);
+    }
+    .metric-card {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-8) var(--space-12);
+    }
+    .metric-card-label { font-size: 10px; color: var(--color-text-subtle); text-transform: uppercase; font-family: var(--font-mono); margin-bottom: 2px; }
+    .metric-card-value { font-size: var(--text-body); font-weight: 700; color: var(--color-text); font-family: var(--font-mono); }
+    .metric-card-value.good { color: #50b478; }
+    .metric-card-value.bad  { color: #e05c5c; }
+    .json-viewer {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-muted);
+      overflow-x: auto;
+      white-space: pre;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    /* ── Empty state ─────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: var(--space-48) var(--space-24);
+      color: var(--color-text-subtle);
+    }
+    .empty-state-title { font-size: var(--text-body); font-weight: 600; margin-bottom: var(--space-8); color: var(--color-text-muted); }
+    .empty-state-sub { font-size: var(--text-small); line-height: 1.5; }
+
+    /* ── Live log ─────────────────────────────────────────────── */
+    .live-log {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-muted);
+      max-height: 140px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .log-line { display: flex; gap: var(--space-8); }
+    .log-ts { color: var(--color-text-subtle); flex-shrink: 0; }
+    .log-msg.highlight { color: var(--color-accent); }
+    .log-msg.success { color: #50b478; }
+    .log-msg.warn { color: #b48c50; }
+    .log-msg.error { color: #e05c5c; }
+
+    /* ── Divider ─────────────────────────────────────────────── */
+    .section-divider {
+      height: 1px;
+      background: var(--color-border);
+      margin: var(--space-16) 0;
+    }
+
+    /* ── Spinner ─────────────────────────────────────────────── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--color-border);
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* ── Pulsing dot ─────────────────────────────────────────── */
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .pulse-dot {
+      width: 7px; height: 7px;
+      background: #50b478;
+      border-radius: 50%;
+      animation: pulse 1.5s ease infinite;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body class="app-container">
+  <!-- Sidebar -->
+  <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-header">
+      <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <span class="logo-mark">PD</span>
+        <span class="sidebar-label-text">Pattern Detector</span>
+      </a>
+      <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Scanner</span>
+      </a>
+      <a href="copilot.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Trading Desk</span>
+      </a>
+      <a href="history.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Position Book</span>
+      </a>
+      <a href="validator.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Validator</span>
+      </a>
+      <a href="workshop.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Indicator Studio</span>
+      </a>
+      <a href="research.html" class="sidebar-nav-item active" aria-current="page">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Research Agent</span>
+      </a>
+      <a href="family-explorer.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Family Explorer</span>
+      </a>
+      <a href="sweep.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span>
+      </a>
+      <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+      <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);">
+        <span class="nav-dot"></span><span class="sidebar-label-text">Settings</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="app-main" id="app-main">
+    <div class="app-content">
+      <div class="research-layout">
+
+        <!-- Left: session list + new session form -->
+        <div class="research-sidebar">
+
+          <!-- New Session Form -->
+          <div class="panel">
+            <div class="panel-header">
+              New Research Session
+            </div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label class="form-label">Session Name</label>
+                <input id="input-name" class="form-input" type="text" placeholder="e.g. RSI + Fib Confluence" />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Generations</label>
+                  <input id="input-gens" class="form-input" type="number" value="5" min="1" max="50" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Interval</label>
+                  <select id="input-interval" class="form-select">
+                    <option value="1wk" selected>Weekly</option>
+                    <option value="1d">Daily</option>
+                    <option value="4h">4-Hour</option>
+                    <option value="1h">1-Hour</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Seed Hypothesis (optional)</label>
+                <textarea id="input-seed" class="form-textarea" placeholder="e.g. Focus on RSI divergence combined with order block support. Look for daily chart setups."></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Promotion Threshold</label>
+                  <input id="input-threshold" class="form-input" type="number" value="0.6" min="0.1" max="1.0" step="0.05" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Asset Class</label>
+                  <select id="input-asset" class="form-select">
+                    <option value="stocks" selected>Stocks</option>
+                    <option value="crypto">Crypto</option>
+                    <option value="futures">Futures</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                  <input id="input-allow-primitives" type="checkbox" style="width:16px;height:16px;cursor:pointer;" />
+                  <span>Allow primitive creation</span>
+                  <span style="font-size:11px;color:var(--color-text-subtle);font-weight:400;">— AI can invent new indicator plugins, not just compose existing ones</span>
+                </label>
+              </div>
+              <button id="btn-start" class="btn-primary" onclick="startSession()">
+                Start Research Session
+              </button>
+            </div>
+          </div>
+
+          <!-- Session List -->
+          <div class="panel" style="flex:1;min-height:0;">
+            <div class="panel-header">
+              Sessions
+              <span id="session-count" style="font-size:11px;font-weight:400;color:var(--color-text-subtle);">0</span>
+            </div>
+            <div style="padding:2px var(--space-12) 0;">
+              <label class="session-toggle-archived">
+                <input type="checkbox" id="toggle-archived" onchange="toggleShowArchived(this.checked)">
+                Show archived
+              </label>
+            </div>
+            <div class="panel-body" style="padding:var(--space-8);">
+              <div id="session-list" class="session-list">
+                <div class="empty-state" style="padding:var(--space-24);">
+                  <div class="empty-state-sub">No sessions yet.<br>Start one above.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              Structural Families
+            </div>
+            <div class="panel-body">
+              <div class="empty-state" style="padding:var(--space-16);text-align:left;">
+                <div class="empty-state-title" style="text-align:left;">Open Family Explorer</div>
+                <div class="empty-state-sub" style="text-align:left;">
+                  Inspect deterministic v2 family buckets, structural direction, cross-symbol stability, and saved motif snippets.
+                </div>
+                <div style="margin-top:var(--space-12);">
+                  <a href="family-explorer.html" class="btn-primary" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">
+                    Open Explorer
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right: session detail -->
+        <div class="research-main" id="research-main">
+          <div class="empty-state" style="margin:auto;">
+            <div style="font-size:32px;margin-bottom:var(--space-16);opacity:0.2;">&#9762;</div>
+            <div class="empty-state-title">Research Agent</div>
+            <div class="empty-state-sub">
+              The agent autonomously generates trading strategy hypotheses,<br>
+              backtests them through the validator, and iterates toward better results.<br><br>
+              Start a session or select one from the list.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script src="research.js"></script>
+  <script>
+    // Sidebar toggle (shared pattern)
+    const sidebar = document.getElementById('sidebar');
+    const toggle = sidebar?.querySelector('.sidebar-toggle');
+    const appMain = document.getElementById('app-main');
+    if (toggle && sidebar && appMain) {
+      toggle.addEventListener('click', () => {
+        const collapsed = sidebar.classList.toggle('collapsed');
+        appMain.classList.toggle('sidebar-collapsed', collapsed);
+      });
+    }
+  </script>
+</body>
+</html>
+
