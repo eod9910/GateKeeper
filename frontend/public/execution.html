@@ -299,6 +299,7 @@
                 <div class="field" style="grid-column: span 2;">
                   <label for="strategy-version">Strategy Version</label>
                   <select id="strategy-version"></select>
+                  <div id="strategy-version-hint" class="position-modal-note" style="margin-top:6px;">Execution requires an approved strategy with a T3 badge.</div>
                 </div>
                 <div class="field">
                   <label for="scan-cron">Scan Cron</label>
@@ -1007,6 +1008,7 @@
         providerLabel,
         renderBridgeRulesSummary,
         setPollInterval,
+        state,
       }, data);
     }
 
@@ -1063,13 +1065,18 @@
 
     async function openPositionModal(row) {
       return window.ExecutionDeskPositions.openPositionModal({
+        api,
+        describePositionTemplateStop,
+        describePositionTemplateTarget,
+        escapeHtml,
         fmtPositionPrice,
-        loadPositionStrategyCatalog,
+        getPositionPriceStep,
+        providerLabel,
         positionNumber,
-        setPositionModalInputSteps,
+        roundPositionPrice,
         setPositionModalValues,
         state,
-        updatePositionModalTemplateSummary,
+        inferAtrFromChartData,
       }, row);
     }
 
@@ -1148,7 +1155,10 @@
     }
 
     async function loadStrategies() {
-      return window.ExecutionDeskStatus.loadStrategies({ api });
+      return window.ExecutionDeskStatus.loadStrategies({
+        api,
+        state,
+      });
     }
 
     async function refreshStatus() {
@@ -1182,6 +1192,7 @@
         getStartPayload,
         loadLogs,
         refreshStatus,
+        state,
       });
     }
 
@@ -1413,6 +1424,7 @@
         showPositionModalMessage,
         showRobinhoodAuthMessage,
         showSettingsMsg,
+        state,
         startBridge,
         startRobinhoodLoginFlow,
         stopBridge,

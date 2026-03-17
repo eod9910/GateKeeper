@@ -95,10 +95,10 @@ function registerComposeBlock() {
         .appendField('Timing Trigger');
       this.appendValueInput('PATTERN')
         .setCheck('PATTERN_RESULT')
-        .appendField('Pattern Gate (Optional)');
+        .appendField('Regime Filter (Optional)');
 
       this.setColour(245);
-      this.setTooltip('Compose one indicator from Structure + Location + Timing (+ optional Pattern gate).');
+      this.setTooltip('Compose one indicator from Structure + Location + Timing (+ optional Regime Filter).');
       this.setHelpUrl('');
     },
   };
@@ -587,7 +587,7 @@ function buildToolboxDefinition() {
       },
       {
         kind: 'category',
-        name: 'Pattern Gate',
+        name: 'Regime Filter',
         colour: '#8d67c7',
         contents: buildCategoryContents(group.PATTERN_RESULT, '#8d67c7'),
       },
@@ -933,6 +933,7 @@ function buildConditionalFromBlock(composeBlock, intent, patternId, patternName,
     suggested_timeframes: ['D', 'W'],
     min_data_bars: 220,
   };
+  definition.tunable_params = inferBlocklyTunableParams(definition);
 
   return { errors: [], definition };
 }
@@ -953,6 +954,127 @@ function readBlockParamOverrides(block, meta) {
     params[key] = val;
   }
   return params;
+}
+
+function findBlocklyPrimitiveRow(patternId) {
+  return blocklyPrimitiveRows.find((row) => String(row?.pattern_id || '').trim() === String(patternId || '').trim()) || null;
+}
+
+function inferBlocklyAnatomy(stageLabel, patternId, row) {
+  const text = `${stageLabel} ${patternId} ${row?.indicator_role || ''} ${row?.pattern_role || ''}`.toLowerCase();
+  if (text.includes('regime') || text.includes('gate') || text.includes('filter') || text.includes('state')) return 'regime_filter';
+  if (text.includes('location') || text.includes('fib')) return 'location';
+  if (text.includes('timing') || text.includes('trigger') || text.includes('entry') || text.includes('signal') || text.includes('divergence') || text.includes('rsi') || text.includes('cross')) return 'entry_timing';
+  return 'structure';
+}
+
+function buildBlocklyTunableParam(stageLabel, patternId, paramKey, path, value) {
+  const row = findBlocklyPrimitiveRow(patternId);
+  const tunable = Array.isArray(row?.tunable_params)
+    ? row.tunable_params.find((item) => String(item?.key || '') === String(paramKey))
+    : null;
+  const safeStage = String(stageLabel || patternId || 'stage').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase();
+  return {
+    key: `${safeStage}_${paramKey}`,
+    label: `${stageLabel}: ${String(tunable?.label || paramKey)}`,
+    path,
+    type: String(tunable?.type || (typeof value === 'number'
+      ? (Number.isInteger(value) ? 'int' : 'float')
+      : typeof value === 'boolean'
+      ? 'bool'
+      : 'enum')),
+    min: typeof tunable?.min === 'number' ? tunable.min : undefined,
+    max: typeof tunable?.max === 'number' ? tunable.max : undefined,
+    step: typeof tunable?.step === 'number' ? tunable.step : undefined,
+    default: tunable?.default ?? value,
+    options: Array.isArray(tunable?.options) ? tunable.options : undefined,
+    description: tunable?.description || undefined,
+    anatomy: inferBlocklyAnatomy(stageLabel, patternId, row),
+    identity_preserving: true,
+    sweep_enabled: true,
+    sensitivity_enabled: typeof value === 'number',
+  };
+}
+
+function pushUniqueBlocklyTunableParam(target, param) {
+  const key = `${String(param?.key || '').trim()}|${String(param?.path || '').trim()}`;
+  if (!key || key === '|') return;
+  if (target.some((item) => `${String(item?.key || '').trim()}|${String(item?.path || '').trim()}` === key)) return;
+  target.push(param);
+}
+
+function collectBlocklyConditionTunables(condition, pathPrefix, target) {
+  if (!condition || typeof condition !== 'object') return;
+
+  const pushParams = (primitiveId, params, paramsPath, stageLabel) => {
+    if (!primitiveId || !params || typeof params !== 'object' || Array.isArray(params)) return;
+    Object.entries(params).forEach(([paramKey, value]) => {
+      pushUniqueBlocklyTunableParam(
+        target,
+        buildBlocklyTunableParam(stageLabel, primitiveId, paramKey, `${paramsPath}.${paramKey}`, value),
+      );
+    });
+  };
+
+  if (condition.type === 'op') {
+    collectBlocklyConditionTunables(condition.left, `${pathPrefix}.left`, target);
+    collectBlocklyConditionTunables(condition.right, `${pathPrefix}.right`, target);
+    collectBlocklyConditionTunables(condition.condition, `${pathPrefix}.condition`, target);
+  }
+
+  if (condition.type === 'check' || condition.type === 'score' || condition.type === 'cooldown') {
+    pushParams(condition.primitive_id, condition.params, `${pathPrefix}.params`, condition.primitive_id);
+  }
+  if (condition.type === 'compare') {
+    pushParams(condition.primitive_a, condition.params_a, `${pathPrefix}.params_a`, condition.primitive_a);
+    pushParams(condition.primitive_b, condition.params_b, `${pathPrefix}.params_b`, condition.primitive_b);
+  }
+  if (condition.type === 'sequence') {
+    pushParams(condition.first_id, condition.params_first, `${pathPrefix}.params_first`, condition.first_id);
+    pushParams(condition.second_id, condition.params_second, `${pathPrefix}.params_second`, condition.second_id);
+  }
+  if (condition.type === 'regime') {
+    pushParams(condition.regime_id, condition.params_regime, `${pathPrefix}.params_regime`, condition.regime_id);
+    pushParams(condition.signal_id, condition.params_signal, `${pathPrefix}.params_signal`, condition.signal_id);
+  }
+}
+
+function inferBlocklyTunableParams(definition) {
+  const tunables = [];
+  const spec = definition?.default_setup_params?.composite_spec;
+  if (!spec || typeof spec !== 'object') return tunables;
+
+  const stages = Array.isArray(spec.stages) ? spec.stages : [];
+  stages.forEach((stage, idx) => {
+    const params = stage?.params && typeof stage.params === 'object' && !Array.isArray(stage.params) ? stage.params : null;
+    if (!params) return;
+    const stageLabel = String(stage?.id || stage?.pattern_id || `stage_${idx}`);
+    Object.entries(params).forEach(([paramKey, value]) => {
+      pushUniqueBlocklyTunableParam(
+        tunables,
+        buildBlocklyTunableParam(stageLabel, stage?.pattern_id, paramKey, `setup_config.composite_spec.stages.${idx}.params.${paramKey}`, value),
+      );
+    });
+  });
+
+  const branches = Array.isArray(spec.branches) ? spec.branches : [];
+  branches.forEach((branch, idx) => {
+    if (branch?.condition) collectBlocklyConditionTunables(branch.condition, `setup_config.composite_spec.branches.${idx}.condition`, tunables);
+    ['then', 'else'].forEach((side) => {
+      const stage = branch?.[side];
+      const params = stage?.params && typeof stage.params === 'object' && !Array.isArray(stage.params) ? stage.params : null;
+      if (!stage?.pattern_id || !params) return;
+      const stageLabel = `${side}_${stage.pattern_id}`;
+      Object.entries(params).forEach(([paramKey, value]) => {
+        pushUniqueBlocklyTunableParam(
+          tunables,
+          buildBlocklyTunableParam(stageLabel, stage.pattern_id, paramKey, `setup_config.composite_spec.branches.${idx}.${side}.params.${paramKey}`, value),
+        );
+      });
+    });
+  });
+
+  return tunables;
 }
 
 function extractStage(composeBlock, inputName, stageId, required) {
@@ -1072,6 +1194,7 @@ function buildCompositeFromWorkspace() {
     suggested_timeframes: ['D', 'W'],
     min_data_bars: 220,
   };
+  definition.tunable_params = inferBlocklyTunableParams(definition);
 
   return { errors: [], definition };
 }

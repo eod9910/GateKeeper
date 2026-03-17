@@ -7,7 +7,7 @@ import {
   normalizeScannerUniverseResult,
 } from './contractValidation';
 
-export type ValidationTier = 'tier1' | 'tier2' | 'tier3';
+export type ValidationTier = 'tier1' | 'tier1b' | 'tier2' | 'tier3';
 
 const PY_SERVICE_BASE_URL = (process.env.PY_PLUGIN_SERVICE_URL || 'http://127.0.0.1:8100').replace(/\/+$/, '');
 const PY_SERVICE_TIMEOUT_MS = Math.max(1000, Number(process.env.PY_PLUGIN_SERVICE_TIMEOUT_MS || 30000));

@@ -89,6 +89,10 @@ class StructureDiscoveryFamilyTests(unittest.TestCase):
         self.assertEqual(family_a.valid_10bar_count, 2)
         self.assertAlmostEqual(family_a.avg_forward_10_return_atr, 0.75)
         self.assertAlmostEqual(family_a.median_forward_10_return_atr, 0.75)
+        self.assertAlmostEqual(family_a.forward_10_std_dev_atr, 0.25)
+        self.assertAlmostEqual(family_a.forward_10_std_error_atr, 0.25 / (2 ** 0.5))
+        self.assertAlmostEqual(family_a.t_score_forward_10, 3.0 * (2 ** 0.5))
+        self.assertAlmostEqual(family_a.sharpe_like_forward_10, 3.0)
         self.assertAlmostEqual(family_a.hit_plus_1atr_first_rate, 0.5)
         self.assertAlmostEqual(family_a.next_break_up_rate, 0.5)
         self.assertTrue(family_a.passes_min_count)
@@ -107,6 +111,7 @@ class StructureDiscoveryFamilyTests(unittest.TestCase):
         self.assertEqual(family_summary['families_with_min_valid10'], 1)
         self.assertEqual(family_summary['candidate_family_count'], 1)
         self.assertEqual(family_summary['top_10_avg_forward_10_return_atr'][0]['family_signature'], 'SIG_A')
+        self.assertEqual(family_summary['top_10_t_score_forward_10'][0]['family_signature'], 'SIG_A')
 
     def test_family_split_stats_and_fragmentation_report_are_emitted(self):
         motifs = []

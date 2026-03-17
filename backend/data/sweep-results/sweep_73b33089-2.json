@@ -1,0 +1,150 @@
+{
+  "sweep_id": "sweep_73b33089-2",
+  "base_strategy_version_id": "macd_divergence_crypto_14R_v2",
+  "sweep_params": [
+    {
+      "label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "values": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "tier": "tier2",
+  "interval": "1d",
+  "status": "completed",
+  "variants": [
+    {
+      "variant_id": "sweep_73b33089-2_1",
+      "strategy_version_id": "sweep_73b33089-2_1",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 1,
+      "job_id": "job_519e0d22-9",
+      "status": "completed",
+      "report_id": "rpt_a8c9b7e1",
+      "metrics": {
+        "total_trades": 49,
+        "expectancy_R": 1.0500617963933363,
+        "win_rate": 0.3877551020408163,
+        "profit_factor": 2.7148108022382886,
+        "max_drawdown_pct": 15.188069423167434,
+        "sharpe_ratio": 1.9141109928432494,
+        "oos_degradation_pct": 64.5,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_73b33089-2_2",
+      "strategy_version_id": "sweep_73b33089-2_2",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 2,
+      "job_id": "job_e6f3980b-4",
+      "status": "completed",
+      "report_id": "rpt_97fe0e37",
+      "metrics": {
+        "total_trades": 72,
+        "expectancy_R": 0.9637559184807883,
+        "win_rate": 0.4166666666666667,
+        "profit_factor": 2.6518785641854854,
+        "max_drawdown_pct": 20.70712307497032,
+        "sharpe_ratio": 2.362930715198693,
+        "oos_degradation_pct": 56.7,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_73b33089-2_3",
+      "strategy_version_id": "sweep_73b33089-2_3",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 3,
+      "job_id": "job_523c24d8-3",
+      "status": "completed",
+      "report_id": "rpt_02e01c58",
+      "metrics": {
+        "total_trades": 81,
+        "expectancy_R": 0.9762655960449064,
+        "win_rate": 0.4074074074074074,
+        "profit_factor": 2.676453492534796,
+        "max_drawdown_pct": 20.707123074970312,
+        "sharpe_ratio": 2.586338212941966,
+        "oos_degradation_pct": 51.4,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_73b33089-2_4",
+      "strategy_version_id": "sweep_73b33089-2_4",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 4,
+      "job_id": "job_3e1421d6-7",
+      "status": "completed",
+      "report_id": "rpt_ea88c51f",
+      "metrics": {
+        "total_trades": 81,
+        "expectancy_R": 0.9762655960449064,
+        "win_rate": 0.4074074074074074,
+        "profit_factor": 2.676453492534796,
+        "max_drawdown_pct": 20.707123074970312,
+        "sharpe_ratio": 2.586338212941966,
+        "oos_degradation_pct": 51.4,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_73b33089-2_5",
+      "strategy_version_id": "sweep_73b33089-2_5",
+      "param_label": "Max Concurrent Positions",
+      "param_path": "risk_config.max_concurrent_positions",
+      "param_value": 5,
+      "job_id": "job_14924d44-c",
+      "status": "completed",
+      "report_id": "rpt_2098bce6",
+      "metrics": {
+        "total_trades": 81,
+        "expectancy_R": 0.9762655960449064,
+        "win_rate": 0.4074074074074074,
+        "profit_factor": 2.676453492534796,
+        "max_drawdown_pct": 20.707123074970312,
+        "sharpe_ratio": 2.586338212941966,
+        "oos_degradation_pct": 51.4,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    }
+  ],
+  "winner": {
+    "variant_id": "sweep_73b33089-2_1",
+    "strategy_version_id": "sweep_73b33089-2_1",
+    "param_label": "Max Concurrent Positions",
+    "param_path": "risk_config.max_concurrent_positions",
+    "param_value": 1,
+    "job_id": "job_519e0d22-9",
+    "status": "completed",
+    "report_id": "rpt_a8c9b7e1",
+    "metrics": {
+      "total_trades": 49,
+      "expectancy_R": 1.0500617963933363,
+      "win_rate": 0.3877551020408163,
+      "profit_factor": 2.7148108022382886,
+      "max_drawdown_pct": 15.188069423167434,
+      "sharpe_ratio": 1.9141109928432494,
+      "oos_degradation_pct": 64.5,
+      "pass_fail": "NEEDS_REVIEW",
+      "fitness_score": 0
+    }
+  },
+  "created_at": "2026-03-16T07:06:00.395Z",
+  "completed_at": "2026-03-16T07:14:27.304Z"
+}

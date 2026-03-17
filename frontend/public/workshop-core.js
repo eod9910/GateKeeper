@@ -849,7 +849,7 @@ function renderIndicatorEditForm(row, detail) {
     ['trigger', 'Trigger'],
     ['state_filter', 'State Filter'],
     ['regime_state', 'Regime State'],
-    ['pattern_gate', 'Pattern Gate'],
+    ['pattern_gate', 'Regime Filter'],
     ['entry_composite', 'Entry Composite'],
     ['exit_composite', 'Exit Composite'],
     ['analysis_payload', 'Analysis'],

@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { ApiResponse } from '../types';
+import { normalizeDefinitionTunableParams } from '../services/parameterManifest';
 import {
   normalizePatternId,
   validatePluginRegisterPayload,
@@ -95,6 +96,33 @@ type PatternRegistry = {
   categories: PatternCategory[];
   patterns: PatternRegistryEntry[];
 };
+
+function buildDefinitionResolver(registry: PatternRegistry): (patternId: string) => Record<string, unknown> | null {
+  const cache = new Map<string, Record<string, unknown> | null>();
+  return (patternId: string) => {
+    const key = String(patternId || '').trim();
+    if (!key) return null;
+    if (cache.has(key)) return cache.get(key) || null;
+    const entry = (registry.patterns || []).find((item) => String(item.pattern_id || '').trim() === key);
+    if (!entry?.definition_file) {
+      cache.set(key, null);
+      return null;
+    }
+    const defPath = path.join(PATTERNS_DIR, String(entry.definition_file));
+    if (!isWithin(PATTERNS_DIR, defPath) || !fs.existsSync(defPath)) {
+      cache.set(key, null);
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(defPath, 'utf-8')) as Record<string, unknown>;
+      cache.set(key, parsed);
+      return parsed;
+    } catch {
+      cache.set(key, null);
+      return null;
+    }
+  };
+}
 
 function nextAvailablePatternId(baseId: string, registry: PatternRegistry): string {
   const existing = new Set(
@@ -831,7 +859,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Composites using composite_runner keep their plugin_file/plugin_function
     const compositeRunnerDef = isCompositeUsingRunner;
-    const normalizedDefinition: Record<string, unknown> = {
+    const rawNormalizedDefinition: Record<string, unknown> = {
       ...(definition as Record<string, unknown>),
       pattern_id: assignedPatternId,
       pattern_type: assignedPatternId,
@@ -841,6 +869,10 @@ router.post('/register', async (req: Request, res: Response) => {
       composition: validation.composition,
       artifact_type: validation.artifactType,
     };
+    const normalizedDefinition = normalizeDefinitionTunableParams(
+      rawNormalizedDefinition,
+      buildDefinitionResolver(registry),
+    );
 
     const definitionFile = `${assignedPatternId}.json`;
     const definitionPath = path.join(PATTERNS_DIR, definitionFile);
@@ -996,7 +1028,10 @@ router.put('/:patternId/definition', async (req: Request, res: Response) => {
 
     // Preserve plugin_file and plugin_function from disk — don't allow remapping via JSON editor
     const existing = JSON.parse(await fsp.readFile(defPath, 'utf-8'));
-    const safe = { ...definition };
+    const safe = normalizeDefinitionTunableParams(
+      { ...(definition as Record<string, unknown>) },
+      buildDefinitionResolver(registry),
+    );
     if (existing.plugin_file) safe.plugin_file = existing.plugin_file;
     if (existing.plugin_function) safe.plugin_function = existing.plugin_function;
 

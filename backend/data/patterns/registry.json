@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated_at": "2026-03-02T09:53:05.669Z",
+  "updated_at": "2026-03-17T02:18:41.167Z",
   "categories": [
     {
       "id": "chart_patterns",
@@ -44,7 +44,7 @@
       "name": "Wyckoff Accumulation (Major Peaks)",
       "category": "chart_patterns",
       "definition_file": "wyckoff_accumulation_major.json",
-      "status": "stable",
+      "status": "rejected",
       "artifact_type": "pattern",
       "composition": "monolithic",
       "pattern_role": "phase_structure_pattern"
@@ -144,7 +144,7 @@
       "name": "RDP Fib Pullback RSI Entry Composite",
       "category": "indicator_signals",
       "definition_file": "rdp_fib_pullback_rsi_entry_composite.json",
-      "status": "experimental",
+      "status": "rejected",
       "artifact_type": "indicator",
       "composition": "composite",
       "indicator_role": "entry_composite"
@@ -284,7 +284,7 @@
       "name": "Base Breakout Entry Composite",
       "category": "indicator_signals",
       "definition_file": "base_breakout_entry_composite.json",
-      "status": "experimental",
+      "status": "rejected",
       "artifact_type": "indicator",
       "composition": "composite",
       "indicator_role": "entry_composite"
@@ -404,7 +404,7 @@
       "name": "Density Base Detector V2 (Multi-Scale)",
       "category": "price_action",
       "definition_file": "density_base_detector_v2_pattern.json",
-      "status": "experimental",
+      "status": "rejected",
       "artifact_type": "pattern",
       "composition": "monolithic",
       "pattern_role": "phase_structure_pattern"
@@ -414,7 +414,7 @@
       "name": "Head and Shoulders (Pattern)",
       "category": "chart_patterns",
       "definition_file": "head_shoulders_context_pattern.json",
-      "status": "experimental",
+      "status": "rejected",
       "artifact_type": "pattern",
       "composition": "monolithic",
       "pattern_role": "reversal_structure_pattern"
@@ -424,10 +424,20 @@
       "name": "Three Drives Pattern",
       "category": "chart_patterns",
       "definition_file": "three_drives_pattern.json",
-      "status": "experimental",
+      "status": "rejected",
       "artifact_type": "pattern",
       "composition": "monolithic",
       "pattern_role": "reversal_structure_pattern"
+    },
+    {
+      "pattern_id": "structural_family_signal",
+      "name": "Structural Family Signal",
+      "category": "indicator_signals",
+      "definition_file": "structural_family_signal.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger"
     }
   ]
 }

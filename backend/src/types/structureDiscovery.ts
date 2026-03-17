@@ -114,6 +114,10 @@ export interface FamilyStatsRecord {
   medianForward5ReturnAtr: number | null;
   avgForward10ReturnAtr: number | null;
   medianForward10ReturnAtr: number | null;
+  forward10StdDevAtr: number | null;
+  forward10StdErrorAtr: number | null;
+  tScoreForward10: number | null;
+  sharpeLikeForward10: number | null;
   discoveryAvgForward10ReturnAtr: number | null;
   validationAvgForward10ReturnAtr: number | null;
   holdoutAvgForward10ReturnAtr: number | null;

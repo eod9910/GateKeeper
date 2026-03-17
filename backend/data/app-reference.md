@@ -647,8 +647,8 @@ Accepts primitives with the `location` or `location_filter` indicator role. Thes
 ### Blockly Composer: Timing Trigger Socket
 Accepts primitives with the `timing_trigger` or `trigger` indicator role. These detect specific events or crosses — RSI crossing a level, moving average crossovers, breakouts. Examples: `rsi_cross_30_primitive`, `fib_signal_trigger_primitive`, `ma_crossover`, `golden_cross_50_200_sma`.
 
-### Blockly Composer: Pattern Gate Socket
-Optional socket that accepts primitives with `state_filter`, `regime_state`, or `pattern_gate` roles. Classifiers that label market behavior and act as permission gates. If connected, the composite only fires when the pattern gate also passes. Examples: `regime_filter`, `energy_state_primitive`.
+### Blockly Composer: Regime Filter Socket
+Optional socket that accepts primitives with `state_filter`, `regime_state`, or `pattern_gate` roles. Classifiers that label market behavior and act as permission gates. If connected, the composite only fires when the regime filter also passes. Examples: `regime_filter`, `energy_state_primitive`.
 
 ### Blockly Composer: Toolbox
 The left-side panel in the Blockly workspace containing all available primitives, organized by category:
@@ -656,7 +656,7 @@ The left-side panel in the Blockly workspace containing all available primitives
 - **Structure**: All anchor/structure primitives (blue)
 - **Location**: All location/zone primitives (green)
 - **Timing Trigger**: All timing/event primitives (orange)
-- **Pattern Gate**: All state filter/regime/classifier primitives (purple)
+- **Regime Filter**: All state filter/regime/classifier primitives (purple)
 
 Each primitive appears in exactly one category based on its `indicator_role`. The colored dots match the socket types, so you can visually identify which primitives fit which sockets.
 

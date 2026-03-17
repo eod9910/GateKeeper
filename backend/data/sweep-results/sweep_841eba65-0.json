@@ -36,6 +36,8 @@
         "profit_factor": 1.2655193019312947,
         "max_drawdown_pct": 36.730857647723305,
         "sharpe_ratio": 1.6549315208944415,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0.445
       }
     },
@@ -55,6 +57,8 @@
         "profit_factor": 1.2655193019312947,
         "max_drawdown_pct": 36.730857647723305,
         "sharpe_ratio": 1.6549315208944415,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0.445
       }
     },
@@ -74,6 +78,8 @@
         "profit_factor": 1.2655193019312947,
         "max_drawdown_pct": 36.730857647723305,
         "sharpe_ratio": 1.6549315208944415,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0.445
       }
     },
@@ -93,6 +99,8 @@
         "profit_factor": 1.2655193019312947,
         "max_drawdown_pct": 36.730857647723305,
         "sharpe_ratio": 1.6549315208944415,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0.445
       }
     },
@@ -112,6 +120,8 @@
         "profit_factor": 1.415860769804384,
         "max_drawdown_pct": 19.910394305154917,
         "sharpe_ratio": 2.4227132451547875,
+        "oos_degradation_pct": 0,
+        "pass_fail": "PASS",
         "fitness_score": 0.534
       }
     },
@@ -131,6 +141,8 @@
         "profit_factor": 1.3131646363984524,
         "max_drawdown_pct": 26.525331171930677,
         "sharpe_ratio": 1.9060568506355138,
+        "oos_degradation_pct": 0,
+        "pass_fail": "PASS",
         "fitness_score": 0.475
       }
     },
@@ -150,6 +162,8 @@
         "profit_factor": 1.347616812204288,
         "max_drawdown_pct": 17.572215391464365,
         "sharpe_ratio": 2.124118009005649,
+        "oos_degradation_pct": 0,
+        "pass_fail": "PASS",
         "fitness_score": 0.494
       }
     }
@@ -170,6 +184,8 @@
       "profit_factor": 1.415860769804384,
       "max_drawdown_pct": 19.910394305154917,
       "sharpe_ratio": 2.4227132451547875,
+      "oos_degradation_pct": 0,
+      "pass_fail": "PASS",
       "fitness_score": 0.534
     }
   },

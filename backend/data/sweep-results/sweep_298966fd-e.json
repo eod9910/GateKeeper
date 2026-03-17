@@ -36,6 +36,8 @@
         "profit_factor": 1.5027464131021548,
         "max_drawdown_pct": 53.39321651737694,
         "sharpe_ratio": 2.780522674850322,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0.384
       }
     },
@@ -128,6 +130,8 @@
       "profit_factor": 1.5027464131021548,
       "max_drawdown_pct": 53.39321651737694,
       "sharpe_ratio": 2.780522674850322,
+      "oos_degradation_pct": 0,
+      "pass_fail": "FAIL",
       "fitness_score": 0.384
     }
   },

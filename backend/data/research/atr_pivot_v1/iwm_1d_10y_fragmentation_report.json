@@ -1,0 +1,107 @@
+{
+  "symbol": "IWM",
+  "timeframe": "1d",
+  "period": "10y",
+  "reversal_multiple_atr": 2.0,
+  "total_motif_instances": 278,
+  "total_unique_family_signatures": 199,
+  "candidate_family_count": 1,
+  "component_unique_counts": {
+    "pivot_type_sequence": 2,
+    "pivot_label_sequence": 115,
+    "leg_direction_sequence": 2,
+    "retracement_bins": 32,
+    "pivot_type_plus_label": 115,
+    "pivot_type_label_direction": 115
+  },
+  "incremental_uniqueness": {
+    "pivot_type_sequence": 2,
+    "pivot_label_sequence_increment": 113,
+    "leg_direction_increment": 0,
+    "retracement_bins_increment": 84
+  },
+  "top_pivot_label_sequences": [
+    [
+      "HH-HL-HH-LL-LH",
+      11
+    ],
+    [
+      "HH-HL-HH-HL-HH",
+      9
+    ],
+    [
+      "HL-HH-HL-HH-HL",
+      8
+    ],
+    [
+      "LH-LL-HH-HL-HH",
+      7
+    ],
+    [
+      "HL-HH-LL-LH-LL",
+      7
+    ],
+    [
+      "LL-LH-LL-HH-HL",
+      7
+    ],
+    [
+      "HL-LH-LL-HH-HL",
+      6
+    ],
+    [
+      "HL-HH-HL-HH-LL",
+      6
+    ],
+    [
+      "HH-LL-LH-LL-HH",
+      6
+    ],
+    [
+      "LL-HH-HL-HH-LL",
+      5
+    ]
+  ],
+  "top_retracement_bin_groups": [
+    [
+      "R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+      24
+    ],
+    [
+      "R2:DEEP|R3:OVERDEEP|R4:DEEP",
+      19
+    ],
+    [
+      "R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+      18
+    ],
+    [
+      "R2:DEEP|R3:DEEP|R4:OVERDEEP",
+      18
+    ],
+    [
+      "R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+      17
+    ],
+    [
+      "R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      14
+    ],
+    [
+      "R2:OVERDEEP|R3:DEEP|R4:DEEP",
+      14
+    ],
+    [
+      "R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+      14
+    ],
+    [
+      "R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+      13
+    ],
+    [
+      "R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+      13
+    ]
+  ]
+}

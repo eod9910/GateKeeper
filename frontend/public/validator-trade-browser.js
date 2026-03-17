@@ -129,7 +129,9 @@ function tbNext() {
 
 function _tbRenderList() {
   const container = document.getElementById('tb-list-items');
+  const countEl = document.getElementById('tb-list-count');
   if (!container) return;
+  if (countEl) countEl.textContent = String(_tbFiltered.length || 0);
 
   if (_tbFiltered.length === 0) {
     container.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--color-text-subtle);white-space:nowrap;">No trades</div>';
@@ -140,9 +142,18 @@ function _tbRenderList() {
     const r = typeof t.R_multiple === 'number' ? t.R_multiple : 0;
     const cls = r > 0 ? 'win' : r < 0 ? 'loss' : 'be';
     const sign = r > 0 ? '+' : '';
-    return `<div class="tb-chip${i === _tbIndex ? ' active' : ''}" onclick="_tbShowTrade(${i})" title="${t.entry_time ? t.entry_time.slice(0,10) : ''}">
-      <span class="tb-chip-sym">${t.symbol || '?'}</span>
-      <span class="tb-chip-r ${cls}">${sign}${r.toFixed(2)}R</span>
+    const entryDate = t.entry_time ? String(t.entry_time).slice(0, 10) : 'N/A';
+    const exitReason = t.exit_reason || '—';
+    const timeframe = (t.timeframe || '').toUpperCase() || 'N/A';
+    return `<div class="tb-chip${i === _tbIndex ? ' active' : ''}" onclick="_tbShowTrade(${i})" title="${entryDate}">
+      <div class="tb-chip-main">
+        <span class="tb-chip-sym">${t.symbol || '?'}</span>
+        <span class="tb-chip-sub">${timeframe} · ${exitReason}</span>
+      </div>
+      <div class="tb-chip-side">
+        <span class="tb-chip-r ${cls}">${sign}${r.toFixed(2)}R</span>
+        <span class="tb-chip-date">${entryDate}</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -152,7 +163,7 @@ function _tbScrollListTo(index) {
   if (!container) return;
   const chips = container.querySelectorAll('.tb-chip');
   chips.forEach((el, i) => el.classList.toggle('active', i === index));
-  if (chips[index]) chips[index].scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  if (chips[index]) chips[index].scrollIntoView({ block: 'nearest' });
 }
 
 // ── Show a specific trade ─────────────────────────────────────────────────

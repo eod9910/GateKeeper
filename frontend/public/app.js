@@ -425,3 +425,218 @@ function toggleChat(panelId, gridId, collapsedClass) {
   setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 220);
 }
 window.toggleChat = toggleChat;
+
+// Global page help modal powered by the shared app reference.
+(function () {
+  var HELP_CACHE = Object.create(null);
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatInline(text) {
+    return escapeHtml(text)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  }
+
+  function markdownToHtml(markdown) {
+    var lines = String(markdown || '').replace(/\r/g, '').split('\n');
+    var html = [];
+    var paragraph = [];
+    var inList = false;
+
+    function flushParagraph() {
+      if (!paragraph.length) return;
+      html.push('<p>' + formatInline(paragraph.join(' ')) + '</p>');
+      paragraph = [];
+    }
+
+    function closeList() {
+      if (!inList) return;
+      html.push('</ul>');
+      inList = false;
+    }
+
+    lines.forEach(function (rawLine) {
+      var line = rawLine.trim();
+      if (!line) {
+        flushParagraph();
+        closeList();
+        return;
+      }
+
+      if (/^###\s+/.test(line)) {
+        flushParagraph();
+        closeList();
+        html.push('<h3>' + formatInline(line.replace(/^###\s+/, '')) + '</h3>');
+        return;
+      }
+
+      if (/^##\s+/.test(line)) {
+        flushParagraph();
+        closeList();
+        html.push('<h2>' + formatInline(line.replace(/^##\s+/, '')) + '</h2>');
+        return;
+      }
+
+      if (/^#\s+/.test(line)) {
+        flushParagraph();
+        closeList();
+        html.push('<h1>' + formatInline(line.replace(/^#\s+/, '')) + '</h1>');
+        return;
+      }
+
+      if (/^-\s+/.test(line)) {
+        flushParagraph();
+        if (!inList) {
+          html.push('<ul>');
+          inList = true;
+        }
+        html.push('<li>' + formatInline(line.replace(/^-\s+/, '')) + '</li>');
+        return;
+      }
+
+      paragraph.push(line);
+    });
+
+    flushParagraph();
+    closeList();
+    return html.join('');
+  }
+
+  function ensureHelpStyles() {
+    if (document.getElementById('global-page-help-styles')) return;
+    var style = document.createElement('style');
+    style.id = 'global-page-help-styles';
+    style.textContent = [
+      '.global-help-btn{position:fixed;right:20px;bottom:20px;z-index:1200;padding:10px 14px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text);font-family:var(--font-mono);font-size:var(--text-caption);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.28);}',
+      '.global-help-btn:hover{border-color:var(--color-accent);color:var(--color-accent);}',
+      '.global-help-overlay{position:fixed;inset:0;z-index:1250;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:24px;}',
+      '.global-help-overlay.open{display:flex;}',
+      '.global-help-modal{width:min(1100px,96vw);max-height:88vh;overflow:hidden;display:flex;flex-direction:column;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius);box-shadow:0 24px 64px rgba(0,0,0,.45);}',
+      '.global-help-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid var(--color-border);background:var(--color-surface);}',
+      '.global-help-title{font-size:var(--text-large);font-weight:700;color:var(--color-text);margin:0;}',
+      '.global-help-subtitle{font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:6px;}',
+      '.global-help-close{border:1px solid var(--color-border);background:var(--color-bg-subtle);color:var(--color-text);border-radius:var(--radius-sm);padding:6px 10px;cursor:pointer;font-family:var(--font-mono);}',
+      '.global-help-close:hover{border-color:var(--color-accent);color:var(--color-accent);}',
+      '.global-help-body{overflow:auto;padding:20px;display:flex;flex-direction:column;gap:18px;}',
+      '.global-help-intro{padding:14px 16px;border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);font-size:var(--text-small);line-height:1.6;color:var(--color-text);}',
+      '.global-help-section{border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);padding:16px;}',
+      '.global-help-section h2,.global-help-section h3,.global-help-section h1{margin:0 0 10px 0;font-size:var(--text-medium);color:var(--color-text);}',
+      '.global-help-section p{margin:0 0 10px 0;color:var(--color-text-muted);line-height:1.7;font-size:var(--text-small);}',
+      '.global-help-section ul{margin:0;padding-left:18px;color:var(--color-text-muted);}',
+      '.global-help-section li{margin:0 0 8px 0;line-height:1.7;font-size:var(--text-small);}',
+      '.global-help-section code{font-family:var(--font-mono);font-size:.9em;background:var(--color-bg-subtle);padding:1px 4px;border-radius:4px;color:var(--color-accent);}',
+      '.global-help-source{font-size:var(--text-caption);color:var(--color-text-subtle);padding:0 20px 16px 20px;}'
+    ].join('');
+    document.head.appendChild(style);
+  }
+
+  function ensureHelpUi() {
+    ensureHelpStyles();
+    if (document.getElementById('global-page-help-btn')) return;
+
+    var button = document.createElement('button');
+    button.id = 'global-page-help-btn';
+    button.className = 'global-help-btn';
+    button.type = 'button';
+    button.textContent = 'Help';
+    button.addEventListener('click', openPageHelp);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'global-page-help-overlay';
+    overlay.className = 'global-help-overlay';
+    overlay.innerHTML = [
+      '<div class="global-help-modal" role="dialog" aria-modal="true" aria-labelledby="global-help-title">',
+      '  <div class="global-help-header">',
+      '    <div>',
+      '      <h2 id="global-help-title" class="global-help-title">Page Help</h2>',
+      '      <div id="global-help-subtitle" class="global-help-subtitle">How to use this page</div>',
+      '    </div>',
+      '    <button type="button" class="global-help-close" id="global-help-close">Close</button>',
+      '  </div>',
+      '  <div class="global-help-body" id="global-help-body"><div class="global-help-intro">Loading help...</div></div>',
+      '  <div class="global-help-source" id="global-help-source"></div>',
+      '</div>'
+    ].join('');
+
+    overlay.addEventListener('click', function (event) {
+      if (event.target === overlay) closePageHelp();
+    });
+
+    document.body.appendChild(button);
+    document.body.appendChild(overlay);
+    document.getElementById('global-help-close').addEventListener('click', closePageHelp);
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closePageHelp();
+    });
+  }
+
+  function currentPageKey() {
+    return window.location.pathname || '/';
+  }
+
+  function renderHelpPayload(payload) {
+    var titleEl = document.getElementById('global-help-title');
+    var subtitleEl = document.getElementById('global-help-subtitle');
+    var bodyEl = document.getElementById('global-help-body');
+    var sourceEl = document.getElementById('global-help-source');
+    if (!titleEl || !subtitleEl || !bodyEl || !sourceEl) return;
+
+    titleEl.textContent = payload.title || 'Page Help';
+    subtitleEl.textContent = 'Canonical quick reference for the current page';
+
+    var parts = [];
+    if (payload.intro) {
+      parts.push('<div class="global-help-intro">' + formatInline(payload.intro) + '</div>');
+    }
+    (payload.sections || []).forEach(function (section) {
+      parts.push('<section class="global-help-section">' + markdownToHtml(section.markdown || '') + '</section>');
+    });
+    bodyEl.innerHTML = parts.join('') || '<div class="global-help-intro">No help content available for this page yet.</div>';
+    sourceEl.textContent = payload.source ? ('Source: ' + payload.source) : '';
+  }
+
+  async function loadPageHelp() {
+    var page = currentPageKey();
+    if (HELP_CACHE[page]) return HELP_CACHE[page];
+
+    var res = await fetch('/api/reference/page-help?page=' + encodeURIComponent(page));
+    var data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to load page help.');
+    }
+    HELP_CACHE[page] = data.data;
+    return data.data;
+  }
+
+  async function openPageHelp() {
+    ensureHelpUi();
+    var overlay = document.getElementById('global-page-help-overlay');
+    var bodyEl = document.getElementById('global-help-body');
+    if (!overlay || !bodyEl) return;
+    overlay.classList.add('open');
+    bodyEl.innerHTML = '<div class="global-help-intro">Loading help...</div>';
+
+    try {
+      var payload = await loadPageHelp();
+      renderHelpPayload(payload);
+    } catch (error) {
+      bodyEl.innerHTML = '<div class="global-help-intro">Help could not be loaded for this page. ' + escapeHtml(error && error.message ? error.message : 'Unknown error') + '</div>';
+    }
+  }
+
+  function closePageHelp() {
+    var overlay = document.getElementById('global-page-help-overlay');
+    if (overlay) overlay.classList.remove('open');
+  }
+
+  document.addEventListener('DOMContentLoaded', ensureHelpUi);
+})();
+

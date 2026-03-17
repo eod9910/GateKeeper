@@ -99,10 +99,10 @@ def _bars_to_ohlcv_list(bars: List[Dict[str, Any]]) -> List[OHLCV]:
     for b in bars:
         out.append(OHLCV(
             timestamp=str(b.get("timestamp") or ""),
-            open=_safe_float(b.get("open")),
-            high=_safe_float(b.get("high")),
-            low=_safe_float(b.get("low")),
-            close=_safe_float(b.get("close")),
+            open=_safe_float(b.get("open"), 0.0),
+            high=_safe_float(b.get("high"), 0.0),
+            low=_safe_float(b.get("low"), 0.0),
+            close=_safe_float(b.get("close"), 0.0),
             volume=_safe_float(b.get("volume"), 0.0),
         ))
     return out
@@ -166,6 +166,185 @@ def _get_signal_indices_from_primitive(
         print(f"[Validator] {symbol}: primitive {pattern_type} signal mode failed: {e}. Falling back.",
               file=sys.stderr)
         return _entry_signal_indices_from_spec(symbol, timeframe, bars, spec)
+
+
+_DENSITY_PATTERN_TYPES = {
+    "density_base_detector_v1_pattern",
+    "density_base_detector_v2_pattern",
+}
+
+
+def _split_path(path: str) -> List[str]:
+    return [segment for segment in str(path or "").split(".") if segment]
+
+
+def _get_nested_value(target: Any, path: str) -> Any:
+    current = target
+    for segment in _split_path(path):
+        if isinstance(current, list):
+            if not segment.isdigit():
+                return None
+            idx = int(segment)
+            if idx < 0 or idx >= len(current):
+                return None
+            current = current[idx]
+            continue
+        if not isinstance(current, dict) or segment not in current:
+            return None
+        current = current.get(segment)
+    return current
+
+
+def _set_nested_value(target: Any, path: str, value: Any) -> bool:
+    segments = _split_path(path)
+    if not segments:
+        return False
+
+    current = target
+    for segment in segments[:-1]:
+        if isinstance(current, list):
+            if not segment.isdigit():
+                return False
+            idx = int(segment)
+            if idx < 0 or idx >= len(current):
+                return False
+            current = current[idx]
+            continue
+        if not isinstance(current, dict):
+            return False
+        if segment not in current or current[segment] is None:
+            current[segment] = {}
+        current = current[segment]
+
+    leaf = segments[-1]
+    if isinstance(current, list):
+      if not leaf.isdigit():
+          return False
+      idx = int(leaf)
+      if idx < 0 or idx >= len(current):
+          return False
+      current[idx] = value
+      return True
+
+    if not isinstance(current, dict):
+        return False
+    current[leaf] = value
+    return True
+
+
+def _manifest_sensitivity_params(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    manifest = spec.get("parameter_manifest")
+    if not isinstance(manifest, list):
+        return []
+
+    params: List[Dict[str, Any]] = []
+    for item in manifest:
+        if not isinstance(item, dict):
+            continue
+        if item.get("sensitivity_enabled") is not True:
+            continue
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        value_type = str(item.get("type") or "float").strip().lower()
+        if value_type not in ("int", "float"):
+            continue
+        params.append({
+            "label": str(item.get("label") or path),
+            "path": path,
+            "type": value_type,
+            "min": item.get("min"),
+        })
+    return params
+
+
+def _resolve_sensitivity_params(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    manifest_params = _manifest_sensitivity_params(spec)
+    if manifest_params:
+        return manifest_params
+
+    setup_cfg = spec.get("setup_config") or {}
+    pattern_type = str(setup_cfg.get("pattern_type") or "").strip().lower()
+    if pattern_type in _DENSITY_PATTERN_TYPES:
+        return [
+            {"label": "Swing Lookback", "path": "setup_config.swing_lookback", "type": "int", "min": 1},
+            {"label": "Swing Lookahead", "path": "setup_config.swing_lookahead", "type": "int", "min": 1},
+            {"label": "Min Base Bars", "path": "setup_config.min_base_bars", "type": "int", "min": 1},
+        ]
+    return [
+        {"label": "RDP Epsilon %", "path": "structure_config.swing_epsilon_pct", "type": "float", "min": 0.0001},
+        {"label": "Stop Value", "path": "risk_config.stop_value", "type": "float", "min": 0.0001},
+        {"label": "Take Profit R", "path": "risk_config.take_profit_R", "type": "float", "min": 0.0001},
+    ]
+
+
+def _nudge_float(base: float, factor: float, minimum: float) -> float:
+    return max(minimum, base * factor)
+
+
+def _nudge_int(base: int, factor: float, minimum: int) -> int:
+    nudged = math.ceil(base * factor) if factor > 1.0 else math.floor(base * factor)
+    if nudged == base:
+        nudged = base + (1 if factor > 1.0 else -1)
+    return max(minimum, nudged)
+
+
+def _apply_sensitivity_nudge(spec: Dict[str, Any], param: str, factor: float) -> None:
+    if isinstance(param, dict) and param.get("path"):
+        path = str(param.get("path") or "").strip()
+        current = _get_nested_value(spec, path)
+        if current is None:
+            return
+        value_type = str(param.get("type") or "float").strip().lower()
+        minimum = float(param.get("min") or 0.0001)
+        if value_type == "int":
+            _set_nested_value(spec, path, _nudge_int(int(current), factor, max(1, int(minimum))))
+            return
+        _set_nested_value(spec, path, _nudge_float(float(current), factor, minimum))
+        return
+
+    if param in ("stop_value", "take_profit_R"):
+        rc = spec.setdefault("risk_config", {})
+        base = float(rc.get(param, 0.08 if param == "stop_value" else 2.0))
+        rc[param] = _nudge_float(base, factor, 0.0001)
+        return
+
+    if param == "swing_epsilon":
+        sc = spec.setdefault("structure_config", {})
+        base = float(sc.get("swing_epsilon_pct", 0.05))
+        sc["swing_epsilon_pct"] = _nudge_float(base, factor, 0.0001)
+        return
+
+    setup_cfg = spec.setdefault("setup_config", {})
+    if param == "min_drop_pct":
+        base = float(setup_cfg.get("min_drop_pct", 0.08))
+        setup_cfg["min_drop_pct"] = _nudge_float(base, factor, 0.0001)
+        return
+
+    if param == "min_score":
+        base = float(setup_cfg.get("min_score", 0.25))
+        setup_cfg["min_score"] = _nudge_float(base, factor, 0.0001)
+        return
+
+    if param == "swing_lookback":
+        base = int(setup_cfg.get("swing_lookback", 10))
+        setup_cfg["swing_lookback"] = _nudge_int(base, factor, 1)
+        return
+
+    if param == "swing_lookahead":
+        base = int(setup_cfg.get("swing_lookahead", 10))
+        setup_cfg["swing_lookahead"] = _nudge_int(base, factor, 1)
+        return
+
+    if param == "min_void_bars":
+        base = int(setup_cfg.get("min_void_bars", 8))
+        setup_cfg["min_void_bars"] = _nudge_int(base, factor, 1)
+        return
+
+    if param == "min_base_bars":
+        base = int(setup_cfg.get("min_base_bars", 5))
+        setup_cfg["min_base_bars"] = _nudge_int(base, factor, 1)
+        return
 
 
 _pipeline_start_time: float = 0.0
@@ -340,6 +519,8 @@ def _safe_int(x: Any, default: int) -> int:
 _TIER_TRADE_THRESHOLDS: Dict[str, Dict[str, int]] = {
     # Fast kill gate still requires meaningful evidence.
     "tier1": {"min_trades_pass": 300, "min_trades_fail": 200},
+    # Evidence expansion keeps the fast runtime but expects a broader sample.
+    "tier1b": {"min_trades_pass": 500, "min_trades_fail": 300},
     # Core validation expands evidence requirements.
     "tier2": {"min_trades_pass": 500, "min_trades_fail": 300},
     # Robustness/stress layer expects deeper sample size.
@@ -720,24 +901,33 @@ def _pass_fail(report: Dict[str, Any], thresholds: Dict[str, Any]) -> Dict[str, 
     return {"verdict": verdict, "reasons": reasons}
 
 
-def _pass_fail_tier1(report: Dict[str, Any], thresholds: Dict[str, Any]) -> Dict[str, Any]:
+def _pass_fail_tier1(
+    report: Dict[str, Any],
+    thresholds: Dict[str, Any],
+    tier_label: str = "Tier 1",
+) -> Dict[str, Any]:
     ts = report["trades_summary"]
     risk = report["risk_summary"]
     is_small = bool(thresholds.get("small_universe"))
-    reasons: List[str] = []
+    hard_reasons: List[str] = []
+    review_reasons: List[str] = []
 
     if ts["total_trades"] < thresholds["min_trades_fail"]:
-        reasons.append(f"Too few trades for Tier 1 confidence: {ts['total_trades']} < {thresholds['min_trades_fail']}")
+        review_reasons.append(
+            f"Too few trades for {tier_label} confidence: {ts['total_trades']} < {thresholds['min_trades_fail']}"
+        )
     if ts["expectancy_R"] <= thresholds.get("min_expectancy_R", 0.0):
         if is_small:
-            reasons.append(f"Expectancy below small-universe minimum: {ts['expectancy_R']:.3f}R < {thresholds['min_expectancy_R']:.2f}R")
+            hard_reasons.append(
+                f"Expectancy below small-universe minimum: {ts['expectancy_R']:.3f}R < {thresholds['min_expectancy_R']:.2f}R"
+            )
         elif ts["expectancy_R"] <= 0:
-            reasons.append(f"Expectancy not positive: {ts['expectancy_R']:.3f}R")
+            hard_reasons.append(f"Expectancy not positive: {ts['expectancy_R']:.3f}R")
     if ts["profit_factor"] < thresholds.get("min_profit_factor", 1.0):
-        reasons.append(f"Profit factor below threshold: {ts['profit_factor']:.3f} < {thresholds['min_profit_factor']:.2f}")
+        hard_reasons.append(f"Profit factor below threshold: {ts['profit_factor']:.3f} < {thresholds['min_profit_factor']:.2f}")
     if risk["max_drawdown_pct"] > thresholds["max_mc_p95_dd_pct"]:
-        reasons.append(
-            f"Drawdown above Tier 1 risk ceiling: {risk['max_drawdown_pct']:.1f}% > {thresholds['max_mc_p95_dd_pct']:.1f}%"
+        hard_reasons.append(
+            f"Drawdown above {tier_label} risk ceiling: {risk['max_drawdown_pct']:.1f}% > {thresholds['max_mc_p95_dd_pct']:.1f}%"
         )
     if is_small:
         avg_win = abs(ts.get("avg_win_R", 0.0))
@@ -745,17 +935,19 @@ def _pass_fail_tier1(report: Dict[str, Any], thresholds: Dict[str, Any]) -> Dict
         payoff = avg_win / avg_loss
         min_payoff = thresholds.get("min_payoff_ratio", 0.0)
         if min_payoff > 0 and payoff < min_payoff:
-            reasons.append(f"Payoff ratio below small-universe minimum: {payoff:.2f} < {min_payoff:.1f} (avg_win/avg_loss)")
+            hard_reasons.append(
+                f"Payoff ratio below small-universe minimum: {payoff:.2f} < {min_payoff:.1f} (avg_win/avg_loss)"
+            )
 
-    if reasons:
-        return {"verdict": "FAIL", "reasons": reasons}
+    if hard_reasons:
+        return {"verdict": "FAIL", "reasons": hard_reasons + review_reasons}
 
     pass_reasons: List[str] = []
     if ts["total_trades"] >= thresholds["min_trades_pass"]:
-        pass_reasons.append(f"Trade count meets Tier 1 pass threshold ({ts['total_trades']}).")
+        pass_reasons.append(f"Trade count meets {tier_label} pass threshold ({ts['total_trades']}).")
     else:
-        pass_reasons.append(
-            f"Trade count below Tier 1 pass threshold ({ts['total_trades']} < {thresholds['min_trades_pass']}); flagging for review."
+        review_reasons.append(
+            f"Trade count below {tier_label} pass threshold ({ts['total_trades']} < {thresholds['min_trades_pass']}); flagging for review."
         )
 
     if is_small:
@@ -765,11 +957,11 @@ def _pass_fail_tier1(report: Dict[str, Any], thresholds: Dict[str, Any]) -> Dict
             f"DD < {thresholds['max_mc_p95_dd_pct']:.0f}%."
         )
 
-    pass_reasons.append("Tier 1 robustness suite deferred to Tier 2/3 by design.")
+    pass_reasons.append(f"{tier_label} robustness suite deferred to Tier 2/3 by design.")
 
     if ts["total_trades"] >= thresholds["min_trades_pass"]:
         return {"verdict": "PASS", "reasons": pass_reasons}
-    return {"verdict": "NEEDS_REVIEW", "reasons": pass_reasons}
+    return {"verdict": "NEEDS_REVIEW", "reasons": review_reasons + pass_reasons}
 
 
 def _worker_init() -> None:
@@ -894,10 +1086,11 @@ def run_pipeline(
             fetch_date_start = earliest_str
 
     tier_key = str(validation_tier or "tier3").strip().lower()
-    if tier_key not in ("tier1", "tier2", "tier3"):
+    if tier_key not in ("tier1", "tier1b", "tier2", "tier3"):
         tier_key = "tier3"
     thresholds = _validator_thresholds(spec, tier_key, universe_size=len(symbols))
-    is_tier1_fast = tier_key == "tier1"
+    is_tier1_fast = tier_key in ("tier1", "tier1b")
+    evidence_tier_label = "Tier 1B" if tier_key == "tier1b" else "Tier 1"
     extra_passes_after_baseline = 0 if is_tier1_fast else 6
     baseline_progress_span = 0.60 if is_tier1_fast else 0.25
 
@@ -1091,7 +1284,7 @@ def run_pipeline(
                 partial_ts = _trade_summary(all_trades)
                 if partial_ts["total_trades"] >= thresholds["min_trades_fail"] and partial_ts["expectancy_R"] <= 0:
                     tier1_early_stop_reason = (
-                        f"Tier 1 early fail after {partial_ts['total_trades']} trades "
+                        f"{evidence_tier_label} early fail after {partial_ts['total_trades']} trades "
                         f"(expectancy={partial_ts['expectancy_R']:.3f}R)."
                     )
                 elif (
@@ -1100,7 +1293,7 @@ def run_pipeline(
                     and partial_ts["profit_factor"] >= 1.0
                 ):
                     tier1_early_stop_reason = (
-                        f"Tier 1 early pass evidence reached after {partial_ts['total_trades']} trades "
+                        f"{evidence_tier_label} early pass evidence reached after {partial_ts['total_trades']} trades "
                         f"(expectancy={partial_ts['expectancy_R']:.3f}R, pf={partial_ts['profit_factor']:.3f})."
                     )
 
@@ -1125,7 +1318,7 @@ def run_pipeline(
     risk = _risk_metrics(r_vals, r_to_pct=thresholds["r_to_pct"])
 
     if is_tier1_fast:
-        _emit_progress(0.90, "finalizing_report", "Tier 1 baseline complete. Building kill-test report...")
+        _emit_progress(0.90, "finalizing_report", f"{evidence_tier_label} baseline complete. Building evidence report...")
         oos = {
             "is_expectancy": ts["expectancy_R"],
             "is_n": ts["total_trades"],
@@ -1162,25 +1355,30 @@ def run_pipeline(
         mc = monte_carlo(all_trades, simulations=1000, seed=42, r_to_pct=thresholds["r_to_pct"])
         _emit_progress(0.55, "computing_robustness", "Monte Carlo complete...")
 
+        sensitivity_params = _resolve_sensitivity_params(spec)
+        sensitivity_param_paths = [str(param.get("path") or param.get("label") or "") for param in sensitivity_params]
+        sensitivity_param_map = {
+            str(param.get("path") or param.get("label") or ""): param
+            for param in sensitivity_params
+            if str(param.get("path") or param.get("label") or "")
+        }
         nudge_count = [0]
-        nudge_total = 6
+        nudge_total = max(1, len(sensitivity_params) * 2)
         _nudge_times: List[float] = []
 
-        _emit_progress(0.55, "parameter_sensitivity", f"Running parameter sensitivity (6 reruns across {n_symbols} symbols)...")
+        _emit_progress(
+            0.55,
+            "parameter_sensitivity",
+            f"Running parameter sensitivity ({nudge_total} reruns across {n_symbols} symbols)...",
+        )
 
-        def rerun_with_nudge(param: str, factor: float) -> float:
+        def rerun_with_nudge(param_path: str, factor: float) -> float:
             nudge_start = time.monotonic()
             nudge_count[0] += 1
             direction = "up" if factor > 1 else "down"
             spec2 = copy.deepcopy(spec)
-            if param in ("stop_value", "take_profit_R"):
-                rc = spec2.setdefault("risk_config", {})
-                base = float(rc.get(param, 0.08 if param == "stop_value" else 2.0))
-                rc[param] = base * factor
-            elif param == "swing_epsilon":
-                sc = spec2.setdefault("structure_config", {})
-                base = float(sc.get("swing_epsilon_pct", 0.05))
-                sc["swing_epsilon_pct"] = base * factor
+            descriptor = sensitivity_param_map.get(param_path, {"path": param_path, "label": param_path, "type": "float", "min": 0.0001})
+            _apply_sensitivity_nudge(spec2, descriptor, factor)
 
             ntrades: List[Dict[str, Any]] = []
             with ProcessPoolExecutor(max_workers=_N_BACKTEST_WORKERS, initializer=_worker_init) as nudge_exec:
@@ -1205,12 +1403,12 @@ def run_pipeline(
             _emit_progress(
                 0.55 + (nudge_count[0] / nudge_total) * 0.35,
                 "parameter_sensitivity",
-                f"Nudged {param} {direction} ({nudge_count[0]}/{nudge_total}) - {_format_eta(nudge_eta)}",
+                f"Nudged {descriptor.get('label', param_path)} {direction} ({nudge_count[0]}/{nudge_total}) - {_format_eta(nudge_eta)}",
                 eta_seconds=nudge_eta,
             )
             return expectancy(ntrades)
 
-        sens = parameter_sensitivity(ts["expectancy_R"], rerun_with_nudge, params=["swing_epsilon", "stop_value", "take_profit_R"])
+        sens = parameter_sensitivity(ts["expectancy_R"], rerun_with_nudge, params=sensitivity_param_paths)
     _emit_progress(0.92, "finalizing_report", "Building report...")
 
     symbols_counted = max(1, exec_totals["symbols_counted"])
@@ -1235,7 +1433,7 @@ def run_pipeline(
             },
             "max_concurrent_positions": max_concurrent if max_concurrent > 0 else None,
             "validation_thresholds": thresholds,
-            "tier_runtime_profile": "tier1_baseline_only" if is_tier1_fast else "full_robustness",
+            "tier_runtime_profile": f"{tier_key}_baseline_only" if is_tier1_fast else "full_robustness",
             "tier1_early_stop_reason": tier1_early_stop_reason,
             "tier1_symbols_processed": tier1_symbols_processed if is_tier1_fast else n_symbols,
         },
@@ -1273,7 +1471,7 @@ def run_pipeline(
         "created_at": datetime.utcnow().isoformat() + "Z",
     }
 
-    pf = _pass_fail_tier1(report, thresholds) if is_tier1_fast else _pass_fail(report, thresholds)
+    pf = _pass_fail_tier1(report, thresholds, evidence_tier_label) if is_tier1_fast else _pass_fail(report, thresholds)
     report["pass_fail"] = pf["verdict"]
     report["pass_fail_reasons"] = pf["reasons"]
     _emit_progress(0.95, "finalizing_report", "Done.")

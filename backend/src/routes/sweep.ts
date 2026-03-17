@@ -12,13 +12,42 @@ import {
   loadAllSweeps,
   SweepParamDef,
 } from '../services/sweepEngine';
-import { getAllStrategies } from '../services/storageService';
+import { getAllStrategies, getAllValidationReports } from '../services/storageService';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 const router = Router();
 
 void loadAllSweeps();
+
+type SweepStage = 'tier2' | 'tier2r' | 'tier3';
+
+function latestReportByTier(reports: any[], strategyVersionId: string, tier: string): any | null {
+  const matches = reports
+    .filter((report: any) =>
+      String(report?.strategy_version_id || '').trim() === strategyVersionId &&
+      String(report?.config?.validation_tier || '').trim().toLowerCase() === tier
+    )
+    .sort((a: any, b: any) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
+  return matches[0] || null;
+}
+
+function resolveSweepStage(reports: any[], strategyVersionId: string): { stage: SweepStage; title: string } | null {
+  const latestTier3 = latestReportByTier(reports, strategyVersionId, 'tier3');
+  if (latestTier3?.pass_fail === 'PASS') {
+    return { stage: 'tier3', title: 'Tier 3 baseline' };
+  }
+
+  const latestTier2 = latestReportByTier(reports, strategyVersionId, 'tier2');
+  if (latestTier2?.pass_fail === 'PASS') {
+    return { stage: 'tier2', title: 'Tier 2 candidate' };
+  }
+  if (latestTier2?.pass_fail === 'NEEDS_REVIEW') {
+    return { stage: 'tier2r', title: 'Tier 2 review candidate' };
+  }
+
+  return null;
+}
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -132,6 +161,18 @@ router.post('/run', async (req: Request, res: Response) => {
     if (maxValues === 0) return res.status(400).json({ success: false, error: 'At least one value is required' });
     if (maxValues > 20) return res.status(400).json({ success: false, error: 'Maximum 20 values per sweep' });
 
+    const requestedTier = String(tier || 'tier1').trim().toLowerCase();
+    if (requestedTier === 'tier3') {
+      const allReports = await getAllValidationReports();
+      const sweepStage = resolveSweepStage(allReports, strategy_version_id);
+      if (!sweepStage || sweepStage.stage !== 'tier3') {
+        return res.status(400).json({
+          success: false,
+          error: `Tier 3 sweep is only allowed for Tier 3 baselines. ${strategy_version_id} is not a Tier 3 baseline.`,
+        });
+      }
+    }
+
     const sweepId = await runSweep(
       strategy_version_id,
       params,
@@ -158,9 +199,10 @@ router.post('/:sweepId/promote', async (req: Request, res: Response) => {
   try {
     const sweep = getSweep(req.params.sweepId);
     if (!sweep) return res.status(404).json({ success: false, error: 'Sweep not found' });
-    if (!sweep.winner) return res.status(400).json({ success: false, error: 'No winner to promote' });
+    const variantId = typeof req.body?.variant_id === 'string' ? req.body.variant_id.trim() : '';
+    if (!variantId && !sweep.winner) return res.status(400).json({ success: false, error: 'No winner to promote' });
 
-    const newVersionId = await promoteWinner(req.params.sweepId, sweep.base_strategy_version_id);
+    const newVersionId = await promoteWinner(req.params.sweepId, sweep.base_strategy_version_id, variantId || undefined);
     res.json({ success: true, data: { strategy_version_id: newVersionId } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -170,8 +212,22 @@ router.post('/:sweepId/promote', async (req: Request, res: Response) => {
 router.get('/strategies/list', async (_req: Request, res: Response) => {
   try {
     const all = await getAllStrategies();
+    const allReports = await getAllValidationReports();
     const seenIds = new Set<string>();
     const filtered: any[] = [];
+
+    const pushIfSweepEligible = (candidate: any) => {
+      const strategyVersionId = String(candidate?.strategy_version_id || '').trim();
+      if (!strategyVersionId || seenIds.has(strategyVersionId)) return;
+      const sweepStage = resolveSweepStage(allReports, strategyVersionId);
+      if (!sweepStage) return;
+      seenIds.add(strategyVersionId);
+      filtered.push({
+        ...candidate,
+        sweep_stage: sweepStage.stage,
+        sweep_stage_title: sweepStage.title,
+      });
+    };
 
     // User-created strategies (not sweep variants, not research)
     all
@@ -180,8 +236,7 @@ router.get('/strategies/list', async (_req: Request, res: Response) => {
         !s.strategy_version_id?.startsWith('research_')
       )
       .forEach((s: any) => {
-        seenIds.add(s.strategy_version_id);
-        filtered.push({
+        pushIfSweepEligible({
           strategy_version_id: s.strategy_version_id,
           name: s.name || s.strategy_id,
           status: s.status,
@@ -190,23 +245,27 @@ router.get('/strategies/list', async (_req: Request, res: Response) => {
         });
       });
 
-    // Composite strategies from the pattern registry
+    // Registry strategies (composites, monolithics, and patterns)
     try {
       const registryPath = path.join(__dirname, '..', '..', 'data', 'patterns', 'registry.json');
       const registry = JSON.parse(await fs.readFile(registryPath, 'utf-8'));
       const patternsDir = path.join(__dirname, '..', '..', 'data', 'patterns');
       for (const entry of (registry.patterns || [])) {
-        if (entry.composition !== 'composite') continue;
+        const isValidRegistryStrategy =
+          entry.composition === 'composite' ||
+          entry.composition === 'monolithic' ||
+          entry.artifact_type === 'pattern';
+        if (!isValidRegistryStrategy) continue;
+        if (String(entry.status || '').toLowerCase() === 'rejected') continue;
         const vid = `${entry.pattern_id}_v1`;
-        if (seenIds.has(vid)) continue;
         try {
           const def = JSON.parse(await fs.readFile(path.join(patternsDir, entry.definition_file), 'utf-8'));
-          filtered.push({
+          pushIfSweepEligible({
             strategy_version_id: vid,
             name: entry.name || def.name || entry.pattern_id,
             status: entry.status || 'experimental',
             interval: def.suggested_timeframes?.[0] === 'W' ? '1wk' : '1d',
-            source: 'composite',
+            source: entry.composition || entry.artifact_type || 'registry',
           });
         } catch { /* definition file missing */ }
       }
@@ -216,8 +275,7 @@ router.get('/strategies/list', async (_req: Request, res: Response) => {
     all
       .filter((s: any) => s.strategy_version_id?.startsWith('research_'))
       .forEach((s: any) => {
-        if (seenIds.has(s.strategy_version_id)) return;
-        filtered.push({
+        pushIfSweepEligible({
           strategy_version_id: s.strategy_version_id,
           name: s.name || s.strategy_id,
           status: s.status,

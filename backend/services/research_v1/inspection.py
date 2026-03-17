@@ -274,22 +274,21 @@ def build_top_family_inspection_report(
     output_dir: Path,
     top_n: int = 10,
     min_count_filter: int = 5,
+    snippet_dir_name: str = "v2_family_snippets",
 ) -> Dict[str, object]:
     """Build an inspection-focused report for the v2 aggregation layer."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    snippets_dir = output_dir / "v2_family_snippets"
+    snippets_dir = output_dir / snippet_dir_name
     snippets_dir.mkdir(parents=True, exist_ok=True)
 
     pivots_by_id = {pivot.pivot_id: pivot for pivot in pivots}
     outcomes_by_motif = {outcome.motif_instance_id: outcome for outcome in outcomes}
-    split_by_motif, split_boundaries = assign_chronological_splits(outcomes)
+    _, split_boundaries = assign_chronological_splits(outcomes)
 
     motifs_by_v2_family: Dict[str, List[MotifInstanceRecord]] = defaultdict(list)
     for motif in motifs:
         family_signature_v2 = derive_family_signature_v2(motif.family_signature or "UNSPECIFIED")
         motifs_by_v2_family[family_signature_v2].append(motif)
-
-    stats_by_signature = {record.family_signature: record for record in family_stats_v2}
 
     top_by_occurrence = sorted(
         family_stats_v2,

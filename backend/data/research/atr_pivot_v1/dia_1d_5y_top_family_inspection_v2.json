@@ -1,0 +1,3607 @@
+{
+  "symbol": "DIA",
+  "timeframe": "1d",
+  "period": "5y",
+  "reversal_multiple_atr": 2.0,
+  "grouping_version": "v2",
+  "split_boundaries": {
+    "discovery": {
+      "count": 82,
+      "start_entry_bar_index": 40,
+      "end_entry_bar_index": 736,
+      "start_entry_timestamp": "2021-05-11 00:00:00-04:00",
+      "end_entry_timestamp": "2024-02-15 00:00:00-05:00"
+    },
+    "validation": {
+      "count": 27,
+      "start_entry_bar_index": 748,
+      "end_entry_bar_index": 1015,
+      "start_entry_timestamp": "2024-03-05 00:00:00-05:00",
+      "end_entry_timestamp": "2025-03-28 00:00:00-04:00"
+    },
+    "holdout": {
+      "count": 28,
+      "start_entry_bar_index": 1022,
+      "end_entry_bar_index": 1254,
+      "start_entry_timestamp": "2025-04-08 00:00:00-04:00",
+      "end_entry_timestamp": "2026-03-12 00:00:00-04:00"
+    }
+  },
+  "total_unique_families": 18,
+  "top_10_by_occurrence_count": [
+    {
+      "family_id": "family_000008",
+      "familySignatureV2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 25,
+      "occurrence_count": 25,
+      "valid10BarCount": 25,
+      "valid_10bar_count": 25
+    },
+    {
+      "family_id": "family_000015",
+      "familySignatureV2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 22,
+      "occurrence_count": 22,
+      "valid10BarCount": 21,
+      "valid_10bar_count": 21
+    },
+    {
+      "family_id": "family_000016",
+      "familySignatureV2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 20,
+      "occurrence_count": 20,
+      "valid10BarCount": 20,
+      "valid_10bar_count": 20
+    },
+    {
+      "family_id": "family_000005",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 14,
+      "occurrence_count": 14,
+      "valid10BarCount": 13,
+      "valid_10bar_count": 13
+    },
+    {
+      "family_id": "family_000002",
+      "familySignatureV2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 10,
+      "occurrence_count": 10,
+      "valid10BarCount": 10,
+      "valid_10bar_count": 10
+    },
+    {
+      "family_id": "family_000003",
+      "familySignatureV2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 8,
+      "occurrence_count": 8,
+      "valid10BarCount": 8,
+      "valid_10bar_count": 8
+    },
+    {
+      "family_id": "family_000014",
+      "familySignatureV2": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "family_signature_v2": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "occurrenceCount": 7,
+      "occurrence_count": 7,
+      "valid10BarCount": 7,
+      "valid_10bar_count": 7
+    },
+    {
+      "family_id": "family_000013",
+      "familySignatureV2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5
+    },
+    {
+      "family_id": "family_000012",
+      "familySignatureV2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "family_signature_v2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5
+    },
+    {
+      "family_id": "family_000007",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5
+    }
+  ],
+  "top_10_by_avg_forward_10_return_atr": [
+    {
+      "family_id": "family_000014",
+      "familySignatureV2": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "family_signature_v2": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "occurrenceCount": 7,
+      "occurrence_count": 7,
+      "valid10BarCount": 7,
+      "valid_10bar_count": 7,
+      "avg_forward_10_return_atr": 0.8732504089170844
+    },
+    {
+      "family_id": "family_000015",
+      "familySignatureV2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 22,
+      "occurrence_count": 22,
+      "valid10BarCount": 21,
+      "valid_10bar_count": 21,
+      "avg_forward_10_return_atr": 0.7159815959362266
+    },
+    {
+      "family_id": "family_000008",
+      "familySignatureV2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 25,
+      "occurrence_count": 25,
+      "valid10BarCount": 25,
+      "valid_10bar_count": 25,
+      "avg_forward_10_return_atr": 0.5807782950362546
+    },
+    {
+      "family_id": "family_000012",
+      "familySignatureV2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "family_signature_v2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5,
+      "avg_forward_10_return_atr": 0.528125606500023
+    },
+    {
+      "family_id": "family_000005",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 14,
+      "occurrence_count": 14,
+      "valid10BarCount": 13,
+      "valid_10bar_count": 13,
+      "avg_forward_10_return_atr": 0.3086340541133882
+    },
+    {
+      "family_id": "family_000002",
+      "familySignatureV2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 10,
+      "occurrence_count": 10,
+      "valid10BarCount": 10,
+      "valid_10bar_count": 10,
+      "avg_forward_10_return_atr": 0.23995047332610672
+    },
+    {
+      "family_id": "family_000016",
+      "familySignatureV2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 20,
+      "occurrence_count": 20,
+      "valid10BarCount": 20,
+      "valid_10bar_count": 20,
+      "avg_forward_10_return_atr": -0.06946494938515925
+    },
+    {
+      "family_id": "family_000007",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5,
+      "avg_forward_10_return_atr": -0.4464485109043913
+    },
+    {
+      "family_id": "family_000003",
+      "familySignatureV2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 8,
+      "occurrence_count": 8,
+      "valid10BarCount": 8,
+      "valid_10bar_count": 8,
+      "avg_forward_10_return_atr": -1.9826540417068736
+    },
+    {
+      "family_id": "family_000013",
+      "familySignatureV2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5,
+      "avg_forward_10_return_atr": -2.289622750699087
+    }
+  ],
+  "top_10_by_split_consistency": [
+    {
+      "family_id": "family_000008",
+      "familySignatureV2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 25,
+      "occurrence_count": 25,
+      "valid10BarCount": 25,
+      "valid_10bar_count": 25,
+      "split_consistency_score": [
+        1,
+        1,
+        5,
+        -26.749958929280076,
+        -75.58520141568734,
+        25,
+        0.5807782950362546
+      ]
+    },
+    {
+      "family_id": "family_000015",
+      "familySignatureV2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 22,
+      "occurrence_count": 22,
+      "valid10BarCount": 21,
+      "valid_10bar_count": 21,
+      "split_consistency_score": [
+        1,
+        1,
+        4,
+        -240.49004252952773,
+        -619.2201447061087,
+        21,
+        0.7159815959362266
+      ]
+    },
+    {
+      "family_id": "family_000016",
+      "familySignatureV2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 20,
+      "occurrence_count": 20,
+      "valid10BarCount": 20,
+      "valid_10bar_count": 20,
+      "split_consistency_score": [
+        0,
+        1,
+        4,
+        -358.7317762357488,
+        -959.9179901914365,
+        20,
+        0.06946494938515925
+      ]
+    },
+    {
+      "family_id": "family_000002",
+      "familySignatureV2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 10,
+      "occurrence_count": 10,
+      "valid10BarCount": 10,
+      "valid_10bar_count": 10,
+      "split_consistency_score": [
+        0,
+        1,
+        2,
+        -88.87158872341972,
+        -268.36945100071966,
+        10,
+        0.23995047332610672
+      ]
+    },
+    {
+      "family_id": "family_000005",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 14,
+      "occurrence_count": 14,
+      "valid10BarCount": 13,
+      "valid_10bar_count": 13,
+      "split_consistency_score": [
+        0,
+        1,
+        1,
+        -41.507755887374266,
+        -999999.0,
+        13,
+        0.3086340541133882
+      ]
+    },
+    {
+      "family_id": "family_000003",
+      "familySignatureV2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 8,
+      "occurrence_count": 8,
+      "valid10BarCount": 8,
+      "valid_10bar_count": 8,
+      "split_consistency_score": [
+        0,
+        1,
+        1,
+        -55.51242687657045,
+        -242.09441136704504,
+        8,
+        1.9826540417068736
+      ]
+    },
+    {
+      "family_id": "family_000012",
+      "familySignatureV2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "family_signature_v2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5,
+      "split_consistency_score": [
+        0,
+        1,
+        1,
+        -157.1994539655167,
+        -146.9227552102833,
+        5,
+        0.528125606500023
+      ]
+    },
+    {
+      "family_id": "family_000013",
+      "familySignatureV2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5,
+      "split_consistency_score": [
+        0,
+        0,
+        0,
+        -8.622083186558397,
+        -999999.0,
+        5,
+        2.289622750699087
+      ]
+    },
+    {
+      "family_id": "family_000017",
+      "familySignatureV2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_PRESENT",
+      "family_signature_v2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_PRESENT",
+      "occurrenceCount": 2,
+      "occurrence_count": 2,
+      "valid10BarCount": 2,
+      "valid_10bar_count": 2,
+      "split_consistency_score": [
+        0,
+        0,
+        0,
+        -148.14350355908164,
+        -999999.0,
+        2,
+        0.2894652352714516
+      ]
+    },
+    {
+      "family_id": "family_000007",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "valid10BarCount": 5,
+      "valid_10bar_count": 5,
+      "split_consistency_score": [
+        0,
+        0,
+        0,
+        -179.92182544943262,
+        -999999.0,
+        5,
+        0.4464485109043913
+      ]
+    }
+  ],
+  "inspected_family_count": 11,
+  "family_details": {
+    "family_000002": {
+      "family_id": "family_000002",
+      "familySignatureV2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 10,
+      "occurrence_count": 10,
+      "discoveryCount": 2,
+      "discovery_count": 2,
+      "validationCount": 4,
+      "validation_count": 4,
+      "holdoutCount": 4,
+      "holdout_count": 4,
+      "avgForward10ReturnAtr": 0.23995047332610672,
+      "avg_forward_10_return_atr": 0.23995047332610672,
+      "medianForward10ReturnAtr": 0.7526465740625866,
+      "median_forward_10_return_atr": 0.7526465740625866,
+      "hitPlus1AtrFirstRate": 0.4,
+      "hit_plus_1atr_first_rate": 0.4,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 4,
+      "discovery_avg_forward_10_return_atr": -0.5593718457582597,
+      "validation_avg_forward_10_return_atr": -0.06224919956137742,
+      "holdout_avg_forward_10_return_atr": 0.9418113057557742,
+      "discovery_hit_plus_1atr_first_rate": 0.0,
+      "validation_hit_plus_1atr_first_rate": 0.5,
+      "holdout_hit_plus_1atr_first_rate": 0.5,
+      "exact_signature_count": 4,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 7
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-EL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-EH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 7
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-EL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-EH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 7
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-EL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-EH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 10
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 1.9178980749213752,
+      "forward_10_min_atr": -2.7059446542946284,
+      "forward_10_max_atr": 3.14041841186294,
+      "internal_hit_plus_1atr_first_rate": 0.4,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000001",
+          "motifInstanceId": "motif_000001",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "startTimestamp": "2021-03-18 00:00:00-04:00",
+          "start_bar_index": 3,
+          "end_bar_index": 39,
+          "start_timestamp": "2021-03-18 00:00:00-04:00",
+          "endTimestamp": "2021-05-10 00:00:00-04:00",
+          "end_timestamp": "2021-05-10 00:00:00-04:00",
+          "entryBarIndex": 40,
+          "entry_bar_index": 40,
+          "entryTimestamp": "2021-05-11 00:00:00-04:00",
+          "entry_timestamp": "2021-05-11 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-03-18 00:00:00-04:00",
+            "2021-03-25 00:00:00-04:00",
+            "2021-04-16 00:00:00-04:00",
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.2903575281042097,
+          "forward_10_return_atr": 0.2903575281042097,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_01_motif_000001.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_01_motif_000001.svg"
+        },
+        {
+          "motif_instance_id": "motif_000135",
+          "motifInstanceId": "motif_000135",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-EL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "startTimestamp": "2026-01-12 00:00:00-05:00",
+          "start_bar_index": 1213,
+          "end_bar_index": 1233,
+          "start_timestamp": "2026-01-12 00:00:00-05:00",
+          "endTimestamp": "2026-02-10 00:00:00-05:00",
+          "end_timestamp": "2026-02-10 00:00:00-05:00",
+          "entryBarIndex": 1236,
+          "entry_bar_index": 1236,
+          "entryTimestamp": "2026-02-13 00:00:00-05:00",
+          "entry_timestamp": "2026-02-13 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2026-01-12 00:00:00-05:00",
+            "2026-01-20 00:00:00-05:00",
+            "2026-01-22 00:00:00-05:00",
+            "2026-01-30 00:00:00-05:00",
+            "2026-02-10 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -0.8894086828246863,
+          "forward_10_return_atr": -0.8894086828246863,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_02_motif_000135.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_02_motif_000135.svg"
+        },
+        {
+          "motif_instance_id": "motif_000053",
+          "motifInstanceId": "motif_000053",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2022-11-02 00:00:00-04:00",
+          "start_bar_index": 414,
+          "end_bar_index": 442,
+          "start_timestamp": "2022-11-02 00:00:00-04:00",
+          "endTimestamp": "2022-12-13 00:00:00-05:00",
+          "end_timestamp": "2022-12-13 00:00:00-05:00",
+          "entryBarIndex": 443,
+          "entry_bar_index": 443,
+          "entryTimestamp": "2022-12-14 00:00:00-05:00",
+          "entry_timestamp": "2022-12-14 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2022-11-02 00:00:00-04:00",
+            "2022-11-03 00:00:00-04:00",
+            "2022-12-01 00:00:00-05:00",
+            "2022-12-06 00:00:00-05:00",
+            "2022-12-13 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -1.409101219620729,
+          "forward_10_return_atr": -1.409101219620729,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_03_motif_000053.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_03_motif_000053.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000001",
+          "motifInstanceId": "motif_000001",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "startTimestamp": "2021-03-18 00:00:00-04:00",
+          "start_bar_index": 3,
+          "end_bar_index": 39,
+          "start_timestamp": "2021-03-18 00:00:00-04:00",
+          "endTimestamp": "2021-05-10 00:00:00-04:00",
+          "end_timestamp": "2021-05-10 00:00:00-04:00",
+          "entryBarIndex": 40,
+          "entry_bar_index": 40,
+          "entryTimestamp": "2021-05-11 00:00:00-04:00",
+          "entry_timestamp": "2021-05-11 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-03-18 00:00:00-04:00",
+            "2021-03-25 00:00:00-04:00",
+            "2021-04-16 00:00:00-04:00",
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.2903575281042097,
+          "forward_10_return_atr": 0.2903575281042097,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_01_motif_000001.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_01_motif_000001.svg"
+        },
+        {
+          "motif_instance_id": "motif_000135",
+          "motifInstanceId": "motif_000135",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-EL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "startTimestamp": "2026-01-12 00:00:00-05:00",
+          "start_bar_index": 1213,
+          "end_bar_index": 1233,
+          "start_timestamp": "2026-01-12 00:00:00-05:00",
+          "endTimestamp": "2026-02-10 00:00:00-05:00",
+          "end_timestamp": "2026-02-10 00:00:00-05:00",
+          "entryBarIndex": 1236,
+          "entry_bar_index": 1236,
+          "entryTimestamp": "2026-02-13 00:00:00-05:00",
+          "entry_timestamp": "2026-02-13 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2026-01-12 00:00:00-05:00",
+            "2026-01-20 00:00:00-05:00",
+            "2026-01-22 00:00:00-05:00",
+            "2026-01-30 00:00:00-05:00",
+            "2026-02-10 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -0.8894086828246863,
+          "forward_10_return_atr": -0.8894086828246863,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_02_motif_000135.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_02_motif_000135.svg"
+        },
+        {
+          "motif_instance_id": "motif_000053",
+          "motifInstanceId": "motif_000053",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2022-11-02 00:00:00-04:00",
+          "start_bar_index": 414,
+          "end_bar_index": 442,
+          "start_timestamp": "2022-11-02 00:00:00-04:00",
+          "endTimestamp": "2022-12-13 00:00:00-05:00",
+          "end_timestamp": "2022-12-13 00:00:00-05:00",
+          "entryBarIndex": 443,
+          "entry_bar_index": 443,
+          "entryTimestamp": "2022-12-14 00:00:00-05:00",
+          "entry_timestamp": "2022-12-14 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2022-11-02 00:00:00-04:00",
+            "2022-11-03 00:00:00-04:00",
+            "2022-12-01 00:00:00-05:00",
+            "2022-12-06 00:00:00-05:00",
+            "2022-12-13 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -1.409101219620729,
+          "forward_10_return_atr": -1.409101219620729,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_03_motif_000053.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000002\\family_000002_03_motif_000053.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-EL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-EH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP"
+      ]
+    },
+    "family_000003": {
+      "family_id": "family_000003",
+      "familySignatureV2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 8,
+      "occurrence_count": 8,
+      "discoveryCount": 6,
+      "discovery_count": 6,
+      "validationCount": 1,
+      "validation_count": 1,
+      "holdoutCount": 1,
+      "holdout_count": 1,
+      "avgForward10ReturnAtr": -1.9826540417068736,
+      "avg_forward_10_return_atr": -1.9826540417068736,
+      "medianForward10ReturnAtr": -2.123154613224402,
+      "median_forward_10_return_atr": -2.123154613224402,
+      "hitPlus1AtrFirstRate": 0.5,
+      "hit_plus_1atr_first_rate": 0.5,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 8,
+      "discovery_avg_forward_10_return_atr": -3.157135395355214,
+      "validation_avg_forward_10_return_atr": -1.4045329176143273,
+      "holdout_avg_forward_10_return_atr": 4.486112956090621,
+      "discovery_hit_plus_1atr_first_rate": 0.5,
+      "validation_hit_plus_1atr_first_rate": 0.0,
+      "holdout_hit_plus_1atr_first_rate": 1.0,
+      "exact_signature_count": 8,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-EL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-EH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-EL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-EL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-EH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-EL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-EL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-EH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-EL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-EH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 8
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 2.7938623325700678,
+      "forward_10_min_atr": -5.067217853198879,
+      "forward_10_max_atr": 4.486112956090621,
+      "internal_hit_plus_1atr_first_rate": 0.5,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000019",
+          "motifInstanceId": "motif_000019",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-EH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "startTimestamp": "2021-09-27 00:00:00-04:00",
+          "start_bar_index": 136,
+          "end_bar_index": 166,
+          "start_timestamp": "2021-09-27 00:00:00-04:00",
+          "endTimestamp": "2021-11-08 00:00:00-05:00",
+          "end_timestamp": "2021-11-08 00:00:00-05:00",
+          "entryBarIndex": 169,
+          "entry_bar_index": 169,
+          "entryTimestamp": "2021-11-11 00:00:00-05:00",
+          "entry_timestamp": "2021-11-11 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-09-27 00:00:00-04:00",
+            "2021-10-01 00:00:00-04:00",
+            "2021-10-07 00:00:00-04:00",
+            "2021-10-13 00:00:00-04:00",
+            "2021-11-08 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -3.383735058904684,
+          "forward_10_return_atr": -3.383735058904684,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_01_motif_000019.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_01_motif_000019.svg"
+        },
+        {
+          "motif_instance_id": "motif_000115",
+          "motifInstanceId": "motif_000115",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "startTimestamp": "2025-04-15 00:00:00-04:00",
+          "start_bar_index": 1027,
+          "end_bar_index": 1066,
+          "start_timestamp": "2025-04-15 00:00:00-04:00",
+          "endTimestamp": "2025-06-11 00:00:00-04:00",
+          "end_timestamp": "2025-06-11 00:00:00-04:00",
+          "entryBarIndex": 1072,
+          "entry_bar_index": 1072,
+          "entryTimestamp": "2025-06-20 00:00:00-04:00",
+          "entry_timestamp": "2025-06-20 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-04-15 00:00:00-04:00",
+            "2025-04-21 00:00:00-04:00",
+            "2025-05-19 00:00:00-04:00",
+            "2025-05-23 00:00:00-04:00",
+            "2025-06-11 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 4.486112956090621,
+          "forward_10_return_atr": 4.486112956090621,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_02_motif_000115.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_02_motif_000115.svg"
+        },
+        {
+          "motif_instance_id": "motif_000033",
+          "motifInstanceId": "motif_000033",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2022-03-03 00:00:00-05:00",
+          "start_bar_index": 245,
+          "end_bar_index": 279,
+          "start_timestamp": "2022-03-03 00:00:00-05:00",
+          "endTimestamp": "2022-04-21 00:00:00-04:00",
+          "end_timestamp": "2022-04-21 00:00:00-04:00",
+          "entryBarIndex": 280,
+          "entry_bar_index": 280,
+          "entryTimestamp": "2022-04-22 00:00:00-04:00",
+          "entry_timestamp": "2022-04-22 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2022-03-03 00:00:00-05:00",
+            "2022-03-08 00:00:00-05:00",
+            "2022-03-29 00:00:00-04:00",
+            "2022-04-12 00:00:00-04:00",
+            "2022-04-21 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -1.725945457372352,
+          "forward_10_return_atr": -1.725945457372352,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_03_motif_000033.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_03_motif_000033.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000019",
+          "motifInstanceId": "motif_000019",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-EH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "startTimestamp": "2021-09-27 00:00:00-04:00",
+          "start_bar_index": 136,
+          "end_bar_index": 166,
+          "start_timestamp": "2021-09-27 00:00:00-04:00",
+          "endTimestamp": "2021-11-08 00:00:00-05:00",
+          "end_timestamp": "2021-11-08 00:00:00-05:00",
+          "entryBarIndex": 169,
+          "entry_bar_index": 169,
+          "entryTimestamp": "2021-11-11 00:00:00-05:00",
+          "entry_timestamp": "2021-11-11 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-09-27 00:00:00-04:00",
+            "2021-10-01 00:00:00-04:00",
+            "2021-10-07 00:00:00-04:00",
+            "2021-10-13 00:00:00-04:00",
+            "2021-11-08 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -3.383735058904684,
+          "forward_10_return_atr": -3.383735058904684,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_01_motif_000019.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_01_motif_000019.svg"
+        },
+        {
+          "motif_instance_id": "motif_000115",
+          "motifInstanceId": "motif_000115",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "startTimestamp": "2025-04-15 00:00:00-04:00",
+          "start_bar_index": 1027,
+          "end_bar_index": 1066,
+          "start_timestamp": "2025-04-15 00:00:00-04:00",
+          "endTimestamp": "2025-06-11 00:00:00-04:00",
+          "end_timestamp": "2025-06-11 00:00:00-04:00",
+          "entryBarIndex": 1072,
+          "entry_bar_index": 1072,
+          "entryTimestamp": "2025-06-20 00:00:00-04:00",
+          "entry_timestamp": "2025-06-20 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-04-15 00:00:00-04:00",
+            "2025-04-21 00:00:00-04:00",
+            "2025-05-19 00:00:00-04:00",
+            "2025-05-23 00:00:00-04:00",
+            "2025-06-11 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 4.486112956090621,
+          "forward_10_return_atr": 4.486112956090621,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_02_motif_000115.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_02_motif_000115.svg"
+        },
+        {
+          "motif_instance_id": "motif_000033",
+          "motifInstanceId": "motif_000033",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2022-03-03 00:00:00-05:00",
+          "start_bar_index": 245,
+          "end_bar_index": 279,
+          "start_timestamp": "2022-03-03 00:00:00-05:00",
+          "endTimestamp": "2022-04-21 00:00:00-04:00",
+          "end_timestamp": "2022-04-21 00:00:00-04:00",
+          "entryBarIndex": 280,
+          "entry_bar_index": 280,
+          "entryTimestamp": "2022-04-22 00:00:00-04:00",
+          "entry_timestamp": "2022-04-22 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2022-03-03 00:00:00-05:00",
+            "2022-03-08 00:00:00-05:00",
+            "2022-03-29 00:00:00-04:00",
+            "2022-04-12 00:00:00-04:00",
+            "2022-04-21 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -1.725945457372352,
+          "forward_10_return_atr": -1.725945457372352,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_03_motif_000033.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000003\\family_000003_03_motif_000033.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-EL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-EH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:DEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|LH-EL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP"
+      ]
+    },
+    "family_000005": {
+      "family_id": "family_000005",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 14,
+      "occurrence_count": 14,
+      "discoveryCount": 10,
+      "discovery_count": 10,
+      "validationCount": 3,
+      "validation_count": 3,
+      "holdoutCount": 1,
+      "holdout_count": 1,
+      "avgForward10ReturnAtr": 0.3086340541133882,
+      "avg_forward_10_return_atr": 0.3086340541133882,
+      "medianForward10ReturnAtr": 0.7848651049288515,
+      "median_forward_10_return_atr": 0.7848651049288515,
+      "hitPlus1AtrFirstRate": 0.6923076923076923,
+      "hit_plus_1atr_first_rate": 0.6923076923076923,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 10,
+      "discovery_avg_forward_10_return_atr": 0.34132897683939634,
+      "validation_avg_forward_10_return_atr": 0.19965097836002746,
+      "holdout_avg_forward_10_return_atr": null,
+      "discovery_hit_plus_1atr_first_rate": 0.6,
+      "validation_hit_plus_1atr_first_rate": 1.0,
+      "holdout_hit_plus_1atr_first_rate": null,
+      "exact_signature_count": 10,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 3
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-EL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 3
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-EL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 3
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-EL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-EL-HH-LL-EH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 14
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 2.010794022889989,
+      "forward_10_min_atr": -2.993047863710276,
+      "forward_10_max_atr": 4.375195604842809,
+      "internal_hit_plus_1atr_first_rate": 0.6923076923076923,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000003",
+          "motifInstanceId": "motif_000003",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2021-04-16 00:00:00-04:00",
+          "start_bar_index": 23,
+          "end_bar_index": 44,
+          "start_timestamp": "2021-04-16 00:00:00-04:00",
+          "endTimestamp": "2021-05-17 00:00:00-04:00",
+          "end_timestamp": "2021-05-17 00:00:00-04:00",
+          "entryBarIndex": 46,
+          "entry_bar_index": 46,
+          "entryTimestamp": "2021-05-19 00:00:00-04:00",
+          "entry_timestamp": "2021-05-19 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-04-16 00:00:00-04:00",
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00",
+            "2021-05-17 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.8493327800230699,
+          "forward_10_return_atr": 1.8493327800230699,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_01_motif_000003.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_01_motif_000003.svg"
+        },
+        {
+          "motif_instance_id": "motif_000137",
+          "motifInstanceId": "motif_000137",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-EL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2026-01-22 00:00:00-05:00",
+          "start_bar_index": 1220,
+          "end_bar_index": 1252,
+          "start_timestamp": "2026-01-22 00:00:00-05:00",
+          "endTimestamp": "2026-03-10 00:00:00-04:00",
+          "end_timestamp": "2026-03-10 00:00:00-04:00",
+          "entryBarIndex": 1254,
+          "entry_bar_index": 1254,
+          "entryTimestamp": "2026-03-12 00:00:00-04:00",
+          "entry_timestamp": "2026-03-12 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2026-01-22 00:00:00-05:00",
+            "2026-01-30 00:00:00-05:00",
+            "2026-02-10 00:00:00-05:00",
+            "2026-03-09 00:00:00-04:00",
+            "2026-03-10 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": null,
+          "forward_10_return_atr": null,
+          "hit_plus_1atr_first": null,
+          "next_break_up": null,
+          "next_break_down": null,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_02_motif_000137.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_02_motif_000137.svg"
+        },
+        {
+          "motif_instance_id": "motif_000041",
+          "motifInstanceId": "motif_000041",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "startTimestamp": "2022-05-17 00:00:00-04:00",
+          "start_bar_index": 297,
+          "end_bar_index": 325,
+          "start_timestamp": "2022-05-17 00:00:00-04:00",
+          "endTimestamp": "2022-06-28 00:00:00-04:00",
+          "end_timestamp": "2022-06-28 00:00:00-04:00",
+          "entryBarIndex": 327,
+          "entry_bar_index": 327,
+          "entryTimestamp": "2022-06-30 00:00:00-04:00",
+          "entry_timestamp": "2022-06-30 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2022-05-17 00:00:00-04:00",
+            "2022-05-20 00:00:00-04:00",
+            "2022-06-01 00:00:00-04:00",
+            "2022-06-17 00:00:00-04:00",
+            "2022-06-28 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.7848651049288515,
+          "forward_10_return_atr": 0.7848651049288515,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_03_motif_000041.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_03_motif_000041.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000003",
+          "motifInstanceId": "motif_000003",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2021-04-16 00:00:00-04:00",
+          "start_bar_index": 23,
+          "end_bar_index": 44,
+          "start_timestamp": "2021-04-16 00:00:00-04:00",
+          "endTimestamp": "2021-05-17 00:00:00-04:00",
+          "end_timestamp": "2021-05-17 00:00:00-04:00",
+          "entryBarIndex": 46,
+          "entry_bar_index": 46,
+          "entryTimestamp": "2021-05-19 00:00:00-04:00",
+          "entry_timestamp": "2021-05-19 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-04-16 00:00:00-04:00",
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00",
+            "2021-05-17 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.8493327800230699,
+          "forward_10_return_atr": 1.8493327800230699,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_01_motif_000003.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_01_motif_000003.svg"
+        },
+        {
+          "motif_instance_id": "motif_000137",
+          "motifInstanceId": "motif_000137",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-EL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2026-01-22 00:00:00-05:00",
+          "start_bar_index": 1220,
+          "end_bar_index": 1252,
+          "start_timestamp": "2026-01-22 00:00:00-05:00",
+          "endTimestamp": "2026-03-10 00:00:00-04:00",
+          "end_timestamp": "2026-03-10 00:00:00-04:00",
+          "entryBarIndex": 1254,
+          "entry_bar_index": 1254,
+          "entryTimestamp": "2026-03-12 00:00:00-04:00",
+          "entry_timestamp": "2026-03-12 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2026-01-22 00:00:00-05:00",
+            "2026-01-30 00:00:00-05:00",
+            "2026-02-10 00:00:00-05:00",
+            "2026-03-09 00:00:00-04:00",
+            "2026-03-10 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": null,
+          "forward_10_return_atr": null,
+          "hit_plus_1atr_first": null,
+          "next_break_up": null,
+          "next_break_down": null,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_02_motif_000137.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_02_motif_000137.svg"
+        },
+        {
+          "motif_instance_id": "motif_000041",
+          "motifInstanceId": "motif_000041",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "startTimestamp": "2022-05-17 00:00:00-04:00",
+          "start_bar_index": 297,
+          "end_bar_index": 325,
+          "start_timestamp": "2022-05-17 00:00:00-04:00",
+          "endTimestamp": "2022-06-28 00:00:00-04:00",
+          "end_timestamp": "2022-06-28 00:00:00-04:00",
+          "entryBarIndex": 327,
+          "entry_bar_index": 327,
+          "entryTimestamp": "2022-06-30 00:00:00-04:00",
+          "entry_timestamp": "2022-06-30 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2022-05-17 00:00:00-04:00",
+            "2022-05-20 00:00:00-04:00",
+            "2022-06-01 00:00:00-04:00",
+            "2022-06-17 00:00:00-04:00",
+            "2022-06-28 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.7848651049288515,
+          "forward_10_return_atr": 0.7848651049288515,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_03_motif_000041.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000005\\family_000005_03_motif_000041.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "HIGH-LOW-HIGH-LOW-HIGH|EH-EL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-EH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-LL-LH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:DEEP"
+      ]
+    },
+    "family_000007": {
+      "family_id": "family_000007",
+      "familySignatureV2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "discoveryCount": 4,
+      "discovery_count": 4,
+      "validationCount": 1,
+      "validation_count": 1,
+      "holdoutCount": 0,
+      "holdout_count": 0,
+      "avgForward10ReturnAtr": -0.4464485109043913,
+      "avg_forward_10_return_atr": -0.4464485109043913,
+      "medianForward10ReturnAtr": 0.07091059277836725,
+      "median_forward_10_return_atr": 0.07091059277836725,
+      "hitPlus1AtrFirstRate": 0.2,
+      "hit_plus_1atr_first_rate": 0.2,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 4,
+      "discovery_avg_forward_10_return_atr": -0.697405425301592,
+      "validation_avg_forward_10_return_atr": 0.5573791466844116,
+      "holdout_avg_forward_10_return_atr": null,
+      "discovery_hit_plus_1atr_first_rate": 0.25,
+      "validation_hit_plus_1atr_first_rate": 0.0,
+      "holdout_hit_plus_1atr_first_rate": null,
+      "exact_signature_count": 4,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-EL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-EL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-EL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 5
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 2.1833670674743337,
+      "forward_10_min_atr": -3.655110221421969,
+      "forward_10_max_atr": 2.7254677072481703,
+      "internal_hit_plus_1atr_first_rate": 0.2,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000021",
+          "motifInstanceId": "motif_000021",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-EL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "startTimestamp": "2021-10-07 00:00:00-04:00",
+          "start_bar_index": 144,
+          "end_bar_index": 193,
+          "start_timestamp": "2021-10-07 00:00:00-04:00",
+          "endTimestamp": "2021-12-16 00:00:00-05:00",
+          "end_timestamp": "2021-12-16 00:00:00-05:00",
+          "entryBarIndex": 194,
+          "entry_bar_index": 194,
+          "entryTimestamp": "2021-12-17 00:00:00-05:00",
+          "entry_timestamp": "2021-12-17 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-10-07 00:00:00-04:00",
+            "2021-10-13 00:00:00-04:00",
+            "2021-11-08 00:00:00-05:00",
+            "2021-12-01 00:00:00-05:00",
+            "2021-12-16 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 2.7254677072481703,
+          "forward_10_return_atr": 2.7254677072481703,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_01_motif_000021.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_01_motif_000021.svg"
+        },
+        {
+          "motif_instance_id": "motif_000093",
+          "motifInstanceId": "motif_000093",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP",
+          "startTimestamp": "2024-06-12 00:00:00-04:00",
+          "start_bar_index": 817,
+          "end_bar_index": 850,
+          "start_timestamp": "2024-06-12 00:00:00-04:00",
+          "endTimestamp": "2024-07-31 00:00:00-04:00",
+          "end_timestamp": "2024-07-31 00:00:00-04:00",
+          "entryBarIndex": 851,
+          "entry_bar_index": 851,
+          "entryTimestamp": "2024-08-01 00:00:00-04:00",
+          "entry_timestamp": "2024-08-01 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2024-06-12 00:00:00-04:00",
+            "2024-06-14 00:00:00-04:00",
+            "2024-07-18 00:00:00-04:00",
+            "2024-07-24 00:00:00-04:00",
+            "2024-07-31 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.5573791466844116,
+          "forward_10_return_atr": 0.5573791466844116,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_02_motif_000093.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_02_motif_000093.svg"
+        },
+        {
+          "motif_instance_id": "motif_000073",
+          "motifInstanceId": "motif_000073",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "startTimestamp": "2023-06-30 00:00:00-04:00",
+          "start_bar_index": 578,
+          "end_bar_index": 621,
+          "start_timestamp": "2023-06-30 00:00:00-04:00",
+          "endTimestamp": "2023-08-31 00:00:00-04:00",
+          "end_timestamp": "2023-08-31 00:00:00-04:00",
+          "entryBarIndex": 624,
+          "entry_bar_index": 624,
+          "entryTimestamp": "2023-09-06 00:00:00-04:00",
+          "entry_timestamp": "2023-09-06 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2023-06-30 00:00:00-04:00",
+            "2023-07-10 00:00:00-04:00",
+            "2023-08-01 00:00:00-04:00",
+            "2023-08-25 00:00:00-04:00",
+            "2023-08-31 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.07091059277836725,
+          "forward_10_return_atr": 0.07091059277836725,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_03_motif_000073.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_03_motif_000073.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000021",
+          "motifInstanceId": "motif_000021",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-EL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "startTimestamp": "2021-10-07 00:00:00-04:00",
+          "start_bar_index": 144,
+          "end_bar_index": 193,
+          "start_timestamp": "2021-10-07 00:00:00-04:00",
+          "endTimestamp": "2021-12-16 00:00:00-05:00",
+          "end_timestamp": "2021-12-16 00:00:00-05:00",
+          "entryBarIndex": 194,
+          "entry_bar_index": 194,
+          "entryTimestamp": "2021-12-17 00:00:00-05:00",
+          "entry_timestamp": "2021-12-17 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-10-07 00:00:00-04:00",
+            "2021-10-13 00:00:00-04:00",
+            "2021-11-08 00:00:00-05:00",
+            "2021-12-01 00:00:00-05:00",
+            "2021-12-16 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 2.7254677072481703,
+          "forward_10_return_atr": 2.7254677072481703,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_01_motif_000021.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_01_motif_000021.svg"
+        },
+        {
+          "motif_instance_id": "motif_000093",
+          "motifInstanceId": "motif_000093",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP",
+          "startTimestamp": "2024-06-12 00:00:00-04:00",
+          "start_bar_index": 817,
+          "end_bar_index": 850,
+          "start_timestamp": "2024-06-12 00:00:00-04:00",
+          "endTimestamp": "2024-07-31 00:00:00-04:00",
+          "end_timestamp": "2024-07-31 00:00:00-04:00",
+          "entryBarIndex": 851,
+          "entry_bar_index": 851,
+          "entryTimestamp": "2024-08-01 00:00:00-04:00",
+          "entry_timestamp": "2024-08-01 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2024-06-12 00:00:00-04:00",
+            "2024-06-14 00:00:00-04:00",
+            "2024-07-18 00:00:00-04:00",
+            "2024-07-24 00:00:00-04:00",
+            "2024-07-31 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.5573791466844116,
+          "forward_10_return_atr": 0.5573791466844116,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_02_motif_000093.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_02_motif_000093.svg"
+        },
+        {
+          "motif_instance_id": "motif_000073",
+          "motifInstanceId": "motif_000073",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "startTimestamp": "2023-06-30 00:00:00-04:00",
+          "start_bar_index": 578,
+          "end_bar_index": 621,
+          "start_timestamp": "2023-06-30 00:00:00-04:00",
+          "endTimestamp": "2023-08-31 00:00:00-04:00",
+          "end_timestamp": "2023-08-31 00:00:00-04:00",
+          "entryBarIndex": 624,
+          "entry_bar_index": 624,
+          "entryTimestamp": "2023-09-06 00:00:00-04:00",
+          "entry_timestamp": "2023-09-06 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2023-06-30 00:00:00-04:00",
+            "2023-07-10 00:00:00-04:00",
+            "2023-08-01 00:00:00-04:00",
+            "2023-08-25 00:00:00-04:00",
+            "2023-08-31 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.07091059277836725,
+          "forward_10_return_atr": 0.07091059277836725,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_03_motif_000073.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000007\\family_000007_03_motif_000073.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-EL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:MEDIUM",
+        "HIGH-LOW-HIGH-LOW-HIGH|LH-HL-HH-HL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:DEEP"
+      ]
+    },
+    "family_000008": {
+      "family_id": "family_000008",
+      "familySignatureV2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 25,
+      "occurrence_count": 25,
+      "discoveryCount": 13,
+      "discovery_count": 13,
+      "validationCount": 5,
+      "validation_count": 5,
+      "holdoutCount": 7,
+      "holdout_count": 7,
+      "avgForward10ReturnAtr": 0.5807782950362546,
+      "avg_forward_10_return_atr": 0.5807782950362546,
+      "medianForward10ReturnAtr": 0.7913720191083058,
+      "median_forward_10_return_atr": 0.7913720191083058,
+      "hitPlus1AtrFirstRate": 0.48,
+      "hit_plus_1atr_first_rate": 0.48,
+      "signConsistencyAcrossSplits": true,
+      "sign_consistent_across_splits": true,
+      "numberOfExactSignaturesContained": 19,
+      "discovery_avg_forward_10_return_atr": 0.5014756195118084,
+      "validation_avg_forward_10_return_atr": 0.3673310972520468,
+      "holdout_avg_forward_10_return_atr": 0.8805169765703746,
+      "discovery_hit_plus_1atr_first_rate": 0.5384615384615384,
+      "validation_hit_plus_1atr_first_rate": 0.2,
+      "holdout_hit_plus_1atr_first_rate": 0.5714285714285714,
+      "exact_signature_count": 19,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 4
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 4
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 4
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-EH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-LH-EL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-LH-HL-EH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-EH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-LH-EL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-LH-HL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 25
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 1.9456353068804741,
+      "forward_10_min_atr": -4.324668530084625,
+      "forward_10_max_atr": 3.652786290652497,
+      "internal_hit_plus_1atr_first_rate": 0.48,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000005",
+          "motifInstanceId": "motif_000005",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-LH-EL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2021-05-10 00:00:00-04:00",
+          "start_bar_index": 39,
+          "end_bar_index": 54,
+          "start_timestamp": "2021-05-10 00:00:00-04:00",
+          "endTimestamp": "2021-06-01 00:00:00-04:00",
+          "end_timestamp": "2021-06-01 00:00:00-04:00",
+          "entryBarIndex": 63,
+          "entry_bar_index": 63,
+          "entryTimestamp": "2021-06-14 00:00:00-04:00",
+          "entry_timestamp": "2021-06-14 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00",
+            "2021-05-17 00:00:00-04:00",
+            "2021-05-19 00:00:00-04:00",
+            "2021-06-01 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -0.33996101457286504,
+          "forward_10_return_atr": -0.33996101457286504,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_01_motif_000005.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_01_motif_000005.svg"
+        },
+        {
+          "motif_instance_id": "motif_000131",
+          "motifInstanceId": "motif_000131",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "startTimestamp": "2025-11-12 00:00:00-05:00",
+          "start_bar_index": 1173,
+          "end_bar_index": 1213,
+          "start_timestamp": "2025-11-12 00:00:00-05:00",
+          "endTimestamp": "2026-01-12 00:00:00-05:00",
+          "end_timestamp": "2026-01-12 00:00:00-05:00",
+          "entryBarIndex": 1218,
+          "entry_bar_index": 1218,
+          "entryTimestamp": "2026-01-20 00:00:00-05:00",
+          "entry_timestamp": "2026-01-20 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2025-11-12 00:00:00-05:00",
+            "2025-11-20 00:00:00-05:00",
+            "2025-12-12 00:00:00-05:00",
+            "2026-01-02 00:00:00-05:00",
+            "2026-01-12 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 1.469199335361871,
+          "forward_10_return_atr": 1.469199335361871,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_02_motif_000131.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_02_motif_000131.svg"
+        },
+        {
+          "motif_instance_id": "motif_000061",
+          "motifInstanceId": "motif_000061",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2023-02-14 00:00:00-05:00",
+          "start_bar_index": 484,
+          "end_bar_index": 525,
+          "start_timestamp": "2023-02-14 00:00:00-05:00",
+          "endTimestamp": "2023-04-14 00:00:00-04:00",
+          "end_timestamp": "2023-04-14 00:00:00-04:00",
+          "entryBarIndex": 533,
+          "entry_bar_index": 533,
+          "entryTimestamp": "2023-04-26 00:00:00-04:00",
+          "entry_timestamp": "2023-04-26 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2023-02-14 00:00:00-05:00",
+            "2023-03-01 00:00:00-05:00",
+            "2023-03-06 00:00:00-05:00",
+            "2023-03-15 00:00:00-04:00",
+            "2023-04-14 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.7913720191083058,
+          "forward_10_return_atr": 0.7913720191083058,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_03_motif_000061.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_03_motif_000061.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000005",
+          "motifInstanceId": "motif_000005",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-LH-EL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2021-05-10 00:00:00-04:00",
+          "start_bar_index": 39,
+          "end_bar_index": 54,
+          "start_timestamp": "2021-05-10 00:00:00-04:00",
+          "endTimestamp": "2021-06-01 00:00:00-04:00",
+          "end_timestamp": "2021-06-01 00:00:00-04:00",
+          "entryBarIndex": 63,
+          "entry_bar_index": 63,
+          "entryTimestamp": "2021-06-14 00:00:00-04:00",
+          "entry_timestamp": "2021-06-14 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00",
+            "2021-05-17 00:00:00-04:00",
+            "2021-05-19 00:00:00-04:00",
+            "2021-06-01 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -0.33996101457286504,
+          "forward_10_return_atr": -0.33996101457286504,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_01_motif_000005.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_01_motif_000005.svg"
+        },
+        {
+          "motif_instance_id": "motif_000131",
+          "motifInstanceId": "motif_000131",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+          "startTimestamp": "2025-11-12 00:00:00-05:00",
+          "start_bar_index": 1173,
+          "end_bar_index": 1213,
+          "start_timestamp": "2025-11-12 00:00:00-05:00",
+          "endTimestamp": "2026-01-12 00:00:00-05:00",
+          "end_timestamp": "2026-01-12 00:00:00-05:00",
+          "entryBarIndex": 1218,
+          "entry_bar_index": 1218,
+          "entryTimestamp": "2026-01-20 00:00:00-05:00",
+          "entry_timestamp": "2026-01-20 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2025-11-12 00:00:00-05:00",
+            "2025-11-20 00:00:00-05:00",
+            "2025-12-12 00:00:00-05:00",
+            "2026-01-02 00:00:00-05:00",
+            "2026-01-12 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 1.469199335361871,
+          "forward_10_return_atr": 1.469199335361871,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_02_motif_000131.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_02_motif_000131.svg"
+        },
+        {
+          "motif_instance_id": "motif_000061",
+          "motifInstanceId": "motif_000061",
+          "exact_signature": "HIGH-LOW-HIGH-LOW-HIGH|EH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2023-02-14 00:00:00-05:00",
+          "start_bar_index": 484,
+          "end_bar_index": 525,
+          "start_timestamp": "2023-02-14 00:00:00-05:00",
+          "endTimestamp": "2023-04-14 00:00:00-04:00",
+          "end_timestamp": "2023-04-14 00:00:00-04:00",
+          "entryBarIndex": 533,
+          "entry_bar_index": 533,
+          "entryTimestamp": "2023-04-26 00:00:00-04:00",
+          "entry_timestamp": "2023-04-26 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2023-02-14 00:00:00-05:00",
+            "2023-03-01 00:00:00-05:00",
+            "2023-03-06 00:00:00-05:00",
+            "2023-03-15 00:00:00-04:00",
+            "2023-04-14 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.7913720191083058,
+          "forward_10_return_atr": 0.7913720191083058,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_03_motif_000061.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000008\\family_000008_03_motif_000061.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "HIGH-LOW-HIGH-LOW-HIGH|EH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|EH-LL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-LH-LL-HH|DOWN-UP-DOWN-UP|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+        "HIGH-LOW-HIGH-LOW-HIGH|HH-LL-EH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP"
+      ]
+    },
+    "family_000012": {
+      "family_id": "family_000012",
+      "familySignatureV2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "family_signature_v2": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "discoveryCount": 1,
+      "discovery_count": 1,
+      "validationCount": 2,
+      "validation_count": 2,
+      "holdoutCount": 2,
+      "holdout_count": 2,
+      "avgForward10ReturnAtr": 0.528125606500023,
+      "avg_forward_10_return_atr": 0.528125606500023,
+      "medianForward10ReturnAtr": 0.9849020405707224,
+      "median_forward_10_return_atr": 0.9849020405707224,
+      "hitPlus1AtrFirstRate": 0.6,
+      "hit_plus_1atr_first_rate": 0.6,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 3,
+      "discovery_avg_forward_10_return_atr": -2.4395050319572267,
+      "validation_avg_forward_10_return_atr": 1.3953835577408378,
+      "holdout_avg_forward_10_return_atr": 1.1446829744878333,
+      "discovery_hit_plus_1atr_first_rate": 0.0,
+      "validation_hit_plus_1atr_first_rate": 0.5,
+      "holdout_hit_plus_1atr_first_rate": 1.0,
+      "exact_signature_count": 3,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 5
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 1.7954787624880557,
+      "forward_10_min_atr": -2.4395050319572267,
+      "forward_10_max_atr": 2.6793392048079188,
+      "internal_hit_plus_1atr_first_rate": 0.6,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000052",
+          "motifInstanceId": "motif_000052",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2022-10-13 00:00:00-04:00",
+          "start_bar_index": 400,
+          "end_bar_index": 437,
+          "start_timestamp": "2022-10-13 00:00:00-04:00",
+          "endTimestamp": "2022-12-06 00:00:00-05:00",
+          "end_timestamp": "2022-12-06 00:00:00-05:00",
+          "entryBarIndex": 442,
+          "entry_bar_index": 442,
+          "entryTimestamp": "2022-12-13 00:00:00-05:00",
+          "entry_timestamp": "2022-12-13 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2022-10-13 00:00:00-04:00",
+            "2022-11-02 00:00:00-04:00",
+            "2022-11-03 00:00:00-04:00",
+            "2022-12-01 00:00:00-05:00",
+            "2022-12-06 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -2.4395050319572267,
+          "forward_10_return_atr": -2.4395050319572267,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_01_motif_000052.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_01_motif_000052.svg"
+        },
+        {
+          "motif_instance_id": "motif_000118",
+          "motifInstanceId": "motif_000118",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2025-05-23 00:00:00-04:00",
+          "start_bar_index": 1054,
+          "end_bar_index": 1089,
+          "start_timestamp": "2025-05-23 00:00:00-04:00",
+          "endTimestamp": "2025-07-16 00:00:00-04:00",
+          "end_timestamp": "2025-07-16 00:00:00-04:00",
+          "entryBarIndex": 1092,
+          "entry_bar_index": 1092,
+          "entryTimestamp": "2025-07-21 00:00:00-04:00",
+          "entry_timestamp": "2025-07-21 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-05-23 00:00:00-04:00",
+            "2025-06-11 00:00:00-04:00",
+            "2025-06-23 00:00:00-04:00",
+            "2025-07-03 00:00:00-04:00",
+            "2025-07-16 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -0.389973255832252,
+          "forward_10_return_atr": -0.389973255832252,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_02_motif_000118.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_02_motif_000118.svg"
+        },
+        {
+          "motif_instance_id": "motif_000084",
+          "motifInstanceId": "motif_000084",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2024-01-17 00:00:00-05:00",
+          "start_bar_index": 715,
+          "end_bar_index": 748,
+          "start_timestamp": "2024-01-17 00:00:00-05:00",
+          "endTimestamp": "2024-03-05 00:00:00-05:00",
+          "end_timestamp": "2024-03-05 00:00:00-05:00",
+          "entryBarIndex": 753,
+          "entry_bar_index": 753,
+          "entryTimestamp": "2024-03-12 00:00:00-04:00",
+          "entry_timestamp": "2024-03-12 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2024-01-17 00:00:00-05:00",
+            "2024-02-12 00:00:00-05:00",
+            "2024-02-13 00:00:00-05:00",
+            "2024-02-23 00:00:00-05:00",
+            "2024-03-05 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 0.9849020405707224,
+          "forward_10_return_atr": 0.9849020405707224,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_03_motif_000084.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_03_motif_000084.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000052",
+          "motifInstanceId": "motif_000052",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2022-10-13 00:00:00-04:00",
+          "start_bar_index": 400,
+          "end_bar_index": 437,
+          "start_timestamp": "2022-10-13 00:00:00-04:00",
+          "endTimestamp": "2022-12-06 00:00:00-05:00",
+          "end_timestamp": "2022-12-06 00:00:00-05:00",
+          "entryBarIndex": 442,
+          "entry_bar_index": 442,
+          "entryTimestamp": "2022-12-13 00:00:00-05:00",
+          "entry_timestamp": "2022-12-13 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2022-10-13 00:00:00-04:00",
+            "2022-11-02 00:00:00-04:00",
+            "2022-11-03 00:00:00-04:00",
+            "2022-12-01 00:00:00-05:00",
+            "2022-12-06 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -2.4395050319572267,
+          "forward_10_return_atr": -2.4395050319572267,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_01_motif_000052.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_01_motif_000052.svg"
+        },
+        {
+          "motif_instance_id": "motif_000118",
+          "motifInstanceId": "motif_000118",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2025-05-23 00:00:00-04:00",
+          "start_bar_index": 1054,
+          "end_bar_index": 1089,
+          "start_timestamp": "2025-05-23 00:00:00-04:00",
+          "endTimestamp": "2025-07-16 00:00:00-04:00",
+          "end_timestamp": "2025-07-16 00:00:00-04:00",
+          "entryBarIndex": 1092,
+          "entry_bar_index": 1092,
+          "entryTimestamp": "2025-07-21 00:00:00-04:00",
+          "entry_timestamp": "2025-07-21 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-05-23 00:00:00-04:00",
+            "2025-06-11 00:00:00-04:00",
+            "2025-06-23 00:00:00-04:00",
+            "2025-07-03 00:00:00-04:00",
+            "2025-07-16 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -0.389973255832252,
+          "forward_10_return_atr": -0.389973255832252,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_02_motif_000118.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_02_motif_000118.svg"
+        },
+        {
+          "motif_instance_id": "motif_000084",
+          "motifInstanceId": "motif_000084",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2024-01-17 00:00:00-05:00",
+          "start_bar_index": 715,
+          "end_bar_index": 748,
+          "start_timestamp": "2024-01-17 00:00:00-05:00",
+          "endTimestamp": "2024-03-05 00:00:00-05:00",
+          "end_timestamp": "2024-03-05 00:00:00-05:00",
+          "entryBarIndex": 753,
+          "entry_bar_index": 753,
+          "entryTimestamp": "2024-03-12 00:00:00-04:00",
+          "entry_timestamp": "2024-03-12 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2024-01-17 00:00:00-05:00",
+            "2024-02-12 00:00:00-05:00",
+            "2024-02-13 00:00:00-05:00",
+            "2024-02-23 00:00:00-05:00",
+            "2024-03-05 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 0.9849020405707224,
+          "forward_10_return_atr": 0.9849020405707224,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_03_motif_000084.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000012\\family_000012_03_motif_000084.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "LOW-HIGH-LOW-HIGH-LOW|EL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM"
+      ]
+    },
+    "family_000013": {
+      "family_id": "family_000013",
+      "familySignatureV2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "family_signature_v2": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrenceCount": 5,
+      "occurrence_count": 5,
+      "discoveryCount": 4,
+      "discovery_count": 4,
+      "validationCount": 1,
+      "validation_count": 1,
+      "holdoutCount": 0,
+      "holdout_count": 0,
+      "avgForward10ReturnAtr": -2.289622750699087,
+      "avg_forward_10_return_atr": -2.289622750699087,
+      "medianForward10ReturnAtr": -2.4448760790538704,
+      "median_forward_10_return_atr": -2.4448760790538704,
+      "hitPlus1AtrFirstRate": 0.4,
+      "hit_plus_1atr_first_rate": 0.4,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 5,
+      "discovery_avg_forward_10_return_atr": -2.250809418610391,
+      "validation_avg_forward_10_return_atr": -2.4448760790538704,
+      "holdout_avg_forward_10_return_atr": null,
+      "discovery_hit_plus_1atr_first_rate": 0.25,
+      "validation_hit_plus_1atr_first_rate": 1.0,
+      "holdout_hit_plus_1atr_first_rate": null,
+      "exact_signature_count": 5,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-EL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-EL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-EL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 5
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 2.3294029986759885,
+      "forward_10_min_atr": -5.385080251440342,
+      "forward_10_max_atr": 1.087570267460288,
+      "internal_hit_plus_1atr_first_rate": 0.4,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000022",
+          "motifInstanceId": "motif_000022",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-EL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "startTimestamp": "2021-10-13 00:00:00-04:00",
+          "start_bar_index": 148,
+          "end_bar_index": 195,
+          "start_timestamp": "2021-10-13 00:00:00-04:00",
+          "endTimestamp": "2021-12-20 00:00:00-05:00",
+          "end_timestamp": "2021-12-20 00:00:00-05:00",
+          "entryBarIndex": 197,
+          "entry_bar_index": 197,
+          "entryTimestamp": "2021-12-22 00:00:00-05:00",
+          "entry_timestamp": "2021-12-22 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-10-13 00:00:00-04:00",
+            "2021-11-08 00:00:00-05:00",
+            "2021-12-01 00:00:00-05:00",
+            "2021-12-16 00:00:00-05:00",
+            "2021-12-20 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 1.087570267460288,
+          "forward_10_return_atr": 1.087570267460288,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_01_motif_000022.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_01_motif_000022.svg"
+        },
+        {
+          "motif_instance_id": "motif_000092",
+          "motifInstanceId": "motif_000092",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2024-05-30 00:00:00-04:00",
+          "start_bar_index": 808,
+          "end_bar_index": 845,
+          "start_timestamp": "2024-05-30 00:00:00-04:00",
+          "endTimestamp": "2024-07-24 00:00:00-04:00",
+          "end_timestamp": "2024-07-24 00:00:00-04:00",
+          "entryBarIndex": 847,
+          "entry_bar_index": 847,
+          "entryTimestamp": "2024-07-26 00:00:00-04:00",
+          "entry_timestamp": "2024-07-26 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2024-05-30 00:00:00-04:00",
+            "2024-06-12 00:00:00-04:00",
+            "2024-06-14 00:00:00-04:00",
+            "2024-07-18 00:00:00-04:00",
+            "2024-07-24 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -2.4448760790538704,
+          "forward_10_return_atr": -2.4448760790538704,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_02_motif_000092.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_02_motif_000092.svg"
+        },
+        {
+          "motif_instance_id": "motif_000024",
+          "motifInstanceId": "motif_000024",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2021-12-01 00:00:00-05:00",
+          "start_bar_index": 182,
+          "end_bar_index": 209,
+          "start_timestamp": "2021-12-01 00:00:00-05:00",
+          "endTimestamp": "2022-01-10 00:00:00-05:00",
+          "end_timestamp": "2022-01-10 00:00:00-05:00",
+          "entryBarIndex": 211,
+          "entry_bar_index": 211,
+          "entryTimestamp": "2022-01-12 00:00:00-05:00",
+          "entry_timestamp": "2022-01-12 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-12-01 00:00:00-05:00",
+            "2021-12-16 00:00:00-05:00",
+            "2021-12-20 00:00:00-05:00",
+            "2022-01-05 00:00:00-05:00",
+            "2022-01-10 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -5.385080251440342,
+          "forward_10_return_atr": -5.385080251440342,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_03_motif_000024.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_03_motif_000024.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000022",
+          "motifInstanceId": "motif_000022",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-EL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "startTimestamp": "2021-10-13 00:00:00-04:00",
+          "start_bar_index": 148,
+          "end_bar_index": 195,
+          "start_timestamp": "2021-10-13 00:00:00-04:00",
+          "endTimestamp": "2021-12-20 00:00:00-05:00",
+          "end_timestamp": "2021-12-20 00:00:00-05:00",
+          "entryBarIndex": 197,
+          "entry_bar_index": 197,
+          "entryTimestamp": "2021-12-22 00:00:00-05:00",
+          "entry_timestamp": "2021-12-22 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-10-13 00:00:00-04:00",
+            "2021-11-08 00:00:00-05:00",
+            "2021-12-01 00:00:00-05:00",
+            "2021-12-16 00:00:00-05:00",
+            "2021-12-20 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 1.087570267460288,
+          "forward_10_return_atr": 1.087570267460288,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_01_motif_000022.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_01_motif_000022.svg"
+        },
+        {
+          "motif_instance_id": "motif_000092",
+          "motifInstanceId": "motif_000092",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2024-05-30 00:00:00-04:00",
+          "start_bar_index": 808,
+          "end_bar_index": 845,
+          "start_timestamp": "2024-05-30 00:00:00-04:00",
+          "endTimestamp": "2024-07-24 00:00:00-04:00",
+          "end_timestamp": "2024-07-24 00:00:00-04:00",
+          "entryBarIndex": 847,
+          "entry_bar_index": 847,
+          "entryTimestamp": "2024-07-26 00:00:00-04:00",
+          "entry_timestamp": "2024-07-26 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2024-05-30 00:00:00-04:00",
+            "2024-06-12 00:00:00-04:00",
+            "2024-06-14 00:00:00-04:00",
+            "2024-07-18 00:00:00-04:00",
+            "2024-07-24 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -2.4448760790538704,
+          "forward_10_return_atr": -2.4448760790538704,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_02_motif_000092.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_02_motif_000092.svg"
+        },
+        {
+          "motif_instance_id": "motif_000024",
+          "motifInstanceId": "motif_000024",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2021-12-01 00:00:00-05:00",
+          "start_bar_index": 182,
+          "end_bar_index": 209,
+          "start_timestamp": "2021-12-01 00:00:00-05:00",
+          "endTimestamp": "2022-01-10 00:00:00-05:00",
+          "end_timestamp": "2022-01-10 00:00:00-05:00",
+          "entryBarIndex": 211,
+          "entry_bar_index": 211,
+          "entryTimestamp": "2022-01-12 00:00:00-05:00",
+          "entry_timestamp": "2022-01-12 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2021-12-01 00:00:00-05:00",
+            "2021-12-16 00:00:00-05:00",
+            "2021-12-20 00:00:00-05:00",
+            "2022-01-05 00:00:00-05:00",
+            "2022-01-10 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -5.385080251440342,
+          "forward_10_return_atr": -5.385080251440342,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_03_motif_000024.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000013\\family_000013_03_motif_000024.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "LOW-HIGH-LOW-HIGH-LOW|EL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-EL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:DEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM"
+      ]
+    },
+    "family_000014": {
+      "family_id": "family_000014",
+      "familySignatureV2": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "family_signature_v2": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "occurrenceCount": 7,
+      "occurrence_count": 7,
+      "discoveryCount": 6,
+      "discovery_count": 6,
+      "validationCount": 0,
+      "validation_count": 0,
+      "holdoutCount": 1,
+      "holdout_count": 1,
+      "avgForward10ReturnAtr": 0.8732504089170844,
+      "avg_forward_10_return_atr": 0.8732504089170844,
+      "medianForward10ReturnAtr": 1.7092408493698508,
+      "median_forward_10_return_atr": 1.7092408493698508,
+      "hitPlus1AtrFirstRate": 0.5714285714285714,
+      "hit_plus_1atr_first_rate": 0.5714285714285714,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 5,
+      "discovery_avg_forward_10_return_atr": 0.7043652656331144,
+      "validation_avg_forward_10_return_atr": null,
+      "holdout_avg_forward_10_return_atr": 1.8865612686209041,
+      "discovery_hit_plus_1atr_first_rate": 0.5,
+      "validation_hit_plus_1atr_first_rate": null,
+      "holdout_hit_plus_1atr_first_rate": 1.0,
+      "exact_signature_count": 5,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-EL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-EL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-EL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 7
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 3.0734424732579813,
+      "forward_10_min_atr": -3.5613302277242287,
+      "forward_10_max_atr": 4.849676110285398,
+      "internal_hit_plus_1atr_first_rate": 0.5714285714285714,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000028",
+          "motifInstanceId": "motif_000028",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+          "startTimestamp": "2022-01-10 00:00:00-05:00",
+          "start_bar_index": 209,
+          "end_bar_index": 240,
+          "start_timestamp": "2022-01-10 00:00:00-05:00",
+          "endTimestamp": "2022-02-24 00:00:00-05:00",
+          "end_timestamp": "2022-02-24 00:00:00-05:00",
+          "entryBarIndex": 241,
+          "entry_bar_index": 241,
+          "entryTimestamp": "2022-02-25 00:00:00-05:00",
+          "entry_timestamp": "2022-02-25 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2022-01-10 00:00:00-05:00",
+            "2022-01-13 00:00:00-05:00",
+            "2022-01-24 00:00:00-05:00",
+            "2022-02-09 00:00:00-05:00",
+            "2022-02-24 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -1.6732741959501904,
+          "forward_10_return_atr": -1.6732741959501904,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_01_motif_000028.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_01_motif_000028.svg"
+        },
+        {
+          "motif_instance_id": "motif_000110",
+          "motifInstanceId": "motif_000110",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2025-02-03 00:00:00-05:00",
+          "start_bar_index": 977,
+          "end_bar_index": 1021,
+          "start_timestamp": "2025-02-03 00:00:00-05:00",
+          "endTimestamp": "2025-04-07 00:00:00-04:00",
+          "end_timestamp": "2025-04-07 00:00:00-04:00",
+          "entryBarIndex": 1022,
+          "entry_bar_index": 1022,
+          "entryTimestamp": "2025-04-08 00:00:00-04:00",
+          "entry_timestamp": "2025-04-08 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-02-03 00:00:00-05:00",
+            "2025-02-06 00:00:00-05:00",
+            "2025-03-13 00:00:00-04:00",
+            "2025-03-26 00:00:00-04:00",
+            "2025-04-07 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.8865612686209041,
+          "forward_10_return_atr": 1.8865612686209041,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_02_motif_000110.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_02_motif_000110.svg"
+        },
+        {
+          "motif_instance_id": "motif_000060",
+          "motifInstanceId": "motif_000060",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2023-01-20 00:00:00-05:00",
+          "start_bar_index": 467,
+          "end_bar_index": 504,
+          "start_timestamp": "2023-01-20 00:00:00-05:00",
+          "endTimestamp": "2023-03-15 00:00:00-04:00",
+          "end_timestamp": "2023-03-15 00:00:00-04:00",
+          "entryBarIndex": 508,
+          "entry_bar_index": 508,
+          "entryTimestamp": "2023-03-21 00:00:00-04:00",
+          "entry_timestamp": "2023-03-21 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2023-01-20 00:00:00-05:00",
+            "2023-02-14 00:00:00-05:00",
+            "2023-03-01 00:00:00-05:00",
+            "2023-03-06 00:00:00-05:00",
+            "2023-03-15 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.7092408493698508,
+          "forward_10_return_atr": 1.7092408493698508,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_03_motif_000060.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_03_motif_000060.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000028",
+          "motifInstanceId": "motif_000028",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+          "startTimestamp": "2022-01-10 00:00:00-05:00",
+          "start_bar_index": 209,
+          "end_bar_index": 240,
+          "start_timestamp": "2022-01-10 00:00:00-05:00",
+          "endTimestamp": "2022-02-24 00:00:00-05:00",
+          "end_timestamp": "2022-02-24 00:00:00-05:00",
+          "entryBarIndex": 241,
+          "entry_bar_index": 241,
+          "entryTimestamp": "2022-02-25 00:00:00-05:00",
+          "entry_timestamp": "2022-02-25 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2022-01-10 00:00:00-05:00",
+            "2022-01-13 00:00:00-05:00",
+            "2022-01-24 00:00:00-05:00",
+            "2022-02-09 00:00:00-05:00",
+            "2022-02-24 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -1.6732741959501904,
+          "forward_10_return_atr": -1.6732741959501904,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_01_motif_000028.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_01_motif_000028.svg"
+        },
+        {
+          "motif_instance_id": "motif_000110",
+          "motifInstanceId": "motif_000110",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2025-02-03 00:00:00-05:00",
+          "start_bar_index": 977,
+          "end_bar_index": 1021,
+          "start_timestamp": "2025-02-03 00:00:00-05:00",
+          "endTimestamp": "2025-04-07 00:00:00-04:00",
+          "end_timestamp": "2025-04-07 00:00:00-04:00",
+          "entryBarIndex": 1022,
+          "entry_bar_index": 1022,
+          "entryTimestamp": "2025-04-08 00:00:00-04:00",
+          "entry_timestamp": "2025-04-08 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-02-03 00:00:00-05:00",
+            "2025-02-06 00:00:00-05:00",
+            "2025-03-13 00:00:00-04:00",
+            "2025-03-26 00:00:00-04:00",
+            "2025-04-07 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.8865612686209041,
+          "forward_10_return_atr": 1.8865612686209041,
+          "hit_plus_1atr_first": true,
+          "next_break_up": false,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_02_motif_000110.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_02_motif_000110.svg"
+        },
+        {
+          "motif_instance_id": "motif_000060",
+          "motifInstanceId": "motif_000060",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2023-01-20 00:00:00-05:00",
+          "start_bar_index": 467,
+          "end_bar_index": 504,
+          "start_timestamp": "2023-01-20 00:00:00-05:00",
+          "endTimestamp": "2023-03-15 00:00:00-04:00",
+          "end_timestamp": "2023-03-15 00:00:00-04:00",
+          "entryBarIndex": 508,
+          "entry_bar_index": 508,
+          "entryTimestamp": "2023-03-21 00:00:00-04:00",
+          "entry_timestamp": "2023-03-21 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2023-01-20 00:00:00-05:00",
+            "2023-02-14 00:00:00-05:00",
+            "2023-03-01 00:00:00-05:00",
+            "2023-03-06 00:00:00-05:00",
+            "2023-03-15 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.7092408493698508,
+          "forward_10_return_atr": 1.7092408493698508,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_03_motif_000060.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000014\\family_000014_03_motif_000060.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "LOW-HIGH-LOW-HIGH-LOW|HL-EH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:DEEP|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-EL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|LL-LH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP"
+      ]
+    },
+    "family_000015": {
+      "family_id": "family_000015",
+      "familySignatureV2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 22,
+      "occurrence_count": 22,
+      "discoveryCount": 13,
+      "discovery_count": 13,
+      "validationCount": 5,
+      "validation_count": 5,
+      "holdoutCount": 4,
+      "holdout_count": 4,
+      "avgForward10ReturnAtr": 0.7159815959362266,
+      "avg_forward_10_return_atr": 0.7159815959362266,
+      "medianForward10ReturnAtr": 0.5421486580975725,
+      "median_forward_10_return_atr": 0.5421486580975725,
+      "hitPlus1AtrFirstRate": 0.5714285714285714,
+      "hit_plus_1atr_first_rate": 0.5714285714285714,
+      "signConsistencyAcrossSplits": true,
+      "sign_consistent_across_splits": true,
+      "numberOfExactSignaturesContained": 15,
+      "discovery_avg_forward_10_return_atr": 0.2913816106653477,
+      "validation_avg_forward_10_return_atr": 0.9921253700776653,
+      "holdout_avg_forward_10_return_atr": 2.095675241874304,
+      "discovery_hit_plus_1atr_first_rate": 0.46153846153846156,
+      "validation_hit_plus_1atr_first_rate": 0.6,
+      "holdout_hit_plus_1atr_first_rate": 1.0,
+      "exact_signature_count": 15,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 5
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-EL-HH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 5
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-EL-HH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 5
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-EL-HH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-EL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-EH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-EH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-LH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:DEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-EL-HH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-LL-HH-LL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 22
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 1.684165824986194,
+      "forward_10_min_atr": -3.841708539972486,
+      "forward_10_max_atr": 3.2459430671451837,
+      "internal_hit_plus_1atr_first_rate": 0.5714285714285714,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000002",
+          "motifInstanceId": "motif_000002",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2021-03-25 00:00:00-04:00",
+          "start_bar_index": 8,
+          "end_bar_index": 41,
+          "start_timestamp": "2021-03-25 00:00:00-04:00",
+          "endTimestamp": "2021-05-12 00:00:00-04:00",
+          "end_timestamp": "2021-05-12 00:00:00-04:00",
+          "entryBarIndex": 43,
+          "entry_bar_index": 43,
+          "entryTimestamp": "2021-05-14 00:00:00-04:00",
+          "entry_timestamp": "2021-05-14 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-03-25 00:00:00-04:00",
+            "2021-04-16 00:00:00-04:00",
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.5421486580975725,
+          "forward_10_return_atr": 0.5421486580975725,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_01_motif_000002.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_01_motif_000002.svg"
+        },
+        {
+          "motif_instance_id": "motif_000136",
+          "motifInstanceId": "motif_000136",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-EL-HH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2026-01-20 00:00:00-05:00",
+          "start_bar_index": 1218,
+          "end_bar_index": 1251,
+          "start_timestamp": "2026-01-20 00:00:00-05:00",
+          "endTimestamp": "2026-03-09 00:00:00-04:00",
+          "end_timestamp": "2026-03-09 00:00:00-04:00",
+          "entryBarIndex": 1252,
+          "entry_bar_index": 1252,
+          "entryTimestamp": "2026-03-10 00:00:00-04:00",
+          "entry_timestamp": "2026-03-10 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2026-01-20 00:00:00-05:00",
+            "2026-01-22 00:00:00-05:00",
+            "2026-01-30 00:00:00-05:00",
+            "2026-02-10 00:00:00-05:00",
+            "2026-03-09 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": null,
+          "forward_10_return_atr": null,
+          "hit_plus_1atr_first": null,
+          "next_break_up": null,
+          "next_break_down": null,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_02_motif_000136.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_02_motif_000136.svg"
+        },
+        {
+          "motif_instance_id": "motif_000004",
+          "motifInstanceId": "motif_000004",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-EL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2021-04-20 00:00:00-04:00",
+          "start_bar_index": 25,
+          "end_bar_index": 46,
+          "start_timestamp": "2021-04-20 00:00:00-04:00",
+          "endTimestamp": "2021-05-19 00:00:00-04:00",
+          "end_timestamp": "2021-05-19 00:00:00-04:00",
+          "entryBarIndex": 48,
+          "entry_bar_index": 48,
+          "entryTimestamp": "2021-05-21 00:00:00-04:00",
+          "entry_timestamp": "2021-05-21 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00",
+            "2021-05-17 00:00:00-04:00",
+            "2021-05-19 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.1774191539164955,
+          "forward_10_return_atr": 1.1774191539164955,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_03_motif_000004.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_03_motif_000004.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000002",
+          "motifInstanceId": "motif_000002",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2021-03-25 00:00:00-04:00",
+          "start_bar_index": 8,
+          "end_bar_index": 41,
+          "start_timestamp": "2021-03-25 00:00:00-04:00",
+          "endTimestamp": "2021-05-12 00:00:00-04:00",
+          "end_timestamp": "2021-05-12 00:00:00-04:00",
+          "entryBarIndex": 43,
+          "entry_bar_index": 43,
+          "entryTimestamp": "2021-05-14 00:00:00-04:00",
+          "entry_timestamp": "2021-05-14 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-03-25 00:00:00-04:00",
+            "2021-04-16 00:00:00-04:00",
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.5421486580975725,
+          "forward_10_return_atr": 0.5421486580975725,
+          "hit_plus_1atr_first": false,
+          "next_break_up": false,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_01_motif_000002.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_01_motif_000002.svg"
+        },
+        {
+          "motif_instance_id": "motif_000136",
+          "motifInstanceId": "motif_000136",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-EH-EL-HH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+          "startTimestamp": "2026-01-20 00:00:00-05:00",
+          "start_bar_index": 1218,
+          "end_bar_index": 1251,
+          "start_timestamp": "2026-01-20 00:00:00-05:00",
+          "endTimestamp": "2026-03-09 00:00:00-04:00",
+          "end_timestamp": "2026-03-09 00:00:00-04:00",
+          "entryBarIndex": 1252,
+          "entry_bar_index": 1252,
+          "entryTimestamp": "2026-03-10 00:00:00-04:00",
+          "entry_timestamp": "2026-03-10 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2026-01-20 00:00:00-05:00",
+            "2026-01-22 00:00:00-05:00",
+            "2026-01-30 00:00:00-05:00",
+            "2026-02-10 00:00:00-05:00",
+            "2026-03-09 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": null,
+          "forward_10_return_atr": null,
+          "hit_plus_1atr_first": null,
+          "next_break_up": null,
+          "next_break_down": null,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_02_motif_000136.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_02_motif_000136.svg"
+        },
+        {
+          "motif_instance_id": "motif_000004",
+          "motifInstanceId": "motif_000004",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-EL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+          "startTimestamp": "2021-04-20 00:00:00-04:00",
+          "start_bar_index": 25,
+          "end_bar_index": 46,
+          "start_timestamp": "2021-04-20 00:00:00-04:00",
+          "endTimestamp": "2021-05-19 00:00:00-04:00",
+          "end_timestamp": "2021-05-19 00:00:00-04:00",
+          "entryBarIndex": 48,
+          "entry_bar_index": 48,
+          "entryTimestamp": "2021-05-21 00:00:00-04:00",
+          "entry_timestamp": "2021-05-21 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-04-20 00:00:00-04:00",
+            "2021-05-10 00:00:00-04:00",
+            "2021-05-12 00:00:00-04:00",
+            "2021-05-17 00:00:00-04:00",
+            "2021-05-19 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 1.1774191539164955,
+          "forward_10_return_atr": 1.1774191539164955,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_03_motif_000004.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000015\\family_000015_03_motif_000004.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "LOW-HIGH-LOW-HIGH-LOW|HL-EH-EL-HH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-LL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-LL|UP-DOWN-UP-DOWN|R2:DEEP|R3:MEDIUM|R4:OVERDEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-LH-LL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:DEEP|R4:OVERDEEP"
+      ]
+    },
+    "family_000016": {
+      "family_id": "family_000016",
+      "familySignatureV2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "family_signature_v2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrenceCount": 20,
+      "occurrence_count": 20,
+      "discoveryCount": 11,
+      "discovery_count": 11,
+      "validationCount": 4,
+      "validation_count": 4,
+      "holdoutCount": 5,
+      "holdout_count": 5,
+      "avgForward10ReturnAtr": -0.06946494938515925,
+      "avg_forward_10_return_atr": -0.06946494938515925,
+      "medianForward10ReturnAtr": -0.45623488412112967,
+      "median_forward_10_return_atr": -0.45623488412112967,
+      "hitPlus1AtrFirstRate": 0.5,
+      "hit_plus_1atr_first_rate": 0.5,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 16,
+      "discovery_avg_forward_10_return_atr": 0.10180529145062854,
+      "validation_avg_forward_10_return_atr": 0.4670132217734492,
+      "holdout_avg_forward_10_return_atr": -0.8754420161507792,
+      "discovery_hit_plus_1atr_first_rate": 0.2727272727272727,
+      "validation_hit_plus_1atr_first_rate": 0.75,
+      "holdout_hit_plus_1atr_first_rate": 0.8,
+      "exact_signature_count": 16,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-LL-EH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-LL-EH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 3
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 2
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-LL-EH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-LH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-LH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:MEDIUM|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-LH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-LL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-EL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:DEEP",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:DEEP|R3:OVERDEEP|R4:SHALLOW",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-LH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 20
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 2.044776519376377,
+      "forward_10_min_atr": -5.299480570734547,
+      "forward_10_max_atr": 3.919436411540391,
+      "internal_hit_plus_1atr_first_rate": 0.5,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000008",
+          "motifInstanceId": "motif_000008",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-LL-EH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2021-05-19 00:00:00-04:00",
+          "start_bar_index": 46,
+          "end_bar_index": 80,
+          "start_timestamp": "2021-05-19 00:00:00-04:00",
+          "endTimestamp": "2021-07-08 00:00:00-04:00",
+          "end_timestamp": "2021-07-08 00:00:00-04:00",
+          "entryBarIndex": 81,
+          "entry_bar_index": 81,
+          "entryTimestamp": "2021-07-09 00:00:00-04:00",
+          "entry_timestamp": "2021-07-09 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-05-19 00:00:00-04:00",
+            "2021-06-01 00:00:00-04:00",
+            "2021-06-18 00:00:00-04:00",
+            "2021-07-02 00:00:00-04:00",
+            "2021-07-08 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.6151826627422738,
+          "forward_10_return_atr": 0.6151826627422738,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_01_motif_000008.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_01_motif_000008.svg"
+        },
+        {
+          "motif_instance_id": "motif_000132",
+          "motifInstanceId": "motif_000132",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:DEEP",
+          "startTimestamp": "2025-11-20 00:00:00-05:00",
+          "start_bar_index": 1179,
+          "end_bar_index": 1218,
+          "start_timestamp": "2025-11-20 00:00:00-05:00",
+          "endTimestamp": "2026-01-20 00:00:00-05:00",
+          "end_timestamp": "2026-01-20 00:00:00-05:00",
+          "entryBarIndex": 1220,
+          "entry_bar_index": 1220,
+          "entryTimestamp": "2026-01-22 00:00:00-05:00",
+          "entry_timestamp": "2026-01-22 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2025-11-20 00:00:00-05:00",
+            "2025-12-12 00:00:00-05:00",
+            "2026-01-02 00:00:00-05:00",
+            "2026-01-12 00:00:00-05:00",
+            "2026-01-20 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -0.9078376579738785,
+          "forward_10_return_atr": -0.9078376579738785,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_02_motif_000132.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_02_motif_000132.svg"
+        },
+        {
+          "motif_instance_id": "motif_000122",
+          "motifInstanceId": "motif_000122",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "startTimestamp": "2025-07-16 00:00:00-04:00",
+          "start_bar_index": 1089,
+          "end_bar_index": 1139,
+          "start_timestamp": "2025-07-16 00:00:00-04:00",
+          "endTimestamp": "2025-09-25 00:00:00-04:00",
+          "end_timestamp": "2025-09-25 00:00:00-04:00",
+          "entryBarIndex": 1143,
+          "entry_bar_index": 1143,
+          "entryTimestamp": "2025-10-01 00:00:00-04:00",
+          "entry_timestamp": "2025-10-01 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-07-16 00:00:00-04:00",
+            "2025-07-23 00:00:00-04:00",
+            "2025-08-01 00:00:00-04:00",
+            "2025-09-23 00:00:00-04:00",
+            "2025-09-25 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -0.42338214059791585,
+          "forward_10_return_atr": -0.42338214059791585,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_03_motif_000122.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_03_motif_000122.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000008",
+          "motifInstanceId": "motif_000008",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|EL-HH-LL-EH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2021-05-19 00:00:00-04:00",
+          "start_bar_index": 46,
+          "end_bar_index": 80,
+          "start_timestamp": "2021-05-19 00:00:00-04:00",
+          "endTimestamp": "2021-07-08 00:00:00-04:00",
+          "end_timestamp": "2021-07-08 00:00:00-04:00",
+          "entryBarIndex": 81,
+          "entry_bar_index": 81,
+          "entryTimestamp": "2021-07-09 00:00:00-04:00",
+          "entry_timestamp": "2021-07-09 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2021-05-19 00:00:00-04:00",
+            "2021-06-01 00:00:00-04:00",
+            "2021-06-18 00:00:00-04:00",
+            "2021-07-02 00:00:00-04:00",
+            "2021-07-08 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": 0.6151826627422738,
+          "forward_10_return_atr": 0.6151826627422738,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_01_motif_000008.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_01_motif_000008.svg"
+        },
+        {
+          "motif_instance_id": "motif_000132",
+          "motifInstanceId": "motif_000132",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:DEEP",
+          "startTimestamp": "2025-11-20 00:00:00-05:00",
+          "start_bar_index": 1179,
+          "end_bar_index": 1218,
+          "start_timestamp": "2025-11-20 00:00:00-05:00",
+          "endTimestamp": "2026-01-20 00:00:00-05:00",
+          "end_timestamp": "2026-01-20 00:00:00-05:00",
+          "entryBarIndex": 1220,
+          "entry_bar_index": 1220,
+          "entryTimestamp": "2026-01-22 00:00:00-05:00",
+          "entry_timestamp": "2026-01-22 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2025-11-20 00:00:00-05:00",
+            "2025-12-12 00:00:00-05:00",
+            "2026-01-02 00:00:00-05:00",
+            "2026-01-12 00:00:00-05:00",
+            "2026-01-20 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -0.9078376579738785,
+          "forward_10_return_atr": -0.9078376579738785,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_02_motif_000132.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_02_motif_000132.svg"
+        },
+        {
+          "motif_instance_id": "motif_000122",
+          "motifInstanceId": "motif_000122",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+          "startTimestamp": "2025-07-16 00:00:00-04:00",
+          "start_bar_index": 1089,
+          "end_bar_index": 1139,
+          "start_timestamp": "2025-07-16 00:00:00-04:00",
+          "endTimestamp": "2025-09-25 00:00:00-04:00",
+          "end_timestamp": "2025-09-25 00:00:00-04:00",
+          "entryBarIndex": 1143,
+          "entry_bar_index": 1143,
+          "entryTimestamp": "2025-10-01 00:00:00-04:00",
+          "entry_timestamp": "2025-10-01 00:00:00-04:00",
+          "pivot_timestamps": [
+            "2025-07-16 00:00:00-04:00",
+            "2025-07-23 00:00:00-04:00",
+            "2025-08-01 00:00:00-04:00",
+            "2025-09-23 00:00:00-04:00",
+            "2025-09-25 00:00:00-04:00"
+          ],
+          "forward10ReturnAtr": -0.42338214059791585,
+          "forward_10_return_atr": -0.42338214059791585,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": true,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_03_motif_000122.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000016\\family_000016_03_motif_000122.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "LOW-HIGH-LOW-HIGH-LOW|EL-HH-LL-EH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:DEEP",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-HH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:OVERDEEP|R4:SHALLOW",
+        "LOW-HIGH-LOW-HIGH-LOW|HL-HH-LL-LH-HL|UP-DOWN-UP-DOWN|R2:OVERDEEP|R3:DEEP|R4:DEEP"
+      ]
+    },
+    "family_000017": {
+      "family_id": "family_000017",
+      "familySignatureV2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_PRESENT",
+      "family_signature_v2": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_PRESENT",
+      "occurrenceCount": 2,
+      "occurrence_count": 2,
+      "discoveryCount": 1,
+      "discovery_count": 1,
+      "validationCount": 1,
+      "validation_count": 1,
+      "holdoutCount": 0,
+      "holdout_count": 0,
+      "avgForward10ReturnAtr": 0.2894652352714516,
+      "avg_forward_10_return_atr": 0.2894652352714516,
+      "medianForward10ReturnAtr": 0.2894652352714516,
+      "median_forward_10_return_atr": 0.2894652352714516,
+      "hitPlus1AtrFirstRate": 0.5,
+      "hit_plus_1atr_first_rate": 0.5,
+      "signConsistencyAcrossSplits": false,
+      "sign_consistent_across_splits": false,
+      "numberOfExactSignaturesContained": 2,
+      "discovery_avg_forward_10_return_atr": 1.1164087631768487,
+      "validation_avg_forward_10_return_atr": -0.5374782926339454,
+      "holdout_avg_forward_10_return_atr": null,
+      "discovery_hit_plus_1atr_first_rate": 0.0,
+      "validation_hit_plus_1atr_first_rate": 1.0,
+      "holdout_hit_plus_1atr_first_rate": null,
+      "exact_signature_count": 2,
+      "representativeExactSignatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "representative_exact_signatures": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "exact_signature_distribution": [
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        },
+        {
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "count": 1
+        }
+      ],
+      "regime_distribution": {
+        "UNSPECIFIED": 2
+      },
+      "avg_quality_score": 0.0,
+      "forward_10_stddev_atr": 0.826943527905397,
+      "forward_10_min_atr": -0.5374782926339454,
+      "forward_10_max_atr": 1.1164087631768487,
+      "internal_hit_plus_1atr_first_rate": 0.5,
+      "representativeMotifExamples": [
+        {
+          "motif_instance_id": "motif_000082",
+          "motifInstanceId": "motif_000082",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2023-10-27 00:00:00-04:00",
+          "start_bar_index": 661,
+          "end_bar_index": 734,
+          "start_timestamp": "2023-10-27 00:00:00-04:00",
+          "endTimestamp": "2024-02-13 00:00:00-05:00",
+          "end_timestamp": "2024-02-13 00:00:00-05:00",
+          "entryBarIndex": 736,
+          "entry_bar_index": 736,
+          "entryTimestamp": "2024-02-15 00:00:00-05:00",
+          "entry_timestamp": "2024-02-15 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2023-10-27 00:00:00-04:00",
+            "2024-01-12 00:00:00-05:00",
+            "2024-01-17 00:00:00-05:00",
+            "2024-02-12 00:00:00-05:00",
+            "2024-02-13 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 1.1164087631768487,
+          "forward_10_return_atr": 1.1164087631768487,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_01_motif_000082.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_01_motif_000082.svg"
+        },
+        {
+          "motif_instance_id": "motif_000098",
+          "motifInstanceId": "motif_000098",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2024-08-05 00:00:00-04:00",
+          "start_bar_index": 853,
+          "end_bar_index": 917,
+          "start_timestamp": "2024-08-05 00:00:00-04:00",
+          "endTimestamp": "2024-11-04 00:00:00-05:00",
+          "end_timestamp": "2024-11-04 00:00:00-05:00",
+          "entryBarIndex": 919,
+          "entry_bar_index": 919,
+          "entryTimestamp": "2024-11-06 00:00:00-05:00",
+          "entry_timestamp": "2024-11-06 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2024-08-05 00:00:00-04:00",
+            "2024-08-30 00:00:00-04:00",
+            "2024-09-11 00:00:00-04:00",
+            "2024-10-18 00:00:00-04:00",
+            "2024-11-04 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -0.5374782926339454,
+          "forward_10_return_atr": -0.5374782926339454,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_02_motif_000098.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_02_motif_000098.svg"
+        }
+      ],
+      "representative_motif_examples": [
+        {
+          "motif_instance_id": "motif_000082",
+          "motifInstanceId": "motif_000082",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2023-10-27 00:00:00-04:00",
+          "start_bar_index": 661,
+          "end_bar_index": 734,
+          "start_timestamp": "2023-10-27 00:00:00-04:00",
+          "endTimestamp": "2024-02-13 00:00:00-05:00",
+          "end_timestamp": "2024-02-13 00:00:00-05:00",
+          "entryBarIndex": 736,
+          "entry_bar_index": 736,
+          "entryTimestamp": "2024-02-15 00:00:00-05:00",
+          "entry_timestamp": "2024-02-15 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2023-10-27 00:00:00-04:00",
+            "2024-01-12 00:00:00-05:00",
+            "2024-01-17 00:00:00-05:00",
+            "2024-02-12 00:00:00-05:00",
+            "2024-02-13 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": 1.1164087631768487,
+          "forward_10_return_atr": 1.1164087631768487,
+          "hit_plus_1atr_first": false,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_01_motif_000082.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_01_motif_000082.svg"
+        },
+        {
+          "motif_instance_id": "motif_000098",
+          "motifInstanceId": "motif_000098",
+          "exact_signature": "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+          "startTimestamp": "2024-08-05 00:00:00-04:00",
+          "start_bar_index": 853,
+          "end_bar_index": 917,
+          "start_timestamp": "2024-08-05 00:00:00-04:00",
+          "endTimestamp": "2024-11-04 00:00:00-05:00",
+          "end_timestamp": "2024-11-04 00:00:00-05:00",
+          "entryBarIndex": 919,
+          "entry_bar_index": 919,
+          "entryTimestamp": "2024-11-06 00:00:00-05:00",
+          "entry_timestamp": "2024-11-06 00:00:00-05:00",
+          "pivot_timestamps": [
+            "2024-08-05 00:00:00-04:00",
+            "2024-08-30 00:00:00-04:00",
+            "2024-09-11 00:00:00-04:00",
+            "2024-10-18 00:00:00-04:00",
+            "2024-11-04 00:00:00-05:00"
+          ],
+          "forward10ReturnAtr": -0.5374782926339454,
+          "forward_10_return_atr": -0.5374782926339454,
+          "hit_plus_1atr_first": true,
+          "next_break_up": true,
+          "next_break_down": false,
+          "chartSnippetPath": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_02_motif_000098.svg",
+          "chart_snippet_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\research\\atr_pivot_v1\\dia_v2_family_snippets\\family_000017\\family_000017_02_motif_000098.svg"
+        }
+      ],
+      "contained_exact_signature_examples": [
+        "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:MEDIUM",
+        "LOW-HIGH-LOW-HIGH-LOW|LL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:MEDIUM"
+      ]
+    }
+  },
+  "inspection_questions": [
+    "Do grouped motifs show family resemblance rather than random leftovers?",
+    "Are the exact signatures inside each v2 family structurally related?",
+    "Are the outcomes concentrated or internally noisy?",
+    "Do the chart snippets look like one visible behavior class?"
+  ]
+}

@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { searchAppReference } from './searchService';
 import { applyRolePromptOverride, getConfiguredOpenAIKey } from './aiSettings';
+import { summarizeComparisonDiagnosticsForPrompt } from './validatorComparisonService';
 
 // Configuration
 const VISION_PROVIDER = process.env.VISION_PROVIDER || 'openai';
@@ -1059,8 +1060,16 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
       userContent = message;
     }
 
-    const maxTokens = (aiRole === 'plugin_engineer' || aiRole === 'composite_architect') ? 10000 : 800;
-    const temperature = (aiRole === 'plugin_engineer' || aiRole === 'composite_architect') ? 0.15 : 0.7;
+    const maxTokens = aiRole === 'statistical_interpreter'
+      ? 1200
+      : (aiRole === 'plugin_engineer' || aiRole === 'composite_architect')
+        ? 10000
+        : 800;
+    const temperature = aiRole === 'statistical_interpreter'
+      ? 0.35
+      : (aiRole === 'plugin_engineer' || aiRole === 'composite_architect')
+        ? 0.15
+        : 0.7;
     // Use frontend setting override if provided, else fall back to env var
     const model = aiRole === 'plugin_engineer'
       ? (pluginEngineerModelOverride || OPENAI_PLUGIN_ENGINEER_MODEL)
@@ -1175,10 +1184,29 @@ If the user asks what a button, field, setting, page, or term means, answer dire
 `;
 }
 
+function shouldInjectStatisticalInterpreterHelp(context: TradingContext, userMessage: string): boolean {
+  const msg = extractPrimaryUserMessage(userMessage);
+  if (!msg) return false;
+
+  const hasReport = Boolean(context?.copilotAnalysis?.report);
+  const definitionalLead = /\b(what (does|is|are)|explain|define|meaning of|tell me about|how does)\b/i;
+  const helpTerms = /\b(p&l|pnl|profit factor|expectancy|drawdown|win rate|sharpe|sharpe ratio|monte carlo|walk[- ]?forward|out[- ]of[- ]sample|oos|tier 1b?|tier 2|tier 3|robustness|r-?multiple|risk reward|slippage|commission|validation tier|validator reports page)\b/i;
+  const reportAnalysisAsk = /\b(this report|the report|latest report|loaded report|selected report|last report|previous report|prior report|what does this report|what does the report|what does this say|what does the report say|tell me about (this )?report|summari[sz]e|why did|why does|why is|how did|root cause|compare|comparison|versus|vs\.?|changed|change|improve|pass|fail)\b/i;
+  const mentionsReport = /\b(report|reports)\b/i;
+
+  if (!hasReport) return helpTerms.test(msg);
+  if (reportAnalysisAsk.test(msg)) return false;
+  if (mentionsReport.test(msg) && !definitionalLead.test(msg)) return false;
+  if (!helpTerms.test(msg)) return false;
+  return definitionalLead.test(msg);
+}
+
 function extractPrimaryUserMessage(message: string): string {
   const text = String(message || '');
   if (!text) return '';
   const markers = [
+    '\n\nVALIDATOR_FACTS:',
+    '\n\nREPORT_HISTORY:',
     '\n\nSCANNER_CANDIDATE:',
     '\n\nDECISION_REQUEST:',
     '\nDETECTOR_CONTEXT:',
@@ -1239,7 +1267,11 @@ function buildSystemPromptForRole(role: AIRole, context: TradingContext, hasImag
   }
 
   // Copilot prompt already performs its own retrieval to keep behavior stable.
-  if (role !== 'copilot') {
+  if (role === 'statistical_interpreter') {
+    if (shouldInjectStatisticalInterpreterHelp(context, userMessage)) {
+      prompt += buildSharedHelpAppendix(userMessage);
+    }
+  } else if (role !== 'copilot') {
     prompt += buildSharedHelpAppendix(role === 'contextual_ranker' ? extractPrimaryUserMessage(userMessage) : userMessage);
   }
   return overrideRole ? applyRolePromptOverride(overrideRole, prompt) : prompt;
@@ -1624,6 +1656,63 @@ function buildStatisticalInterpreterPrompt(context: TradingContext, userMessage:
   const analysis = context.copilotAnalysis;
   const strategy = analysis?.strategy || null;
   const report = analysis?.report || null;
+  const reportHistory = analysis?.report_history || null;
+  const comparisonDiagnostics = analysis?.report_comparison_diagnostics || null;
+  const normalizePct = (value: any): number => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return NaN;
+    return Math.abs(num) <= 1 ? num * 100 : num;
+  };
+  const fmtNum = (value: any, digits = 2): string => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : 'N/A';
+  const fmtInt = (value: any): string => Number.isFinite(Number(value)) ? String(Math.round(Number(value))) : 'N/A';
+  const fmtPct = (value: any, digits = 1): string => Number.isFinite(normalizePct(value)) ? `${normalizePct(value).toFixed(digits)}%` : 'N/A';
+  const fmtR = (value: any, digits = 2): string => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(digits)}R` : 'N/A';
+  const buildReportSnapshot = (candidate: any, label: string): string => {
+    if (!candidate) return `${label}: not available`;
+    const ts = candidate?.trades_summary || {};
+    const rs = candidate?.risk_summary || {};
+    const oos = candidate?.robustness?.out_of_sample || {};
+    const wf = candidate?.robustness?.walk_forward || {};
+    const mc = candidate?.robustness?.monte_carlo || {};
+    const reasons = Array.isArray(candidate?.pass_fail_reasons) ? candidate.pass_fail_reasons : [];
+    const lines = [
+      `${label}:`,
+      `- Report ID: ${candidate?.report_id || 'N/A'}`,
+      `- Verdict: ${candidate?.pass_fail || 'N/A'}`,
+      `- Data Range: ${candidate?.data_range?.start || 'N/A'} to ${candidate?.data_range?.end || 'N/A'}`,
+      `- Trades: ${fmtInt(ts.total_trades)}`,
+      `- Expectancy: ${fmtR(ts.expectancy_R)}`,
+      `- Profit factor: ${fmtNum(ts.profit_factor)}`,
+      `- Win rate: ${fmtPct(ts.win_rate)}`,
+      `- Avg win: ${fmtR(ts.avg_win_R)}`,
+      `- Avg loss: ${fmtR(ts.avg_loss_R)}`,
+      `- Max drawdown: ${fmtPct(rs.max_drawdown_pct)} (${fmtR(-Number(rs.max_drawdown_R || 0))})`,
+      `- Sharpe: ${fmtNum(candidate?.risk_summary?.sharpe_ratio ?? candidate?.risk_summary?.sharpe)}`,
+      `- OOS expectancy: ${fmtR(oos.oos_expectancy)}`,
+      `- OOS degradation: ${fmtPct(oos.oos_degradation_pct)}`,
+      `- Walk-forward windows: ${fmtInt(wf.windows)}`,
+      Number(wf?.windows) > 0 ? `- Walk-forward profitable windows: ${fmtPct(wf.pct_profitable_windows)}` : `- Walk-forward profitable windows: ignore, there are 0 windows`,
+      `- Monte Carlo p95 DD: ${fmtPct(mc.p95_dd_pct)}`,
+      `- Monte Carlo p99 DD: ${fmtPct(mc.p99_dd_pct)}`,
+      reasons.length ? `- Pass/fail reasons: ${reasons.join(' | ')}` : '- Pass/fail reasons: none attached',
+    ];
+    return lines.join('\n');
+  };
+  const buildComparisonSummary = (): string => {
+    const pair = Array.isArray(reportHistory?.comparison_pairs) ? reportHistory.comparison_pairs[0] : null;
+    const deltas = pair?.deltas || {};
+    if (!pair) return 'Comparison deltas: not available';
+    return [
+      'Comparison deltas:',
+      `- Expectancy delta: ${fmtR(deltas.expectancy_R)}`,
+      `- Total trades delta: ${fmtInt(deltas.total_trades)}`,
+      `- Profit factor delta: ${fmtNum(deltas.profit_factor)}`,
+      `- Win rate delta: ${fmtPct(deltas.win_rate)}`,
+      `- Avg win delta: ${fmtR(deltas.avg_win_R)}`,
+      `- Avg loss delta: ${fmtR(deltas.avg_loss_R)}`,
+      `- Max drawdown delta: ${fmtPct(deltas.max_drawdown_pct)}`,
+    ].join('\n');
+  };
 
   let prompt = `You are the Statistical Interpreter — an AI that explains validation results and strategy metrics in plain language.
 
@@ -1647,11 +1736,18 @@ YOUR POSTURE: "I explain what the math says."
 
 ## RESPONSE RULES
 - Every claim you make MUST cite a specific metric and its value
-- Use this format: "Expectancy is 0.85R, which means..."
+- Lead with the bottom line first, then explain the drivers
 - When comparing versions, show both numbers side by side
+- When the user asks why a metric changed between tests, compare the selected report against the previous report if that history is available
+- Explain expectancy changes from report-level components first: win rate, avg win R, avg loss R, and trade count
+- If trade count rises sharply while expectancy and profit factor fall, test for edge dilution first
+- Separate what is directly supported by the report from what is only a plausible interpretation
+- If a change cannot be proven from report-level data alone, say that directly and then name only the strongest visible drivers from the report deltas
+- Treat fractional rates correctly: values like 0.538 mean 53.8%, not 0.5%
+- Ignore metrics that are not analytically meaningful in context, for example walk-forward percentages when the report has 0 walk-forward windows
 - When flagging concerns, explain WHY it matters, not just that a number is bad
 - Be honest about what the data shows, even if it's unfavorable
-- Use markdown tables when comparing multiple metrics
+- Prefer short paragraphs and concrete bullets over vague narration
 
 ## KEY METRICS YOU UNDERSTAND
 - **Expectancy (R)**: Average R-multiple per trade. Above 0.3R is decent, above 0.5R is strong. Example: 0.5R means on average each trade makes half your risk amount.
@@ -1680,6 +1776,11 @@ When a report is loaded, ground every analysis response in:
 - A specific validation report metric, OR
 - A strategy configuration value, OR
 - A comparison between versions/reports
+
+When comparison history is available:
+- Prefer selected report vs previous report unless the user asks for a different comparison
+- Explain changes using available report-level drivers first: trade count, win rate, avg win R, avg loss R, drawdown, universe size, tier, date range, costs, and execution stats
+- Do NOT invent hidden causes like "regime change" unless the loaded reports provide evidence for that claim
 
 **Exception — conceptual/definitional questions**: If the user asks what a metric or term means (e.g. "what is profit factor?", "explain expectancy", "what does drawdown mean?"), answer directly and clearly from your KEY METRICS knowledge above. Do NOT refuse or say "I don't have data" for definitional questions — these don't require a report.
 
@@ -1712,31 +1813,32 @@ When asked "why did this report fail?" or "what are the root causes of failure?"
   if (report) {
     prompt += `
 ## VALIDATION REPORT
-- Report ID: ${report.report_id || 'N/A'}
-- Pass/Fail: ${report.pass_fail || 'N/A'}
-- Data Range: ${report.data_range?.start || 'N/A'} to ${report.data_range?.end || 'N/A'}
+${buildReportSnapshot(report, 'Current report')}
 
-### Trade Summary
-${report.trades_summary ? JSON.stringify(report.trades_summary, null, 2) : 'Not available'}
+Use these exact numbers when answering questions. Do not make up or estimate metrics. Prefer this compact summary over inventing hidden causes.
+`;
+  }
 
-### Risk Summary
-${report.risk_summary ? JSON.stringify(report.risk_summary, null, 2) : 'Not available'}
+  if (reportHistory?.selected || reportHistory?.previous || (Array.isArray(reportHistory?.recent) && reportHistory.recent.length)) {
+    prompt += `
+## REPORT HISTORY
+${reportHistory?.selected ? buildReportSnapshot(reportHistory.selected, 'Selected report') : ''}
+${reportHistory?.previous ? `\n${buildReportSnapshot(reportHistory.previous, 'Previous report')}` : ''}
+${(reportHistory?.selected || reportHistory?.previous) ? `\n${buildComparisonSummary()}` : ''}
+Use this history whenever the user asks why a newer test changed versus an older one. Focus on expectancy components first.
+`;
+  }
 
-### Robustness Summary
-${report.robustness_summary ? JSON.stringify(report.robustness_summary, null, 2) : 'Not available'}
-
-### Execution Stats
-${report.execution_stats ? JSON.stringify(report.execution_stats, null, 2) : 'Not available'}
-
-### Pass/Fail Reasons
-${report.pass_fail_reasons ? JSON.stringify(report.pass_fail_reasons, null, 2) : 'Not available'}
-
-Use these exact numbers when answering questions. Do not make up or estimate metrics.
+  if (comparisonDiagnostics) {
+    prompt += `
+## COMPARISON DIAGNOSTICS
+${summarizeComparisonDiagnosticsForPrompt(comparisonDiagnostics)}
+Use these diagnostics to isolate whether deterioration came from the original shared universe, newly added symbols, exit-mix changes, or a few concentrated drags.
 `;
   }
 
   if (analysis?.commentary) {
-    prompt += `\n## ADDITIONAL CONTEXT\n${analysis.commentary}\n`;
+    prompt += `\n## ADDITIONAL CONTEXT\n${String(analysis.commentary).slice(0, 1200)}\n`;
   }
 
   return prompt;
@@ -3146,6 +3248,16 @@ DECISION MODE:
 }
 
 function generateLocalResponseForRole(role: AIRole, message: string, context: TradingContext): string {
+  if (role === 'statistical_interpreter') {
+    if (shouldInjectStatisticalInterpreterHelp(context, message)) {
+      const helpContent = searchAppReference(message);
+      if (helpContent) {
+        return `${helpContent}\n\n*— From app reference*`;
+      }
+    }
+    return generateLocalStatisticalInterpreterResponse(message, context);
+  }
+
   if (shouldInjectHelpContext(message)) {
     const helpContent = searchAppReference(message);
     if (helpContent) {
@@ -3169,6 +3281,190 @@ function generateLocalResponseForRole(role: AIRole, message: string, context: Tr
     return generateLocalContextualRankerResponse(message, context);
   }
   return generateLocalResponse(message, context);
+}
+
+function generateLocalStatisticalInterpreterResponse(message: string, context: TradingContext): string {
+  const analysis = context?.copilotAnalysis || {};
+  const report = analysis?.report || null;
+  const reportHistory = analysis?.report_history || null;
+  const msg = extractPrimaryUserMessage(message).toLowerCase();
+
+  if (!report) {
+    return 'No report is loaded. Run a validation first, then I can analyze your specific results.';
+  }
+
+  const ts = report?.trades_summary || {};
+  const rs = report?.risk_summary || {};
+  const oos = report?.robustness?.out_of_sample || {};
+  const wf = report?.robustness?.walk_forward || {};
+  const mc = report?.robustness?.monte_carlo || {};
+  const reasons = Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [];
+  const selected = reportHistory?.selected || null;
+  const previous = reportHistory?.previous || null;
+  const deltas = Array.isArray(reportHistory?.comparison_pairs) && reportHistory.comparison_pairs[0]
+    ? reportHistory.comparison_pairs[0].deltas || {}
+    : {};
+  const comparisonDiagnostics = analysis?.report_comparison_diagnostics || null;
+
+  const fmtNum = (value: any, digits = 2): string => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : 'N/A';
+  const fmtInt = (value: any): string => Number.isFinite(Number(value)) ? String(Math.round(Number(value))) : 'N/A';
+  const normalizePct = (value: any): number => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return NaN;
+    return Math.abs(num) <= 1 ? num * 100 : num;
+  };
+  const normalizeRate = (value: any): number => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return NaN;
+    return Math.abs(num) <= 1 ? num : num / 100;
+  };
+  const fmtPct = (value: any, digits = 1): string => Number.isFinite(normalizePct(value)) ? `${normalizePct(value).toFixed(digits)}%` : 'N/A';
+  const fmtR = (value: any, digits = 2): string => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(digits)}R` : 'N/A';
+  const hasValue = (value: any): boolean => Number.isFinite(Number(value));
+  const buildExpectancyNarrative = (current: any, prior: any) => {
+    const currentTrades = current?.trades_summary || {};
+    const priorTrades = prior?.trades_summary || {};
+    const currentRisk = current?.risk_summary || {};
+    const priorRisk = prior?.risk_summary || {};
+    const currentWinRate = normalizeRate(currentTrades?.win_rate);
+    const priorWinRate = normalizeRate(priorTrades?.win_rate);
+    const currentAvgWin = Number(currentTrades?.avg_win_R);
+    const priorAvgWin = Number(priorTrades?.avg_win_R);
+    const currentAvgLoss = Number(currentTrades?.avg_loss_R);
+    const priorAvgLoss = Number(priorTrades?.avg_loss_R);
+    const currentTradeCount = Number(currentTrades?.total_trades);
+    const priorTradeCount = Number(priorTrades?.total_trades);
+    const currentExpectancy = Number(currentTrades?.expectancy_R);
+    const priorExpectancy = Number(priorTrades?.expectancy_R);
+    const currentProfitFactor = Number(currentTrades?.profit_factor);
+    const priorProfitFactor = Number(priorTrades?.profit_factor);
+    const currentMaxDd = Number(currentRisk?.max_drawdown_pct);
+    const priorMaxDd = Number(priorRisk?.max_drawdown_pct);
+
+    const componentsReady = [
+      currentWinRate,
+      priorWinRate,
+      currentAvgWin,
+      priorAvgWin,
+      currentAvgLoss,
+      priorAvgLoss,
+    ].every(Number.isFinite);
+
+    const lines: string[] = [];
+
+    if (hasValue(currentExpectancy) && hasValue(priorExpectancy)) {
+      lines.push(`Bottom line: expectancy fell from ${fmtR(priorExpectancy)} to ${fmtR(currentExpectancy)}.`);
+    } else {
+      lines.push('Bottom line: the newer report has weaker edge quality than the prior one.');
+    }
+
+    if (componentsReady) {
+      lines.push(`That change is mostly explained by the expectancy components: win rate moved from ${fmtPct(priorWinRate)} to ${fmtPct(currentWinRate)}, average win moved from ${fmtR(priorAvgWin)} to ${fmtR(currentAvgWin)}, and average loss improved only slightly from ${fmtR(priorAvgLoss)} to ${fmtR(currentAvgLoss)}.`);
+    } else {
+      lines.push('The strongest visible drivers are the changes in win rate, average win size, average loss size, and trade count.');
+    }
+
+    const supported: string[] = [];
+    if (hasValue(priorTradeCount) && hasValue(currentTradeCount)) {
+      supported.push(`Trade count expanded from ${fmtInt(priorTradeCount)} to ${fmtInt(currentTradeCount)}.`);
+    }
+    if (hasValue(priorProfitFactor) && hasValue(currentProfitFactor)) {
+      supported.push(`Profit factor compressed from ${fmtNum(priorProfitFactor)} to ${fmtNum(currentProfitFactor)}.`);
+    }
+    if (hasValue(priorMaxDd) && hasValue(currentMaxDd)) {
+      supported.push(`Max drawdown worsened from ${fmtPct(priorMaxDd)} to ${fmtPct(currentMaxDd)}.`);
+    }
+    if (componentsReady) {
+      supported.push(`Winners became less frequent and smaller: ${fmtPct(priorWinRate)} at ${fmtR(priorAvgWin)} vs ${fmtPct(currentWinRate)} at ${fmtR(currentAvgWin)}.`);
+      supported.push(`Losses improved slightly, from ${fmtR(priorAvgLoss)} to ${fmtR(currentAvgLoss)}, but not enough to offset the weaker winners.`);
+    }
+
+    lines.push('', 'What is directly supported:');
+    supported.forEach((item) => lines.push(`- ${item}`));
+
+    const interpretations: string[] = [];
+    if (hasValue(priorTradeCount) && hasValue(currentTradeCount) && currentTradeCount > priorTradeCount * 2 && hasValue(priorExpectancy) && hasValue(currentExpectancy) && currentExpectancy < priorExpectancy) {
+      interpretations.push('The most likely interpretation is edge dilution: the newer version probably admitted many more marginal trades.');
+    }
+    if (hasValue(priorAvgWin) && hasValue(currentAvgWin) && currentAvgWin < priorAvgWin) {
+      interpretations.push('The strategy appears to be harvesting smaller winners, which usually means entries are less selective, exits are earlier, or both.');
+    }
+    if (comparisonDiagnostics?.universe_summary?.shared_universe_size === 0) {
+      interpretations.push('These two runs have no shared universe overlap, so this is not a same-symbol cohort comparison. The newer expectancy reflects a materially different opportunity set.');
+    } else if (comparisonDiagnostics?.cohort_stats?.current_added_symbol_trades?.trade_count > 0) {
+      const added = comparisonDiagnostics.cohort_stats.current_added_symbol_trades;
+      const currentSharedDiag = comparisonDiagnostics.cohort_stats.current_shared_symbol_trades;
+      interpretations.push(`Added-symbol trades contributed ${fmtInt(added.trade_count)} trades at ${fmtR(added.expectancy_R)}, versus ${fmtR(currentSharedDiag.expectancy_R)} on the current shared-symbol cohort.`);
+    }
+    if (comparisonDiagnostics?.universe_summary?.shared_universe_size > 0 && comparisonDiagnostics?.cohort_stats?.previous_shared_symbol_trades?.trade_count > 0) {
+      const prevShared = comparisonDiagnostics.cohort_stats.previous_shared_symbol_trades;
+      const currentSharedDiag = comparisonDiagnostics.cohort_stats.current_shared_symbol_trades;
+      interpretations.push(`The shared-symbol cohort moved from ${fmtR(prevShared.expectancy_R)} to ${fmtR(currentSharedDiag.expectancy_R)}, which shows whether the original core universe degraded too.`);
+    }
+    if (interpretations.length) {
+      lines.push('', 'Most likely interpretation:');
+      interpretations.forEach((item) => lines.push(`- ${item}`));
+    }
+
+    if (comparisonDiagnostics?.top_added_symbols?.length) {
+      lines.push('', 'Highest-drag added symbols:');
+      comparisonDiagnostics.top_added_symbols.slice(0, 3).forEach((item: any) => {
+        lines.push(`- ${item.symbol}: ${fmtInt(item.trade_count)} trades, ${fmtR(item.expectancy_R)} expectancy, ${fmtR(item.total_R)} total R`);
+      });
+    }
+
+    if (comparisonDiagnostics?.universe_summary?.shared_universe_size > 0 && comparisonDiagnostics?.shared_symbol_changes?.length) {
+      lines.push('', 'Largest shared-symbol deterioration:');
+      comparisonDiagnostics.shared_symbol_changes.slice(0, 3).forEach((item: any) => {
+        lines.push(`- ${item.symbol}: delta total R ${fmtR(item.delta_total_R)}, delta expectancy ${fmtR(item.delta_expectancy_R)}`);
+      });
+    }
+
+    lines.push('', 'What I cannot prove from these report summaries alone:');
+    lines.push('- The exact rule, filter, or execution change that caused the quality drop.');
+    lines.push('- Whether the trade expansion came from a broader universe, looser entry logic, different exits, or duplicate/stacked signals.');
+
+    return lines.join('\n');
+  };
+
+  if (/\b(compare|comparison|last report|previous report|prior report|changed|change|difference|expectancy)\b/i.test(msg) && previous) {
+    return buildExpectancyNarrative(selected || report, previous);
+  }
+
+  if (/\b(why did|why does|why is).*(fail|failed)\b/i.test(msg)) {
+    const hardReasons = reasons.length ? reasons.map((reason: string) => `- ${reason}`) : ['- No explicit pass/fail reasons were attached to this report.'];
+    return [
+      `Report ${report.report_id || 'N/A'} verdict: ${report.pass_fail || 'N/A'}.`,
+      'Hard fail reasons:',
+      ...hardReasons,
+      `Context: expectancy ${fmtR(ts.expectancy_R)}, total trades ${fmtInt(ts.total_trades)}, profit factor ${fmtNum(ts.profit_factor)}, max drawdown ${fmtPct(rs.max_drawdown_pct)}.`,
+    ].join('\n');
+  }
+
+  const summaryLines = [
+    `Bottom line: report ${report.report_id || 'N/A'} is ${report.pass_fail || 'N/A'} with expectancy ${fmtR(ts.expectancy_R)} across ${fmtInt(ts.total_trades)} trades.`,
+    `Read-through: profit factor is ${fmtNum(ts.profit_factor)}, win rate is ${fmtPct(ts.win_rate)}, and max drawdown is ${fmtPct(rs.max_drawdown_pct)}.`,
+  ];
+  if (Array.isArray(reasons) && reasons.length) {
+    summaryLines.push(`Pass/fail reasons: ${reasons.join(' | ')}`);
+  }
+  if (Number(wf?.windows) > 0) {
+    summaryLines.push(`Walk-forward profitable windows: ${fmtPct(wf.pct_profitable_windows)} over ${fmtInt(wf.windows)} windows.`);
+  }
+  if (hasValue(mc.p95_dd_pct)) {
+    summaryLines.push(`Monte Carlo p95 drawdown: ${fmtPct(mc.p95_dd_pct)}.`);
+  }
+
+  return [
+    ...summaryLines,
+    '',
+    'Key metrics:',
+    `- Avg win: ${fmtR(ts.avg_win_R)}`,
+    `- Avg loss: ${fmtR(ts.avg_loss_R)}`,
+    `- OOS expectancy: ${fmtR(oos.oos_expectancy)}`,
+    `- OOS degradation: ${fmtPct(oos.oos_degradation_pct)}`,
+    `- Max drawdown: ${fmtPct(rs.max_drawdown_pct)} (${fmtR(-Number(rs.max_drawdown_R || 0))})`,
+  ].join('\n');
 }
 
 function generateLocalLiteralChartReaderResponse(message: string, context: TradingContext): string {
@@ -3803,7 +4099,7 @@ KEY CONCEPTS:
    - Structure (blue): anchor/pivot primitives (swing highs, swing lows, RDP points)
    - Location (green): zone/level primitives (discount zone, fib retracement levels)
    - Timing Trigger (orange): event/cross primitives (RSI cross, MA crossover)
-   - Pattern Gate (purple, optional): classifier/filter primitives (regime filter, energy state)
+   - Regime Filter (purple, optional): classifier/filter primitives (regime filter, energy state)
 
 2. DECISION (also called Reducer): How connected primitives combine into a GO/NO_GO verdict:
    - ALL must pass (AND): all stages must pass (strictest, most common for entries)

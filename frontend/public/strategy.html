@@ -41,6 +41,59 @@
     .status-badge.testing { background:rgba(93,122,146,.15); color:var(--color-accent); }
     .status-badge.approved { background:rgba(79,170,114,.12); color:var(--color-positive); }
     .status-badge.rejected { background:rgba(176,84,84,.12); color:var(--color-negative); }
+    .validation-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      flex-shrink:0;
+      padding:1px 6px;
+      border-radius:999px;
+      font-size:.62rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      border:1px solid transparent;
+      font-family:var(--font-mono);
+    }
+    .validation-badge.pass {
+      background:rgba(79,170,114,.12);
+      border-color:rgba(79,170,114,.28);
+      color:var(--color-positive);
+    }
+    .validation-badge.fail {
+      background:rgba(176,84,84,.12);
+      border-color:rgba(176,84,84,.28);
+      color:var(--color-negative);
+    }
+    .validation-badge.hard-fail {
+      background:rgba(176,84,84,.2);
+      border-color:rgba(176,84,84,.4);
+      color:#ffb0b0;
+    }
+    .validation-badge.review {
+      background:rgba(210,169,93,.12);
+      border-color:rgba(210,169,93,.28);
+      color:var(--color-warning, #d2a95d);
+    }
+    .validation-badge.untested {
+      background:rgba(93,122,146,.12);
+      border-color:rgba(93,122,146,.24);
+      color:var(--color-text-subtle);
+    }
+    .tier-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:1px 6px;
+      border-radius:999px;
+      font-size:.62rem;
+      font-weight:700;
+      letter-spacing:.06em;
+      font-family:var(--font-mono);
+      color:var(--color-accent);
+      background:rgba(93,122,146,.12);
+      border:1px solid rgba(93,122,146,.28);
+    }
     .details { overflow-y:auto; padding-bottom:var(--space-24); }
     .section-title { font-size:var(--text-caption); color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.08em; margin:var(--space-20) 0 var(--space-10); padding-bottom:var(--space-8); border-bottom:1px solid var(--color-border-subtle); }
     .card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); padding:var(--space-12) var(--space-16); }
@@ -364,4 +417,3 @@
   <script src="strategy.js"></script>
 </body>
 </html>
-

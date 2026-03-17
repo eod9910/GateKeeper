@@ -2,10 +2,47 @@
   "enabled": true,
   "mode": "paper",
   "kill_switch_active": false,
-  "managed_positions": [],
+  "managed_positions": [
+    {
+      "symbol": "LQD",
+      "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+      "side": "long",
+      "qty": 852,
+      "entry_price": 108.81,
+      "stop_price": 107.4,
+      "take_profit_price": 113.26,
+      "entry_order_id": "2d70b700-fdb7-4a8b-83ea-6e5333e44da1",
+      "entry_time": "2026-03-13T01:00:16.449Z",
+      "signal_data": {
+        "score": 0.95,
+        "signal_bar_date": "2026-03-13T01:00:14.197Z"
+      },
+      "manual_exit_override": true,
+      "manual_stop_price": 107.4,
+      "manual_take_profit_price": 113.26
+    },
+    {
+      "symbol": "PGNY",
+      "strategy_version_id": "pullback_uptrend_entry_composite_v2",
+      "side": "long",
+      "qty": 430,
+      "entry_price": 17.93,
+      "stop_price": 15.18,
+      "take_profit_price": 26.8,
+      "entry_order_id": "9e8b98ca-9374-4541-b215-5a070ace56ca",
+      "entry_time": "2026-03-13T01:00:16.670Z",
+      "signal_data": {
+        "score": 0.95,
+        "signal_bar_date": "2026-03-13T01:00:14.199Z"
+      },
+      "manual_exit_override": true,
+      "manual_stop_price": 15.18,
+      "manual_take_profit_price": 26.8
+    }
+  ],
   "last_scan_time": "2026-03-13T01:00:14.217Z",
   "last_scan_signals": 21,
   "total_trades_placed": 3,
   "total_trades_closed": 3,
-  "session_start": "2026-03-15T05:21:27.537Z"
+  "session_start": "2026-03-16T04:38:58.429Z"
 }

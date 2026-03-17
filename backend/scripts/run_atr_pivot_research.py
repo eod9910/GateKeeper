@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Run the research-v1 ATR pivot parser and save inspection artifacts."""
+"""Run the research-v1 ATR pivot parser for a controlled ETF set and save artifacts."""
 
 from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICES_DIR = ROOT / "services"
@@ -16,9 +16,11 @@ sys.path.insert(0, str(SERVICES_DIR))
 from platform_sdk.ohlcv import fetch_data_yfinance  # noqa: E402
 from research_v1 import (  # noqa: E402
     aggregate_family_stats,
+    build_cross_symbol_family_comparison,
+    build_family_behavior_stability_report,
+    build_five_pivot_motifs,
     build_fragmentation_report,
     build_fragmentation_report_v2,
-    build_five_pivot_motifs,
     build_leg_records,
     build_top_family_inspection_report,
     evaluate_motif_outcomes,
@@ -31,6 +33,10 @@ from research_v1.schema import BarRecord, PivotRecord, PivotType  # noqa: E402
 
 
 OUTPUT_DIR = ROOT / "data" / "research" / "atr_pivot_v1"
+SYMBOLS = ["SPY", "QQQ", "IWM", "DIA"]
+TIMEFRAME = "1d"
+PERIOD = "10y"
+THRESHOLD = 2.0
 
 
 def _parse_timestamp(timestamp: str) -> datetime:
@@ -45,7 +51,6 @@ def _subtract_years(anchor: datetime, years: int) -> datetime:
     try:
         return anchor.replace(year=anchor.year - years)
     except ValueError:
-        # Handle leap-year overflow by falling back to the last valid prior-day boundary.
         return anchor.replace(month=2, day=28, year=anchor.year - years)
 
 
@@ -58,8 +63,19 @@ def _trim_to_recent_years(bars: List, years: int) -> List:
     return trimmed or bars
 
 
+def _period_years(period: str) -> int:
+    cleaned = str(period).strip().lower()
+    if cleaned.endswith("y"):
+        return int(cleaned[:-1])
+    return 5
+
+
 def _threshold_tag(threshold: float) -> str:
     return f"atr{str(threshold).replace('.', '')}"
+
+
+def _symbol_slug(symbol: str) -> str:
+    return symbol.lower()
 
 
 def _price_bounds(bars: List[BarRecord]) -> tuple[float, float]:
@@ -77,7 +93,15 @@ def _price_to_y(price: float, min_price: float, max_price: float, height: int, t
     return float(height - bottom_pad - (ratio * usable_height))
 
 
-def _render_svg(bars: List[BarRecord], pivots: List[PivotRecord], output_path: Path, threshold: float) -> None:
+def _render_svg(
+    bars: List[BarRecord],
+    pivots: List[PivotRecord],
+    output_path: Path,
+    threshold: float,
+    symbol: str,
+    timeframe: str,
+    period: str,
+) -> None:
     width = 1800
     height = 900
     left_pad = 70
@@ -96,7 +120,7 @@ def _render_svg(bars: List[BarRecord], pivots: List[PivotRecord], output_path: P
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         '<rect width="100%" height="100%" fill="#0b1220" />',
-        '<text x="70" y="24" fill="#e5e7eb" font-size="18" font-family="monospace">ATR Pivot Research v1 - SPY 1d - 5y</text>',
+        f'<text x="70" y="24" fill="#e5e7eb" font-size="18" font-family="monospace">ATR Pivot Research v1 - {symbol} {timeframe} - {period}</text>',
         f'<text x="70" y="46" fill="#93c5fd" font-size="12" font-family="monospace">Candles with confirmed ATR-reversal pivots ({threshold:.1f} ATR, min 3 bars)</text>',
     ]
 
@@ -208,16 +232,145 @@ def _build_inspection_markdown(report: dict) -> str:
     return "\n".join(lines)
 
 
-def main() -> int:
-    symbol = "SPY"
-    timeframe = "1d"
-    period = "5y"
-    threshold = 2.0
+def _json_payload(symbol: str, timeframe: str, period: str, threshold: float, count: int, records: List[object]) -> Dict[str, object]:
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "period": period,
+        "reversal_multiple_atr": threshold,
+        "count": count,
+        "records": [record_to_dict(record) for record in records],
+    }
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+def _base_name(symbol: str, timeframe: str, period: str) -> str:
+    return f"{_symbol_slug(symbol)}_{timeframe}_{period}"
+
+
+def _artifact_paths(symbol: str, timeframe: str, period: str, threshold: float) -> Dict[str, Path]:
+    threshold_tag = _threshold_tag(threshold)
+    base_name = _base_name(symbol, timeframe, period)
+    return {
+        "normalized_threshold": OUTPUT_DIR / f"{base_name}_normalized_bars_{threshold_tag}.json",
+        "pivots_threshold": OUTPUT_DIR / f"{base_name}_pivots_{threshold_tag}.json",
+        "legs_threshold": OUTPUT_DIR / f"{base_name}_legs_{threshold_tag}.json",
+        "labels_threshold": OUTPUT_DIR / f"{base_name}_pivot_labels_{threshold_tag}.json",
+        "motifs_threshold": OUTPUT_DIR / f"{base_name}_motifs_{threshold_tag}.json",
+        "outcomes_threshold": OUTPUT_DIR / f"{base_name}_motif_outcomes_{threshold_tag}.json",
+        "family_stats_threshold": OUTPUT_DIR / f"{base_name}_family_stats_{threshold_tag}.json",
+        "family_summary_threshold": OUTPUT_DIR / f"{base_name}_family_summary_{threshold_tag}.json",
+        "fragmentation_report_threshold": OUTPUT_DIR / f"{base_name}_fragmentation_report_{threshold_tag}.json",
+        "family_stats_v2_threshold": OUTPUT_DIR / f"{base_name}_family_stats_v2_{threshold_tag}.json",
+        "family_summary_v2_threshold": OUTPUT_DIR / f"{base_name}_family_summary_v2_{threshold_tag}.json",
+        "fragmentation_report_v2_threshold": OUTPUT_DIR / f"{base_name}_fragmentation_report_v2_{threshold_tag}.json",
+        "family_comparison_threshold": OUTPUT_DIR / f"{base_name}_family_comparison_{threshold_tag}.json",
+        "inspection_report_v2_threshold": OUTPUT_DIR / f"{base_name}_top_family_inspection_v2_{threshold_tag}.json",
+        "inspection_markdown_v2_threshold": OUTPUT_DIR / f"{base_name}_top_family_inspection_v2_{threshold_tag}.md",
+        "svg_threshold": OUTPUT_DIR / f"{base_name}_pivots_{threshold_tag}.svg",
+        "normalized_canonical": OUTPUT_DIR / f"{base_name}_normalized_bars.json",
+        "pivots_canonical": OUTPUT_DIR / f"{base_name}_atr_pivots.json",
+        "legs_canonical": OUTPUT_DIR / f"{base_name}_leg_records.json",
+        "labels_canonical": OUTPUT_DIR / f"{base_name}_pivot_labels.json",
+        "motifs_canonical": OUTPUT_DIR / f"{base_name}_motif_instances.json",
+        "outcomes_canonical": OUTPUT_DIR / f"{base_name}_motif_outcomes.json",
+        "family_stats_canonical": OUTPUT_DIR / f"{base_name}_family_stats.json",
+        "family_summary_canonical": OUTPUT_DIR / f"{base_name}_family_summary.json",
+        "fragmentation_report_canonical": OUTPUT_DIR / f"{base_name}_fragmentation_report.json",
+        "family_stats_v2_canonical": OUTPUT_DIR / f"{base_name}_family_stats_v2.json",
+        "family_summary_v2_canonical": OUTPUT_DIR / f"{base_name}_family_summary_v2.json",
+        "fragmentation_report_v2_canonical": OUTPUT_DIR / f"{base_name}_fragmentation_report_v2.json",
+        "family_comparison_canonical": OUTPUT_DIR / f"{base_name}_family_comparison.json",
+        "inspection_report_v2_canonical": OUTPUT_DIR / f"{base_name}_top_family_inspection_v2.json",
+        "inspection_markdown_v2_canonical": OUTPUT_DIR / f"{base_name}_top_family_inspection_v2.md",
+        "svg_canonical": OUTPUT_DIR / f"{base_name}_atr_pivots.svg",
+    }
+
+
+def _write_json(path: Path, payload: Dict[str, object]) -> None:
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _write_symbol_artifacts(run_result: Dict[str, object]) -> None:
+    payloads = run_result["payloads"]
+    paths = run_result["paths"]
+
+    _write_json(paths["normalized_threshold"], payloads["normalized"])
+    _write_json(paths["pivots_threshold"], payloads["pivots"])
+    _write_json(paths["legs_threshold"], payloads["legs"])
+    _write_json(paths["labels_threshold"], payloads["labels"])
+    _write_json(paths["motifs_threshold"], payloads["motifs"])
+    _write_json(paths["outcomes_threshold"], payloads["outcomes"])
+    _write_json(paths["family_stats_threshold"], payloads["family_stats"])
+    _write_json(paths["family_summary_threshold"], payloads["family_summary"])
+    _write_json(paths["fragmentation_report_threshold"], payloads["fragmentation_report"])
+    _write_json(paths["family_stats_v2_threshold"], payloads["family_stats_v2"])
+    _write_json(paths["family_summary_v2_threshold"], payloads["family_summary_v2"])
+    _write_json(paths["fragmentation_report_v2_threshold"], payloads["fragmentation_report_v2"])
+    _write_json(paths["family_comparison_threshold"], payloads["family_comparison"])
+    _write_json(paths["inspection_report_v2_threshold"], payloads["inspection_report_v2"])
+    paths["inspection_markdown_v2_threshold"].write_text(payloads["inspection_markdown_v2"], encoding="utf-8")
+    _render_svg(
+        run_result["normalized_bars"],
+        run_result["pivots"],
+        paths["svg_threshold"],
+        threshold=run_result["threshold"],
+        symbol=run_result["symbol"],
+        timeframe=run_result["timeframe"],
+        period=run_result["period"],
+    )
+
+    _write_json(paths["normalized_canonical"], payloads["normalized"])
+    _write_json(paths["pivots_canonical"], payloads["pivots"])
+    _write_json(paths["legs_canonical"], payloads["legs"])
+    _write_json(paths["labels_canonical"], payloads["labels"])
+    _write_json(paths["motifs_canonical"], payloads["motifs"])
+    _write_json(paths["outcomes_canonical"], payloads["outcomes"])
+    _write_json(paths["family_stats_canonical"], payloads["family_stats"])
+    _write_json(paths["family_summary_canonical"], payloads["family_summary"])
+    _write_json(paths["fragmentation_report_canonical"], payloads["fragmentation_report"])
+    _write_json(paths["family_stats_v2_canonical"], payloads["family_stats_v2"])
+    _write_json(paths["family_summary_v2_canonical"], payloads["family_summary_v2"])
+    _write_json(paths["fragmentation_report_v2_canonical"], payloads["fragmentation_report_v2"])
+    _write_json(paths["family_comparison_canonical"], payloads["family_comparison"])
+    _write_json(paths["inspection_report_v2_canonical"], payloads["inspection_report_v2"])
+    paths["inspection_markdown_v2_canonical"].write_text(payloads["inspection_markdown_v2"], encoding="utf-8")
+    _render_svg(
+        run_result["normalized_bars"],
+        run_result["pivots"],
+        paths["svg_canonical"],
+        threshold=run_result["threshold"],
+        symbol=run_result["symbol"],
+        timeframe=run_result["timeframe"],
+        period=run_result["period"],
+    )
+
+
+def _symbol_comparison_payload(family_summary: Dict[str, object], family_summary_v2: Dict[str, object], symbol: str, timeframe: str, period: str, threshold: float) -> Dict[str, object]:
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "period": period,
+        "reversal_multiple_atr": threshold,
+        "v1": {
+            "total_unique_families": family_summary["total_unique_families"],
+            "families_with_split_coverage_all_three": family_summary["families_with_split_coverage_all_three"],
+            "families_passing_discovery_and_validation_counts": family_summary["families_passing_discovery_and_validation_counts"],
+            "families_sign_consistent_across_splits": family_summary["families_sign_consistent_across_splits"],
+            "candidate_family_count": family_summary["candidate_family_count"],
+        },
+        "v2": {
+            "total_unique_families": family_summary_v2["total_unique_families"],
+            "families_with_split_coverage_all_three": family_summary_v2["families_with_split_coverage_all_three"],
+            "families_passing_discovery_and_validation_counts": family_summary_v2["families_passing_discovery_and_validation_counts"],
+            "families_sign_consistent_across_splits": family_summary_v2["families_sign_consistent_across_splits"],
+            "candidate_family_count": family_summary_v2["candidate_family_count"],
+        },
+    }
+
+
+def _run_symbol_pipeline(symbol: str, timeframe: str, period: str, threshold: float) -> Dict[str, object]:
     raw_bars = fetch_data_yfinance(symbol=symbol, period=period, interval=timeframe)
-    raw_bars = _trim_to_recent_years(raw_bars, years=5)
+    raw_bars = _trim_to_recent_years(raw_bars, years=_period_years(period))
     normalized_bars = normalize_bars(raw_bars, symbol=symbol, timeframe=timeframe)
     pivots = extract_atr_reversal_pivots(
         normalized_bars,
@@ -256,14 +409,9 @@ def main() -> int:
         min_valid_10bar_count=5,
         grouping_version="v2",
     )
-    fragmentation_report = build_fragmentation_report(
-        motifs=motifs,
-        family_stats=family_stats,
-    )
-    fragmentation_report_v2 = build_fragmentation_report_v2(
-        motifs=motifs,
-        family_stats_v2=family_stats_v2,
-    )
+    fragmentation_report = build_fragmentation_report(motifs=motifs, family_stats=family_stats)
+    fragmentation_report_v2 = build_fragmentation_report_v2(motifs=motifs, family_stats_v2=family_stats_v2)
+    snippet_dir_name = "v2_family_snippets" if symbol == "SPY" else f"{_symbol_slug(symbol)}_v2_family_snippets"
     inspection_report_v2 = build_top_family_inspection_report(
         bars=normalized_bars,
         pivots=pivots,
@@ -273,115 +421,32 @@ def main() -> int:
         output_dir=OUTPUT_DIR,
         top_n=10,
         min_count_filter=5,
+        snippet_dir_name=snippet_dir_name,
     )
     inspection_markdown_v2 = _build_inspection_markdown(inspection_report_v2)
 
-    threshold_tag = _threshold_tag(threshold)
+    valid_forward_5 = sum(1 for outcome in outcomes if outcome.forward_5_return_atr is not None)
+    valid_forward_10 = sum(1 for outcome in outcomes if outcome.forward_10_return_atr is not None)
+    inspection_summary = {
+        "valid_forward_5_count": valid_forward_5,
+        "valid_forward_10_count": valid_forward_10,
+        "sample_rows": [record_to_dict(outcome) for outcome in outcomes[:3]],
+    }
 
-    normalized_path = OUTPUT_DIR / f"spy_1d_5y_normalized_bars_{threshold_tag}.json"
-    pivots_path = OUTPUT_DIR / f"spy_1d_5y_pivots_{threshold_tag}.json"
-    legs_path = OUTPUT_DIR / f"spy_1d_5y_legs_{threshold_tag}.json"
-    labels_path = OUTPUT_DIR / f"spy_1d_5y_pivot_labels_{threshold_tag}.json"
-    motifs_path = OUTPUT_DIR / f"spy_1d_5y_motifs_{threshold_tag}.json"
-    outcomes_path = OUTPUT_DIR / f"spy_1d_5y_motif_outcomes_{threshold_tag}.json"
-    family_stats_path = OUTPUT_DIR / f"spy_1d_5y_family_stats_{threshold_tag}.json"
-    family_summary_path = OUTPUT_DIR / f"spy_1d_5y_family_summary_{threshold_tag}.json"
-    fragmentation_report_path = OUTPUT_DIR / f"spy_1d_5y_fragmentation_report_{threshold_tag}.json"
-    family_stats_v2_path = OUTPUT_DIR / f"spy_1d_5y_family_stats_v2_{threshold_tag}.json"
-    family_summary_v2_path = OUTPUT_DIR / f"spy_1d_5y_family_summary_v2_{threshold_tag}.json"
-    fragmentation_report_v2_path = OUTPUT_DIR / f"spy_1d_5y_fragmentation_report_v2_{threshold_tag}.json"
-    family_comparison_path = OUTPUT_DIR / f"spy_1d_5y_family_comparison_{threshold_tag}.json"
-    inspection_report_v2_path = OUTPUT_DIR / f"spy_1d_5y_top_family_inspection_v2_{threshold_tag}.json"
-    inspection_markdown_v2_path = OUTPUT_DIR / f"spy_1d_5y_top_family_inspection_v2_{threshold_tag}.md"
-    svg_path = OUTPUT_DIR / f"spy_1d_5y_pivots_{threshold_tag}.svg"
-
-    canonical_normalized_path = OUTPUT_DIR / "spy_1d_5y_normalized_bars.json"
-    canonical_pivots_path = OUTPUT_DIR / "spy_1d_5y_atr_pivots.json"
-    canonical_legs_path = OUTPUT_DIR / "spy_1d_5y_leg_records.json"
-    canonical_labels_path = OUTPUT_DIR / "spy_1d_5y_pivot_labels.json"
-    canonical_motifs_path = OUTPUT_DIR / "spy_1d_5y_motif_instances.json"
-    canonical_outcomes_path = OUTPUT_DIR / "spy_1d_5y_motif_outcomes.json"
-    canonical_family_stats_path = OUTPUT_DIR / "spy_1d_5y_family_stats.json"
-    canonical_family_summary_path = OUTPUT_DIR / "spy_1d_5y_family_summary.json"
-    canonical_fragmentation_report_path = OUTPUT_DIR / "spy_1d_5y_fragmentation_report.json"
-    canonical_family_stats_v2_path = OUTPUT_DIR / "spy_1d_5y_family_stats_v2.json"
-    canonical_family_summary_v2_path = OUTPUT_DIR / "spy_1d_5y_family_summary_v2.json"
-    canonical_fragmentation_report_v2_path = OUTPUT_DIR / "spy_1d_5y_fragmentation_report_v2.json"
-    canonical_family_comparison_path = OUTPUT_DIR / "spy_1d_5y_family_comparison.json"
-    canonical_inspection_report_v2_path = OUTPUT_DIR / "spy_1d_5y_top_family_inspection_v2.json"
-    canonical_inspection_markdown_v2_path = OUTPUT_DIR / "spy_1d_5y_top_family_inspection_v2.md"
-    canonical_svg_path = OUTPUT_DIR / "spy_1d_5y_atr_pivots.svg"
-
-    normalized_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(normalized_bars),
-        "records": [record_to_dict(record) for record in normalized_bars],
-    }
-    pivots_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(pivots),
-        "records": [record_to_dict(record) for record in pivots],
-    }
-    legs_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(legs),
-        "records": [record_to_dict(record) for record in legs],
-    }
-    labels_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(pivot_labels),
-        "records": [record_to_dict(record) for record in pivot_labels],
-    }
-    motifs_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(motifs),
-        "records": [record_to_dict(record) for record in motifs],
-    }
-    outcomes_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(outcomes),
-        "records": [record_to_dict(record) for record in outcomes],
-    }
-    family_stats_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(family_stats),
-        "records": [record_to_dict(record) for record in family_stats],
-    }
+    normalized_payload = _json_payload(symbol, timeframe, period, threshold, len(normalized_bars), normalized_bars)
+    pivots_payload = _json_payload(symbol, timeframe, period, threshold, len(pivots), pivots)
+    legs_payload = _json_payload(symbol, timeframe, period, threshold, len(legs), legs)
+    labels_payload = _json_payload(symbol, timeframe, period, threshold, len(pivot_labels), pivot_labels)
+    motifs_payload = _json_payload(symbol, timeframe, period, threshold, len(motifs), motifs)
+    outcomes_payload = _json_payload(symbol, timeframe, period, threshold, len(outcomes), outcomes)
+    family_stats_payload = _json_payload(symbol, timeframe, period, threshold, len(family_stats), family_stats)
+    family_stats_v2_payload = _json_payload(symbol, timeframe, period, threshold, len(family_stats_v2), family_stats_v2)
     family_summary_payload = {
         "symbol": symbol,
         "timeframe": timeframe,
         "period": period,
         "reversal_multiple_atr": threshold,
         **family_summary,
-    }
-    family_stats_v2_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "count": len(family_stats_v2),
-        "records": [record_to_dict(record) for record in family_stats_v2],
     }
     family_summary_v2_payload = {
         "symbol": symbol,
@@ -404,26 +469,14 @@ def main() -> int:
         "reversal_multiple_atr": threshold,
         **fragmentation_report_v2,
     }
-    comparison_payload = {
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "period": period,
-        "reversal_multiple_atr": threshold,
-        "v1": {
-            "total_unique_families": family_summary["total_unique_families"],
-            "families_with_split_coverage_all_three": family_summary["families_with_split_coverage_all_three"],
-            "families_passing_discovery_and_validation_counts": family_summary["families_passing_discovery_and_validation_counts"],
-            "families_sign_consistent_across_splits": family_summary["families_sign_consistent_across_splits"],
-            "candidate_family_count": family_summary["candidate_family_count"],
-        },
-        "v2": {
-            "total_unique_families": family_summary_v2["total_unique_families"],
-            "families_with_split_coverage_all_three": family_summary_v2["families_with_split_coverage_all_three"],
-            "families_passing_discovery_and_validation_counts": family_summary_v2["families_passing_discovery_and_validation_counts"],
-            "families_sign_consistent_across_splits": family_summary_v2["families_sign_consistent_across_splits"],
-            "candidate_family_count": family_summary_v2["candidate_family_count"],
-        },
-    }
+    family_comparison_payload = _symbol_comparison_payload(
+        family_summary=family_summary,
+        family_summary_v2=family_summary_v2,
+        symbol=symbol,
+        timeframe=timeframe,
+        period=period,
+        threshold=threshold,
+    )
     inspection_report_v2_payload = {
         "symbol": symbol,
         "timeframe": timeframe,
@@ -432,82 +485,104 @@ def main() -> int:
         **inspection_report_v2,
     }
 
-    valid_forward_5 = sum(1 for outcome in outcomes if outcome.forward_5_return_atr is not None)
-    valid_forward_10 = sum(1 for outcome in outcomes if outcome.forward_10_return_atr is not None)
-    inspection_summary = {
-        "valid_forward_5_count": valid_forward_5,
-        "valid_forward_10_count": valid_forward_10,
-        "sample_rows": [record_to_dict(outcome) for outcome in outcomes[:3]],
-    }
-
-    normalized_path.write_text(json.dumps(normalized_payload, indent=2), encoding="utf-8")
-    pivots_path.write_text(json.dumps(pivots_payload, indent=2), encoding="utf-8")
-    legs_path.write_text(json.dumps(legs_payload, indent=2), encoding="utf-8")
-    labels_path.write_text(json.dumps(labels_payload, indent=2), encoding="utf-8")
-    motifs_path.write_text(json.dumps(motifs_payload, indent=2), encoding="utf-8")
-    outcomes_path.write_text(json.dumps(outcomes_payload, indent=2), encoding="utf-8")
-    family_stats_path.write_text(json.dumps(family_stats_payload, indent=2), encoding="utf-8")
-    family_summary_path.write_text(json.dumps(family_summary_payload, indent=2), encoding="utf-8")
-    fragmentation_report_path.write_text(json.dumps(fragmentation_report_payload, indent=2), encoding="utf-8")
-    family_stats_v2_path.write_text(json.dumps(family_stats_v2_payload, indent=2), encoding="utf-8")
-    family_summary_v2_path.write_text(json.dumps(family_summary_v2_payload, indent=2), encoding="utf-8")
-    fragmentation_report_v2_path.write_text(json.dumps(fragmentation_report_v2_payload, indent=2), encoding="utf-8")
-    family_comparison_path.write_text(json.dumps(comparison_payload, indent=2), encoding="utf-8")
-    inspection_report_v2_path.write_text(json.dumps(inspection_report_v2_payload, indent=2), encoding="utf-8")
-    inspection_markdown_v2_path.write_text(inspection_markdown_v2, encoding="utf-8")
-    _render_svg(normalized_bars, pivots, svg_path, threshold=threshold)
-
-    canonical_normalized_path.write_text(json.dumps(normalized_payload, indent=2), encoding="utf-8")
-    canonical_pivots_path.write_text(json.dumps(pivots_payload, indent=2), encoding="utf-8")
-    canonical_legs_path.write_text(json.dumps(legs_payload, indent=2), encoding="utf-8")
-    canonical_labels_path.write_text(json.dumps(labels_payload, indent=2), encoding="utf-8")
-    canonical_motifs_path.write_text(json.dumps(motifs_payload, indent=2), encoding="utf-8")
-    canonical_outcomes_path.write_text(json.dumps(outcomes_payload, indent=2), encoding="utf-8")
-    canonical_family_stats_path.write_text(json.dumps(family_stats_payload, indent=2), encoding="utf-8")
-    canonical_family_summary_path.write_text(json.dumps(family_summary_payload, indent=2), encoding="utf-8")
-    canonical_fragmentation_report_path.write_text(json.dumps(fragmentation_report_payload, indent=2), encoding="utf-8")
-    canonical_family_stats_v2_path.write_text(json.dumps(family_stats_v2_payload, indent=2), encoding="utf-8")
-    canonical_family_summary_v2_path.write_text(json.dumps(family_summary_v2_payload, indent=2), encoding="utf-8")
-    canonical_fragmentation_report_v2_path.write_text(json.dumps(fragmentation_report_v2_payload, indent=2), encoding="utf-8")
-    canonical_family_comparison_path.write_text(json.dumps(comparison_payload, indent=2), encoding="utf-8")
-    canonical_inspection_report_v2_path.write_text(json.dumps(inspection_report_v2_payload, indent=2), encoding="utf-8")
-    canonical_inspection_markdown_v2_path.write_text(inspection_markdown_v2, encoding="utf-8")
-    _render_svg(normalized_bars, pivots, canonical_svg_path, threshold=threshold)
-
-    print(json.dumps({
+    return {
         "symbol": symbol,
         "timeframe": timeframe,
         "period": period,
-        "reversal_multiple_atr": threshold,
-        "bar_count": len(normalized_bars),
-        "pivot_count": len(pivots),
-        "leg_count": len(legs),
-        "label_count": len(pivot_labels),
-        "motif_count": len(motifs),
-        "motif_outcome_count": len(outcomes),
-        "family_count": len(family_stats),
-        "family_count_v2": len(family_stats_v2),
-        "valid_forward_5_count": valid_forward_5,
-        "valid_forward_10_count": valid_forward_10,
-        "normalized_path": str(canonical_normalized_path),
-        "pivots_path": str(canonical_pivots_path),
-        "legs_path": str(canonical_legs_path),
-        "labels_path": str(canonical_labels_path),
-        "motifs_path": str(canonical_motifs_path),
-        "outcomes_path": str(canonical_outcomes_path),
-        "family_stats_path": str(canonical_family_stats_path),
-        "family_stats_v2_path": str(canonical_family_stats_v2_path),
-        "fragmentation_report_path": str(canonical_fragmentation_report_path),
-        "fragmentation_report_v2_path": str(canonical_fragmentation_report_v2_path),
-        "inspection_report_v2_path": str(canonical_inspection_report_v2_path),
-        "plot_path": str(canonical_svg_path),
-        "inspection_summary": inspection_summary,
-        "family_summary": family_summary_payload,
-        "family_summary_v2": family_summary_v2_payload,
-        "fragmentation_report": fragmentation_report_payload,
-        "fragmentation_report_v2": fragmentation_report_v2_payload,
-        "family_comparison": comparison_payload,
-        "top_family_inspection_v2": inspection_report_v2_payload,
+        "threshold": threshold,
+        "normalized_bars": normalized_bars,
+        "pivots": pivots,
+        "motifs": motifs,
+        "outcomes": outcomes,
+        "family_stats_v2": family_stats_v2,
+        "family_summary_v2": family_summary_v2,
+        "paths": _artifact_paths(symbol, timeframe, period, threshold),
+        "payloads": {
+            "normalized": normalized_payload,
+            "pivots": pivots_payload,
+            "legs": legs_payload,
+            "labels": labels_payload,
+            "motifs": motifs_payload,
+            "outcomes": outcomes_payload,
+            "family_stats": family_stats_payload,
+            "family_summary": family_summary_payload,
+            "fragmentation_report": fragmentation_report_payload,
+            "family_stats_v2": family_stats_v2_payload,
+            "family_summary_v2": family_summary_v2_payload,
+            "fragmentation_report_v2": fragmentation_report_v2_payload,
+            "family_comparison": family_comparison_payload,
+            "inspection_report_v2": inspection_report_v2_payload,
+            "inspection_markdown_v2": inspection_markdown_v2,
+            "inspection_summary": inspection_summary,
+        },
+        "stats": {
+            "bar_count": len(normalized_bars),
+            "pivot_count": len(pivots),
+            "leg_count": len(legs),
+            "label_count": len(pivot_labels),
+            "motif_count": len(motifs),
+            "motif_outcome_count": len(outcomes),
+            "family_count": len(family_stats),
+            "family_count_v2": len(family_stats_v2),
+            "valid_forward_5_count": valid_forward_5,
+            "valid_forward_10_count": valid_forward_10,
+        },
+    }
+
+
+def main() -> int:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    symbol_runs: List[Dict[str, object]] = []
+    for symbol in SYMBOLS:
+        symbol_runs.append(_run_symbol_pipeline(symbol=symbol, timeframe=TIMEFRAME, period=PERIOD, threshold=THRESHOLD))
+
+    for run in symbol_runs:
+        _write_symbol_artifacts(run)
+
+    cross_symbol_comparison = build_cross_symbol_family_comparison(symbol_runs, min_count_filter=5, top_n=10)
+    family_behavior_stability = build_family_behavior_stability_report(symbol_runs, min_count_filter=5)
+    threshold_tag = _threshold_tag(THRESHOLD)
+    multi_symbol_payload = {
+        "timeframe": TIMEFRAME,
+        "period": PERIOD,
+        "reversal_multiple_atr": THRESHOLD,
+        **cross_symbol_comparison,
+    }
+    family_behavior_payload = {
+        "timeframe": TIMEFRAME,
+        "period": PERIOD,
+        "reversal_multiple_atr": THRESHOLD,
+        **family_behavior_stability,
+    }
+    cross_symbol_threshold_path = OUTPUT_DIR / f"etf_1d_10y_family_comparison_v2_{threshold_tag}.json"
+    cross_symbol_canonical_path = OUTPUT_DIR / "etf_1d_10y_family_comparison_v2.json"
+    family_behavior_threshold_path = OUTPUT_DIR / f"etf_1d_10y_family_behavior_stability_report_{threshold_tag}.json"
+    family_behavior_canonical_path = OUTPUT_DIR / "etf_1d_10y_family_behavior_stability_report.json"
+    _write_json(cross_symbol_threshold_path, multi_symbol_payload)
+    _write_json(cross_symbol_canonical_path, multi_symbol_payload)
+    _write_json(family_behavior_threshold_path, family_behavior_payload)
+    _write_json(family_behavior_canonical_path, family_behavior_payload)
+
+    print(json.dumps({
+        "timeframe": TIMEFRAME,
+        "period": PERIOD,
+        "reversal_multiple_atr": THRESHOLD,
+        "symbols": {
+            run["symbol"]: {
+                **run["stats"],
+                "normalized_path": str(run["paths"]["normalized_canonical"]),
+                "pivots_path": str(run["paths"]["pivots_canonical"]),
+                "family_stats_v2_path": str(run["paths"]["family_stats_v2_canonical"]),
+                "inspection_report_v2_path": str(run["paths"]["inspection_report_v2_canonical"]),
+                "plot_path": str(run["paths"]["svg_canonical"]),
+            }
+            for run in symbol_runs
+        },
+        "cross_symbol_comparison_path": str(cross_symbol_canonical_path),
+        "family_behavior_stability_report_path": str(family_behavior_canonical_path),
+        "cross_symbol_comparison": multi_symbol_payload,
+        "family_behavior_stability_report": family_behavior_payload,
     }, indent=2))
     return 0
 

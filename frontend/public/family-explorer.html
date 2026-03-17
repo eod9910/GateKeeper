@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Explorer - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .explorer-shell {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+      min-height: calc(100vh - var(--space-32));
+    }
+    .explorer-hero,
+    .explorer-frame {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .explorer-hero {
+      padding: var(--space-24);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-16);
+      flex-wrap: wrap;
+    }
+    .explorer-kicker {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      margin-bottom: var(--space-8);
+    }
+    .explorer-hero h1 {
+      margin-bottom: var(--space-8);
+    }
+    .explorer-hero p {
+      color: var(--color-text-muted);
+      max-width: 72ch;
+    }
+    .explorer-actions {
+      display: flex;
+      gap: var(--space-8);
+      flex-wrap: wrap;
+    }
+    .explorer-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 0 var(--space-16);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      color: var(--color-text);
+      text-decoration: none;
+      font-size: var(--text-small);
+      font-weight: 600;
+      transition: border-color var(--transition), background var(--transition), color var(--transition), box-shadow var(--transition);
+    }
+    .explorer-btn:hover {
+      border-color: var(--ui-hover-border);
+      background: var(--ui-hover-bg);
+      color: var(--ui-hover-text);
+      box-shadow: var(--ui-hover-shadow);
+    }
+    .explorer-btn.primary {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: #fff;
+    }
+    .explorer-btn.primary:hover {
+      background: var(--color-accent-hover);
+      border-color: var(--color-accent-hover);
+      color: #fff;
+      box-shadow: none;
+    }
+    .explorer-frame {
+      flex: 1;
+      min-height: 70vh;
+    }
+    .explorer-frame iframe {
+      width: 100%;
+      height: calc(100vh - 260px);
+      min-height: 780px;
+      border: 0;
+      background: #f5efe2;
+      display: block;
+    }
+    .explorer-frame-note {
+      padding: var(--space-8) var(--space-12);
+      border-top: 1px solid var(--color-border);
+      color: var(--color-text-subtle);
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+    }
+    @media (max-width: 960px) {
+      .explorer-frame iframe {
+        height: calc(100vh - 320px);
+        min-height: 620px;
+      }
+    }
+  </style>
+</head>
+<body class="app-container">
+  <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-header">
+      <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <span class="logo-mark">PD</span>
+        <span class="sidebar-label-text">Pattern Detector</span>
+      </a>
+      <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Scanner</span>
+      </a>
+      <a href="copilot.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Trading Desk</span>
+      </a>
+      <a href="history.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Position Book</span>
+      </a>
+      <a href="validator.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Validator</span>
+      </a>
+      <a href="workshop.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Indicator Studio</span>
+      </a>
+      <a href="research.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Research Agent</span>
+      </a>
+      <a href="/family-explorer" class="sidebar-nav-item active" aria-current="page">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Family Explorer</span>
+      </a>
+      <a href="sweep.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Parameter Sweep</span>
+      </a>
+      <a href="execution.html" class="sidebar-nav-item">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Execution Desk</span>
+      </a>
+      <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);">
+        <span class="nav-dot"></span>
+        <span class="sidebar-label-text">Settings</span>
+      </a>
+    </nav>
+  </aside>
+
+  <main class="app-main" id="app-main">
+    <div class="app-content">
+      <section class="explorer-shell">
+        <div class="explorer-hero">
+          <div>
+            <div class="explorer-kicker">Structural Motif Research</div>
+            <h1>Family Explorer</h1>
+            <p>
+              This is the deterministic v2 family-inspection UI moved into the app shell.
+              It shows recurring structural families, cross-symbol behavior, structural direction,
+              and representative chart snippets from the locked research pipeline.
+            </p>
+          </div>
+          <div class="explorer-actions">
+            <a class="explorer-btn primary" href="/research-artifacts/atr_pivot_v1/etf_1d_10y_family_explorer.html" target="_blank" rel="noreferrer">Open Live Explorer</a>
+            <a class="explorer-btn" href="/research">Back To Research</a>
+          </div>
+        </div>
+
+        <div class="explorer-frame">
+          <iframe src="/research-artifacts/atr_pivot_v1/etf_1d_10y_family_explorer.html" title="Family Explorer"></iframe>
+          <div class="explorer-frame-note">
+            Embedded directly from the latest generated research artifact directory.
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const toggle = sidebar?.querySelector('.sidebar-toggle');
+    const appMain = document.getElementById('app-main');
+    if (toggle && sidebar && appMain) {
+      toggle.addEventListener('click', () => {
+        const collapsed = sidebar.classList.toggle('collapsed');
+        appMain.classList.toggle('sidebar-collapsed', collapsed);
+      });
+    }
+  </script>
+</body>
+</html>

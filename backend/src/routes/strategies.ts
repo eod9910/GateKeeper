@@ -10,19 +10,119 @@
 
 import { Router, Request, Response } from 'express';
 import fetch from 'node-fetch';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import * as storage from '../services/storageService';
+import { applyParameterManifest } from '../services/parameterManifest';
 import { applyRolePromptOverride, getConfiguredOpenAIKey } from '../services/aiSettings';
 import { StrategySpec, ApiResponse } from '../types';
 
 const router = Router();
 const ASSET_CLASSES = ['futures', 'stocks', 'options', 'forex', 'crypto'] as const;
 type StrategyAssetClass = (typeof ASSET_CLASSES)[number];
+const PATTERNS_DIR = path.join(__dirname, '..', '..', 'data', 'patterns');
+const REGISTRY_PATH = path.join(PATTERNS_DIR, 'registry.json');
+const VALIDATOR_JOBS_PATH = path.join(__dirname, '..', '..', 'data', 'validator-run-jobs.json');
 
 function isValidSymbol(s: string): boolean {
   return /^[A-Z0-9._\-=^]{1,15}$/.test(s);
 }
 
 const resolveCompositeStrategy = storage.resolveCompositeStrategy;
+
+function toRegistryInterval(timeframe: string | undefined): string {
+  if (timeframe === 'W') return '1wk';
+  if (timeframe === 'D') return '1d';
+  return '1wk';
+}
+
+async function readPatternRegistry(): Promise<any> {
+  const raw = await fs.readFile(REGISTRY_PATH, 'utf-8');
+  return JSON.parse(raw);
+}
+
+async function writePatternRegistry(registry: any): Promise<void> {
+  await fs.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf-8');
+}
+
+function buildRegistryStrategy(entry: any, def: any, updatedAt: string): StrategySpec {
+  return applyParameterManifest({
+    strategy_id: entry.pattern_id,
+    strategy_version_id: `${entry.pattern_id}_v1`,
+    version: 1,
+    name: entry.name || def.name,
+    description: def.description || '',
+    status: (entry.status || 'experimental') as any,
+    asset_class: 'stocks' as any,
+    interval: toRegistryInterval(def.suggested_timeframes?.[0]) as any,
+    universe: [],
+    structure_config: def.default_structure_config || {},
+    setup_config: { pattern_type: def.pattern_type || entry.pattern_id, ...def.default_setup_params },
+    entry_config: def.default_entry || {},
+    risk_config: (def.default_risk_config || { stop_type: 'structural' }) as any,
+    exit_config: {},
+    cost_config: { commission_per_trade: 0, slippage_pct: 0.001 },
+    execution_config: {},
+    created_at: updatedAt,
+    updated_at: updatedAt,
+  } as unknown as StrategySpec, def);
+}
+
+async function getRegistryStrategies(statusFilter?: string): Promise<StrategySpec[]> {
+  const registry = await readPatternRegistry();
+  const validatable = (registry.patterns || []).filter((p: any) =>
+    p.composition === 'composite' || p.composition === 'monolithic' || p.artifact_type === 'pattern'
+  );
+  const items = await Promise.all(validatable.map(async (entry: any) => {
+    try {
+      const def = JSON.parse(await fs.readFile(path.join(PATTERNS_DIR, entry.definition_file), 'utf-8'));
+      const updatedAt = def.updated_at || registry.updated_at || new Date().toISOString();
+      return buildRegistryStrategy(entry, def, updatedAt);
+    } catch {
+      return null;
+    }
+  }));
+  return items.filter((item): item is StrategySpec => {
+    if (!item) return false;
+    return !statusFilter || item.status === statusFilter;
+  });
+}
+
+async function updateRegistryStrategyStatus(strategyVersionId: string, status: StrategySpec['status']): Promise<StrategySpec | null> {
+  const registry = await readPatternRegistry();
+  const idx = (registry.patterns || []).findIndex((entry: any) =>
+    `${entry.pattern_id}_v1` === strategyVersionId || entry.pattern_id === strategyVersionId
+  );
+  if (idx < 0) return null;
+
+  registry.patterns[idx].status = status;
+  registry.updated_at = new Date().toISOString();
+  await writePatternRegistry(registry);
+
+  const entry = registry.patterns[idx];
+  try {
+    const def = JSON.parse(await fs.readFile(path.join(PATTERNS_DIR, entry.definition_file), 'utf-8'));
+    return buildRegistryStrategy(entry, def, registry.updated_at);
+  } catch {
+    return null;
+  }
+}
+
+async function deleteValidatorJobsByStrategy(strategyVersionId: string): Promise<number> {
+  try {
+    const raw = await fs.readFile(VALIDATOR_JOBS_PATH, 'utf-8');
+    const jobs = JSON.parse(raw);
+    if (!Array.isArray(jobs)) return 0;
+    const kept = jobs.filter((job: any) => String(job?.strategy_version_id || '').trim() !== strategyVersionId);
+    const deleted = jobs.length - kept.length;
+    if (deleted > 0) {
+      await fs.writeFile(VALIDATOR_JOBS_PATH, JSON.stringify(kept, null, 2), 'utf-8');
+    }
+    return deleted;
+  } catch {
+    return 0;
+  }
+}
 
 function parseUniverse(input: any): string[] | null {
   if (input == null) return [];
@@ -203,6 +303,67 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/strategies/tombstones
+ * Aggregate rejected strategies for the Tombstones page.
+ */
+router.get('/tombstones', async (_req: Request, res: Response) => {
+  try {
+    const savedStrategies = (await storage.getAllStrategies())
+      .filter((strategy) => strategy?.status === 'rejected');
+    const registryStrategies = await getRegistryStrategies('rejected');
+    const seen = new Set(savedStrategies.map((strategy) => strategy.strategy_version_id));
+    const strategies = savedStrategies.concat(
+      registryStrategies.filter((strategy) => !seen.has(strategy.strategy_version_id))
+    );
+
+    const entries = await Promise.all(strategies.map(async (strategy) => {
+      const reports = await storage.getAllValidationReports(strategy.strategy_version_id);
+      reports.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      const latestReport = reports[0] || null;
+      const latestFailedReport = reports.find((report) => report.pass_fail === 'FAIL') || latestReport;
+      return {
+        strategy_id: strategy.strategy_id,
+        strategy_version_id: strategy.strategy_version_id,
+        name: strategy.name,
+        description: strategy.description || '',
+        status: strategy.status,
+        asset_class: strategy.asset_class || null,
+        interval: strategy.interval || null,
+        tombstoned_at: strategy.updated_at || strategy.created_at || null,
+        source: 'strategy_status_rejected',
+        reason: latestFailedReport?.pass_fail_reasons?.join(' | ') || 'Strategy marked rejected.',
+        latest_report_id: latestFailedReport?.report_id || null,
+        latest_validation_tier: latestFailedReport?.config?.validation_tier || null,
+        latest_pass_fail: latestFailedReport?.pass_fail || null,
+        latest_metrics: latestFailedReport ? {
+          total_trades: latestFailedReport?.trades_summary?.total_trades ?? null,
+          expectancy_R: latestFailedReport?.trades_summary?.expectancy_R ?? null,
+          profit_factor: latestFailedReport?.trades_summary?.profit_factor ?? null,
+          win_rate: latestFailedReport?.trades_summary?.win_rate ?? null,
+          max_drawdown_pct: latestFailedReport?.risk_summary?.max_drawdown_pct ?? null,
+        } : null,
+      };
+    }));
+
+    const latestUpdatedAt = entries.reduce<string | null>((latest, entry) => {
+      if (!entry?.tombstoned_at) return latest;
+      if (!latest) return entry.tombstoned_at;
+      return new Date(entry.tombstoned_at).getTime() > new Date(latest).getTime() ? entry.tombstoned_at : latest;
+    }, null);
+
+    res.json({
+      success: true,
+      data: {
+        updated_at: latestUpdatedAt,
+        entries,
+      },
+    } as ApiResponse<any>);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
+/**
  * GET /api/strategies/:id
  * Get a specific strategy version by strategy_version_id.
  */
@@ -215,6 +376,50 @@ router.get('/:id', async (req: Request, res: Response) => {
     res.json({ success: true, data: spec } as ApiResponse<StrategySpec>);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
+/**
+ * DELETE /api/strategies/:id
+ * Hard delete saved strategies and their validator artifacts.
+ * Registry-backed primitives/patterns are not deletable here.
+ */
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const strategyVersionId = String(req.params.id || '').trim();
+    if (!strategyVersionId) {
+      return res.status(400).json({ success: false, error: 'Strategy id is required' } as ApiResponse<null>);
+    }
+
+    const saved = await storage.getStrategy(strategyVersionId);
+    if (!saved) {
+      const registryStrategy = await resolveCompositeStrategy(strategyVersionId);
+      if (registryStrategy) {
+        return res.status(409).json({
+          success: false,
+          error: 'Registry-backed strategies cannot be deleted. Tombstone them instead.',
+        } as ApiResponse<null>);
+      }
+      return res.status(404).json({ success: false, error: 'Strategy not found' } as ApiResponse<null>);
+    }
+
+    const deletedReports = await storage.deleteValidationReportsByStrategy(strategyVersionId);
+    const deletedJobs = await deleteValidatorJobsByStrategy(strategyVersionId);
+    const deletedStrategy = await storage.deleteStrategy(strategyVersionId);
+    if (!deletedStrategy) {
+      return res.status(404).json({ success: false, error: 'Strategy not found' } as ApiResponse<null>);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        strategy_version_id: strategyVersionId,
+        deleted_reports: deletedReports,
+        deleted_jobs: deletedJobs,
+      },
+    } as ApiResponse<any>);
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
   }
 });
 
@@ -244,6 +449,7 @@ router.post('/', async (req: Request, res: Response) => {
     spec.status = spec.status || 'draft';
     spec.created_at = spec.created_at || new Date().toISOString();
     spec.updated_at = new Date().toISOString();
+    Object.assign(spec, applyParameterManifest(spec));
 
     const id = await storage.saveStrategy(spec);
 
@@ -305,6 +511,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       merged.universe = parseUniverse(merged.universe) || [];
     }
     merged.asset_class = parseAssetClass(merged.asset_class) || undefined;
+    Object.assign(merged, applyParameterManifest(merged));
 
     await storage.saveStrategy(merged, true);
 
@@ -529,7 +736,8 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       } as ApiResponse<null>);
     }
 
-    const updated = await storage.updateStrategyStatus(req.params.id, status);
+    const updated = await storage.updateStrategyStatus(req.params.id, status)
+      || await updateRegistryStrategyStatus(req.params.id, status);
     if (!updated) {
       return res.status(404).json({ success: false, error: 'Strategy not found' } as ApiResponse<null>);
     }

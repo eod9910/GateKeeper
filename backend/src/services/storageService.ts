@@ -20,6 +20,7 @@ import {
   ValidationReport,
   TradeInstance
 } from '../types';
+import { applyParameterManifest } from './parameterManifest';
 
 // ---------------------------------------------------------------------------
 // Spec Hash — integrity fingerprint for a strategy's trading logic
@@ -815,8 +816,10 @@ export async function clearDiscountCandidates(): Promise<void> {
  */
 export async function saveStrategy(strategy: StrategySpec, force: boolean = false): Promise<string> {
   await ensureDirectories();
+
+  const normalizedStrategy = applyParameterManifest(strategy);
   
-  const id = strategy.strategy_version_id;
+  const id = normalizedStrategy.strategy_version_id;
   const filepath = path.join(STRATEGIES_DIR, `${id}.json`);
   
   // Enforce immutability: don't overwrite existing specs unless forced
@@ -827,7 +830,7 @@ export async function saveStrategy(strategy: StrategySpec, force: boolean = fals
       const existingContent = await fs.readFile(filepath, 'utf-8');
       const existing = JSON.parse(existingContent) as StrategySpec;
       const existingHash = existing.spec_hash || computeSpecHash(existing);
-      const newHash = computeSpecHash(strategy);
+      const newHash = computeSpecHash(normalizedStrategy);
       if (existingHash !== newHash) {
         throw new Error(
           `Immutability violation: Cannot overwrite strategy ${id} with different config. ` +
@@ -847,10 +850,10 @@ export async function saveStrategy(strategy: StrategySpec, force: boolean = fals
   }
 
   // Compute and attach spec_hash
-  const specHash = computeSpecHash(strategy);
+  const specHash = computeSpecHash(normalizedStrategy);
   
   const data: StrategySpec = {
-    ...strategy,
+    ...normalizedStrategy,
     spec_hash: specHash,
     updated_at: new Date().toISOString()
   };
@@ -883,7 +886,7 @@ export async function getAllStrategies(): Promise<StrategySpec[]> {
       ) {
         continue;
       }
-      strategies.push(parsed as StrategySpec);
+      strategies.push(applyParameterManifest(parsed as StrategySpec));
     }
   }
   
@@ -900,7 +903,7 @@ export async function getStrategy(strategyVersionId: string): Promise<StrategySp
   
   try {
     const content = await fs.readFile(filepath, 'utf-8');
-    return JSON.parse(content) as StrategySpec;
+    return applyParameterManifest(JSON.parse(content) as StrategySpec);
   } catch (err: any) {
     if (err.code === 'ENOENT') {
       // Backward compatibility: some legacy files were named by strategy_id
@@ -917,7 +920,7 @@ export async function getStrategy(strategyVersionId: string): Promise<StrategySp
             typeof parsed.strategy_version_id === 'string' &&
             parsed.strategy_version_id.trim() === strategyVersionId
           ) {
-            return parsed as StrategySpec;
+            return applyParameterManifest(parsed as StrategySpec);
           }
         } catch {
           // Ignore malformed strategy files and continue scanning.
@@ -927,6 +930,43 @@ export async function getStrategy(strategyVersionId: string): Promise<StrategySp
     }
     throw err;
   }
+}
+
+/**
+ * Delete a saved strategy by version ID.
+ * Returns true when a saved strategy file was removed.
+ */
+export async function deleteStrategy(strategyVersionId: string): Promise<boolean> {
+  const filepath = path.join(STRATEGIES_DIR, `${strategyVersionId}.json`);
+
+  try {
+    await fs.unlink(filepath);
+    return true;
+  } catch (err: any) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+
+  const files = await fs.readdir(STRATEGIES_DIR);
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+    const filePath = path.join(STRATEGIES_DIR, file);
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      const parsed = JSON.parse(content) as Partial<StrategySpec>;
+      if (
+        parsed &&
+        typeof parsed.strategy_version_id === 'string' &&
+        parsed.strategy_version_id.trim() === strategyVersionId
+      ) {
+        await fs.unlink(filePath);
+        return true;
+      }
+    } catch {
+      // Ignore malformed strategy files and continue scanning.
+    }
+  }
+
+  return false;
 }
 
 /**

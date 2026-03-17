@@ -36,6 +36,8 @@
         "profit_factor": 1.3118300610661218,
         "max_drawdown_pct": 38.10358439121849,
         "sharpe_ratio": 1.7047160744336294,
+        "oos_degradation_pct": 19.2,
+        "pass_fail": "FAIL",
         "fitness_score": 0.372
       }
     },
@@ -55,6 +57,8 @@
         "profit_factor": 1.3118300610661218,
         "max_drawdown_pct": 38.10358439121849,
         "sharpe_ratio": 1.7047160744336294,
+        "oos_degradation_pct": 19.2,
+        "pass_fail": "FAIL",
         "fitness_score": 0.372
       }
     },
@@ -74,6 +78,8 @@
         "profit_factor": 1.2832605978206155,
         "max_drawdown_pct": 41.626962812082326,
         "sharpe_ratio": 1.5786404175728777,
+        "oos_degradation_pct": 45.4,
+        "pass_fail": "FAIL",
         "fitness_score": 0.293
       }
     },
@@ -93,6 +99,8 @@
         "profit_factor": 1.7282036238617988,
         "max_drawdown_pct": 29.926410723565738,
         "sharpe_ratio": 3.023891408956411,
+        "oos_degradation_pct": 86.8,
+        "pass_fail": "FAIL",
         "fitness_score": 0.467
       }
     },
@@ -112,6 +120,8 @@
         "profit_factor": 1.3118300610661218,
         "max_drawdown_pct": 38.10358439121849,
         "sharpe_ratio": 1.7047160744336294,
+        "oos_degradation_pct": 19.2,
+        "pass_fail": "FAIL",
         "fitness_score": 0.372
       }
     },
@@ -156,6 +166,8 @@
       "profit_factor": 1.7282036238617988,
       "max_drawdown_pct": 29.926410723565738,
       "sharpe_ratio": 3.023891408956411,
+      "oos_degradation_pct": 86.8,
+      "pass_fail": "FAIL",
       "fitness_score": 0.467
     }
   },

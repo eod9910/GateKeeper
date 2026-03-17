@@ -10,13 +10,15 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as storage from '../services/storageService';
-import { ApiResponse, StrategySpec, StrategyAssetClass, ValidationReport, TradeInstance } from '../types';
+import { ApiResponse, StrategySpec, StrategyAssetClass, ValidationReport, TradeInstance, ValidatorComparisonDiagnostics } from '../types';
+import { applyParameterManifest } from '../services/parameterManifest';
 import {
   getPluginServiceHealth,
   isPyServiceEnabled,
   runValidatorPipelineViaService,
   cancelValidatorJobOnService,
 } from '../services/pluginServiceClient';
+import { buildValidatorComparisonDiagnostics } from '../services/validatorComparisonService';
 
 const router = Router();
 
@@ -52,7 +54,7 @@ interface RunJob {
   job_id: string;
   status: RunJobStatus;
   strategy_version_id: string;
-  tier?: 'tier1' | 'tier2' | 'tier3';
+  tier?: 'tier1' | 'tier1b' | 'tier2' | 'tier3';
   asset_class?: StrategyAssetClass;
   interval?: string;
   date_start?: string;
@@ -88,11 +90,15 @@ const JOBS_FILE = path.join(__dirname, '..', '..', 'data', 'validator-run-jobs.j
 const MAX_CONCURRENT_RUNS = Math.max(1, Number(process.env.VALIDATOR_MAX_CONCURRENT_RUNS || 2));
 const PIPELINE_BASE_TIMEOUT_MS = Math.max(60_000, Number(process.env.VALIDATOR_PIPELINE_TIMEOUT_MS || 10 * 60_000));
 const VALIDATOR_USE_PY_SERVICE = isPyServiceEnabled();
-type ValidationTier = 'tier1' | 'tier2' | 'tier3';
+type ValidationTier = 'tier1' | 'tier1b' | 'tier2' | 'tier3';
+const VALIDATION_TIER_KEYS: ValidationTier[] = ['tier1', 'tier1b', 'tier2', 'tier3'];
 const ASSET_CLASSES: StrategyAssetClass[] = ['futures', 'stocks', 'options', 'forex', 'crypto'];
+const OPTIONABLE_UNIVERSE_FILE = path.join(__dirname, '..', '..', 'data', 'universe', 'optionable.json');
+const STOCKS_TIER1B_TARGET_SYMBOLS = Math.max(150, Number(process.env.VALIDATOR_TIER1B_STOCKS_TARGET_SYMBOLS || 250));
 const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTier, string[]>> = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
+    tier1b: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
   },
@@ -119,6 +125,37 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
       'BWXT','POWL',
       // Crypto/Digital Assets (2 — 4%)
       'MARA','RIOT',
+    ],
+    tier1b: [
+      'IWM','SPY','QQQ','XLK','XLF','XLE','XLI','XLV','XLY','XLB',
+      'APLS','ARWR','BEAM','HALO','INSM','KRTX','PRCT','RVMD','IOVA',
+      'CRNX','DVAX','FATE','IMVT','MNKD','NARI','PCVX','SDGR','TGTX','TMDX','VRNA',
+      'ANET','ALRM','BRZE','CALX','CRDO','DDOG','ESTC','JAMF','NTNX','SMCI',
+      'CWAN','DCBO','EVCM','FLYW','GENI','PAYO','TBLA',
+      'BROS','CAVA','CROX','DNUT','FIGS','SHAK','WRBY',
+      'AEO','ARKO','JACK','LOCO','PRPL',
+      'AFRM','BILL','HOOD','SOFI','TOST','UPST',
+      'COIN','LPRO','OPEN','PSFE','RELY',
+      'ARRY','ENPH','RUN','SEDG','SHLS',
+      'FLNC','MAXN','NOVA','SPWR',
+      'ASTS','IONQ','JOBY','LUNR','RKLB',
+      'ACHR','AEHR','BKSY','RGTI',
+      'AG','CCJ','MP','PAAS',
+      'AMR','HCC','IAUX','LAC','NXE','UUUU',
+      'BWXT','POWL','ARIS','CSWI','ROAD',
+      'MARA','RIOT','BTBT','CIFR','CLSK','IREN','WULF',
+      'VERX','ARLO','TASK','RAMP','PUBM','SEMR','WEAV','INOD',
+      'KNBE','PRCH','COMP','SGHC','OUST','CXAI','ADPT','VNET','INTA',
+      'CORT','PGNY','RCKT','NUVB','KRYS','ACCD','CPRX','TYRA','IRMD',
+      'GPCR','VERA','RVNC','RLAY','DAWN','IDYA','SNDX','XNCR','ACLX',
+      'VSCO','BIRD','XPOF','LESL','COOK',
+      'SHCO','GOOS','DTC','LOVE','FLXS','XMTR','PLYA','EVRI','PTLO',
+      'STEM','OPAL','GNE','KRNT','NNOX',
+      'GTLS','ENVX','AMSC','WLDN','PRIM',
+      'STEP','HASI','ALIT','UWMC','RKT','GHLD',
+      'LILM','EVTL','RDW','MNTS','SATL',
+      'GATO','PLL','ORGN','DNN','MAG',
+      'VUZI','BFLY','SSYS','DM','MKFG',
     ],
     // TIER 2 — Core Validation (100 stocks = Tier 1 + 50 more, stratified)
     // Adds out-of-sample split, walk-forward, Monte Carlo, parameter sensitivity.
@@ -203,30 +240,87 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
   },
   options: {
     tier1: ['SPY', 'QQQ'],
+    tier1b: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
   },
   forex: {
     tier1: ['EURUSD=X', 'GBPUSD=X'],
+    tier1b: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
   },
   crypto: {
     tier1: ['BTC-USD', 'ETH-USD'],
+    tier1b: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
   },
 };
 const VALIDATION_TIER_LABELS: Record<ValidationTier, string> = {
   tier1: 'Tier 1 - Kill Test',
+  tier1b: 'Tier 1B - Evidence Expansion',
   tier2: 'Tier 2 - Core Validation',
   tier3: 'Tier 3 - Robustness',
 };
 const VALIDATION_TIER_DESCRIPTIONS: Record<ValidationTier, string> = {
   tier1: 'Fast kill test on a fixed Tier 1 universe. Target evidence: 200-300 trades.',
+  tier1b: 'Evidence expansion on a deterministic slice of the full optionable stock universe. Use this when Tier 1 quality looks good but sample size is thin.',
   tier2: 'Core validation on a fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires Tier 1 PASS.',
   tier3: 'Robustness validation on a fixed Tier 3 universe. Stress tests for survivors. Requires Tier 2 PASS.',
 };
+
+let optionableStocksUniverseCache: string[] | null = null;
+
+function normalizeUniverseSymbols(input: any): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of input) {
+    const symbol = String(value || '').trim().toUpperCase();
+    if (!symbol || !/^[A-Z0-9._\-=^]{1,15}$/.test(symbol) || seen.has(symbol)) continue;
+    seen.add(symbol);
+    out.push(symbol);
+  }
+  return out;
+}
+
+function buildDeterministicUniverseSlice(symbols: string[], targetCount: number): string[] {
+  if (!Array.isArray(symbols) || symbols.length <= targetCount) return symbols.slice();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const step = symbols.length / targetCount;
+  for (let i = 0; i < targetCount; i += 1) {
+    let idx = Math.min(symbols.length - 1, Math.floor(i * step));
+    while (idx < symbols.length && seen.has(symbols[idx])) {
+      idx += 1;
+    }
+    if (idx >= symbols.length) break;
+    seen.add(symbols[idx]);
+    out.push(symbols[idx]);
+  }
+  return out;
+}
+
+async function loadOptionableStocksTier1BUniverse(): Promise<string[]> {
+  if (optionableStocksUniverseCache && optionableStocksUniverseCache.length > 0) {
+    return optionableStocksUniverseCache.slice();
+  }
+  try {
+    const raw = await fs.readFile(OPTIONABLE_UNIVERSE_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const optionable = normalizeUniverseSymbols(parsed?.optionable || parsed?.symbols || []);
+    const sampled = buildDeterministicUniverseSlice(optionable, STOCKS_TIER1B_TARGET_SYMBOLS);
+    if (sampled.length > 0) {
+      optionableStocksUniverseCache = sampled;
+      return sampled.slice();
+    }
+  } catch {
+    // Fall through to the static fallback below.
+  }
+  optionableStocksUniverseCache = VALIDATION_TIER_UNIVERSES.stocks.tier1b.slice();
+  return optionableStocksUniverseCache.slice();
+}
 // Scale timeout by tier: Tier 1 is intentionally faster, Tier 2/3 include robustness.
 // Per-symbol budget is 30s to account for RDP computation (~22s actual).
 // After Numba (Phase 1D), these will be way more than enough.
@@ -234,6 +328,7 @@ function pipelineTimeoutMs(symbolCount: number, tier: ValidationTier = 'tier2'):
   const perSymbol = 30_000 * Math.max(1, symbolCount);
   const multiplierByTier: Record<ValidationTier, number> = {
     tier1: 2,   // ~20 min for 50 symbols (was cutting off at 18m)
+    tier1b: 2,  // evidence expansion still uses baseline-only runtime
     tier2: 3,   // ~2.5 hours for 106 symbols
     tier3: 3,   // ~2.5 hours for 190 symbols
   };
@@ -311,7 +406,7 @@ function parseUniverse(input: any): string[] | null {
 function parseValidationTier(input: any): ValidationTier | null {
   if (input == null) return null;
   const key = String(input).trim().toLowerCase();
-  if (key === 'tier1' || key === 'tier2' || key === 'tier3') {
+  if (key === 'tier1' || key === 'tier1b' || key === 'tier2' || key === 'tier3') {
     return key;
   }
   return null;
@@ -357,26 +452,50 @@ function resolveReportAssetClass(report: any): StrategyAssetClass {
   return inferAssetClassFromUniverse(report?.config?.universe);
 }
 
-function getValidationTierUniverse(assetClass: StrategyAssetClass, tier: ValidationTier): string[] {
+async function getValidationTierUniverse(assetClass: StrategyAssetClass, tier: ValidationTier): Promise<string[]> {
+  if (assetClass === 'stocks' && tier === 'tier1b') {
+    return loadOptionableStocksTier1BUniverse();
+  }
   const byClass = VALIDATION_TIER_UNIVERSES[assetClass] || VALIDATION_TIER_UNIVERSES.stocks;
   return (byClass[tier] || VALIDATION_TIER_UNIVERSES.stocks[tier] || []).slice();
 }
 
-function buildTierConfigPayload(assetClass: StrategyAssetClass): Record<string, any> {
+async function buildTierConfigPayload(assetClass: StrategyAssetClass): Promise<Record<string, any>> {
   const data: Record<string, any> = {
     asset_class: assetClass,
     tiers: {},
   };
-  const keys: ValidationTier[] = ['tier1', 'tier2', 'tier3'];
+  const keys: ValidationTier[] = VALIDATION_TIER_KEYS.slice();
   for (const key of keys) {
     data.tiers[key] = {
       key,
       label: VALIDATION_TIER_LABELS[key],
       description: VALIDATION_TIER_DESCRIPTIONS[key],
-      symbols: getValidationTierUniverse(assetClass, key),
+      symbols: await getValidationTierUniverse(assetClass, key),
     };
   }
   return data;
+}
+
+function latestTierReport(reports: any[], tierKey: ValidationTier, assetClass: StrategyAssetClass): any | null {
+  const matching = (Array.isArray(reports) ? reports : []).filter((r: any) =>
+    r?.config?.validation_tier === tierKey && resolveReportAssetClass(r) === assetClass
+  );
+  if (matching.length === 0) return null;
+  matching.sort((a: any, b: any) => {
+    const aTs = new Date(a?.created_at || 0).getTime();
+    const bTs = new Date(b?.created_at || 0).getTime();
+    return bTs - aTs;
+  });
+  return matching[0] || null;
+}
+
+function isTier1EvidenceExpansionEligible(report: any): boolean {
+  if (!report) return false;
+  if (report?.pass_fail === 'NEEDS_REVIEW') return true;
+  if (report?.pass_fail !== 'FAIL') return false;
+  const reasons = Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [];
+  return reasons.length > 0 && reasons.every((reason: any) => /too few trades/i.test(String(reason || '')));
 }
 
 function validateStrategyPayload(input: any): string | null {
@@ -576,7 +695,8 @@ router.get('/strategies', async (req: Request, res: Response) => {
     const patternsDir = path.join(__dirname, '..', '..', 'data', 'patterns');
 
     const validatable = (registry.patterns || []).filter((p: any) =>
-      p.composition === 'composite' || p.composition === 'monolithic' || p.artifact_type === 'pattern'
+      (p.composition === 'composite' || p.composition === 'monolithic' || p.artifact_type === 'pattern')
+      && String(p.status || '').toLowerCase() !== 'rejected'
     );
 
     const strategies: any[] = [];
@@ -586,17 +706,13 @@ router.get('/strategies', async (req: Request, res: Response) => {
         const defContent = await fs.readFile(defPath, 'utf-8');
         const def = JSON.parse(defContent);
         const interval = def.suggested_timeframes?.[0] === 'W' ? '1wk' : def.suggested_timeframes?.[0] === 'D' ? '1d' : '1wk';
-        strategies.push({
+        const baseSpec = applyParameterManifest({
           strategy_id: entry.pattern_id,
           strategy_version_id: `${entry.pattern_id}_v1`,
           version: 1,
           name: entry.name || def.name,
           description: def.description || '',
           status: entry.status || 'experimental',
-          composition: entry.composition,
-          artifact_type: entry.artifact_type,
-          category: entry.category,
-          pattern_id: entry.pattern_id,
           asset_class: 'stocks',
           interval,
           universe: [],
@@ -604,30 +720,82 @@ router.get('/strategies', async (req: Request, res: Response) => {
           setup_config: { pattern_type: def.pattern_type || entry.pattern_id, ...def.default_setup_params },
           entry_config: def.default_entry || {},
           risk_config: def.default_risk_config || { stop_type: 'structural' },
-          exit_config: {},
+          exit_config: {} as any,
           cost_config: { commission_per_trade: 0, slippage_pct: 0.001 },
           execution_config: {},
           updated_at: def.updated_at || new Date().toISOString(),
+        } as unknown as StrategySpec, def);
+        strategies.push({
+          ...baseSpec,
+          composition: entry.composition,
+          artifact_type: entry.artifact_type,
+          category: entry.category,
+          pattern_id: entry.pattern_id,
         });
       } catch (e) { /* definition file missing — skip */ }
     }
 
-    // Include all saved strategies (sweep winners, user edits, research agents)
+    const allReports = await storage.getAllValidationReports();
+    const passedTiersByStrategy = new Map<string, Set<string>>();
+    for (const report of allReports) {
+      const strategyVersionId = String(report?.strategy_version_id || '').trim();
+      const tier = String(report?.config?.validation_tier || '').trim().toLowerCase();
+      if (!strategyVersionId || !tier) continue;
+      if (String(report?.pass_fail || '').toUpperCase() !== 'PASS') continue;
+      const bucket = passedTiersByStrategy.get(strategyVersionId) || new Set<string>();
+      bucket.add(tier);
+      passedTiersByStrategy.set(strategyVersionId, bucket);
+    }
+
+    // Include all saved strategies (sweep winners, user edits, research agents),
+    // and let saved versions override registry placeholders with the same id.
     const allSaved = await storage.getAllStrategies();
-    const registryIds = new Set(strategies.map((s: any) => s.strategy_version_id));
+    const savedByVersionId = new Map<string, any>();
     for (const s of allSaved) {
-      if (registryIds.has(s.strategy_version_id)) continue;
+      const strategyVersionId = String(s?.strategy_version_id || '').trim();
+      if (!strategyVersionId) continue;
+      savedByVersionId.set(strategyVersionId, s);
+    }
+
+    const mergedStrategies: any[] = [];
+    for (const strategy of strategies) {
+      const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
+      const savedOverride = savedByVersionId.get(strategyVersionId);
+      if (savedOverride) {
+        savedByVersionId.delete(strategyVersionId);
+        if (String(savedOverride.status || '').toLowerCase() === 'rejected') {
+          continue;
+        }
+        mergedStrategies.push({
+          ...savedOverride,
+          source: savedOverride.strategy_version_id?.startsWith('research_') ? 'research' : 'saved',
+        });
+        continue;
+      }
+      mergedStrategies.push(strategy);
+    }
+
+    const mergedIds = new Set(mergedStrategies.map((s: any) => s.strategy_version_id));
+    for (const s of allSaved) {
+      if (mergedIds.has(s.strategy_version_id)) continue;
       if (s.strategy_version_id?.startsWith('sweep_')) continue;
-      strategies.push({
+      if (String(s.status || '').toLowerCase() === 'rejected') continue;
+      mergedStrategies.push({
         ...s,
         source: s.strategy_version_id?.startsWith('research_') ? 'research' : 'saved',
       });
     }
 
-    // Tag registry strategies with their source
-    strategies.forEach((s: any) => { if (!s.source) s.source = 'registry'; });
+    // Tag strategies with their source and tier progress
+    mergedStrategies.forEach((s: any) => {
+      if (!s.source) s.source = 'registry';
+      const tiers = Array.from(passedTiersByStrategy.get(String(s.strategy_version_id || '').trim()) || []);
+      const ordered = ['tier1', 'tier1b', 'tier2', 'tier3'].filter((tier) => tiers.includes(tier));
+      s.passed_tiers = ordered;
+      s.execution_eligible = String(s.status || '').toLowerCase() === 'approved' && ordered.includes('tier3');
+    });
 
-    res.json({ success: true, data: strategies } as ApiResponse<any[]>);
+    res.json({ success: true, data: mergedStrategies } as ApiResponse<any[]>);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
   }
@@ -651,7 +819,7 @@ async function resolveStrategy(strategyVersionId: string): Promise<StrategySpec 
     if (!entry) return null;
 
     const def = JSON.parse(await fs.readFile(path.join(patternsDir, entry.definition_file), 'utf-8'));
-    return {
+    return applyParameterManifest({
       strategy_id: entry.pattern_id,
       strategy_version_id: `${entry.pattern_id}_v1`,
       version: 1,
@@ -665,12 +833,12 @@ async function resolveStrategy(strategyVersionId: string): Promise<StrategySpec 
       setup_config: { pattern_type: def.pattern_type || entry.pattern_id, ...def.default_setup_params },
       entry_config: def.default_entry || {},
       risk_config: (def.default_risk_config || { stop_type: 'structural' }) as any,
-      exit_config: {},
+      exit_config: {} as any,
       cost_config: { commission_per_trade: 0, slippage_pct: 0.001 },
       execution_config: {},
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    } as unknown as StrategySpec;
+    } as unknown as StrategySpec, def);
   } catch {
     return null;
   }
@@ -705,6 +873,7 @@ router.post('/strategy', async (req: Request, res: Response) => {
     }
     strategy.created_at = strategy.created_at || new Date().toISOString();
     strategy.updated_at = new Date().toISOString();
+    Object.assign(strategy, applyParameterManifest(strategy));
 
     const id = await storage.saveStrategy(strategy);
     res.json({ success: true, data: { strategy_version_id: id } });
@@ -734,7 +903,7 @@ router.get('/tier-config', async (req: Request, res: Response) => {
 
     const payload = {
       strategy_version_id: strategyVersion,
-      ...buildTierConfigPayload(resolvedAssetClass),
+      ...(await buildTierConfigPayload(resolvedAssetClass)),
     };
     res.json({ success: true, data: payload } as ApiResponse<any>);
   } catch (error: any) {
@@ -776,7 +945,7 @@ router.post('/run', async (req: Request, res: Response) => {
     }
     const parsedTier = parseValidationTier(tier);
     if (tier != null && parsedTier === null) {
-      return res.status(400).json({ success: false, error: 'tier must be one of: tier1, tier2, tier3' } as ApiResponse<null>);
+      return res.status(400).json({ success: false, error: 'tier must be one of: tier1, tier1b, tier2, tier3' } as ApiResponse<null>);
     }
     const parsedAssetClass = parseAssetClass(asset_class);
     if (asset_class != null && parsedAssetClass === null) {
@@ -798,7 +967,7 @@ router.post('/run', async (req: Request, res: Response) => {
     const effectiveAssetClass = parsedAssetClass || resolveStrategyAssetClass(strategy);
     const strategyInterval = parseValidationInterval((strategy as any)?.interval) || '1wk';
     const effectiveInterval = parsedInterval || strategyInterval;
-    const effectiveUniverse = getValidationTierUniverse(effectiveAssetClass, effectiveTier);
+    const effectiveUniverse = await getValidationTierUniverse(effectiveAssetClass, effectiveTier);
     const existingReports = await storage.getAllValidationReports(strategy_version_id);
     const hasTierPass = (tierName: ValidationTier) =>
       existingReports.some((r: any) =>
@@ -806,11 +975,18 @@ router.post('/run', async (req: Request, res: Response) => {
         r?.config?.validation_tier === tierName &&
         resolveReportAssetClass(r) === effectiveAssetClass
       );
+    const latestTier1 = latestTierReport(existingReports, 'tier1', effectiveAssetClass);
     if (!skip_tier_gate) {
-      if (effectiveTier === 'tier2' && !hasTierPass('tier1')) {
+      if (effectiveTier === 'tier1b' && !isTier1EvidenceExpansionEligible(latestTier1)) {
         return res.status(400).json({
           success: false,
-          error: `Tier 2 requires a passing Tier 1 report first for this strategy (${strategy_version_id}).`,
+          error: `Tier 1B requires an inconclusive Tier 1 result first for this strategy (${strategy_version_id}). Run Tier 1, then use Tier 1B only when the edge looks viable but the evidence is thin.`,
+        } as ApiResponse<null>);
+      }
+      if (effectiveTier === 'tier2' && !(hasTierPass('tier1') || hasTierPass('tier1b'))) {
+        return res.status(400).json({
+          success: false,
+          error: `Tier 2 requires a passing Tier 1 or Tier 1B report first for this strategy (${strategy_version_id}).`,
         } as ApiResponse<null>);
       }
       if (effectiveTier === 'tier3' && !hasTierPass('tier2')) {
@@ -1105,6 +1281,30 @@ router.get('/report/:id/trades', async (req: Request, res: Response) => {
     }
     const trades = await storage.getTradeInstances(req.params.id);
     res.json({ success: true, data: trades } as ApiResponse<TradeInstance[]>);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
+router.get('/report/:id/compare/:otherId/diagnostics', async (req: Request, res: Response) => {
+  try {
+    const currentReport = await storage.getValidationReport(req.params.id);
+    if (!currentReport) {
+      return res.status(404).json({ success: false, error: 'Current report not found' } as ApiResponse<null>);
+    }
+
+    const previousReport = await storage.getValidationReport(req.params.otherId);
+    if (!previousReport) {
+      return res.status(404).json({ success: false, error: 'Comparison report not found' } as ApiResponse<null>);
+    }
+
+    const [currentTrades, previousTrades] = await Promise.all([
+      storage.getTradeInstances(req.params.id),
+      storage.getTradeInstances(req.params.otherId),
+    ]);
+
+    const diagnostics = buildValidatorComparisonDiagnostics(currentReport, previousReport, currentTrades, previousTrades);
+    res.json({ success: true, data: diagnostics } as ApiResponse<ValidatorComparisonDiagnostics>);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
   }

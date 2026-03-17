@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from statistics import median
+import math
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .schema import FamilyStatsRecord, MotifInstanceRecord, OutcomeRecord
@@ -27,6 +28,35 @@ def _rate(values: Sequence[bool]) -> Optional[float]:
     return sum(1 for value in values if value) / len(values)
 
 
+def _stddev(values: Sequence[float]) -> Optional[float]:
+    if not values:
+        return None
+    if len(values) == 1:
+        return 0.0
+    mean_value = sum(values) / len(values)
+    variance = sum((value - mean_value) ** 2 for value in values) / len(values)
+    return variance ** 0.5
+
+
+def _std_error(values: Sequence[float]) -> Optional[float]:
+    std_dev = _stddev(values)
+    if std_dev is None or not values:
+        return None
+    return std_dev / math.sqrt(len(values))
+
+
+def _t_score(mean_value: Optional[float], std_error: Optional[float]) -> Optional[float]:
+    if mean_value is None or std_error is None or std_error == 0:
+        return None
+    return mean_value / std_error
+
+
+def _sharpe_like(mean_value: Optional[float], std_dev: Optional[float]) -> Optional[float]:
+    if mean_value is None or std_dev is None or std_dev == 0:
+        return None
+    return mean_value / std_dev
+
+
 def _extract_numeric(items: Iterable[Optional[float]]) -> List[float]:
     return [float(item) for item in items if item is not None]
 
@@ -40,6 +70,40 @@ def _sorted_top(records: Sequence[FamilyStatsRecord], key_name: str, reverse: bo
     ordered = sorted(
         filtered,
         key=lambda record: (getattr(record, key_name), record.occurrence_count, record.family_signature),
+        reverse=reverse,
+    )
+    return [
+        {
+            "family_id": record.family_id,
+            "family_signature": record.family_signature,
+            "occurrence_count": record.occurrence_count,
+            key_name: getattr(record, key_name),
+        }
+        for record in ordered[:limit]
+    ]
+
+
+def _sorted_top_with_min_count(
+    records: Sequence[FamilyStatsRecord],
+    key_name: str,
+    reverse: bool,
+    min_count: int,
+    limit: int = 10,
+) -> List[Dict[str, object]]:
+    filtered = [
+        record for record in records
+        if record.occurrence_count >= min_count
+        and record.valid_10bar_count >= min_count
+        and getattr(record, key_name) is not None
+    ]
+    ordered = sorted(
+        filtered,
+        key=lambda record: (
+            getattr(record, key_name),
+            record.occurrence_count,
+            abs(record.avg_forward_10_return_atr or 0.0),
+            record.family_signature,
+        ),
         reverse=reverse,
     )
     return [
@@ -309,6 +373,7 @@ def aggregate_family_stats(
 
         valid_5 = [outcome for outcome in family_outcomes if outcome.forward_5_return_atr is not None]
         valid_10 = [outcome for outcome in family_outcomes if outcome.forward_10_return_atr is not None]
+        valid_10_values = _extract_numeric(outcome.forward_10_return_atr for outcome in valid_10)
         split_valid_10 = {
             split_name: [outcome for outcome in split_outcomes if outcome.forward_10_return_atr is not None]
             for split_name, split_outcomes in family_outcomes_by_split.items()
@@ -322,6 +387,9 @@ def aggregate_family_stats(
         discovery_avg_10 = _mean(_extract_numeric(outcome.forward_10_return_atr for outcome in split_valid_10["discovery"]))
         validation_avg_10 = _mean(_extract_numeric(outcome.forward_10_return_atr for outcome in split_valid_10["validation"]))
         holdout_avg_10 = _mean(_extract_numeric(outcome.forward_10_return_atr for outcome in split_valid_10["holdout"]))
+        forward_10_std_dev = _stddev(valid_10_values)
+        forward_10_std_error = _std_error(valid_10_values)
+        avg_forward_10 = _mean(valid_10_values)
 
         split_signs = [_sign(discovery_avg_10), _sign(validation_avg_10), _sign(holdout_avg_10)]
         non_null_signs = [value for value in split_signs if value is not None]
@@ -339,8 +407,12 @@ def aggregate_family_stats(
             holdout_count=len(family_outcomes_by_split["holdout"]),
             avg_forward_5_return_atr=_mean(_extract_numeric(outcome.forward_5_return_atr for outcome in valid_5)),
             median_forward_5_return_atr=_median(_extract_numeric(outcome.forward_5_return_atr for outcome in valid_5)),
-            avg_forward_10_return_atr=_mean(_extract_numeric(outcome.forward_10_return_atr for outcome in valid_10)),
-            median_forward_10_return_atr=_median(_extract_numeric(outcome.forward_10_return_atr for outcome in valid_10)),
+            avg_forward_10_return_atr=avg_forward_10,
+            median_forward_10_return_atr=_median(valid_10_values),
+            forward_10_std_dev_atr=forward_10_std_dev,
+            forward_10_std_error_atr=forward_10_std_error,
+            t_score_forward_10=_t_score(avg_forward_10, forward_10_std_error),
+            sharpe_like_forward_10=_sharpe_like(avg_forward_10, forward_10_std_dev),
             discovery_avg_forward_10_return_atr=discovery_avg_10,
             validation_avg_forward_10_return_atr=validation_avg_10,
             holdout_avg_forward_10_return_atr=holdout_avg_10,
@@ -387,6 +459,13 @@ def aggregate_family_stats(
         "candidate_family_count": len(candidate_families),
         "families_sign_consistent_across_splits": sum(1 for record in family_records if record.sign_consistent_across_splits),
         "top_10_avg_forward_10_return_atr": _sorted_top(ranking_base, "avg_forward_10_return_atr", reverse=True, limit=10),
+        "top_10_t_score_forward_10": _sorted_top_with_min_count(
+            family_records,
+            "t_score_forward_10",
+            reverse=True,
+            min_count=min_valid_10bar_count,
+            limit=10,
+        ),
         "top_10_hit_plus_1atr_first_rate": _sorted_top(ranking_base, "hit_plus_1atr_first_rate", reverse=True, limit=10),
         "bottom_10_avg_forward_10_return_atr": _sorted_top(ranking_base, "avg_forward_10_return_atr", reverse=False, limit=10),
     }

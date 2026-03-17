@@ -32,17 +32,30 @@ import aiSettingsRouter from './routes/aiSettings';
 import mlRouter from './routes/ml';
 import autoLabelRouter from './routes/autoLabel';
 import trainingRouter from './routes/training';
+import referenceRouter from './routes/reference';
 import * as executionBridge from './services/executionBridge';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+const FRONTEND_PUBLIC_DIR = path.join(__dirname, '..', '..', 'frontend', 'public');
+const RESEARCH_ARTIFACTS_DIR = path.join(__dirname, '..', 'data', 'research');
 
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // Serve static frontend files (no-cache in dev to prevent stale JS/HTML)
-app.use(express.static(path.join(__dirname, '..', '..', 'frontend', 'public'), {
+app.use(express.static(FRONTEND_PUBLIC_DIR, {
+  etag: false,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+  }
+}));
+
+// Serve generated research artifacts so app pages can render the latest explorer output.
+app.use('/research-artifacts', express.static(RESEARCH_ARTIFACTS_DIR, {
   etag: false,
   maxAge: 0,
   setHeaders: (res) => {
@@ -72,6 +85,7 @@ app.use('/api/ai', aiSettingsRouter);
 app.use('/api/ml', mlRouter);
 app.use('/api/auto-label', autoLabelRouter);
 app.use('/api/training', trainingRouter);
+app.use('/api/reference', referenceRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -96,32 +110,36 @@ app.get('/workshop', (req, res) => {
 });
 
 app.get('/research', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'research.html'));
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'research.html'));
 });
 
 app.get('/sweep', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'sweep.html'));
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'sweep.html'));
 });
 
 app.get('/execution', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'execution.html'));
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'execution.html'));
 });
 
 app.get('/training', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'training.html'));
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'training.html'));
 });
 
 app.get('/auto-labeler', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'auto-labeler.html'));
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'auto-labeler.html'));
 });
 
 app.get('/vision-lab', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'vision-lab.html'));
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'vision-lab.html'));
+});
+
+app.get('/family-explorer', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'family-explorer.html'));
 });
 
 // Serve frontend for all other routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'index.html'));
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'index.html'));
 });
 
 // Start server

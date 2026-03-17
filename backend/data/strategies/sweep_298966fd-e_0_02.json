@@ -61,5 +61,139 @@
   "execution_config": {},
   "created_at": "2026-02-22T07:26:50.926Z",
   "updated_at": "2026-02-22T07:39:13.023Z",
-  "spec_hash": "d1c3815247b523f25160a998dfaca2a37bbebff13572e21e22d405a5e457bd57"
+  "spec_hash": "d1c3815247b523f25160a998dfaca2a37bbebff13572e21e22d405a5e457bd57",
+  "parameter_manifest": [
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon %",
+      "path": "structure_config.swing_epsilon_pct",
+      "anatomy": "structure",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.01,
+        0.02,
+        0.03
+      ],
+      "min": 0.01,
+      "max": 0.15,
+      "step": 0.01,
+      "priority": 100,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    },
+    {
+      "key": "required_regime",
+      "label": "Required Regime",
+      "path": "setup_config.composite_spec.stages.1.params.required_regime",
+      "anatomy": "regime_filter",
+      "type": "enum",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        "expansion",
+        "neutral",
+        "contraction"
+      ],
+      "priority": 60,
+      "failure_modes_targeted": [
+        "high_drawdown"
+      ]
+    },
+    {
+      "key": "atr_multiplier",
+      "label": "ATR Multiplier",
+      "path": "risk_config.atr_multiplier",
+      "anatomy": "stop_loss",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.75,
+        1,
+        1.25
+      ],
+      "min": 0.75,
+      "max": 3,
+      "step": 0.25,
+      "priority": 95,
+      "failure_modes_targeted": [
+        "high_drawdown"
+      ]
+    },
+    {
+      "key": "take_profit_R",
+      "label": "Take Profit R",
+      "path": "risk_config.take_profit_R",
+      "anatomy": "take_profit",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        1.5,
+        2,
+        2.5
+      ],
+      "min": 1.5,
+      "max": 14,
+      "step": 0.5,
+      "priority": 95,
+      "failure_modes_targeted": [
+        "high_drawdown",
+        "high_sensitivity"
+      ]
+    },
+    {
+      "key": "max_hold_bars",
+      "label": "Max Hold Bars",
+      "path": "risk_config.max_hold_bars",
+      "anatomy": "take_profit",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        13,
+        14,
+        15
+      ],
+      "min": 13,
+      "max": 90,
+      "step": 1,
+      "priority": 85,
+      "failure_modes_targeted": [
+        "high_drawdown",
+        "high_sensitivity"
+      ]
+    },
+    {
+      "key": "max_concurrent_positions",
+      "label": "Max Concurrent Positions",
+      "path": "risk_config.max_concurrent_positions",
+      "anatomy": "risk_controls",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        1,
+        2,
+        3
+      ],
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "priority": 60,
+      "failure_modes_targeted": [
+        "high_drawdown"
+      ]
+    }
+  ]
 }

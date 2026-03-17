@@ -8,8 +8,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { getStrategyOrComposite } from './storageService';
-import { computeFitnessScore } from './strategyGenService';
+import { getAllStrategies, getStrategyOrComposite, saveStrategy } from './storageService';
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const SWEEPS_DIR = path.join(DATA_DIR, 'sweep-results');
@@ -40,6 +39,8 @@ export interface SweepVariant {
     profit_factor: number;
     max_drawdown_pct: number;
     sharpe_ratio: number;
+    oos_degradation_pct: number;
+    pass_fail: string;
     fitness_score: number;
   } | null;
   error?: string;
@@ -54,6 +55,9 @@ export interface SweepReport {
   status: 'running' | 'completed' | 'failed' | 'cancelled';
   variants: SweepVariant[];
   winner: SweepVariant | null;
+  promoted_strategy_version_id?: string | null;
+  promoted_variant_id?: string | null;
+  promoted_at?: string | null;
   created_at: string;
   completed_at: string | null;
 }
@@ -83,6 +87,32 @@ async function persistSweep(sweep: SweepReport): Promise<void> {
   );
 }
 
+function metricsNeedBackfill(metrics: SweepVariant['metrics'] | null | undefined): boolean {
+  return Boolean(metrics && (metrics.pass_fail === undefined || metrics.oos_degradation_pct === undefined));
+}
+
+async function backfillSweepMetrics(sweep: SweepReport): Promise<boolean> {
+  let changed = false;
+
+  for (const variant of sweep.variants) {
+    if (!variant.report_id || !metricsNeedBackfill(variant.metrics)) continue;
+    const repaired = await fetchReportMetrics(variant.report_id);
+    if (!repaired) continue;
+    variant.metrics = repaired;
+    changed = true;
+  }
+
+  if (sweep.winner?.report_id && metricsNeedBackfill(sweep.winner.metrics)) {
+    const repairedWinner = await fetchReportMetrics(sweep.winner.report_id);
+    if (repairedWinner) {
+      sweep.winner.metrics = repairedWinner;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 export async function loadAllSweeps(): Promise<void> {
   try {
     await fs.mkdir(SWEEPS_DIR, { recursive: true });
@@ -92,6 +122,9 @@ export async function loadAllSweeps(): Promise<void> {
       try {
         const raw = await fs.readFile(path.join(SWEEPS_DIR, f), 'utf-8');
         const sweep = JSON.parse(raw) as SweepReport;
+        if (await backfillSweepMetrics(sweep)) {
+          await persistSweep(sweep);
+        }
         activeSweeps.set(sweep.sweep_id, sweep);
       } catch {}
     }
@@ -161,6 +194,62 @@ async function pollJob(jobId: string): Promise<{ status: string; report_id?: str
   return { status: 'failed', error: 'Timed out waiting for job' };
 }
 
+function computeSweepFitnessScore(report: any, summary: {
+  total_trades: number;
+  expectancy_R: number;
+  win_rate: number;
+  profit_factor: number;
+  max_drawdown_pct: number;
+  sharpe_ratio: number;
+  oos_degradation_pct: number;
+  pass_fail: string;
+}): number {
+  const minTradesPass = Number(report?.config?.validation_thresholds?.min_trades_pass ?? 200);
+  if (summary.total_trades < minTradesPass) return 0;
+
+  const ddPenalty = summary.max_drawdown_pct <= 30
+    ? 1
+    : Math.max(0, 1 - (summary.max_drawdown_pct - 30) / 70);
+  const verdictMultiplier = summary.pass_fail === 'PASS'
+    ? 1
+    : summary.pass_fail === 'NEEDS_REVIEW'
+      ? 0.85
+      : 0;
+
+  const expectancyComponent = Math.max(0, Math.min(summary.expectancy_R, 2)) * 0.4;
+  const winRateComponent = Math.max(0, Math.min(summary.win_rate, 1)) * 0.2;
+  const sharpeComponent = Math.max(0, Math.min(summary.sharpe_ratio / 3.0, 1)) * 0.2;
+  const robustnessComponent = Math.max(0, 1 - summary.oos_degradation_pct / 100) * 0.2;
+  const raw = expectancyComponent + winRateComponent + sharpeComponent + robustnessComponent;
+
+  return Math.round((raw * ddPenalty * verdictMultiplier) * 1000) / 1000;
+}
+
+function variantVerdictRank(variant: SweepVariant): number {
+  const verdict = String(variant.metrics?.pass_fail || '').toUpperCase();
+  if (verdict === 'PASS') return 2;
+  if (verdict === 'NEEDS_REVIEW') return 1;
+  if (verdict === 'FAIL') return 0;
+  return -1;
+}
+
+function selectSweepWinner(variants: SweepVariant[]): SweepVariant | null {
+  const completed = variants.filter(v => v.status === 'completed' && v.metrics);
+  if (completed.length === 0) return null;
+  const sorted = completed.slice().sort((a, b) => {
+    const verdictDelta = variantVerdictRank(b) - variantVerdictRank(a);
+    if (verdictDelta !== 0) return verdictDelta;
+    const fitnessDelta = (b.metrics?.fitness_score ?? -1) - (a.metrics?.fitness_score ?? -1);
+    if (fitnessDelta !== 0) return fitnessDelta;
+    const expectancyDelta = (b.metrics?.expectancy_R ?? -999) - (a.metrics?.expectancy_R ?? -999);
+    if (expectancyDelta !== 0) return expectancyDelta;
+    const profitFactorDelta = (b.metrics?.profit_factor ?? -999) - (a.metrics?.profit_factor ?? -999);
+    if (profitFactorDelta !== 0) return profitFactorDelta;
+    return (b.metrics?.total_trades ?? -999) - (a.metrics?.total_trades ?? -999);
+  });
+  return sorted[0] || null;
+}
+
 async function fetchReportMetrics(reportId: string): Promise<SweepVariant['metrics'] | null> {
   try {
     const res = await fetch(`${API_BASE}/validator/report/${reportId}`);
@@ -175,18 +264,11 @@ async function fetchReportMetrics(reportId: string): Promise<SweepVariant['metri
       profit_factor: r.trades_summary?.profit_factor ?? 0,
       max_drawdown_pct: r.risk_summary?.max_drawdown_pct ?? 100,
       sharpe_ratio: r.risk_summary?.sharpe_ratio ?? 0,
-      fitness_score: 0,
-    };
-    summary.fitness_score = computeFitnessScore({
-      total_trades: summary.total_trades,
-      win_rate: summary.win_rate,
-      expectancy_R: summary.expectancy_R,
-      profit_factor: summary.profit_factor,
-      max_drawdown_pct: summary.max_drawdown_pct,
-      sharpe_ratio: summary.sharpe_ratio,
       oos_degradation_pct: r.robustness?.out_of_sample?.oos_degradation_pct ?? 0,
       pass_fail: r.pass_fail ?? 'FAIL',
-    });
+      fitness_score: 0,
+    };
+    summary.fitness_score = computeSweepFitnessScore(r, summary);
     return summary;
   } catch {
     return null;
@@ -331,12 +413,7 @@ async function executeSweep(
   }
 
   // Find winner — highest fitness among completed variants
-  const completed = sweep.variants.filter(v => v.status === 'completed' && v.metrics);
-  if (completed.length > 0) {
-    sweep.winner = completed.reduce((best, v) =>
-      (v.metrics!.fitness_score > best.metrics!.fitness_score) ? v : best
-    );
-  }
+  sweep.winner = selectSweepWinner(sweep.variants);
 
   if (sweep.status === 'running') {
     sweep.status = 'completed';
@@ -375,12 +452,7 @@ export async function cancelSweep(sweepId: string): Promise<void> {
   }
 
   // Pick winner from whatever completed before cancellation
-  const completed = sweep.variants.filter(v => v.status === 'completed' && v.metrics);
-  if (completed.length > 0) {
-    sweep.winner = completed.reduce((best, v) =>
-      (v.metrics!.fitness_score > best.metrics!.fitness_score) ? v : best
-    );
-  }
+  sweep.winner = selectSweepWinner(sweep.variants);
 
   sweep.completed_at = new Date().toISOString();
   await persistSweep(sweep);
@@ -388,27 +460,69 @@ export async function cancelSweep(sweepId: string): Promise<void> {
 
 // ─── Promote winner ───────────────────────────────────────────────────────────
 
-export async function promoteWinner(sweepId: string, baseStrategyVersionId: string): Promise<string> {
+export async function promoteWinner(sweepId: string, baseStrategyVersionId: string, variantId?: string): Promise<string> {
   const sweep = activeSweeps.get(sweepId);
-  if (!sweep?.winner) throw new Error('No winner to promote');
+  if (!sweep) throw new Error('Sweep not found');
 
-  const winnerFile = path.join(STRATEGIES_DIR, `${sweep.winner.variant_id}.json`);
+  const variant = variantId
+    ? sweep.variants.find(v => v.variant_id === variantId)
+    : sweep.winner;
+  if (!variant) throw new Error('No sweep variant selected to promote');
+  if (variant.status !== 'completed') throw new Error('Only completed variants can be promoted');
+
+  const winnerFile = path.join(STRATEGIES_DIR, `${variant.variant_id}.json`);
   const raw = await fs.readFile(winnerFile, 'utf-8');
   const spec = JSON.parse(raw);
+  const allStrategies = await getAllStrategies();
+  const strategyId = String(spec.strategy_id || baseStrategyVersionId.replace(/_v\d+$/, '')).trim();
+  const siblings = allStrategies.filter(s => String(s.strategy_id || '').trim() === strategyId);
+  const nextVersion = siblings.reduce((max, s) => Math.max(max, Number(s.version) || 0), 0) + 1;
+  const newId = `${strategyId}_v${nextVersion}`;
 
-  const newId = `${baseStrategyVersionId}_sweep_winner_v${Date.now()}`;
+  const paramLabel = String(variant.param_label || '').trim();
+  const paramValue = variant.param_value;
+  const formatValue = (value: any): string => {
+    if (typeof value === 'number') {
+      return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+    }
+    return String(value);
+  };
+  const valueLabel = formatValue(paramValue);
+  const rewritePromotedName = (currentName: string): string => {
+    let nextName = String(currentName || '').trim() || newId;
+    if (paramLabel === 'Take Profit R') {
+      if (/\b\d+(\.\d+)?R TP\b/i.test(nextName)) {
+        nextName = nextName.replace(/\b\d+(\.\d+)?R TP\b/i, `${valueLabel}R TP`);
+      } else {
+        nextName = `${nextName} — ${valueLabel}R TP`;
+      }
+    } else if (paramLabel === 'ATR Multiplier') {
+      if (/\bATR\s+\d+(\.\d+)?x\b/i.test(nextName)) {
+        nextName = nextName.replace(/\bATR\s+\d+(\.\d+)?x\b/i, `ATR ${valueLabel}x`);
+      } else {
+        nextName = `${nextName} — ATR ${valueLabel}x`;
+      }
+    } else {
+      nextName = `${nextName} [${paramLabel}=${valueLabel}]`;
+    }
+    nextName = nextName.replace(/\s+\[Sweep Winner\]$/i, '').trim();
+    return `${nextName} [v${nextVersion}]`;
+  };
+
   spec.strategy_version_id = newId;
-  spec.strategy_id = baseStrategyVersionId.replace(/_v\d+$/, '');
+  spec.strategy_id = strategyId;
+  spec.version = nextVersion;
   spec.status = 'draft';
-  spec.name = `${spec.name} [Sweep Winner]`;
+  spec.name = rewritePromotedName(spec.name);
   spec.created_at = new Date().toISOString();
   spec.updated_at = new Date().toISOString();
+  spec.description = `${String(spec.description || '').trim()}\n\nPromoted from sweep ${sweepId} via ${paramLabel || 'parameter'}=${valueLabel}.`.trim();
 
-  await fs.writeFile(
-    path.join(STRATEGIES_DIR, `${newId}.json`),
-    JSON.stringify(spec, null, 2),
-    'utf-8',
-  );
+  await saveStrategy(spec);
+  sweep.promoted_strategy_version_id = newId;
+  sweep.promoted_variant_id = variant.variant_id;
+  sweep.promoted_at = new Date().toISOString();
+  await persistSweep(sweep);
 
   return newId;
 }

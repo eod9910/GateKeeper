@@ -11,6 +11,8 @@
     "node:dev:no-py": "tsx src/server.ts",
     "scan": "py services/patternScanner.py",
     "py:service": "py services/plugin_service.py --port 8100",
+    "manifest:audit": "tsx scripts/auditParameterManifest.ts",
+    "manifest:backfill": "tsx scripts/backfillParameterManifest.ts",
     "robinhood:positions:test": "py scripts/test_robinhood_positions.py",
     "base:suite": "py scripts/run_base_method_suite.py",
     "training:test": "tsx src/services/training/forwardResolver.test.ts",
@@ -22,7 +24,7 @@
     "chart:test": "tsx src/services/chartData.test.ts",
     "contracts:test": "tsx src/services/contractValidation.test.ts",
     "signal-scanner:test": "tsx src/services/signalScanner.test.ts",
-    "py:test": "py -m unittest tests.test_validator_fixtures tests.test_fundamentals_service tests.test_density_base_detector_v2_pattern tests.test_pattern_framework tests.test_atr_pivot_research tests.test_structure_discovery_pipeline tests.test_structure_discovery_outcomes tests.test_structure_discovery_families tests.test_structure_discovery_inspection",
+    "py:test": "py -m unittest tests.test_validator_fixtures tests.test_fundamentals_service tests.test_density_base_detector_v2_pattern tests.test_pattern_framework tests.test_atr_pivot_research tests.test_structure_discovery_pipeline tests.test_structure_discovery_outcomes tests.test_structure_discovery_families tests.test_structure_discovery_inspection tests.test_structure_discovery_multi_symbol tests.test_structure_discovery_stability tests.test_structure_discovery_direction",
     "test": "npm run training:test && npm run vision:test && npm run candidates:test && npm run candidate-semantics:test && npm run candidate-persistence:test && npm run broker:test && npm run chart:test && npm run contracts:test && npm run signal-scanner:test && npm run py:test"
   },
   "dependencies": {

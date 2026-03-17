@@ -1,0 +1,54 @@
+{
+    "strategy_id":  "density_base_detector_v1_pattern",
+    "strategy_version_id":  "density_base_detector_v1_pattern_v1",
+    "version":  1,
+    "name":  "Density Base Detector V1 (Pattern)",
+    "description":  "Detects bases via void detection: finds peaks where price dropped away, measures the empty space (void), and identifies the sideways cluster at the bottom as the base. Mimics how a human eye spots the bowl shape — empty space first, base at the bottom.",
+    "status":  "experimental",
+    "composition":  "monolithic",
+    "artifact_type":  "pattern",
+    "category":  "price_action",
+    "pattern_id":  "density_base_detector_v1_pattern",
+    "asset_class":  "stocks",
+    "interval":  "1wk",
+    "universe":  [
+
+                 ],
+    "structure_config":  {
+                             "swing_method":  "none"
+                         },
+    "setup_config":  {
+                         "pattern_type":  "density_base_detector_v1_pattern",
+                         "max_scan_bars":  800,
+                         "min_data_bars":  60,
+                         "swing_lookback":  10,
+                         "swing_lookahead":  10,
+                         "min_drop_pct":  0.08,
+                         "min_void_bars":  8,
+                         "min_base_bars":  5,
+                         "min_score":  0.25,
+                         "max_bases":  5
+                     },
+    "entry_config":  {
+                         "entry_type":  "analysis_only"
+                     },
+    "risk_config":  {
+                        "stop_type":  "structural"
+                    },
+    "exit_config":  {
+
+                    },
+    "cost_config":  {
+                        "commission_per_trade":  0,
+                        "slippage_pct":  0.001
+                    },
+    "execution_config":  {
+
+                         },
+    "updated_at":  "2026-03-17T08:06:06.984Z",
+    "source":  "registry",
+    "passed_tiers":  [
+                         "tier1b"
+                     ],
+    "execution_eligible":  false
+}

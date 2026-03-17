@@ -14,6 +14,8 @@ let strategies = [];
 let selectedStrategy = null;
 let reports = [];
 let selectedReport = null;
+let strategyValidationIndex = {};
+let strategyTierProgressIndex = {};
 let activeRunJobId = null;
 let runPollTimer = null;
 let strategyEditorMode = 'new';
@@ -22,37 +24,44 @@ const DEFAULT_VALIDATION_TIER = 'tier1';
 let activeTierConfig = null;
 const VALIDATION_TIER_LABELS = {
   tier1: 'Tier 1 - Kill Test',
+  tier1b: 'Tier 1B - Evidence Expansion',
   tier2: 'Tier 2 - Core Validation',
   tier3: 'Tier 3 - Robustness',
 };
 const VALIDATION_TIER_DESCRIPTIONS = {
   tier1: 'Fast kill test on a fixed Tier 1 universe. Target evidence: 200-300 trades.',
-  tier2: 'Core validation on a fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires Tier 1 PASS.',
+  tier1b: 'Evidence expansion on a broad optionable universe slice. Use this when Tier 1 quality looks good but sample size is thin.',
+  tier2: 'Core validation on a fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires Tier 1 or Tier 1B PASS.',
   tier3: 'Robustness validation on a fixed Tier 3 universe. Stress tests for survivors. Requires Tier 2 PASS.',
 };
 const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
+    tier1b: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
   },
   stocks: {
     tier1: ['SPY', 'QQQ', 'IWM'],
+    tier1b: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
     tier2: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN'],
     tier3: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
   },
   options: {
     tier1: ['SPY', 'QQQ'],
+    tier1b: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
   },
   forex: {
     tier1: ['EURUSD=X', 'GBPUSD=X'],
+    tier1b: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
   },
   crypto: {
     tier1: ['BTC-USD', 'ETH-USD'],
+    tier1b: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
   },
@@ -68,13 +77,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateStrategyInfo();
   renderReportContent();
   const params = new URLSearchParams(window.location.search);
+  const initialReportId = params.get('report_id');
   const initialStrategy = params.get('strategy_version_id');
-  if (initialStrategy) {
+  const initialJobId = params.get('job_id');
+  if (initialReportId) {
+    try {
+      const report = await apiGet(`/report/${encodeURIComponent(initialReportId)}`);
+      if (report?.strategy_version_id) {
+        await selectStrategy(report.strategy_version_id);
+        selectedReport = reports.find(r => r.report_id === initialReportId) || report;
+        renderReportContent();
+      }
+    } catch (err) {
+      console.error('Failed to load initial report:', err);
+    }
+  } else if (initialStrategy) {
     await selectStrategy(initialStrategy);
   }
   updateRunTierDescription();
   initValidatorChat();
-  await reconnectActiveRun();
+  await reconnectActiveRun(initialJobId, initialStrategy);
 });
 
 // =====================
@@ -135,11 +157,148 @@ async function apiPatchAbsolute(path, body) {
 
 async function loadStrategies() {
   try {
-    strategies = await apiGet('/strategies');
+    const [loadedStrategies, allReports] = await Promise.all([
+      apiGet('/strategies'),
+      apiGet('/reports').catch(() => []),
+    ]);
+    strategies = (Array.isArray(loadedStrategies) ? loadedStrategies : [])
+      .filter((strategy) => String(strategy?.status || '').toLowerCase() !== 'draft');
+    if (selectedStrategy?.strategy_version_id) {
+      selectedStrategy = strategies.find((s) => s.strategy_version_id === selectedStrategy.strategy_version_id) || null;
+      if (!selectedStrategy) {
+        selectedReport = null;
+        reports = [];
+        activeTierConfig = null;
+      }
+    }
+    strategyValidationIndex = buildStrategyValidationIndex(allReports);
+    strategyTierProgressIndex = buildStrategyTierProgressIndex(allReports);
     renderStrategyList();
   } catch (err) {
     console.error('Failed to load strategies:', err);
   }
+}
+
+function buildStrategyValidationIndex(allReports) {
+  const index = {};
+  const normalized = Array.isArray(allReports) ? allReports.slice() : [];
+  normalized.sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
+  for (const report of normalized) {
+    const strategyVersionId = String(report?.strategy_version_id || '').trim();
+    if (!strategyVersionId || index[strategyVersionId]) continue;
+    index[strategyVersionId] = {
+      pass_fail: report?.pass_fail || null,
+      validation_tier: report?.config?.validation_tier || null,
+      report_id: report?.report_id || null,
+      created_at: report?.created_at || null,
+    };
+  }
+  return index;
+}
+
+function buildStrategyTierProgressIndex(allReports) {
+  const index = {};
+  const normalized = Array.isArray(allReports) ? allReports.slice() : [];
+  normalized.sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
+  for (const report of normalized) {
+    const strategyVersionId = String(report?.strategy_version_id || '').trim();
+    const validationTier = String(report?.config?.validation_tier || '').trim().toLowerCase();
+    if (!strategyVersionId || !validationTier) continue;
+    if (!index[strategyVersionId]) index[strategyVersionId] = {};
+    if (index[strategyVersionId][validationTier]) continue;
+    index[strategyVersionId][validationTier] = {
+      pass_fail: report?.pass_fail || null,
+      report_id: report?.report_id || null,
+      created_at: report?.created_at || null,
+    };
+  }
+  return index;
+}
+
+function isTooFewTradesOnlyFail(report) {
+  if (!report || report?.pass_fail !== 'FAIL') return false;
+  const reasons = Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [];
+  return reasons.length > 0 && reasons.every((reason) => /too few trades/i.test(String(reason || '')));
+}
+
+function getDisplayVerdict(report) {
+  const verdict = String(report?.pass_fail || '').toUpperCase();
+  if (verdict !== 'FAIL') return verdict || 'N/A';
+  return isTooFewTradesOnlyFail(report) ? 'FAIL' : 'HARD_FAIL';
+}
+
+function syncStrategyValidationFromReports(strategyVersionId, strategyReports) {
+  if (!strategyVersionId) return;
+  const latest = Array.isArray(strategyReports) && strategyReports.length > 0 ? strategyReports[0] : null;
+  if (!latest) {
+    delete strategyValidationIndex[strategyVersionId];
+    delete strategyTierProgressIndex[strategyVersionId];
+    return;
+  }
+  strategyValidationIndex[strategyVersionId] = {
+    pass_fail: latest?.pass_fail || null,
+    validation_tier: latest?.config?.validation_tier || null,
+    report_id: latest?.report_id || null,
+    created_at: latest?.created_at || null,
+  };
+  strategyTierProgressIndex[strategyVersionId] = buildStrategyTierProgressIndex(strategyReports)[strategyVersionId] || {};
+}
+
+function getStrategyValidationBadge(strategy) {
+  const summary = strategyValidationIndex?.[strategy?.strategy_version_id] || null;
+  if (!summary || !summary.pass_fail) {
+    return { key: 'untested', label: 'Untested', title: 'No validation reports yet' };
+  }
+  const displayVerdict = getDisplayVerdict(summary);
+  if (displayVerdict === 'PASS') {
+    return {
+      key: 'pass',
+      label: 'Pass',
+      title: `Latest validation passed${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  if (displayVerdict === 'HARD_FAIL') {
+    return {
+      key: 'hard-fail',
+      label: 'Hard Fail',
+      title: `Latest validation hard failed${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  if (displayVerdict === 'FAIL') {
+    return {
+      key: 'fail',
+      label: 'Fail',
+      title: `Latest validation failed${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  return {
+    key: 'review',
+    label: 'Review',
+    title: `Latest validation needs review${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+  };
+}
+
+function getStrategyTierBadges(strategy) {
+  const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
+  const progress = strategyTierProgressIndex?.[strategyVersionId] || {};
+  const passedTiers = new Set(Array.isArray(strategy?.passed_tiers) ? strategy.passed_tiers : []);
+  return ['tier1', 'tier1b', 'tier2', 'tier3'].flatMap((tier) => {
+    const latestTierResult = progress?.[tier]?.pass_fail || null;
+    if (tier === 'tier2' && latestTierResult === 'NEEDS_REVIEW') {
+      return [{
+        key: 'tier2-review',
+        label: 'T2R',
+        title: 'Tier 2 needs review',
+      }];
+    }
+    if (!passedTiers.has(tier)) return [];
+    const label = tier === 'tier1b' ? 'T1B' : tier.toUpperCase().replace('TIER', 'T');
+    return [{
+      key: tier,
+      label,
+      title: `Passed ${tier.toUpperCase()}`,
+    }];
+  });
 }
 
 function renderStrategyList() {
@@ -182,10 +341,18 @@ function renderStrategyList() {
       html += `<div class="strategy-group-label">${statusLabels[status] || status} (${list.length})</div>`;
       for (const s of list) {
         const isActive = selectedStrategy && selectedStrategy.strategy_version_id === s.strategy_version_id;
+        const validationBadge = getStrategyValidationBadge(s);
+        const tierBadges = getStrategyTierBadges(s);
         html += `
           <div class="strategy-item ${isActive ? 'active' : ''}" 
                onclick="selectStrategy('${s.strategy_version_id}')">
-            <div class="strategy-item-name">${escHtml(s.name)}</div>
+            <div class="strategy-item-head">
+              <div style="min-width:0;display:flex;align-items:center;gap:var(--space-6);flex-wrap:wrap;">
+                <div class="strategy-item-name">${escHtml(s.name)}</div>
+                ${tierBadges.map((badge) => `<span class="tier-badge" title="${escHtml(badge.title)}">${escHtml(badge.label)}</span>`).join('')}
+              </div>
+              <span class="validation-badge ${validationBadge.key}" title="${escHtml(validationBadge.title)}">${escHtml(validationBadge.label)}</span>
+            </div>
             <div class="strategy-item-meta">
               <span class="status-badge ${s.status}">${s.status}</span>
               <span style="margin-left:var(--space-4);">${s.asset_class || 'N/A'} &middot; ${s.scan_mode || s.composition || '—'} &middot; v${s.version || 1}</span>
@@ -210,10 +377,18 @@ function renderStrategyList() {
   container.innerHTML = html;
 }
 
+function showReportView() {
+  const reportContent = document.getElementById('report-content');
+  const browser = document.getElementById('trade-browser');
+  if (reportContent) reportContent.style.display = '';
+  if (browser) browser.classList.remove('active');
+}
+
 async function selectStrategy(versionId) {
   selectedStrategy = strategies.find(s => s.strategy_version_id === versionId) || null;
   selectedReport = null;
-  
+  showReportView();
+
   renderStrategyList();
   updateStrategyInfo();
   
@@ -235,8 +410,10 @@ async function selectStrategy(versionId) {
   if (reports.length > 0) {
     selectedReport = reports[0];
   }
+  syncStrategyValidationFromReports(versionId, reports);
   
   renderReportContent();
+  renderStrategyList();
   updateRunTierDescription();
 }
 
@@ -278,6 +455,7 @@ function buildFallbackTierConfig(assetClass) {
     asset_class: key,
     tiers: {
       tier1: { key: 'tier1', label: VALIDATION_TIER_LABELS.tier1, description: VALIDATION_TIER_DESCRIPTIONS.tier1, symbols: byClass.tier1.slice() },
+      tier1b: { key: 'tier1b', label: VALIDATION_TIER_LABELS.tier1b, description: VALIDATION_TIER_DESCRIPTIONS.tier1b, symbols: byClass.tier1b.slice() },
       tier2: { key: 'tier2', label: VALIDATION_TIER_LABELS.tier2, description: VALIDATION_TIER_DESCRIPTIONS.tier2, symbols: byClass.tier2.slice() },
       tier3: { key: 'tier3', label: VALIDATION_TIER_LABELS.tier3, description: VALIDATION_TIER_DESCRIPTIONS.tier3, symbols: byClass.tier3.slice() },
     },
@@ -347,7 +525,7 @@ function renderRunTierLibrary(selectedTierKey) {
   const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
   const assetClass = normalizeAssetClassKey(config?.asset_class || selectedStrategy?.asset_class);
   const selectedKey = String(selectedTierKey || '').trim().toLowerCase();
-  const keys = ['tier1', 'tier2', 'tier3'];
+  const keys = ['tier1', 'tier1b', 'tier2', 'tier3'];
 
   let html = `
     <div class="run-tier-library-header">Symbol Library (${escHtml(assetClass)})</div>
@@ -371,14 +549,36 @@ function strategyHasTierPass(tierKey) {
   return reports.some((r) => r?.pass_fail === 'PASS' && r?.config?.validation_tier === tierKey);
 }
 
+function getLatestTierReport(tierKey) {
+  if (!Array.isArray(reports) || reports.length === 0) return null;
+  const matches = reports
+    .filter((r) => r?.config?.validation_tier === tierKey)
+    .slice()
+    .sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
+  return matches[0] || null;
+}
+
+function isTier1BEligibleReport(report) {
+  if (!report) return false;
+  if (report.pass_fail === 'NEEDS_REVIEW') return true;
+  if (report.pass_fail !== 'FAIL') return false;
+  const reasons = Array.isArray(report.pass_fail_reasons) ? report.pass_fail_reasons : [];
+  return reasons.length > 0 && reasons.every((reason) => /too few trades/i.test(String(reason || '')));
+}
+
 function updateTierOptionLocks() {
   const select = document.getElementById('run-validation-tier');
   if (!select) return;
   const hasTier1Pass = strategyHasTierPass('tier1');
+  const hasTier1BPass = strategyHasTierPass('tier1b');
   const hasTier2Pass = strategyHasTierPass('tier2');
+  const latestTier1 = getLatestTierReport('tier1');
+  const tier1bEligible = isTier1BEligibleReport(latestTier1);
   for (const opt of Array.from(select.options)) {
-    if (opt.value === 'tier2') {
-      opt.disabled = !hasTier1Pass;
+    if (opt.value === 'tier1b') {
+      opt.disabled = !tier1bEligible;
+    } else if (opt.value === 'tier2') {
+      opt.disabled = !(hasTier1Pass || hasTier1BPass);
     } else if (opt.value === 'tier3') {
       opt.disabled = !hasTier2Pass;
     } else {
@@ -402,8 +602,11 @@ function updateRunTierDescription() {
     return;
   }
   const requirements = [];
-  if (context.tierKey === 'tier2' && !strategyHasTierPass('tier1')) {
-    requirements.push('Tier 2 locked: requires a PASS on Tier 1.');
+  if (context.tierKey === 'tier1b' && !isTier1BEligibleReport(getLatestTierReport('tier1'))) {
+    requirements.push('Tier 1B locked: requires a Tier 1 result that looks viable but lacks enough trades.');
+  }
+  if (context.tierKey === 'tier2' && !(strategyHasTierPass('tier1') || strategyHasTierPass('tier1b'))) {
+    requirements.push('Tier 2 locked: requires a PASS on Tier 1 or Tier 1B.');
   }
   if (context.tierKey === 'tier3' && !strategyHasTierPass('tier2')) {
     requirements.push('Tier 3 locked: requires a PASS on Tier 2.');
@@ -433,6 +636,7 @@ async function loadReports() {
 
 function renderReportContent() {
   const container = document.getElementById('report-content');
+  showReportView();
 
   if (!selectedStrategy) {
     container.innerHTML = renderReportTemplate({
@@ -460,19 +664,23 @@ function renderReportContent() {
       const isActive = selectedReport && selectedReport.report_id === r.report_id;
       const dateStr = new Date(r.created_at).toLocaleDateString();
       const cfg = r.config || {};
+      const tierKey = String(cfg.validation_tier || '').trim().toLowerCase();
+      const tierLabel = tierKey === 'tier1b' ? 'T1B' : (tierKey ? tierKey.toUpperCase().replace('TIER', 'T') : 'T?');
       const decision = r.decision_log?.decision || 'pending';
+      const displayVerdict = getDisplayVerdict(r);
       html += `
         <div class="report-list-item ${isActive ? 'active' : ''}" 
              onclick="selectReport('${r.report_id}')">
           <div>
             <span class="text-mono" style="font-size:var(--text-caption);color:var(--color-text-subtle);">${r.report_id}</span>
             <span style="font-size:var(--text-caption);margin-left:var(--space-8);">${dateStr}</span>
+            <span class="tier-badge" style="margin-left:var(--space-8);" title="${escHtml(cfg.validation_tier || 'Unknown tier')}">${escHtml(tierLabel)}</span>
             <span style="font-size:var(--text-caption);margin-left:var(--space-8);color:var(--color-text-subtle);">
               ${escHtml(cfg.date_start || 'N/A')} &rarr; ${escHtml(cfg.date_end || 'N/A')}
             </span>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-8);">
-            <span class="verdict-badge ${r.pass_fail}">${r.pass_fail}</span>
+            <span class="verdict-badge ${displayVerdict}">${displayVerdict.replace('_', ' ')}</span>
             ${decision !== 'pending' ? 
               `<span class="status-badge ${decision}">${decision}</span>` : ''}
           </div>
@@ -484,7 +692,20 @@ function renderReportContent() {
   
   // Report detail
   if (selectedReport) {
-    html += renderReportDetail(selectedReport);
+    try {
+      html += renderReportDetail(selectedReport);
+    } catch (err) {
+      console.error('Failed to render selected report:', err);
+      html += renderReportTemplate({
+        strategy: selectedStrategy,
+        message: `Failed to render report ${selectedReport?.report_id || ''}. Check console for details.`
+      });
+    }
+  } else {
+    html += renderReportTemplate({
+      strategy: selectedStrategy,
+      message: 'Reports were found for this strategy, but none is currently selected.'
+    });
   }
   
   container.innerHTML = html;
@@ -492,6 +713,7 @@ function renderReportContent() {
 
 function selectReport(reportId) {
   selectedReport = reports.find(r => r.report_id === reportId) || null;
+  showReportView();
   renderReportContent();
 }
 
@@ -510,12 +732,14 @@ function renderReportDetail(report) {
   const costs = cfg.costs || {};
   const validationTier = cfg.validation_tier || 'N/A';
   const assetClass = cfg.asset_class || 'N/A';
+  const strategyAlreadyRejected = String(selectedStrategy?.status || '').toLowerCase() === 'rejected';
   const thr = cfg.validation_thresholds || {};
   const maxOosDeg = num(thr.max_oos_degradation_pct || 50);
   const minWfProf = num(thr.min_wf_profitable_windows || 0.6);
   const maxMcP95 = num(thr.max_mc_p95_dd_pct || 30);
   const maxMcP99 = num(thr.max_mc_p99_dd_pct || 50);
   const maxSens = num(thr.max_sensitivity_score || 40);
+  const displayVerdict = getDisplayVerdict(r);
   
   let html = '';
   
@@ -523,7 +747,7 @@ function renderReportDetail(report) {
   const totalTrades = num(ts.total_trades);
   html += `
     <div style="display:flex;align-items:center;gap:var(--space-16);margin-bottom:var(--space-16);flex-wrap:wrap;">
-      <span class="verdict-badge ${r.pass_fail}" style="font-size:var(--text-h3);padding:var(--space-8) var(--space-24);">${r.pass_fail}</span>
+      <span class="verdict-badge ${displayVerdict}" style="font-size:var(--text-h3);padding:var(--space-8) var(--space-24);">${displayVerdict.replace('_', ' ')}</span>
       <div>
         <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">
           ${escHtml(cfg.date_start || 'N/A')} &rarr; ${escHtml(cfg.date_end || 'N/A')} &middot;
@@ -537,6 +761,14 @@ function renderReportDetail(report) {
         </div>
       </div>
       <div style="margin-left:auto;display:flex;gap:var(--space-8);align-items:center;flex-shrink:0;">
+        <button
+          class="btn btn-ghost btn-sm"
+          style="color:var(--color-warning, #d2a95d);"
+          onclick="tombstoneSelectedStrategy()"
+          title="${strategyAlreadyRejected ? 'This strategy is already tombstoned' : 'Mark this strategy rejected and send it to the tombstones page'}"
+          ${selectedStrategy ? '' : 'disabled'}
+          ${strategyAlreadyRejected ? 'disabled' : ''}
+        >${strategyAlreadyRejected ? 'Strategy Tombstoned' : 'Tombstone Strategy'}</button>
         <button
           class="btn btn-ghost btn-sm"
           style="color:var(--color-negative);"
@@ -730,6 +962,7 @@ function renderValidationCriteria(report) {
   const mc = report.robustness?.monte_carlo || {};
   const ps = report.robustness?.parameter_sensitivity || {};
   const thr = report.config?.validation_thresholds || {};
+  const displayVerdict = getDisplayVerdict(report);
   const minTradesPass = intNum(thr.min_trades_pass || 30);
   const maxOosDeg = num(thr.max_oos_degradation_pct || 50);
   const minWfProf = num(thr.min_wf_profitable_windows || 0.6);
@@ -769,12 +1002,12 @@ function renderValidationCriteria(report) {
     `;
   }
 
-  window.__validationCopyText = checks.map(c => `${c.label}\t${c.threshold}\t${c.actual}\t${c.ok ? 'pass' : 'fail'}`).join('\n') + `\nFinal verdict: ${report.pass_fail}`;
+  window.__validationCopyText = checks.map(c => `${c.label}\t${c.threshold}\t${c.actual}\t${c.ok ? 'pass' : 'fail'}`).join('\n') + `\nFinal verdict: ${displayVerdict.replace('_', ' ')}`;
 
   html += `
     <div style="margin-top:var(--space-10);display:flex;align-items:center;gap:var(--space-12);">
       <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">
-        Final verdict: <span class="verdict-badge ${report.pass_fail}" style="margin-left:var(--space-6);">${report.pass_fail}</span>
+        Final verdict: <span class="verdict-badge ${displayVerdict}" style="margin-left:var(--space-6);">${displayVerdict.replace('_', ' ')}</span>
       </div>
       <button id="copy-validation-btn" style="font-size:var(--text-caption);padding:var(--space-4) var(--space-10);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);color:var(--color-text-subtle);cursor:pointer;">Copy Report</button>
     </div>
@@ -952,8 +1185,12 @@ async function submitRunValidation() {
   const tierKey = getRunTierKey();
   const context = getTierContext(tierKey);
   if (!context) return;
-  if (tierKey === 'tier2' && !strategyHasTierPass('tier1')) {
-    alert('Tier 2 requires a PASS on Tier 1 first.');
+  if (tierKey === 'tier1b' && !isTier1BEligibleReport(getLatestTierReport('tier1'))) {
+    alert('Tier 1B requires a Tier 1 result that looks viable but lacks enough trades.');
+    return;
+  }
+  if (tierKey === 'tier2' && !(strategyHasTierPass('tier1') || strategyHasTierPass('tier1b'))) {
+    alert('Tier 2 requires a PASS on Tier 1 or Tier 1B first.');
     return;
   }
   if (tierKey === 'tier3' && !strategyHasTierPass('tier2')) {
@@ -1002,12 +1239,22 @@ async function cancelValidationRun() {
   setRunStatus('');
 }
 
-async function reconnectActiveRun() {
+async function reconnectActiveRun(targetJobId = null, targetStrategyVersionId = null) {
   try {
     const activeJobs = await apiGetAbsolute('/api/validator/runs/active');
     if (!Array.isArray(activeJobs) || activeJobs.length === 0) return;
-    // Reconnect to the most recent running/queued job
-    const job = activeJobs[0];
+    const requestedJobId = String(targetJobId || '').trim();
+    const requestedStrategyVersionId = String(targetStrategyVersionId || '').trim();
+    let job =
+      (requestedJobId ? activeJobs.find((candidate) => candidate?.job_id === requestedJobId) : null) ||
+      (requestedStrategyVersionId
+        ? activeJobs.find((candidate) => candidate?.strategy_version_id === requestedStrategyVersionId)
+        : null) ||
+      activeJobs[0];
+    if (!job) return;
+    if (requestedStrategyVersionId && job.strategy_version_id && selectedStrategy?.strategy_version_id !== job.strategy_version_id) {
+      await selectStrategy(job.strategy_version_id);
+    }
     activeRunJobId = job.job_id;
     const pct = Math.round((Number(job.progress || 0)) * 100);
     const stage = job.stage ? job.stage.replaceAll('_', ' ') : '';
@@ -1060,9 +1307,138 @@ function renderValidatorChat() {
   container.scrollTop = container.scrollHeight;
 }
 
-function buildValidatorChatContext() {
+function summarizeValidatorReport(report) {
+  if (!report || typeof report !== 'object') return null;
+  const cfg = report.config || {};
+  const ts = report.trades_summary || {};
+  const rs = report.risk_summary || {};
+  const rob = report.robustness || {};
+  const oos = rob.out_of_sample || {};
+  const wf = rob.walk_forward || {};
+  const mc = rob.monte_carlo || {};
+  const ps = rob.parameter_sensitivity || {};
+  const universe = Array.isArray(cfg.universe) ? cfg.universe : [];
+  return {
+    report_id: report.report_id || null,
+    created_at: report.created_at || null,
+    pass_fail: report.pass_fail || null,
+    validation_tier: cfg.validation_tier || null,
+    asset_class: cfg.asset_class || null,
+    interval: Array.isArray(cfg.timeframes) ? (cfg.timeframes[0] || null) : null,
+    date_start: cfg.date_start || null,
+    date_end: cfg.date_end || null,
+    universe_size: universe.length,
+    costs: cfg.costs || null,
+    pass_fail_reasons: Array.isArray(report.pass_fail_reasons) ? report.pass_fail_reasons.slice() : [],
+    trades_summary: {
+      total_trades: ts.total_trades ?? null,
+      expectancy_R: ts.expectancy_R ?? null,
+      profit_factor: ts.profit_factor ?? null,
+      win_rate: ts.win_rate ?? null,
+      avg_win_R: ts.avg_win_R ?? null,
+      avg_loss_R: ts.avg_loss_R ?? null,
+      winners: ts.winners ?? null,
+      losers: ts.losers ?? null,
+    },
+    risk_summary: {
+      max_drawdown_pct: rs.max_drawdown_pct ?? null,
+      max_drawdown_R: rs.max_drawdown_R ?? null,
+      sharpe_ratio: rs.sharpe_ratio ?? null,
+      calmar_ratio: rs.calmar_ratio ?? null,
+      longest_losing_streak: rs.longest_losing_streak ?? null,
+    },
+    robustness: {
+      out_of_sample: {
+        is_expectancy: oos.is_expectancy ?? null,
+        oos_expectancy: oos.oos_expectancy ?? null,
+        oos_degradation_pct: oos.oos_degradation_pct ?? null,
+        split_date: oos.split_date ?? null,
+      },
+      walk_forward: {
+        pct_profitable_windows: wf.pct_profitable_windows ?? null,
+        avg_test_expectancy: wf.avg_test_expectancy ?? null,
+        windows: Array.isArray(wf.windows) ? wf.windows.length : 0,
+      },
+      monte_carlo: {
+        p95_dd_pct: mc.p95_dd_pct ?? null,
+        p99_dd_pct: mc.p99_dd_pct ?? null,
+        median_final_R: mc.median_final_R ?? null,
+      },
+      parameter_sensitivity: {
+        sensitivity_score: ps.sensitivity_score ?? null,
+        base_expectancy: ps.base_expectancy ?? null,
+      }
+    },
+    execution_stats: report.execution_stats || null,
+  };
+}
+
+function buildValidatorReportHistory(selected, allReports) {
+  const normalized = Array.isArray(allReports)
+    ? allReports.map((r) => summarizeValidatorReport(r)).filter(Boolean)
+    : [];
+  if (!normalized.length) {
+    return { selected: null, previous: null, recent: [], comparison_pairs: [] };
+  }
+
+  normalized.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  const selectedId = selected?.report_id || null;
+  const selectedSummary = normalized.find((r) => r.report_id === selectedId) || normalized[0];
+  const selectedIndex = normalized.findIndex((r) => r.report_id === selectedSummary?.report_id);
+  const previous = selectedIndex >= 0 ? (normalized[selectedIndex + 1] || null) : null;
+  const recent = normalized.slice(0, 6);
+  const comparisonPairs = [];
+
+  if (selectedSummary && previous) {
+    comparisonPairs.push({
+      kind: 'selected_vs_previous',
+      current_report_id: selectedSummary.report_id,
+      previous_report_id: previous.report_id,
+      deltas: {
+        expectancy_R: (
+          selectedSummary.trades_summary.expectancy_R != null &&
+          previous.trades_summary.expectancy_R != null
+        ) ? (selectedSummary.trades_summary.expectancy_R - previous.trades_summary.expectancy_R) : null,
+        total_trades: (
+          selectedSummary.trades_summary.total_trades != null &&
+          previous.trades_summary.total_trades != null
+        ) ? (selectedSummary.trades_summary.total_trades - previous.trades_summary.total_trades) : null,
+        profit_factor: (
+          selectedSummary.trades_summary.profit_factor != null &&
+          previous.trades_summary.profit_factor != null
+        ) ? (selectedSummary.trades_summary.profit_factor - previous.trades_summary.profit_factor) : null,
+        win_rate: (
+          selectedSummary.trades_summary.win_rate != null &&
+          previous.trades_summary.win_rate != null
+        ) ? (selectedSummary.trades_summary.win_rate - previous.trades_summary.win_rate) : null,
+        max_drawdown_pct: (
+          selectedSummary.risk_summary.max_drawdown_pct != null &&
+          previous.risk_summary.max_drawdown_pct != null
+        ) ? (selectedSummary.risk_summary.max_drawdown_pct - previous.risk_summary.max_drawdown_pct) : null,
+        avg_win_R: (
+          selectedSummary.trades_summary.avg_win_R != null &&
+          previous.trades_summary.avg_win_R != null
+        ) ? (selectedSummary.trades_summary.avg_win_R - previous.trades_summary.avg_win_R) : null,
+        avg_loss_R: (
+          selectedSummary.trades_summary.avg_loss_R != null &&
+          previous.trades_summary.avg_loss_R != null
+        ) ? (selectedSummary.trades_summary.avg_loss_R - previous.trades_summary.avg_loss_R) : null,
+      }
+    });
+  }
+
+  return {
+    selected: selectedSummary || null,
+    previous,
+    recent,
+    comparison_pairs: comparisonPairs,
+  };
+}
+
+function buildValidatorChatContext(comparisonDiagnostics = null) {
   const report = selectedReport || null;
   const strategy = selectedStrategy || null;
+  const reportHistory = buildValidatorReportHistory(report, reports);
   const verdictMap = {
     PASS: 'GO',
     FAIL: 'NO_GO',
@@ -1113,10 +1489,23 @@ function buildValidatorChatContext() {
         trades_summary: report.trades_summary,
         risk_summary: report.risk_summary,
         robustness: report.robustness,
+        robustness_summary: report.robustness || null,
         execution_stats: report.execution_stats || null
-      } : null
+      } : null,
+      report_history: reportHistory,
+      report_comparison_diagnostics: comparisonDiagnostics,
     }
   };
+}
+
+async function fetchValidatorComparisonDiagnostics(currentReportId, previousReportId) {
+  if (!currentReportId || !previousReportId) return null;
+  try {
+    return await apiGetAbsolute(`/api/validator/report/${encodeURIComponent(currentReportId)}/compare/${encodeURIComponent(previousReportId)}/diagnostics`);
+  } catch (err) {
+    console.warn('Failed to load validator comparison diagnostics:', err);
+    return null;
+  }
 }
 
 async function sendValidatorChat(prefill) {
@@ -1180,11 +1569,74 @@ VALIDATOR_FACTS:
 `;
     }
 
+    const reportHistory = buildValidatorReportHistory(selectedReport, reports);
+    if (reportHistory?.selected) {
+      const selectedSummary = reportHistory.selected;
+      const previousSummary = reportHistory.previous;
+      message = `${message}
+
+REPORT_HISTORY:
+- loaded_reports: ${Array.isArray(reportHistory.recent) ? reportHistory.recent.length : 0}
+- selected_report_id: ${selectedSummary.report_id || 'N/A'}
+- selected_expectancy_R: ${selectedSummary.trades_summary?.expectancy_R ?? 'N/A'}
+- selected_total_trades: ${selectedSummary.trades_summary?.total_trades ?? 'N/A'}
+- selected_profit_factor: ${selectedSummary.trades_summary?.profit_factor ?? 'N/A'}
+- selected_win_rate: ${selectedSummary.trades_summary?.win_rate ?? 'N/A'}
+- selected_avg_win_R: ${selectedSummary.trades_summary?.avg_win_R ?? 'N/A'}
+- selected_avg_loss_R: ${selectedSummary.trades_summary?.avg_loss_R ?? 'N/A'}
+- selected_universe_size: ${selectedSummary.universe_size ?? 'N/A'}
+- selected_tier: ${selectedSummary.validation_tier || 'N/A'}
+- selected_date_range: ${selectedSummary.date_start || 'N/A'} -> ${selectedSummary.date_end || 'N/A'}
+${previousSummary ? `- previous_report_id: ${previousSummary.report_id || 'N/A'}
+- previous_expectancy_R: ${previousSummary.trades_summary?.expectancy_R ?? 'N/A'}
+- previous_total_trades: ${previousSummary.trades_summary?.total_trades ?? 'N/A'}
+- previous_profit_factor: ${previousSummary.trades_summary?.profit_factor ?? 'N/A'}
+- previous_win_rate: ${previousSummary.trades_summary?.win_rate ?? 'N/A'}
+- previous_avg_win_R: ${previousSummary.trades_summary?.avg_win_R ?? 'N/A'}
+- previous_avg_loss_R: ${previousSummary.trades_summary?.avg_loss_R ?? 'N/A'}
+- previous_universe_size: ${previousSummary.universe_size ?? 'N/A'}
+- previous_tier: ${previousSummary.validation_tier || 'N/A'}
+- previous_date_range: ${previousSummary.date_start || 'N/A'} -> ${previousSummary.date_end || 'N/A'}` : '- previous_report_id: N/A'}
+${Array.isArray(reportHistory.comparison_pairs) && reportHistory.comparison_pairs[0] ? `- delta_expectancy_R: ${reportHistory.comparison_pairs[0].deltas.expectancy_R ?? 'N/A'}
+- delta_total_trades: ${reportHistory.comparison_pairs[0].deltas.total_trades ?? 'N/A'}
+- delta_profit_factor: ${reportHistory.comparison_pairs[0].deltas.profit_factor ?? 'N/A'}
+- delta_win_rate: ${reportHistory.comparison_pairs[0].deltas.win_rate ?? 'N/A'}
+- delta_avg_win_R: ${reportHistory.comparison_pairs[0].deltas.avg_win_R ?? 'N/A'}
+- delta_avg_loss_R: ${reportHistory.comparison_pairs[0].deltas.avg_loss_R ?? 'N/A'}
+- delta_max_drawdown_pct: ${reportHistory.comparison_pairs[0].deltas.max_drawdown_pct ?? 'N/A'}` : ''}
+`;
+    }
+
+    let comparisonDiagnostics = null;
+    if (reportHistory?.selected?.report_id && reportHistory?.previous?.report_id) {
+      comparisonDiagnostics = await fetchValidatorComparisonDiagnostics(reportHistory.selected.report_id, reportHistory.previous.report_id);
+      if (comparisonDiagnostics) {
+        const currentShared = comparisonDiagnostics.cohort_stats?.current_shared_symbol_trades || {};
+        const previousShared = comparisonDiagnostics.cohort_stats?.previous_shared_symbol_trades || {};
+        const currentAdded = comparisonDiagnostics.cohort_stats?.current_added_symbol_trades || {};
+        const takeaways = Array.isArray(comparisonDiagnostics.key_takeaways) ? comparisonDiagnostics.key_takeaways : [];
+        message = `${message}
+
+COMPARISON_DIAGNOSTICS:
+- current_universe_size: ${comparisonDiagnostics.universe_summary?.current_universe_size ?? 'N/A'}
+- previous_universe_size: ${comparisonDiagnostics.universe_summary?.previous_universe_size ?? 'N/A'}
+- shared_universe_size: ${comparisonDiagnostics.universe_summary?.shared_universe_size ?? 'N/A'}
+- added_universe_size: ${comparisonDiagnostics.universe_summary?.added_universe_size ?? 'N/A'}
+- current_shared_trade_count: ${currentShared.trade_count ?? 'N/A'}
+- current_shared_expectancy_R: ${currentShared.expectancy_R ?? 'N/A'}
+- previous_shared_trade_count: ${previousShared.trade_count ?? 'N/A'}
+- previous_shared_expectancy_R: ${previousShared.expectancy_R ?? 'N/A'}
+- current_added_trade_count: ${currentAdded.trade_count ?? 'N/A'}
+- current_added_expectancy_R: ${currentAdded.expectancy_R ?? 'N/A'}
+${takeaways.length ? `- key_takeaways: ${takeaways.join(' | ')}` : ''}`;
+      }
+    }
+
     let _settings = {};
     try { _settings = JSON.parse(localStorage.getItem('copilotSettings') || '{}'); } catch(e) {}
     const res = await apiPostAbsolute('/api/vision/chat', {
       message,
-      context: buildValidatorChatContext(),
+      context: buildValidatorChatContext(comparisonDiagnostics),
       role: 'statistical_interpreter',
       aiModel: _settings.validatorAnalystModel || undefined,
     });
@@ -1278,10 +1730,12 @@ function setRunStatus(message, warning = '', progressPct = null) {
   }
 
   if (info && selectedStrategy) {
+    const tierBadges = getStrategyTierBadges(selectedStrategy);
     // Keep strategy header clean; run state is shown in the dedicated progress block.
     info.innerHTML = `
       <span style="font-weight:600;font-size:var(--text-body);">${escHtml(selectedStrategy.name)}</span>
       <span class="status-badge ${selectedStrategy.status}">${selectedStrategy.status}</span>
+      ${tierBadges.map((badge) => `<span class="tier-badge" title="${escHtml(badge.title)}">${escHtml(badge.label)}</span>`).join('')}
     `;
   } else if (!message) {
     updateStrategyInfo();
@@ -1327,7 +1781,21 @@ async function pollRunJob(jobId) {
   return new Promise((resolve, reject) => {
     const tick = async () => {
       try {
-        const job = await apiGet(`/run/${jobId}`);
+        const res = await fetch(`${API_BASE}/run/${encodeURIComponent(jobId)}`);
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload?.success) {
+          const error = payload?.error || `HTTP ${res.status}`;
+          if (res.status === 404) {
+            clearInterval(runPollTimer);
+            runPollTimer = null;
+            activeRunJobId = null;
+            setRunStatus('');
+            reject(new Error(`Validation run ${jobId} no longer exists on the backend. If the server was restarted, rerun validation.`));
+            return;
+          }
+          throw new Error(error);
+        }
+        const job = payload.data;
         consecutiveErrors = 0;
         // Recover to normal poll speed after errors
         if (pollInterval !== 2000) {
@@ -1356,6 +1824,7 @@ async function pollRunJob(jobId) {
         if (job.status === 'failed') {
           clearInterval(runPollTimer);
           runPollTimer = null;
+          activeRunJobId = null;
           setRunStatus('');
           reject(new Error(job.error || 'Validation job failed'));
           return;
@@ -1367,14 +1836,33 @@ async function pollRunJob(jobId) {
           await loadStrategies();
           reports = await apiGet(`/reports?strategy_version_id=${selectedStrategy.strategy_version_id}`);
           selectedReport = reports.find(r => r.report_id === job.report_id) || reports[0] || null;
+          syncStrategyValidationFromReports(selectedStrategy?.strategy_version_id, reports);
 
           setRunStatus('');
           renderReportContent();
           updateStrategyInfo();
+          renderStrategyList();
           resolve(job);
         }
       } catch (err) {
         consecutiveErrors++;
+        let runStillActive = true;
+        try {
+          const activeJobs = await apiGetAbsolute('/api/validator/runs/active');
+          if (Array.isArray(activeJobs)) {
+            runStillActive = activeJobs.some((job) => job?.job_id === jobId);
+          }
+        } catch {
+          // Ignore fallback probe failures and keep the current retry path.
+        }
+        if (!runStillActive) {
+          clearInterval(runPollTimer);
+          runPollTimer = null;
+          activeRunJobId = null;
+          setRunStatus('');
+          reject(new Error(`Validation run ${jobId} is no longer active on the backend. If the server was restarted, rerun validation.`));
+          return;
+        }
         // Never stop polling — just slow down and keep the bar visible.
         // The job is still running on the backend; this is a transient network issue.
         const backoffSecs = Math.min(30, 2 * consecutiveErrors);
@@ -1405,8 +1893,10 @@ async function clearReports() {
     await apiPost('/reports/clear', { strategy_version_id: selectedStrategy.strategy_version_id });
     reports = [];
     selectedReport = null;
+    syncStrategyValidationFromReports(selectedStrategy.strategy_version_id, reports);
     renderReportContent();
     updateStrategyInfo();
+    renderStrategyList();
     alert('Reports cleared. Run validation again to generate fresh real data.');
   } catch (err) {
     alert('Failed to clear reports: ' + err.message);
@@ -1424,10 +1914,46 @@ async function deleteReport(reportId) {
     if (!data.success) throw new Error(data.error || 'Delete failed');
     reports = reports.filter(r => r.report_id !== reportId);
     selectedReport = reports[0] || null;
+    syncStrategyValidationFromReports(selectedStrategy?.strategy_version_id, reports);
     renderReportContent();
     updateStrategyInfo();
+    renderStrategyList();
   } catch (err) {
     alert('Failed to delete report: ' + err.message);
+  }
+}
+
+async function tombstoneSelectedStrategy() {
+  if (!selectedStrategy?.strategy_version_id) return;
+  if (String(selectedStrategy.status || '').toLowerCase() === 'rejected') {
+    alert('This strategy is already tombstoned.');
+    return;
+  }
+
+  const strategyVersionId = selectedStrategy.strategy_version_id;
+  const strategyName = selectedStrategy.name || strategyVersionId;
+  const ok = window.confirm(`Tombstone ${strategyName}? This will mark the strategy as rejected and move it to the tombstones page.`);
+  if (!ok) return;
+
+  try {
+    await apiPatchAbsolute(`/api/strategies/${encodeURIComponent(strategyVersionId)}/status`, { status: 'rejected' });
+    await loadStrategies();
+    selectedStrategy = strategies.find((s) => s.strategy_version_id === strategyVersionId) || null;
+    if (selectedStrategy?.strategy_version_id) {
+      reports = await apiGet(`/reports?strategy_version_id=${selectedStrategy.strategy_version_id}`);
+      selectedReport = reports.find((r) => r.report_id === selectedReport?.report_id) || reports[0] || null;
+      syncStrategyValidationFromReports(selectedStrategy.strategy_version_id, reports);
+    } else {
+      reports = [];
+      selectedReport = null;
+      activeTierConfig = null;
+    }
+    renderStrategyList();
+    updateStrategyInfo();
+    renderReportContent();
+    alert(`Tombstoned ${strategyName}.`);
+  } catch (err) {
+    alert('Failed to tombstone strategy: ' + err.message);
   }
 }
 
@@ -1831,6 +2357,7 @@ window.closeModal = closeModal;
 window.toggleStrategyPanel = toggleStrategyPanel;
 window.toggleChatPanel = toggleChatPanel;
 window.deleteReport = deleteReport;
+window.tombstoneSelectedStrategy = tombstoneSelectedStrategy;
 
 function toggleStrategyPanel() {
   const panel  = document.getElementById('strategy-panel');

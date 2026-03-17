@@ -1,0 +1,285 @@
+{
+  "symbol": "SPY",
+  "timeframe": "1d",
+  "period": "10y",
+  "reversal_multiple_atr": 2.0,
+  "grouping_version": "v2",
+  "total_unique_families": 21,
+  "split_boundaries": {
+    "discovery": {
+      "count": 170,
+      "start_entry_bar_index": 21,
+      "end_entry_bar_index": 1595,
+      "start_entry_timestamp": "2016-04-13 00:00:00-04:00",
+      "end_entry_timestamp": "2022-07-14 00:00:00-04:00"
+    },
+    "validation": {
+      "count": 57,
+      "start_entry_bar_index": 1597,
+      "end_entry_bar_index": 2069,
+      "start_entry_timestamp": "2022-07-18 00:00:00-04:00",
+      "end_entry_timestamp": "2024-06-03 00:00:00-04:00"
+    },
+    "holdout": {
+      "count": 57,
+      "start_entry_bar_index": 2100,
+      "end_entry_bar_index": 2514,
+      "start_entry_timestamp": "2024-07-18 00:00:00-04:00",
+      "end_entry_timestamp": "2026-03-13 00:00:00-04:00"
+    }
+  },
+  "families_with_split_coverage_all_three": 11,
+  "families_with_min_occurrences": 15,
+  "families_with_min_valid10": 13,
+  "families_passing_discovery_and_validation_counts": 5,
+  "candidate_family_count": 13,
+  "families_sign_consistent_across_splits": 4,
+  "top_10_avg_forward_10_return_atr": [
+    {
+      "family_id": "family_000006",
+      "family_signature": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 19,
+      "avg_forward_10_return_atr": 1.2525816753931074
+    },
+    {
+      "family_id": "family_000021",
+      "family_signature": "LTH|REVERSAL_UP|LL_ONLY|DEEP_DOM",
+      "occurrence_count": 6,
+      "avg_forward_10_return_atr": 1.0775285233443768
+    },
+    {
+      "family_id": "family_000011",
+      "family_signature": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 30,
+      "avg_forward_10_return_atr": 1.0208454001605043
+    },
+    {
+      "family_id": "family_000004",
+      "family_signature": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 21,
+      "avg_forward_10_return_atr": 0.8302331965501312
+    },
+    {
+      "family_id": "family_000014",
+      "family_signature": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "occurrence_count": 8,
+      "avg_forward_10_return_atr": 0.7492389023028045
+    },
+    {
+      "family_id": "family_000002",
+      "family_signature": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 39,
+      "avg_forward_10_return_atr": 0.7085868929531673
+    },
+    {
+      "family_id": "family_000008",
+      "family_signature": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 45,
+      "avg_forward_10_return_atr": 0.706642716193632
+    },
+    {
+      "family_id": "family_000019",
+      "family_signature": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 31,
+      "avg_forward_10_return_atr": 0.5630984741740376
+    },
+    {
+      "family_id": "family_000016",
+      "family_signature": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 34,
+      "avg_forward_10_return_atr": 0.4684982605090764
+    },
+    {
+      "family_id": "family_000012",
+      "family_signature": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "occurrence_count": 10,
+      "avg_forward_10_return_atr": 0.23754267108118549
+    }
+  ],
+  "top_10_t_score_forward_10": [
+    {
+      "family_id": "family_000011",
+      "family_signature": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 30,
+      "t_score_forward_10": 3.018572764405994
+    },
+    {
+      "family_id": "family_000006",
+      "family_signature": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 19,
+      "t_score_forward_10": 2.0985067489422966
+    },
+    {
+      "family_id": "family_000021",
+      "family_signature": "LTH|REVERSAL_UP|LL_ONLY|DEEP_DOM",
+      "occurrence_count": 6,
+      "t_score_forward_10": 1.8310235969592439
+    },
+    {
+      "family_id": "family_000008",
+      "family_signature": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 45,
+      "t_score_forward_10": 1.5075767393753594
+    },
+    {
+      "family_id": "family_000002",
+      "family_signature": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 39,
+      "t_score_forward_10": 1.4931760238329688
+    },
+    {
+      "family_id": "family_000004",
+      "family_signature": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 21,
+      "t_score_forward_10": 1.3723052224463606
+    },
+    {
+      "family_id": "family_000019",
+      "family_signature": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 31,
+      "t_score_forward_10": 1.306821436994717
+    },
+    {
+      "family_id": "family_000014",
+      "family_signature": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "occurrence_count": 8,
+      "t_score_forward_10": 1.0420421895059944
+    },
+    {
+      "family_id": "family_000016",
+      "family_signature": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 34,
+      "t_score_forward_10": 0.9775405831872341
+    },
+    {
+      "family_id": "family_000012",
+      "family_signature": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "occurrence_count": 10,
+      "t_score_forward_10": 0.2889217833509157
+    }
+  ],
+  "top_10_hit_plus_1atr_first_rate": [
+    {
+      "family_id": "family_000021",
+      "family_signature": "LTH|REVERSAL_UP|LL_ONLY|DEEP_DOM",
+      "occurrence_count": 6,
+      "hit_plus_1atr_first_rate": 0.8333333333333334
+    },
+    {
+      "family_id": "family_000014",
+      "family_signature": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "occurrence_count": 8,
+      "hit_plus_1atr_first_rate": 0.75
+    },
+    {
+      "family_id": "family_000019",
+      "family_signature": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 31,
+      "hit_plus_1atr_first_rate": 0.7096774193548387
+    },
+    {
+      "family_id": "family_000008",
+      "family_signature": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 45,
+      "hit_plus_1atr_first_rate": 0.6666666666666666
+    },
+    {
+      "family_id": "family_000002",
+      "family_signature": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 39,
+      "hit_plus_1atr_first_rate": 0.6153846153846154
+    },
+    {
+      "family_id": "family_000006",
+      "family_signature": "HTL|REVERSAL_DOWN|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 19,
+      "hit_plus_1atr_first_rate": 0.5555555555555556
+    },
+    {
+      "family_id": "family_000020",
+      "family_signature": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_PRESENT",
+      "occurrence_count": 9,
+      "hit_plus_1atr_first_rate": 0.5555555555555556
+    },
+    {
+      "family_id": "family_000016",
+      "family_signature": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 34,
+      "hit_plus_1atr_first_rate": 0.5
+    },
+    {
+      "family_id": "family_000003",
+      "family_signature": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 8,
+      "hit_plus_1atr_first_rate": 0.5
+    },
+    {
+      "family_id": "family_000004",
+      "family_signature": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 21,
+      "hit_plus_1atr_first_rate": 0.47619047619047616
+    }
+  ],
+  "bottom_10_avg_forward_10_return_atr": [
+    {
+      "family_id": "family_000013",
+      "family_signature": "LTH|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": -1.9454406464552711
+    },
+    {
+      "family_id": "family_000003",
+      "family_signature": "HTL|MIXED_TRANSITION|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 8,
+      "avg_forward_10_return_atr": -0.6554083941325581
+    },
+    {
+      "family_id": "family_000020",
+      "family_signature": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_PRESENT",
+      "occurrence_count": 9,
+      "avg_forward_10_return_atr": 0.08963152468339555
+    },
+    {
+      "family_id": "family_000012",
+      "family_signature": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_PRESENT",
+      "occurrence_count": 10,
+      "avg_forward_10_return_atr": 0.23754267108118549
+    },
+    {
+      "family_id": "family_000016",
+      "family_signature": "LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 34,
+      "avg_forward_10_return_atr": 0.4684982605090764
+    },
+    {
+      "family_id": "family_000019",
+      "family_signature": "LTH|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 31,
+      "avg_forward_10_return_atr": 0.5630984741740376
+    },
+    {
+      "family_id": "family_000008",
+      "family_signature": "HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 45,
+      "avg_forward_10_return_atr": 0.706642716193632
+    },
+    {
+      "family_id": "family_000002",
+      "family_signature": "HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+      "occurrence_count": 39,
+      "avg_forward_10_return_atr": 0.7085868929531673
+    },
+    {
+      "family_id": "family_000014",
+      "family_signature": "LTH|MIXED_TRANSITION|LL_ONLY|DEEP_DOM",
+      "occurrence_count": 8,
+      "avg_forward_10_return_atr": 0.7492389023028045
+    },
+    {
+      "family_id": "family_000004",
+      "family_signature": "HTL|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM",
+      "occurrence_count": 21,
+      "avg_forward_10_return_atr": 0.8302331965501312
+    }
+  ]
+}

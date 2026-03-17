@@ -49,6 +49,8 @@
         "profit_factor": 1.11440084345465,
         "max_drawdown_pct": 41.13933572037043,
         "sharpe_ratio": 0.5478777861551197,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0
       }
     },
@@ -68,6 +70,8 @@
         "profit_factor": 1.11440084345465,
         "max_drawdown_pct": 41.13933572037043,
         "sharpe_ratio": 0.5478777861551197,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0
       }
     },
@@ -87,6 +91,8 @@
         "profit_factor": 1.11440084345465,
         "max_drawdown_pct": 41.13933572037043,
         "sharpe_ratio": 0.5478777861551197,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0
       }
     },
@@ -106,6 +112,8 @@
         "profit_factor": 1.11440084345465,
         "max_drawdown_pct": 41.13933572037043,
         "sharpe_ratio": 0.5478777861551197,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0
       }
     },
@@ -125,6 +133,8 @@
         "profit_factor": 1.11440084345465,
         "max_drawdown_pct": 41.13933572037043,
         "sharpe_ratio": 0.5478777861551197,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0
       }
     },
@@ -144,6 +154,8 @@
         "profit_factor": 1.11440084345465,
         "max_drawdown_pct": 41.13933572037043,
         "sharpe_ratio": 0.5478777861551197,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0
       }
     },
@@ -163,6 +175,8 @@
         "profit_factor": 1.11440084345465,
         "max_drawdown_pct": 41.13933572037043,
         "sharpe_ratio": 0.5478777861551197,
+        "oos_degradation_pct": 0,
+        "pass_fail": "FAIL",
         "fitness_score": 0
       }
     }
@@ -183,6 +197,8 @@
       "profit_factor": 1.11440084345465,
       "max_drawdown_pct": 41.13933572037043,
       "sharpe_ratio": 0.5478777861551197,
+      "oos_degradation_pct": 0,
+      "pass_fail": "FAIL",
       "fitness_score": 0
     }
   },

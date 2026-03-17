@@ -63,28 +63,32 @@
       <div class="page-header">
         <div>
           <h1 class="page-title">Tombstones</h1>
-          <p class="page-subtitle" id="tombstones-subtitle">Loading tombstoned methods...</p>
+          <p class="page-subtitle" id="tombstones-subtitle">Loading tombstones...</p>
         </div>
         <button class="btn btn-ghost" onclick="loadTombstonesPage()">Refresh</button>
       </div>
 
       <div class="content" style="padding:var(--space-16) var(--space-24);display:flex;flex-direction:column;gap:var(--space-16);">
-        <div class="panel" style="padding:var(--space-16);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-12);">
+        <div class="panel" style="padding:var(--space-16);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--space-12);">
           <div>
-            <div class="text-label">Entries</div>
+            <div class="text-label">Total Entries</div>
             <div id="tombstones-stat-count" class="text-mono" style="font-size:var(--text-large);font-weight:700;">--</div>
+          </div>
+          <div>
+            <div class="text-label">Methods</div>
+            <div id="tombstones-stat-methods" class="text-mono" style="font-size:var(--text-large);font-weight:700;">--</div>
+          </div>
+          <div>
+            <div class="text-label">Strategies</div>
+            <div id="tombstones-stat-strategies" class="text-mono" style="font-size:var(--text-large);font-weight:700;">--</div>
           </div>
           <div>
             <div class="text-label">Last Updated</div>
             <div id="tombstones-stat-updated" class="text-mono" style="font-size:var(--text-small);font-weight:700;">--</div>
           </div>
           <div>
-            <div class="text-label">Source</div>
+            <div class="text-label">Top Source</div>
             <div id="tombstones-stat-source" class="text-mono" style="font-size:var(--text-small);font-weight:700;">--</div>
-          </div>
-          <div>
-            <div class="text-label">Ledger</div>
-            <div class="text-mono" style="font-size:var(--text-small);font-weight:700;">base-method-tombstones.json</div>
           </div>
         </div>
 
@@ -96,6 +100,18 @@
             </div>
           </div>
           <div id="tombstones-list" style="display:flex;flex-direction:column;gap:var(--space-12);">
+            <div class="text-muted">Loading...</div>
+          </div>
+        </div>
+
+        <div class="panel" style="padding:var(--space-16);">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-12);margin-bottom:var(--space-12);">
+            <div>
+              <div class="text-label">Strategy Graveyard</div>
+              <div class="text-muted" style="font-size:var(--text-small);">Rejected strategies preserved with their latest failed validation context.</div>
+            </div>
+          </div>
+          <div id="strategy-tombstones-list" style="display:flex;flex-direction:column;gap:var(--space-12);">
             <div class="text-muted">Loading...</div>
           </div>
         </div>

@@ -1,0 +1,150 @@
+{
+  "sweep_id": "sweep_c9824fbe-d",
+  "base_strategy_version_id": "density_base_detector_v1_pattern_v1",
+  "sweep_params": [
+    {
+      "label": "Min Score",
+      "param_path": "setup_config.min_score",
+      "values": [
+        0.15,
+        0.2,
+        0.25,
+        0.3,
+        0.35
+      ]
+    }
+  ],
+  "tier": "tier2",
+  "interval": "1wk",
+  "status": "completed",
+  "variants": [
+    {
+      "variant_id": "sweep_c9824fbe-d_0_15",
+      "strategy_version_id": "sweep_c9824fbe-d_0_15",
+      "param_label": "Min Score",
+      "param_path": "setup_config.min_score",
+      "param_value": 0.15,
+      "job_id": "job_b91a9de4-8",
+      "status": "completed",
+      "report_id": "rpt_b171e295",
+      "metrics": {
+        "total_trades": 363,
+        "expectancy_R": 0.7052457801370494,
+        "win_rate": 0.5702479338842975,
+        "profit_factor": 2.6406589225621047,
+        "max_drawdown_pct": 20.007800000000543,
+        "sharpe_ratio": 9.054987812401038,
+        "oos_degradation_pct": 0,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_c9824fbe-d_0_2",
+      "strategy_version_id": "sweep_c9824fbe-d_0_2",
+      "param_label": "Min Score",
+      "param_path": "setup_config.min_score",
+      "param_value": 0.2,
+      "job_id": "job_24ae2c75-e",
+      "status": "completed",
+      "report_id": "rpt_09fc45a0",
+      "metrics": {
+        "total_trades": 363,
+        "expectancy_R": 0.7052457801370494,
+        "win_rate": 0.5702479338842975,
+        "profit_factor": 2.6406589225621047,
+        "max_drawdown_pct": 20.007800000000543,
+        "sharpe_ratio": 9.054987812401038,
+        "oos_degradation_pct": 0,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_c9824fbe-d_0_25",
+      "strategy_version_id": "sweep_c9824fbe-d_0_25",
+      "param_label": "Min Score",
+      "param_path": "setup_config.min_score",
+      "param_value": 0.25,
+      "job_id": "job_dc1b2011-d",
+      "status": "completed",
+      "report_id": "rpt_81abaf86",
+      "metrics": {
+        "total_trades": 363,
+        "expectancy_R": 0.705245780137049,
+        "win_rate": 0.5702479338842975,
+        "profit_factor": 2.6406589225621047,
+        "max_drawdown_pct": 20.007800000000543,
+        "sharpe_ratio": 9.054987812401038,
+        "oos_degradation_pct": 0,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_c9824fbe-d_0_3",
+      "strategy_version_id": "sweep_c9824fbe-d_0_3",
+      "param_label": "Min Score",
+      "param_path": "setup_config.min_score",
+      "param_value": 0.3,
+      "job_id": "job_0ef2bb18-c",
+      "status": "completed",
+      "report_id": "rpt_042cc890",
+      "metrics": {
+        "total_trades": 363,
+        "expectancy_R": 0.705245780137049,
+        "win_rate": 0.5702479338842975,
+        "profit_factor": 2.6406589225621047,
+        "max_drawdown_pct": 20.007800000000543,
+        "sharpe_ratio": 9.054987812401038,
+        "oos_degradation_pct": 0,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    },
+    {
+      "variant_id": "sweep_c9824fbe-d_0_35",
+      "strategy_version_id": "sweep_c9824fbe-d_0_35",
+      "param_label": "Min Score",
+      "param_path": "setup_config.min_score",
+      "param_value": 0.35,
+      "job_id": "job_c0ce3ced-e",
+      "status": "completed",
+      "report_id": "rpt_f7f77cc6",
+      "metrics": {
+        "total_trades": 363,
+        "expectancy_R": 0.7052457801370491,
+        "win_rate": 0.5702479338842975,
+        "profit_factor": 2.6406589225621047,
+        "max_drawdown_pct": 22.008280000000155,
+        "sharpe_ratio": 9.054987812401038,
+        "oos_degradation_pct": 0,
+        "pass_fail": "NEEDS_REVIEW",
+        "fitness_score": 0
+      }
+    }
+  ],
+  "winner": {
+    "variant_id": "sweep_c9824fbe-d_0_15",
+    "strategy_version_id": "sweep_c9824fbe-d_0_15",
+    "param_label": "Min Score",
+    "param_path": "setup_config.min_score",
+    "param_value": 0.15,
+    "job_id": "job_b91a9de4-8",
+    "status": "completed",
+    "report_id": "rpt_b171e295",
+    "metrics": {
+      "total_trades": 363,
+      "expectancy_R": 0.7052457801370494,
+      "win_rate": 0.5702479338842975,
+      "profit_factor": 2.6406589225621047,
+      "max_drawdown_pct": 20.007800000000543,
+      "sharpe_ratio": 9.054987812401038,
+      "oos_degradation_pct": 0,
+      "pass_fail": "NEEDS_REVIEW",
+      "fitness_score": 0
+    }
+  },
+  "created_at": "2026-03-17T16:37:20.791Z",
+  "completed_at": "2026-03-17T16:50:28.751Z"
+}

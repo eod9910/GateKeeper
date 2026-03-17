@@ -1,0 +1,1241 @@
+{
+  "symbol": "QQQ",
+  "timeframe": "1d",
+  "period": "5y",
+  "reversal_multiple_atr": 2.0,
+  "count": 154,
+  "records": [
+    {
+      "pivot_id": "pivot_000001",
+      "major_label": "HH",
+      "comparison_pivot_id": null,
+      "price_delta": null,
+      "price_delta_atr_norm": null,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000002",
+      "major_label": "HL",
+      "comparison_pivot_id": null,
+      "price_delta": null,
+      "price_delta_atr_norm": null,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000003",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000001",
+      "price_delta": 18.469982735936696,
+      "price_delta_atr_norm": 3.930585752356275,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000004",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000002",
+      "price_delta": 18.28652195733332,
+      "price_delta_atr_norm": 3.7150800118922906,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000005",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000003",
+      "price_delta": -5.975623619814826,
+      "price_delta_atr_norm": -1.2125868756258964,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000006",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000004",
+      "price_delta": -9.920614449137702,
+      "price_delta_atr_norm": -1.7818354391029576,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000007",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000005",
+      "price_delta": 25.77878730781896,
+      "price_delta_atr_norm": 7.123770945999923,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000008",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000006",
+      "price_delta": 37.730502040868544,
+      "price_delta_atr_norm": 9.8927673030425,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000009",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000007",
+      "price_delta": 2.6556377209726634,
+      "price_delta_atr_norm": 0.7259050737673564,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000010",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000008",
+      "price_delta": -2.3153087063944326,
+      "price_delta_atr_norm": -0.5887774019196397,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000011",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000009",
+      "price_delta": 3.30745356038409,
+      "price_delta_atr_norm": 0.8616118473030796,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000012",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000010",
+      "price_delta": 7.898948347466501,
+      "price_delta_atr_norm": 1.9064426189062862,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000013",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000011",
+      "price_delta": 0.992301619801367,
+      "price_delta_atr_norm": 0.2614319020191472,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000014",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000012",
+      "price_delta": -0.19451379562781312,
+      "price_delta_atr_norm": -0.04960390917958796,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000015",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000013",
+      "price_delta": 12.519636636587222,
+      "price_delta_atr_norm": 3.6919255256259413,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000016",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000014",
+      "price_delta": 1.332801615364417,
+      "price_delta_atr_norm": 0.2968829068296091,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000017",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000015",
+      "price_delta": -8.098613468351857,
+      "price_delta_atr_norm": -1.813990067853366,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000018",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000016",
+      "price_delta": -10.332604483543832,
+      "price_delta_atr_norm": -1.9210084293562726,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000019",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000017",
+      "price_delta": 26.245476309358423,
+      "price_delta_atr_norm": 5.786951821544892,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000020",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000018",
+      "price_delta": 36.23730208680877,
+      "price_delta_atr_norm": 7.753003419369869,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000021",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000019",
+      "price_delta": 7.518214558694922,
+      "price_delta_atr_norm": 1.5935941092280999,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000022",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000020",
+      "price_delta": -8.40440991247192,
+      "price_delta_atr_norm": -1.2190858562023308,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000023",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000021",
+      "price_delta": -8.287588862892619,
+      "price_delta_atr_norm": -1.1806372257418403,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000024",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000022",
+      "price_delta": -0.9230470628269245,
+      "price_delta_atr_norm": -0.12038836182978221,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000025",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000023",
+      "price_delta": 4.768770899724757,
+      "price_delta_atr_norm": 0.6745220501007413,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000026",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000024",
+      "price_delta": -7.956822772924227,
+      "price_delta_atr_norm": -1.1006170160159534,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000027",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000025",
+      "price_delta": -14.022006752731158,
+      "price_delta_atr_norm": -1.9577748326996844,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000028",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000026",
+      "price_delta": -34.28472333013366,
+      "price_delta_atr_norm": -3.834226373053941,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000029",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000027",
+      "price_delta": -19.599590925749908,
+      "price_delta_atr_norm": -2.0479433514832466,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000030",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000028",
+      "price_delta": -15.494363715650252,
+      "price_delta_atr_norm": -1.4884301068965118,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000031",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000029",
+      "price_delta": -19.560471090983185,
+      "price_delta_atr_norm": -1.9959104706836064,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000032",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000030",
+      "price_delta": -0.7898326661992883,
+      "price_delta_atr_norm": -0.07844431855406014,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000033",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000031",
+      "price_delta": 21.695653351016574,
+      "price_delta_atr_norm": 2.4988748967032124,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000034",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000032",
+      "price_delta": -7.232529002735987,
+      "price_delta_atr_norm": -0.7707064169836504,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000035",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000033",
+      "price_delta": -40.555811389345536,
+      "price_delta_atr_norm": -4.2372279874471115,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000036",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000034",
+      "price_delta": -24.1246017895499,
+      "price_delta_atr_norm": -2.290301055594898,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000037",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000035",
+      "price_delta": -23.167849542233114,
+      "price_delta_atr_norm": -2.3064955232567423,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000038",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000036",
+      "price_delta": -4.617995281603044,
+      "price_delta_atr_norm": -0.4435134229968075,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000039",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000037",
+      "price_delta": 7.810425366761365,
+      "price_delta_atr_norm": 0.7970312846218259,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000040",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000038",
+      "price_delta": -10.670972390072677,
+      "price_delta_atr_norm": -1.1076467562165415,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000041",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000039",
+      "price_delta": -16.997419890657795,
+      "price_delta_atr_norm": -1.9440728645060772,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000042",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000040",
+      "price_delta": 6.863605530899235,
+      "price_delta_atr_norm": 0.7977769003208222,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000043",
+      "major_label": "EH",
+      "comparison_pivot_id": "pivot_000041",
+      "price_delta": 0.16636513944877152,
+      "price_delta_atr_norm": 0.02088175385073402,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000044",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000042",
+      "price_delta": 3.932285609006499,
+      "price_delta_atr_norm": 0.5008125507380604,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000045",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000043",
+      "price_delta": 11.542527063002467,
+      "price_delta_atr_norm": 1.5149767911767285,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000046",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000044",
+      "price_delta": 13.440292048459241,
+      "price_delta_atr_norm": 1.8367810489458587,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000047",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000045",
+      "price_delta": 25.305678837764788,
+      "price_delta_atr_norm": 3.729083550246859,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000048",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000046",
+      "price_delta": -2.6118462140629504,
+      "price_delta_atr_norm": -0.3853054517774886,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000049",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000047",
+      "price_delta": -22.830942243293748,
+      "price_delta_atr_norm": -3.4841337175941205,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000050",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000048",
+      "price_delta": -22.781926026269787,
+      "price_delta_atr_norm": -3.1330338009977563,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000051",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000049",
+      "price_delta": -25.81356351226998,
+      "price_delta_atr_norm": -3.541361778708225,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000052",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000050",
+      "price_delta": -12.582503229628998,
+      "price_delta_atr_norm": -1.6275595965156793,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000053",
+      "major_label": "EH",
+      "comparison_pivot_id": "pivot_000051",
+      "price_delta": 0.41154666868419554,
+      "price_delta_atr_norm": 0.05290559185952814,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000054",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000052",
+      "price_delta": 4.723439967548586,
+      "price_delta_atr_norm": 0.617625212519059,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000055",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000053",
+      "price_delta": 8.486355592151199,
+      "price_delta_atr_norm": 1.0792485609992934,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000056",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000054",
+      "price_delta": 19.687033845205946,
+      "price_delta_atr_norm": 3.190668489529262,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000057",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000055",
+      "price_delta": 2.439979889473136,
+      "price_delta_atr_norm": 0.3731686639056603,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000058",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000056",
+      "price_delta": -0.3822618468909127,
+      "price_delta_atr_norm": -0.060745947993431804,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000059",
+      "major_label": "EH",
+      "comparison_pivot_id": "pivot_000057",
+      "price_delta": 1.1074304629177618,
+      "price_delta_atr_norm": 0.17611609965378075,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000060",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000058",
+      "price_delta": -18.058514951619514,
+      "price_delta_atr_norm": -2.8973818860963827,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000061",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000059",
+      "price_delta": 17.198957089111047,
+      "price_delta_atr_norm": 2.60639132519398,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000062",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000060",
+      "price_delta": 28.13278934084647,
+      "price_delta_atr_norm": 4.956454915646849,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000063",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000061",
+      "price_delta": -9.508584811918524,
+      "price_delta_atr_norm": -1.6954461065095383,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000064",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000062",
+      "price_delta": -3.123690660666682,
+      "price_delta_atr_norm": -0.5201017741678744,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000065",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000063",
+      "price_delta": 17.80690512779904,
+      "price_delta_atr_norm": 3.255677843823597,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000066",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000064",
+      "price_delta": 24.733769809566752,
+      "price_delta_atr_norm": 5.177064777633413,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000067",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000065",
+      "price_delta": 16.76405847559124,
+      "price_delta_atr_norm": 4.074426805345129,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000068",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000066",
+      "price_delta": 19.351614843590312,
+      "price_delta_atr_norm": 4.699879149816909,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000069",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000067",
+      "price_delta": 33.62668824534808,
+      "price_delta_atr_norm": 6.521695647596204,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000070",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000068",
+      "price_delta": 28.058716144858465,
+      "price_delta_atr_norm": 5.238264449011538,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000071",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000069",
+      "price_delta": 15.408539776763348,
+      "price_delta_atr_norm": 3.0867757242167495,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000072",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000070",
+      "price_delta": -2.837269480006057,
+      "price_delta_atr_norm": -0.535546536098959,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000073",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000071",
+      "price_delta": -15.013762092825516,
+      "price_delta_atr_norm": -2.5838801790002037,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000074",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000072",
+      "price_delta": 3.81257008816317,
+      "price_delta_atr_norm": 0.6462696595480903,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000075",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000073",
+      "price_delta": 7.969923741217826,
+      "price_delta_atr_norm": 1.4474654661981021,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000076",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000074",
+      "price_delta": -6.611780627553685,
+      "price_delta_atr_norm": -1.2931423931704256,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000077",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000075",
+      "price_delta": -6.451755829660499,
+      "price_delta_atr_norm": -1.1489937993875665,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000078",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000076",
+      "price_delta": -8.889122472971962,
+      "price_delta_atr_norm": -1.431626344807526,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000079",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000077",
+      "price_delta": 20.126324591276727,
+      "price_delta_atr_norm": 4.427712744252627,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000080",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000078",
+      "price_delta": 39.76922548120592,
+      "price_delta_atr_norm": 8.403701484618976,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000081",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000079",
+      "price_delta": 19.556500815204572,
+      "price_delta_atr_norm": 4.718143330786735,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000082",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000080",
+      "price_delta": 13.494565005196023,
+      "price_delta_atr_norm": 3.0560365780426944,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000083",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000081",
+      "price_delta": 16.74502311515721,
+      "price_delta_atr_norm": 3.344995709044712,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000084",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000082",
+      "price_delta": 21.215750698264685,
+      "price_delta_atr_norm": 4.209473168266091,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000085",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000083",
+      "price_delta": 9.188529983241324,
+      "price_delta_atr_norm": 1.8542707670993577,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000086",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000084",
+      "price_delta": 4.787054620063259,
+      "price_delta_atr_norm": 0.9001473759618525,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000087",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000085",
+      "price_delta": 7.358703773321054,
+      "price_delta_atr_norm": 1.3713999263198449,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000088",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000086",
+      "price_delta": 11.888685430154055,
+      "price_delta_atr_norm": 2.1583593380274118,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000089",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000087",
+      "price_delta": 2.0375595081131337,
+      "price_delta_atr_norm": 0.338469369272085,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000090",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000088",
+      "price_delta": -0.9000759002665859,
+      "price_delta_atr_norm": -0.15332703736722378,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000091",
+      "major_label": "EH",
+      "comparison_pivot_id": "pivot_000089",
+      "price_delta": 1.279970852534973,
+      "price_delta_atr_norm": 0.21562193858350606,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000092",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000090",
+      "price_delta": -18.914872585038324,
+      "price_delta_atr_norm": -2.8573314493350743,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000093",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000091",
+      "price_delta": 11.131925662084257,
+      "price_delta_atr_norm": 2.116809531256148,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000094",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000092",
+      "price_delta": 29.701618090887337,
+      "price_delta_atr_norm": 5.458571361533242,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000095",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000093",
+      "price_delta": 26.02729105412709,
+      "price_delta_atr_norm": 4.704466280098212,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000096",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000094",
+      "price_delta": 31.21009584097294,
+      "price_delta_atr_norm": 5.800453870350897,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000097",
+      "major_label": "EH",
+      "comparison_pivot_id": "pivot_000095",
+      "price_delta": 1.1036478078129335,
+      "price_delta_atr_norm": 0.20572997129355222,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000098",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000096",
+      "price_delta": 2.420367275261583,
+      "price_delta_atr_norm": 0.44633298558830803,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000099",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000097",
+      "price_delta": 16.18872878885719,
+      "price_delta_atr_norm": 3.122507551806952,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000100",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000098",
+      "price_delta": -21.932184303274653,
+      "price_delta_atr_norm": -2.735857548407624,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000101",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000099",
+      "price_delta": -27.7450766417615,
+      "price_delta_atr_norm": -2.982423799849451,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000102",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000100",
+      "price_delta": -30.45314291805039,
+      "price_delta_atr_norm": -2.8162537317118748,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000103",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000101",
+      "price_delta": 9.909738460174538,
+      "price_delta_atr_norm": 1.053703507153808,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000104",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000102",
+      "price_delta": 24.541066767408324,
+      "price_delta_atr_norm": 2.651422781358637,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000105",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000103",
+      "price_delta": 8.782577219185498,
+      "price_delta_atr_norm": 1.1275889694586596,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000106",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000104",
+      "price_delta": 29.640541657941583,
+      "price_delta_atr_norm": 3.866623852966805,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000107",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000105",
+      "price_delta": 5.0958165857330755,
+      "price_delta_atr_norm": 0.7576367562648287,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000108",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000106",
+      "price_delta": 7.599121581013549,
+      "price_delta_atr_norm": 1.1465012975743158,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000109",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000107",
+      "price_delta": 2.503311071582118,
+      "price_delta_atr_norm": 0.3889645078372206,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000110",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000108",
+      "price_delta": -1.2912980974753054,
+      "price_delta_atr_norm": -0.19160831448914803,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000111",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000109",
+      "price_delta": 14.13541240615433,
+      "price_delta_atr_norm": 2.0857349736329396,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000112",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000110",
+      "price_delta": 10.668588696823917,
+      "price_delta_atr_norm": 1.533059512725441,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000113",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000111",
+      "price_delta": 23.413316123748928,
+      "price_delta_atr_norm": 3.725967512554011,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000114",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000112",
+      "price_delta": 14.701689624709047,
+      "price_delta_atr_norm": 1.8695643207645756,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000115",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000113",
+      "price_delta": -7.006521159434442,
+      "price_delta_atr_norm": -0.9272045125044869,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000116",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000114",
+      "price_delta": -2.746236972601139,
+      "price_delta_atr_norm": -0.3345508010863735,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000117",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000115",
+      "price_delta": -3.303274754880931,
+      "price_delta_atr_norm": -0.3949702163773015,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000118",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000116",
+      "price_delta": -5.979658162660371,
+      "price_delta_atr_norm": -0.6943802227366688,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000119",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000117",
+      "price_delta": 5.870206229596533,
+      "price_delta_atr_norm": 0.6772469450518942,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000120",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000118",
+      "price_delta": 10.397228628838945,
+      "price_delta_atr_norm": 1.1603277837849242,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000121",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000119",
+      "price_delta": -2.288336616631568,
+      "price_delta_atr_norm": -0.25700638847985785,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000122",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000120",
+      "price_delta": 0.8954781999386228,
+      "price_delta_atr_norm": 0.09876638830130154,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000123",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000121",
+      "price_delta": 9.243191123605925,
+      "price_delta_atr_norm": 1.283896678449354,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000124",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000122",
+      "price_delta": -44.39485276471197,
+      "price_delta_atr_norm": -3.8779786452156735,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000125",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000123",
+      "price_delta": -46.21955529366363,
+      "price_delta_atr_norm": -4.496485505400415,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000126",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000124",
+      "price_delta": -8.375516865650582,
+      "price_delta_atr_norm": -0.8033625903585173,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000127",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000125",
+      "price_delta": -14.009898852792503,
+      "price_delta_atr_norm": -1.325041696262822,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000128",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000126",
+      "price_delta": -54.74427940410902,
+      "price_delta_atr_norm": -3.69596386642336,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000129",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000127",
+      "price_delta": -11.688249846788324,
+      "price_delta_atr_norm": -0.624868786816542,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000130",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000128",
+      "price_delta": 25.44898469892331,
+      "price_delta_atr_norm": 1.4800720117380362,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000131",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000129",
+      "price_delta": 107.06263576533604,
+      "price_delta_atr_norm": 18.898973197777433,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000132",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000130",
+      "price_delta": 123.92658890048676,
+      "price_delta_atr_norm": 19.9554243618833,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000133",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000131",
+      "price_delta": 8.668749626057547,
+      "price_delta_atr_norm": 1.3419681688944118,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000134",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000132",
+      "price_delta": 7.14248954662412,
+      "price_delta_atr_norm": 1.1156887380395804,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000135",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000133",
+      "price_delta": -5.306978609476687,
+      "price_delta_atr_norm": -0.8709043169776862,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000136",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000134",
+      "price_delta": 0.6982283689316091,
+      "price_delta_atr_norm": 0.10590314714920314,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000137",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000135",
+      "price_delta": 25.506390445048737,
+      "price_delta_atr_norm": 4.370413688497665,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000138",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000136",
+      "price_delta": 29.56986445302357,
+      "price_delta_atr_norm": 4.9349179276970725,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000139",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000137",
+      "price_delta": 10.296746641440109,
+      "price_delta_atr_norm": 1.4328469704884077,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000140",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000138",
+      "price_delta": 1.6279217524016758,
+      "price_delta_atr_norm": 0.2039182091060848,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000141",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000139",
+      "price_delta": 23.799382763111566,
+      "price_delta_atr_norm": 2.8779323512565305,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000142",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000140",
+      "price_delta": 8.5289594427652,
+      "price_delta_atr_norm": 0.9196481068466811,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000143",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000141",
+      "price_delta": -12.134433031553499,
+      "price_delta_atr_norm": -1.3185641225702047,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000144",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000142",
+      "price_delta": -17.906902378827,
+      "price_delta_atr_norm": -1.4746686915324447,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000145",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000143",
+      "price_delta": 4.34448000468808,
+      "price_delta_atr_norm": 0.46729009937907406,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000146",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000144",
+      "price_delta": 19.514895130085392,
+      "price_delta_atr_norm": 2.0106342299906252,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000147",
+      "major_label": "EH",
+      "comparison_pivot_id": "pivot_000145",
+      "price_delta": 1.5995929732814602,
+      "price_delta_atr_norm": 0.20286227303393412,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000148",
+      "major_label": "HL",
+      "comparison_pivot_id": "pivot_000146",
+      "price_delta": 7.542374297475362,
+      "price_delta_atr_norm": 0.9096561687810502,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000149",
+      "major_label": "HH",
+      "comparison_pivot_id": "pivot_000147",
+      "price_delta": 6.5999755859375,
+      "price_delta_atr_norm": 0.8446272906002337,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000150",
+      "major_label": "LL",
+      "comparison_pivot_id": "pivot_000148",
+      "price_delta": -12.28997802734375,
+      "price_delta_atr_norm": -1.2427056364308684,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000151",
+      "major_label": "LH",
+      "comparison_pivot_id": "pivot_000149",
+      "price_delta": -19.0799560546875,
+      "price_delta_atr_norm": -1.9123357799391074,
+      "equal_band_flag": false
+    },
+    {
+      "pivot_id": "pivot_000152",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000150",
+      "price_delta": -1.41998291015625,
+      "price_delta_atr_norm": -0.13635729008651415,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000153",
+      "major_label": "EH",
+      "comparison_pivot_id": "pivot_000151",
+      "price_delta": -0.69000244140625,
+      "price_delta_atr_norm": -0.06982095805497311,
+      "equal_band_flag": true
+    },
+    {
+      "pivot_id": "pivot_000154",
+      "major_label": "EL",
+      "comparison_pivot_id": "pivot_000152",
+      "price_delta": -2.010009765625,
+      "price_delta_atr_norm": -0.18188514878097364,
+      "equal_band_flag": true
+    }
+  ]
+}

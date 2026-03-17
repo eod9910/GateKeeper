@@ -208,7 +208,7 @@ export interface ValidationReport {
     date_end: string;
     universe: string[];
     timeframes: string[];
-    validation_tier?: 'tier1' | 'tier2' | 'tier3';
+    validation_tier?: 'tier1' | 'tier1b' | 'tier2' | 'tier3';
     asset_class?: 'futures' | 'stocks' | 'options' | 'forex' | 'crypto';
     costs: {
       commission_per_trade: number;
@@ -370,6 +370,89 @@ export interface TradeInstance {
     fib_levels?: any[];
     energy_state?: any;
   };
+}
+
+export interface ValidatorTradeBucketStats {
+  trade_count: number;
+  winners: number;
+  losers: number;
+  win_rate: number;
+  expectancy_R: number;
+  profit_factor: number;
+  avg_win_R: number;
+  avg_loss_R: number;
+  total_R: number;
+  avg_hold_bars: number;
+  median_hold_bars: number;
+  median_R: number;
+}
+
+export interface ValidatorExitReasonDelta {
+  reason: string;
+  current_count: number;
+  previous_count: number;
+  delta_count: number;
+  current_pct: number;
+  previous_pct: number;
+}
+
+export interface ValidatorRDistributionDelta {
+  bucket: string;
+  current_count: number;
+  previous_count: number;
+  delta_count: number;
+  current_pct: number;
+  previous_pct: number;
+}
+
+export interface ValidatorSymbolImpact {
+  symbol: string;
+  trade_count: number;
+  total_R: number;
+  expectancy_R: number;
+  win_rate: number;
+  avg_win_R: number;
+  avg_loss_R: number;
+  avg_hold_bars: number;
+}
+
+export interface ValidatorSharedSymbolChange {
+  symbol: string;
+  current_trade_count: number;
+  previous_trade_count: number;
+  current_total_R: number;
+  previous_total_R: number;
+  delta_total_R: number;
+  current_expectancy_R: number;
+  previous_expectancy_R: number;
+  delta_expectancy_R: number;
+}
+
+export interface ValidatorComparisonDiagnostics {
+  current_report_id: string;
+  previous_report_id: string;
+  strategy_version_id: string;
+  universe_summary: {
+    current_universe_size: number;
+    previous_universe_size: number;
+    shared_universe_size: number;
+    added_universe_size: number;
+    removed_universe_size: number;
+  };
+  cohort_stats: {
+    current_all: ValidatorTradeBucketStats;
+    previous_all: ValidatorTradeBucketStats;
+    current_shared_symbol_trades: ValidatorTradeBucketStats;
+    previous_shared_symbol_trades: ValidatorTradeBucketStats;
+    current_added_symbol_trades: ValidatorTradeBucketStats;
+    previous_removed_symbol_trades: ValidatorTradeBucketStats;
+  };
+  exit_reason_breakdown: ValidatorExitReasonDelta[];
+  r_distribution_breakdown: ValidatorRDistributionDelta[];
+  top_added_symbols: ValidatorSymbolImpact[];
+  top_negative_symbols_current: ValidatorSymbolImpact[];
+  shared_symbol_changes: ValidatorSharedSymbolChange[];
+  key_takeaways: string[];
 }
 
 export type ValidatorRunJobStatus = 'queued' | 'running' | 'completed' | 'failed';

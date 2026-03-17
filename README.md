@@ -33,7 +33,7 @@ http://localhost:3002
 Python:
 
 ```bash
-pip install pandas numpy yfinance
+pip install -r requirements.txt
 ```
 
 Backend:
@@ -90,6 +90,10 @@ Additional standalone pages in `frontend/public`:
 - `validator-symbol-library.html`
 - `blockly-composer.html`
 - `pipeline-composer.html`
+
+## Key Policy Docs
+
+- [Strategy Validation Policy](docs/strategy-validation-policy.md)
 
 ## Backend API Surface
 

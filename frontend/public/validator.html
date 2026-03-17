@@ -146,6 +146,12 @@
       background: var(--color-accent-soft);
       border-left-color: var(--color-accent);
     }
+    .strategy-item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+    }
     .strategy-item-name {
       font-size: var(--text-small);
       font-weight: 500;
@@ -174,6 +180,59 @@
     .status-badge.testing { background: rgba(93, 122, 146, 0.15); color: var(--color-accent); }
     .status-badge.approved { background: rgba(79, 170, 114, 0.12); color: var(--color-positive); }
     .status-badge.rejected { background: rgba(176, 84, 84, 0.12); color: var(--color-negative); }
+    .validation-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border: 1px solid transparent;
+      font-family: var(--font-mono);
+    }
+    .validation-badge.pass {
+      background: rgba(79, 170, 114, 0.12);
+      border-color: rgba(79, 170, 114, 0.28);
+      color: var(--color-positive);
+    }
+    .validation-badge.fail {
+      background: rgba(176, 84, 84, 0.12);
+      border-color: rgba(176, 84, 84, 0.28);
+      color: var(--color-negative);
+    }
+    .validation-badge.hard-fail {
+      background: rgba(176, 84, 84, 0.2);
+      border-color: rgba(176, 84, 84, 0.4);
+      color: #ffb0b0;
+    }
+    .validation-badge.review {
+      background: rgba(210, 169, 93, 0.12);
+      border-color: rgba(210, 169, 93, 0.28);
+      color: var(--color-warning, #d2a95d);
+    }
+    .validation-badge.untested {
+      background: rgba(93, 122, 146, 0.12);
+      border-color: rgba(93, 122, 146, 0.24);
+      color: var(--color-text-subtle);
+    }
+    .tier-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      font-family: var(--font-mono);
+      color: var(--color-accent);
+      background: rgba(93, 122, 146, 0.12);
+      border: 1px solid rgba(93, 122, 146, 0.28);
+    }
 
     /* Report panel */
     .report-panel {
@@ -468,6 +527,7 @@
     }
     .verdict-badge.PASS { background: rgba(79, 170, 114, 0.15); color: var(--color-positive); border: 1px solid rgba(79, 170, 114, 0.3); }
     .verdict-badge.FAIL { background: rgba(176, 84, 84, 0.15); color: var(--color-negative); border: 1px solid rgba(176, 84, 84, 0.3); }
+    .verdict-badge.HARD_FAIL { background: rgba(176, 84, 84, 0.28); color: #ffb0b0; border: 1px solid rgba(176, 84, 84, 0.45); }
     .verdict-badge.NEEDS_REVIEW { background: rgba(200, 170, 60, 0.15); color: #c8aa3c; border: 1px solid rgba(200, 170, 60, 0.3); }
 
     /* Metric cards */
@@ -640,6 +700,7 @@
       height: 100%;
       overflow: hidden;
       gap: var(--space-8);
+      min-width: 0;
     }
     .trade-browser.active { display: flex; }
 
@@ -738,6 +799,14 @@
     }
     .tb-close-btn:hover { border-color: var(--color-accent); color: var(--color-text); }
 
+    .tb-main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+
     /* Chart area takes all remaining space */
     .tb-chart-area {
       flex: 1;
@@ -745,6 +814,7 @@
       display: flex;
       flex-direction: column;
       gap: var(--space-6);
+      min-width: 0;
     }
     #tb-chart-container {
       flex: 1;
@@ -770,6 +840,9 @@
       grid-template-columns: repeat(5, 1fr);
       gap: var(--space-6);
     }
+    .tb-chart-area > .tb-stats-strip {
+      order: -1;
+    }
     .tb-stat {
       background: var(--color-surface);
       border: 1px solid var(--color-border);
@@ -792,57 +865,131 @@
     .tb-stat-value.win { color: var(--color-positive); }
     .tb-stat-value.loss { color: var(--color-negative); }
 
-    /* Horizontal trade filmstrip at the bottom */
-    .tb-filmstrip {
+    .tb-sidebar {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      min-width: 0;
+      max-height: 320px;
+    }
+    .tb-list-window {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
       flex-shrink: 0;
+    }
+    .tb-list-title {
+      font-size: var(--text-caption);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+      font-family: var(--font-mono);
+    }
+    .tb-list-count {
+      font-family: var(--font-mono);
+      font-size: var(--text-small);
+      color: var(--color-text);
+    }
+    .tb-filmstrip {
+      flex: 1 1 auto;
+      min-height: 180px;
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       border-radius: var(--radius);
       display: flex;
-      align-items: center;
-      overflow-x: auto;
-      overflow-y: hidden;
-      gap: 2px;
+      flex-direction: column;
+      align-items: stretch;
+      overflow-x: hidden;
+      overflow-y: auto;
+      gap: 6px;
       padding: var(--space-6);
       scrollbar-width: thin;
       scrollbar-color: var(--color-border) transparent;
     }
-    .tb-filmstrip::-webkit-scrollbar { height: 4px; }
+    .tb-filmstrip::-webkit-scrollbar { width: 6px; }
     .tb-filmstrip::-webkit-scrollbar-track { background: transparent; }
     .tb-filmstrip::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
     .tb-chip {
-      flex-shrink: 0;
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 4px 10px;
-      border-radius: calc(var(--radius) - 2px);
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: var(--radius);
       border: 1px solid var(--color-border-subtle);
       background: var(--color-void);
       cursor: pointer;
       transition: background var(--transition), border-color var(--transition);
-      min-width: 64px;
-      gap: 1px;
+      min-width: 0;
+      gap: var(--space-8);
     }
     .tb-chip:hover { background: var(--color-surface-hover); border-color: var(--color-border); }
     .tb-chip.active { background: var(--color-accent-soft); border-color: var(--color-accent); }
+    .tb-chip-main {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      flex: 1;
+    }
     .tb-chip-sym {
       font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 700;
       color: var(--color-text);
-      line-height: 1;
+      line-height: 1.1;
+    }
+    .tb-chip-sub {
+      font-size: 10px;
+      color: var(--color-text-subtle);
+      font-family: var(--font-mono);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .tb-chip-r {
       font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+    .tb-chip-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .tb-chip-date {
       font-size: 10px;
-      font-weight: 600;
-      line-height: 1;
+      color: var(--color-text-subtle);
+      font-family: var(--font-mono);
+      white-space: nowrap;
     }
     .tb-chip-r.win { color: var(--color-positive); }
     .tb-chip-r.loss { color: var(--color-negative); }
     .tb-chip-r.be { color: var(--color-text-subtle); }
+
+    @media (max-width: 1400px) {
+      .tb-stats-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 1100px) {
+      .tb-sidebar {
+        max-height: 240px;
+      }
+      .tb-stats-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
 
     /* Chart Indicators (portable system) */
     .chart-indicator-badge {
@@ -992,9 +1139,10 @@
                   <button class="tb-close-btn" onclick="tbClose()">&#8592; Report</button>
                 </div>
 
-                <!-- Chart + stats (fills available height) -->
-                <div class="tb-chart-area">
-                  <div class="dt-chart-shell" style="flex:1;min-height:0;">
+                <div class="tb-main">
+                  <!-- Chart + stats (fills available height) -->
+                  <div class="tb-chart-area">
+                    <div class="dt-chart-shell" style="flex:1;min-height:0;">
                     <aside class="dt-chart-rail" aria-label="Chart drawing tools">
                       <div id="validator-dt-toolbar" data-dt-for="tb-chart-container" class="dt-toolbar dt-toolbar--dock dt-toolbar--grouped"></div>
                     </aside>
@@ -1014,8 +1162,14 @@
                   </div>
                 </div>
 
-                <!-- Horizontal trade filmstrip at the bottom -->
-                <div class="tb-filmstrip" id="tb-list-items"></div>
+                <aside class="tb-sidebar">
+                  <div class="tb-list-window">
+                    <span class="tb-list-title">Trades</span>
+                    <span class="tb-list-count" id="tb-list-count">0</span>
+                  </div>
+                  <div class="tb-filmstrip" id="tb-list-items"></div>
+                </aside>
+                </div>
               </div>
 
               <!-- Validator Copilot Chat -->
@@ -1090,6 +1244,7 @@
             <label class="modal-label">Validation Tier</label>
             <select id="run-validation-tier" class="input-field" onchange="updateRunTierDescription()">
               <option value="tier1">Tier 1 - Kill Test</option>
+              <option value="tier1b">Tier 1B - Evidence Expansion</option>
               <option value="tier2">Tier 2 - Core Validation</option>
               <option value="tier3">Tier 3 - Robustness</option>
             </select>

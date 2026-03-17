@@ -232,6 +232,40 @@ export interface RuleEvent {
 }
 
 // ---------------------------------------------------------------------------
+// Parameter Manifest
+// ---------------------------------------------------------------------------
+
+export type StrategyParameterAnatomy =
+  | 'structure'
+  | 'location'
+  | 'entry_timing'
+  | 'pattern_gate'
+  | 'regime_filter'
+  | 'stop_loss'
+  | 'take_profit'
+  | 'risk_controls';
+
+export type StrategyParameterValueType = 'int' | 'float' | 'enum' | 'bool' | 'string';
+
+export interface StrategyParameterManifestItem {
+  key: string;
+  label: string;
+  path: string;
+  anatomy: StrategyParameterAnatomy;
+  type: StrategyParameterValueType;
+  description?: string;
+  identity_preserving: boolean;
+  sweep_enabled: boolean;
+  sensitivity_enabled: boolean;
+  suggested_values?: Array<string | number | boolean>;
+  min?: number;
+  max?: number;
+  step?: number;
+  priority?: number;
+  failure_modes_targeted?: string[];
+}
+
+// ---------------------------------------------------------------------------
 // StrategySpec — the versioned hypothesis object
 // ---------------------------------------------------------------------------
 export interface StrategySpec {
@@ -264,6 +298,7 @@ export interface StrategySpec {
   exit_config?: ExitConfig;
   cost_config?: CostConfig;
   execution_config?: ExecutionConfig;       // harvest + behavioral lock layer
+  parameter_manifest?: StrategyParameterManifestItem[];
 
   // Legacy flat configs (backward compat with validator mock data)
   params?: { [key: string]: any };

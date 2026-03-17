@@ -58,6 +58,64 @@ function toPatternId(value) {
     .replace(/^_+|_+$/g, '') || 'new_composite';
 }
 
+function findPipelineRow(patternId) {
+  return pipelinePrimitiveRows.find((row) => String(row?.pattern_id || '').trim() === String(patternId || '').trim())
+    || pipelinePatternRows.find((row) => String(row?.pattern_id || '').trim() === String(patternId || '').trim())
+    || null;
+}
+
+function inferPipelineAnatomy(stageLabel, patternId, row) {
+  const text = `${stageLabel} ${patternId} ${row?.indicator_role || ''} ${row?.pattern_role || ''}`.toLowerCase();
+  if (text.includes('regime') || text.includes('gate') || text.includes('filter') || text.includes('state')) return 'regime_filter';
+  if (text.includes('location') || text.includes('fib')) return 'location';
+  if (text.includes('timing') || text.includes('trigger') || text.includes('entry') || text.includes('signal') || text.includes('divergence') || text.includes('rsi') || text.includes('cross')) return 'entry_timing';
+  return 'structure';
+}
+
+function inferPipelineTunableParams(nodes) {
+  const tunables = [];
+  const fingerprints = new Set();
+  (Array.isArray(nodes) ? nodes : []).forEach((stage, idx) => {
+    const params = stage?.params && typeof stage.params === 'object' && !Array.isArray(stage.params) ? stage.params : null;
+    if (!stage?.pattern_id || !params) return;
+    const row = findPipelineRow(stage.pattern_id);
+    const stageLabel = String(stage?.id || stage?.pattern_id || `node_${idx}`);
+    Object.entries(params).forEach(([paramKey, value]) => {
+      const tunable = Array.isArray(row?.tunable_params)
+        ? row.tunable_params.find((item) => String(item?.key || '') === String(paramKey))
+        : null;
+      const safeStage = stageLabel.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase();
+      const path = `setup_config.composite_spec.stages.${idx}.params.${paramKey}`;
+      const param = {
+        key: `${safeStage}_${paramKey}`,
+        label: `${stageLabel}: ${String(tunable?.label || paramKey)}`,
+        path,
+        type: String(tunable?.type || (typeof value === 'number'
+          ? (Number.isInteger(value) ? 'int' : 'float')
+          : typeof value === 'boolean'
+          ? 'bool'
+          : 'enum')),
+        min: typeof tunable?.min === 'number' ? tunable.min : undefined,
+        max: typeof tunable?.max === 'number' ? tunable.max : undefined,
+        step: typeof tunable?.step === 'number' ? tunable.step : undefined,
+        default: tunable?.default ?? value,
+        options: Array.isArray(tunable?.options) ? tunable.options : undefined,
+        description: tunable?.description || undefined,
+        anatomy: inferPipelineAnatomy(stageLabel, stage.pattern_id, row),
+        identity_preserving: true,
+        sweep_enabled: true,
+        sensitivity_enabled: typeof value === 'number',
+      };
+      const fingerprint = `${param.key}|${path}`;
+      if (!fingerprints.has(fingerprint)) {
+        fingerprints.add(fingerprint);
+        tunables.push(param);
+      }
+    });
+  });
+  return tunables;
+}
+
 function bindPipelineMetaFields() {
   const nameInput = document.getElementById('pipeline-pattern-name');
   const idInput = document.getElementById('pipeline-pattern-id');
@@ -846,6 +904,7 @@ function buildPipelineSpec() {
     suggested_timeframes: ['D', 'W'],
     min_data_bars: 220,
   };
+  definition.tunable_params = inferPipelineTunableParams(nodes);
 
   return { errors: [], definition };
 }

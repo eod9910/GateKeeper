@@ -1,0 +1,122 @@
+{
+  "report_id": "rpt_3d2e54f3",
+  "strategy_version_id": "macd_divergence_crypto_14R_v3",
+  "config": {
+    "date_start": "2020-01-01",
+    "date_end": "2026-02-22",
+    "universe": [
+      "BTC-USD",
+      "ETH-USD"
+    ],
+    "timeframes": [
+      "1d"
+    ],
+    "data_snapshot": {
+      "path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\validator-snapshots\\snapshot_7547fbd92e4c80e4.json",
+      "loaded_from_cache": true
+    },
+    "costs": {
+      "commission_per_trade": 0,
+      "slippage_pct": 0.001
+    },
+    "max_concurrent_positions": 3,
+    "validation_thresholds": {
+      "min_trades_pass": 30,
+      "min_trades_fail": 20,
+      "small_universe": true,
+      "min_expectancy_R": 0.2,
+      "min_profit_factor": 1.3,
+      "min_payoff_ratio": 1.5,
+      "max_oos_degradation_pct": 50,
+      "min_wf_profitable_windows": 0.6,
+      "max_mc_p95_dd_pct": 25,
+      "max_mc_p99_dd_pct": 50,
+      "max_sensitivity_score": 40,
+      "r_to_pct": 2
+    },
+    "tier_runtime_profile": "tier1_baseline_only",
+    "tier1_early_stop_reason": "Tier 1 early pass evidence reached after 38 trades (expectancy=0.114R, pf=1.220).",
+    "tier1_symbols_processed": 1,
+    "validation_tier": "tier1",
+    "asset_class": "crypto"
+  },
+  "trades_summary": {
+    "total_trades": 38,
+    "winners": 11,
+    "losers": 27,
+    "win_rate": 0.2894736842105263,
+    "avg_win_R": 2.1937648868754205,
+    "avg_loss_R": -0.7328479433356541,
+    "expectancy_R": 0.11432945488334116,
+    "profit_factor": 1.2195654953403716,
+    "largest_win_R": 3.9998042027424243,
+    "largest_loss_R": -1.00023062279788
+  },
+  "risk_summary": {
+    "max_drawdown_pct": 17.730586673850176,
+    "max_drawdown_R": 8.865293336925088,
+    "time_under_water_bars": 15,
+    "expected_recovery_time_bars": 15,
+    "sharpe_ratio": 0.4425600427954266,
+    "calmar_ratio": 0.012896296889257378,
+    "longest_losing_streak": 6,
+    "avg_losing_streak": 3,
+    "longest_winning_streak": 2
+  },
+  "robustness": {
+    "out_of_sample": {
+      "is_expectancy": 0.11432945488334116,
+      "is_n": 38,
+      "oos_expectancy": 0.11432945488334116,
+      "oos_n": 38,
+      "split_date": "2026-02-22",
+      "oos_degradation_pct": 0
+    },
+    "walk_forward": {
+      "windows": [],
+      "avg_test_expectancy": 0.11432945488334116,
+      "pct_profitable_windows": 1
+    },
+    "monte_carlo": {
+      "simulations": 0,
+      "median_dd_pct": 17.730586673850176,
+      "p95_dd_pct": 17.730586673850176,
+      "p99_dd_pct": 17.730586673850176,
+      "median_final_R": 4.344519285566964,
+      "p5_final_R": -1.00023062279788
+    },
+    "parameter_sensitivity": {
+      "params_tested": [],
+      "base_expectancy": 0.11432945488334116,
+      "nudged_results": [],
+      "sensitivity_score": 0
+    }
+  },
+  "execution_stats": {
+    "rules_active": true,
+    "breakeven_triggers": 14,
+    "ladder_lock_triggers": 0,
+    "green_to_red_exits": 0,
+    "scale_out_triggers": 0,
+    "time_stop_exits": 0,
+    "profit_retrace_exits": 0,
+    "daily_cap_triggers": 0,
+    "avg_giveback_from_peak_R": 0.8987097758479183,
+    "pct_trades_hitting_breakeven": 0.3684210526315789,
+    "pct_trades_hitting_scale_out": 0,
+    "expectancy_without_rules_R": 0.11432945488334116,
+    "expectancy_with_rules_R": 0.11432945488334116
+  },
+  "pass_fail": "FAIL",
+  "pass_fail_reasons": [
+    "Expectancy below small-universe minimum: 0.114R < 0.20R",
+    "Profit factor below threshold: 1.220 < 1.30"
+  ],
+  "decision_log": {
+    "decision": "pending",
+    "decided_by": "",
+    "decided_at": null,
+    "notes": ""
+  },
+  "created_at": "2026-03-16T05:43:03.646330Z"
+}

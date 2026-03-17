@@ -1,0 +1,215 @@
+{
+  "report_id": "rpt_3971b5de",
+  "strategy_version_id": "sweep_80855ac2-d_2_5",
+  "config": {
+    "date_start": "2020-01-01",
+    "date_end": "2026-03-16",
+    "universe": [
+      "BTC-USD",
+      "ETH-USD",
+      "SOL-USD",
+      "BNB-USD"
+    ],
+    "timeframes": [
+      "1d"
+    ],
+    "data_snapshot": {
+      "path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\validator-snapshots\\snapshot_a5e0efc6d55650bc.json",
+      "loaded_from_cache": true
+    },
+    "costs": {
+      "commission_per_trade": 0,
+      "slippage_pct": 0.001
+    },
+    "max_concurrent_positions": 3,
+    "validation_thresholds": {
+      "min_trades_pass": 50,
+      "min_trades_fail": 30,
+      "small_universe": true,
+      "min_expectancy_R": 0.2,
+      "min_profit_factor": 1.3,
+      "min_payoff_ratio": 1.5,
+      "max_oos_degradation_pct": 50,
+      "min_wf_profitable_windows": 0.6,
+      "max_mc_p95_dd_pct": 25,
+      "max_mc_p99_dd_pct": 50,
+      "max_sensitivity_score": 40,
+      "r_to_pct": 2
+    },
+    "tier_runtime_profile": "full_robustness",
+    "tier1_early_stop_reason": null,
+    "tier1_symbols_processed": 4,
+    "validation_tier": "tier2",
+    "asset_class": "crypto"
+  },
+  "trades_summary": {
+    "total_trades": 71,
+    "winners": 33,
+    "losers": 38,
+    "win_rate": 0.4647887323943662,
+    "avg_win_R": 2.8170336384562815,
+    "avg_loss_R": -0.9658792690037243,
+    "expectancy_R": 0.7923760260128977,
+    "profit_factor": 2.53279203324255,
+    "largest_win_R": 13.999791212198804,
+    "largest_loss_R": -1.0002359455719378
+  },
+  "risk_summary": {
+    "max_drawdown_pct": 17.126056108942883,
+    "max_drawdown_R": 8.563028054471442,
+    "time_under_water_bars": 18,
+    "expected_recovery_time_bars": 18,
+    "sharpe_ratio": 2.3233019419293246,
+    "calmar_ratio": 0.09253455915038547,
+    "longest_losing_streak": 7,
+    "avg_losing_streak": 2.923076923076923,
+    "longest_winning_streak": 6
+  },
+  "robustness": {
+    "out_of_sample": {
+      "is_expectancy": 0.9719,
+      "is_n": 49,
+      "oos_expectancy": 0.3926,
+      "oos_n": 22,
+      "split_date": "2024-08-09",
+      "oos_degradation_pct": 59.6
+    },
+    "walk_forward": {
+      "windows": [
+        {
+          "train_start": "2018-12-10",
+          "train_end": "2022-11-10",
+          "test_start": "2023-01-11",
+          "test_end": "2024-04-11",
+          "train_expectancy": 0.7793,
+          "test_expectancy": 1.6886,
+          "test_n": 14
+        },
+        {
+          "train_start": "2020-03-13",
+          "train_end": "2024-04-11",
+          "test_start": "2024-04-23",
+          "test_end": "2025-02-21",
+          "train_expectancy": 1.3831,
+          "test_expectancy": 0.5713,
+          "test_n": 14
+        },
+        {
+          "train_start": "2022-10-26",
+          "train_end": "2025-02-21",
+          "test_start": "2025-03-03",
+          "test_end": "2026-02-07",
+          "train_expectancy": 1.0269,
+          "test_expectancy": 0.0387,
+          "test_n": 12
+        },
+        {
+          "train_start": "2024-01-06",
+          "train_end": "2025-11-22",
+          "test_start": "2026-01-23",
+          "test_end": "2026-02-07",
+          "train_expectancy": 0.4831,
+          "test_expectancy": -0.6442,
+          "test_n": 3
+        },
+        {
+          "train_start": "2024-12-04",
+          "train_end": "2025-11-22",
+          "test_start": "2026-01-23",
+          "test_end": "2026-02-07",
+          "train_expectancy": -0.0205,
+          "test_expectancy": -0.6442,
+          "test_n": 3
+        }
+      ],
+      "avg_test_expectancy": 0.202,
+      "pct_profitable_windows": 0.6
+    },
+    "monte_carlo": {
+      "simulations": 1000,
+      "median_dd_pct": 14.2,
+      "p95_dd_pct": 23,
+      "p99_dd_pct": 27.8,
+      "median_final_R": 56.26,
+      "p5_final_R": 56.26
+    },
+    "parameter_sensitivity": {
+      "params_tested": [
+        "swing_epsilon",
+        "stop_value",
+        "take_profit_R"
+      ],
+      "base_expectancy": 0.7924,
+      "nudged_results": [
+        {
+          "param": "swing_epsilon",
+          "direction": "+10%",
+          "expectancy": 0.7924,
+          "change_pct": 0
+        },
+        {
+          "param": "swing_epsilon",
+          "direction": "-10%",
+          "expectancy": 0.7924,
+          "change_pct": 0
+        },
+        {
+          "param": "stop_value",
+          "direction": "+10%",
+          "expectancy": 0.7924,
+          "change_pct": 0
+        },
+        {
+          "param": "stop_value",
+          "direction": "-10%",
+          "expectancy": 0.7924,
+          "change_pct": 0
+        },
+        {
+          "param": "take_profit_R",
+          "direction": "+10%",
+          "expectancy": 0.8121,
+          "change_pct": 2.5
+        },
+        {
+          "param": "take_profit_R",
+          "direction": "-10%",
+          "expectancy": 0.8079,
+          "change_pct": 2
+        }
+      ],
+      "sensitivity_score": 0.8
+    }
+  },
+  "execution_stats": {
+    "rules_active": false,
+    "breakeven_triggers": 0,
+    "ladder_lock_triggers": 0,
+    "green_to_red_exits": 0,
+    "scale_out_triggers": 0,
+    "time_stop_exits": 0,
+    "profit_retrace_exits": 0,
+    "daily_cap_triggers": 0,
+    "avg_giveback_from_peak_R": 1.1616728814909199,
+    "pct_trades_hitting_breakeven": 0,
+    "pct_trades_hitting_scale_out": 0,
+    "expectancy_without_rules_R": 0.7923760260128977,
+    "expectancy_with_rules_R": 0.7923760260128977
+  },
+  "pass_fail": "NEEDS_REVIEW",
+  "pass_fail_reasons": [
+    "Expectancy meets threshold (0.79R >= 0.20R)",
+    "OOS expectancy positive (0.39R)",
+    "Walk-forward profitable windows: 60.0% (threshold 60.0%)",
+    "Monte Carlo p95 DD: 23.0% (threshold < 25.0%)",
+    "Sensitivity score: 0.8/100 (threshold < 40.0)",
+    "Small-universe quality gates: PF=2.53 (>=1.30), Payoff=2.92 (>=1.5)"
+  ],
+  "decision_log": {
+    "decision": "pending",
+    "decided_by": "",
+    "decided_at": null,
+    "notes": ""
+  },
+  "created_at": "2026-03-16T17:21:43.381054Z"
+}

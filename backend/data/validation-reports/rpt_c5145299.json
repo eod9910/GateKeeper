@@ -1,0 +1,171 @@
+{
+  "report_id": "rpt_c5145299",
+  "strategy_version_id": "sma_50_200_benchmark_v1",
+  "config": {
+    "date_start": "2020-01-01",
+    "date_end": "2026-03-16",
+    "universe": [
+      "APLS",
+      "ARWR",
+      "BEAM",
+      "HALO",
+      "INSM",
+      "KRTX",
+      "PRCT",
+      "RVMD",
+      "IOVA",
+      "ANET",
+      "ALRM",
+      "BRZE",
+      "CALX",
+      "CRDO",
+      "DDOG",
+      "ESTC",
+      "JAMF",
+      "NTNX",
+      "SMCI",
+      "BROS",
+      "CAVA",
+      "CROX",
+      "DNUT",
+      "FIGS",
+      "SHAK",
+      "WRBY",
+      "AFRM",
+      "BILL",
+      "HOOD",
+      "SOFI",
+      "TOST",
+      "UPST",
+      "ARRY",
+      "ENPH",
+      "RUN",
+      "SEDG",
+      "SHLS",
+      "ASTS",
+      "IONQ",
+      "JOBY",
+      "LUNR",
+      "RKLB",
+      "AG",
+      "CCJ",
+      "MP",
+      "PAAS",
+      "BWXT",
+      "POWL",
+      "MARA",
+      "RIOT"
+    ],
+    "timeframes": [
+      "1wk"
+    ],
+    "data_snapshot": {
+      "path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\validator-snapshots\\snapshot_567eebedbc0f5d13.json",
+      "loaded_from_cache": false
+    },
+    "costs": {
+      "commission_per_trade": 0,
+      "slippage_pct": 0.001
+    },
+    "max_concurrent_positions": null,
+    "validation_thresholds": {
+      "min_trades_pass": 300,
+      "min_trades_fail": 200,
+      "small_universe": false,
+      "min_expectancy_R": 0,
+      "min_profit_factor": 1,
+      "min_payoff_ratio": 0,
+      "max_oos_degradation_pct": 50,
+      "min_wf_profitable_windows": 0.6,
+      "max_mc_p95_dd_pct": 30,
+      "max_mc_p99_dd_pct": 50,
+      "max_sensitivity_score": 40,
+      "r_to_pct": 2
+    },
+    "tier_runtime_profile": "tier1_baseline_only",
+    "tier1_early_stop_reason": null,
+    "tier1_symbols_processed": 50,
+    "validation_tier": "tier1",
+    "asset_class": "stocks"
+  },
+  "trades_summary": {
+    "total_trades": 64,
+    "winners": 19,
+    "losers": 45,
+    "win_rate": 0.296875,
+    "avg_win_R": 2.8774088472625037,
+    "avg_loss_R": -1.0002399999999994,
+    "expectancy_R": 0.15093700153105577,
+    "profit_factor": 1.2146144502649943,
+    "largest_win_R": 2.9997200000000013,
+    "largest_loss_R": -1.0002400000000011
+  },
+  "risk_summary": {
+    "max_drawdown_pct": 22.023279999999996,
+    "max_drawdown_R": 11.011639999999998,
+    "time_under_water_bars": 53,
+    "expected_recovery_time_bars": 53,
+    "sharpe_ratio": 0.6730581501541155,
+    "calmar_ratio": 0.013707041052109929,
+    "longest_losing_streak": 11,
+    "avg_losing_streak": 4.090909090909091,
+    "longest_winning_streak": 3
+  },
+  "robustness": {
+    "out_of_sample": {
+      "is_expectancy": 0.15093700153105577,
+      "is_n": 64,
+      "oos_expectancy": 0.15093700153105577,
+      "oos_n": 64,
+      "split_date": "2026-03-16",
+      "oos_degradation_pct": 0
+    },
+    "walk_forward": {
+      "windows": [],
+      "avg_test_expectancy": 0.15093700153105577,
+      "pct_profitable_windows": 1
+    },
+    "monte_carlo": {
+      "simulations": 0,
+      "median_dd_pct": 22.023279999999996,
+      "p95_dd_pct": 22.023279999999996,
+      "p99_dd_pct": 22.023279999999996,
+      "median_final_R": 9.65996809798757,
+      "p5_final_R": -1.0002400000000011
+    },
+    "parameter_sensitivity": {
+      "params_tested": [],
+      "base_expectancy": 0.15093700153105577,
+      "nudged_results": [],
+      "sensitivity_score": 0
+    }
+  },
+  "execution_stats": {
+    "rules_active": false,
+    "breakeven_triggers": 0,
+    "ladder_lock_triggers": 0,
+    "green_to_red_exits": 0,
+    "scale_out_triggers": 0,
+    "time_stop_exits": 0,
+    "profit_retrace_exits": 0,
+    "daily_cap_triggers": 0,
+    "avg_giveback_from_peak_R": 0.6593968504332282,
+    "pct_trades_hitting_breakeven": 0,
+    "pct_trades_hitting_scale_out": 0,
+    "expectancy_without_rules_R": 0.15093700153105577,
+    "expectancy_with_rules_R": 0.15093700153105577
+  },
+  "pass_fail": "NEEDS_REVIEW",
+  "pass_fail_reasons": [
+    "Too few trades for Tier 1 confidence: 64 < 200",
+    "Trade count below Tier 1 pass threshold (64 < 300); flagging for review.",
+    "Tier 1 robustness suite deferred to Tier 2/3 by design."
+  ],
+  "decision_log": {
+    "decision": "pending",
+    "decided_by": "",
+    "decided_at": null,
+    "notes": ""
+  },
+  "created_at": "2026-03-16T19:39:11.156320Z"
+}

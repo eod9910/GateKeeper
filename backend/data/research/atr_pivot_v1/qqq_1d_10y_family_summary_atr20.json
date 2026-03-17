@@ -1,0 +1,213 @@
+{
+  "symbol": "QQQ",
+  "timeframe": "1d",
+  "period": "10y",
+  "reversal_multiple_atr": 2.0,
+  "grouping_version": "v1",
+  "total_unique_families": 192,
+  "split_boundaries": {
+    "discovery": {
+      "count": 173,
+      "start_entry_bar_index": 40,
+      "end_entry_bar_index": 1563,
+      "start_entry_timestamp": "2016-05-10 00:00:00-04:00",
+      "end_entry_timestamp": "2022-05-26 00:00:00-04:00"
+    },
+    "validation": {
+      "count": 58,
+      "start_entry_bar_index": 1573,
+      "end_entry_bar_index": 2087,
+      "start_entry_timestamp": "2022-06-10 00:00:00-04:00",
+      "end_entry_timestamp": "2024-06-28 00:00:00-04:00"
+    },
+    "holdout": {
+      "count": 58,
+      "start_entry_bar_index": 2088,
+      "end_entry_bar_index": 2511,
+      "start_entry_timestamp": "2024-07-01 00:00:00-04:00",
+      "end_entry_timestamp": "2026-03-10 00:00:00-04:00"
+    }
+  },
+  "families_with_split_coverage_all_three": 5,
+  "families_with_min_occurrences": 7,
+  "families_with_min_valid10": 7,
+  "families_passing_discovery_and_validation_counts": 0,
+  "candidate_family_count": 7,
+  "families_sign_consistent_across_splits": 2,
+  "top_10_avg_forward_10_return_atr": [
+    {
+      "family_id": "family_000130",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": 2.6970446066938787
+    },
+    {
+      "family_id": "family_000081",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 6,
+      "avg_forward_10_return_atr": 2.3021591353718986
+    },
+    {
+      "family_id": "family_000035",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 8,
+      "avg_forward_10_return_atr": 1.9455949567111417
+    },
+    {
+      "family_id": "family_000034",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+      "occurrence_count": 9,
+      "avg_forward_10_return_atr": 0.9840467383757665
+    },
+    {
+      "family_id": "family_000033",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": 0.6840813429653625
+    },
+    {
+      "family_id": "family_000128",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": 0.1162943097130121
+    },
+    {
+      "family_id": "family_000040",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": -0.5066918512081346
+    }
+  ],
+  "top_10_t_score_forward_10": [
+    {
+      "family_id": "family_000130",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "t_score_forward_10": 4.398114265174175
+    },
+    {
+      "family_id": "family_000081",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 6,
+      "t_score_forward_10": 3.6857672484174766
+    },
+    {
+      "family_id": "family_000035",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 8,
+      "t_score_forward_10": 3.130331883889839
+    },
+    {
+      "family_id": "family_000034",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+      "occurrence_count": 9,
+      "t_score_forward_10": 0.8819258751242325
+    },
+    {
+      "family_id": "family_000033",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+      "occurrence_count": 5,
+      "t_score_forward_10": 0.38481036658560047
+    },
+    {
+      "family_id": "family_000128",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "t_score_forward_10": 0.12770923443386623
+    },
+    {
+      "family_id": "family_000040",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+      "occurrence_count": 5,
+      "t_score_forward_10": -0.33567640792473347
+    }
+  ],
+  "top_10_hit_plus_1atr_first_rate": [
+    {
+      "family_id": "family_000034",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+      "occurrence_count": 9,
+      "hit_plus_1atr_first_rate": 0.8888888888888888
+    },
+    {
+      "family_id": "family_000033",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+      "occurrence_count": 5,
+      "hit_plus_1atr_first_rate": 0.8
+    },
+    {
+      "family_id": "family_000035",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 8,
+      "hit_plus_1atr_first_rate": 0.75
+    },
+    {
+      "family_id": "family_000130",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "hit_plus_1atr_first_rate": 0.6
+    },
+    {
+      "family_id": "family_000128",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "hit_plus_1atr_first_rate": 0.6
+    },
+    {
+      "family_id": "family_000040",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+      "occurrence_count": 5,
+      "hit_plus_1atr_first_rate": 0.6
+    },
+    {
+      "family_id": "family_000081",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 6,
+      "hit_plus_1atr_first_rate": 0.5
+    }
+  ],
+  "bottom_10_avg_forward_10_return_atr": [
+    {
+      "family_id": "family_000040",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-LL-LH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:OVERDEEP|R4:MEDIUM",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": -0.5066918512081346
+    },
+    {
+      "family_id": "family_000128",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:MEDIUM|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": 0.1162943097130121
+    },
+    {
+      "family_id": "family_000033",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:DEEP|R4:OVERDEEP",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": 0.6840813429653625
+    },
+    {
+      "family_id": "family_000034",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:MEDIUM|R4:OVERDEEP",
+      "occurrence_count": 9,
+      "avg_forward_10_return_atr": 0.9840467383757665
+    },
+    {
+      "family_id": "family_000035",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|HH-HL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 8,
+      "avg_forward_10_return_atr": 1.9455949567111417
+    },
+    {
+      "family_id": "family_000081",
+      "family_signature": "HIGH-LOW-HIGH-LOW-HIGH|LH-LL-HH-HL-HH|DOWN-UP-DOWN-UP|R2:OVERDEEP|R3:SHALLOW|R4:OVERDEEP",
+      "occurrence_count": 6,
+      "avg_forward_10_return_atr": 2.3021591353718986
+    },
+    {
+      "family_id": "family_000130",
+      "family_signature": "LOW-HIGH-LOW-HIGH-LOW|HL-HH-HL-HH-HL|UP-DOWN-UP-DOWN|R2:SHALLOW|R3:OVERDEEP|R4:DEEP",
+      "occurrence_count": 5,
+      "avg_forward_10_return_atr": 2.6970446066938787
+    }
+  ]
+}

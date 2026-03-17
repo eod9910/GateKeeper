@@ -3,6 +3,7 @@
 # Core data processing
 pandas>=2.0.0
 numpy>=1.24.0
+numba>=0.61.0
 
 # Market data fetching (optional)
 yfinance>=0.2.0

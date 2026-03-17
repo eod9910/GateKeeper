@@ -1,0 +1,72 @@
+{
+  "pattern_id": "structural_family_signal",
+  "name": "Structural Family Signal",
+  "category": "indicator_signals",
+  "description": "Causal structural-family detector built from the research_v1 ATR pivot pipeline. It normalizes bars, extracts confirmed ATR reversal pivots, builds 5-pivot motifs, derives familySignatureV2, and emits entry signals on the 5th pivot confirmation bar for allowed families.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/structural_family_signal.py",
+  "plugin_function": "run_structural_family_signal_plugin",
+  "pattern_type": "structural_family_signal",
+  "default_structure_config": {
+    "swing_method": "major",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "structural_family_signal",
+    "reversal_multiple_atr": 2.0,
+    "min_bars_between_pivots": 3,
+    "equal_band_atr": 0.25,
+    "allowed_families": [],
+    "lookback_bars": 250,
+    "max_candidates": 20
+  },
+  "default_entry": {
+    "entry_type": "market_on_close",
+    "enter_next_open": true
+  },
+  "tunable_params": [
+    {
+      "key": "allowed_families",
+      "label": "Allowed Families",
+      "type": "string",
+      "default": "",
+      "description": "Comma-separated familySignatureV2 values. Blank means all detected families."
+    },
+    {
+      "key": "reversal_multiple_atr",
+      "label": "ATR Reversal Multiple",
+      "type": "float",
+      "min": 0.5,
+      "max": 5.0,
+      "default": 2.0,
+      "description": "ATR multiple required to confirm each reversal pivot."
+    },
+    {
+      "key": "min_bars_between_pivots",
+      "label": "Min Bars Between Pivots",
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "default": 3,
+      "description": "Minimum spacing between confirmed pivots."
+    },
+    {
+      "key": "equal_band_atr",
+      "label": "Equal Band ATR",
+      "type": "float",
+      "min": 0.05,
+      "max": 1.0,
+      "default": 0.25,
+      "description": "ATR-normalized band for EH/EL labeling."
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 120,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "timing_trigger"
+}

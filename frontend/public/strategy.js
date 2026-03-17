@@ -4,37 +4,45 @@ let strategies = [];
 let selectedStrategy = null;
 let strategyChatMessages = [];
 let strategyEditorMode = 'new';
+let strategyValidationIndex = {};
+let strategyTierProgressIndex = {};
 const STRATEGY_ASSET_CLASSES = ['futures', 'stocks', 'options', 'forex', 'crypto'];
 const VALIDATION_INTERVAL_OPTIONS = ['1h', '4h', '1d', '1wk', '1mo'];
 const RUN_TIER_HINTS = {
   tier1: 'Fast kill test on the fixed Tier 1 universe. Target evidence: 200-300 trades.',
-  tier2: 'Core validation on fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires prior Tier 1 PASS.',
+  tier1b: 'Evidence expansion on a broad optionable universe slice. Use this when Tier 1 quality looks good but sample size is thin.',
+  tier2: 'Core validation on fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires prior Tier 1 or Tier 1B PASS.',
   tier3: 'Robustness validation on fixed Tier 3 universe. Stress tests for survivors. Requires prior Tier 2 PASS.',
 };
 let runTierConfig = null;
 const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
+    tier1b: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
   },
   stocks: {
     tier1: ['SPY', 'QQQ', 'IWM'],
+    tier1b: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
     tier2: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN'],
     tier3: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
   },
   options: {
     tier1: ['SPY', 'QQQ'],
+    tier1b: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
   },
   forex: {
     tier1: ['EURUSD=X', 'GBPUSD=X'],
+    tier1b: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
   },
   crypto: {
     tier1: ['BTC-USD', 'ETH-USD'],
+    tier1b: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
   },
@@ -134,13 +142,132 @@ async function apiPatchAbsolute(path, body) {
   return data.data;
 }
 
+async function apiDeleteAbsolute(path) {
+  const res = await fetch(path, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.data;
+}
+
 async function loadStrategies() {
   try {
-    strategies = await apiGet('/strategies');
+    const [loadedStrategies, allReports] = await Promise.all([
+      apiGet('/strategies'),
+      apiGet('/reports').catch(() => []),
+    ]);
+    strategies = Array.isArray(loadedStrategies) ? loadedStrategies : [];
+    strategyValidationIndex = buildStrategyValidationIndex(allReports);
+    strategyTierProgressIndex = buildStrategyTierProgressIndex(allReports);
     renderStrategyList();
   } catch (err) {
     console.error('Failed to load strategies:', err);
   }
+}
+
+function buildStrategyValidationIndex(allReports) {
+  const index = {};
+  const normalized = Array.isArray(allReports) ? allReports.slice() : [];
+  normalized.sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
+  for (const report of normalized) {
+    const strategyVersionId = String(report?.strategy_version_id || '').trim();
+    if (!strategyVersionId || index[strategyVersionId]) continue;
+    index[strategyVersionId] = {
+      pass_fail: report?.pass_fail || null,
+      validation_tier: report?.config?.validation_tier || null,
+      report_id: report?.report_id || null,
+      created_at: report?.created_at || null,
+      pass_fail_reasons: Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [],
+    };
+  }
+  return index;
+}
+
+function buildStrategyTierProgressIndex(allReports) {
+  const index = {};
+  const normalized = Array.isArray(allReports) ? allReports.slice() : [];
+  normalized.sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
+  for (const report of normalized) {
+    const strategyVersionId = String(report?.strategy_version_id || '').trim();
+    const validationTier = String(report?.config?.validation_tier || '').trim().toLowerCase();
+    if (!strategyVersionId || !validationTier) continue;
+    if (!index[strategyVersionId]) index[strategyVersionId] = {};
+    if (index[strategyVersionId][validationTier]) continue;
+    index[strategyVersionId][validationTier] = {
+      pass_fail: report?.pass_fail || null,
+      report_id: report?.report_id || null,
+      created_at: report?.created_at || null,
+      pass_fail_reasons: Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [],
+    };
+  }
+  return index;
+}
+
+function isTooFewTradesOnlyFail(report) {
+  if (!report || report?.pass_fail !== 'FAIL') return false;
+  const reasons = Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [];
+  return reasons.length > 0 && reasons.every((reason) => /too few trades/i.test(String(reason || '')));
+}
+
+function getDisplayVerdict(report) {
+  const verdict = String(report?.pass_fail || '').toUpperCase();
+  if (verdict !== 'FAIL') return verdict || 'N/A';
+  return isTooFewTradesOnlyFail(report) ? 'FAIL' : 'HARD_FAIL';
+}
+
+function getStrategyValidationBadge(strategy) {
+  const summary = strategyValidationIndex?.[strategy?.strategy_version_id] || null;
+  if (!summary || !summary.pass_fail) {
+    return { key: 'untested', label: 'Untested', title: 'No validation reports yet' };
+  }
+  const displayVerdict = getDisplayVerdict(summary);
+  if (displayVerdict === 'PASS') {
+    return {
+      key: 'pass',
+      label: 'Pass',
+      title: `Latest validation passed${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  if (displayVerdict === 'HARD_FAIL') {
+    return {
+      key: 'hard-fail',
+      label: 'Hard Fail',
+      title: `Latest validation hard failed${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  if (displayVerdict === 'FAIL') {
+    return {
+      key: 'fail',
+      label: 'Fail',
+      title: `Latest validation failed${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  return {
+    key: 'review',
+    label: 'Review',
+    title: `Latest validation needs review${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+  };
+}
+
+function getStrategyTierBadges(strategy) {
+  const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
+  const progress = strategyTierProgressIndex?.[strategyVersionId] || {};
+  const passedTiers = new Set(Array.isArray(strategy?.passed_tiers) ? strategy.passed_tiers : []);
+  return ['tier1', 'tier1b', 'tier2', 'tier3'].flatMap((tier) => {
+    const latestTierResult = progress?.[tier]?.pass_fail || null;
+    if (tier === 'tier2' && latestTierResult === 'NEEDS_REVIEW') {
+      return [{
+        key: 'tier2-review',
+        label: 'T2R',
+        title: 'Tier 2 needs review',
+      }];
+    }
+    if (!passedTiers.has(tier)) return [];
+    return [{
+      key: tier,
+      label: tier === 'tier1b' ? 'T1B' : tier.toUpperCase().replace('TIER', 'T'),
+      title: `Passed ${tier.toUpperCase()}`,
+    }];
+  });
 }
 
 function renderStrategyList() {
@@ -164,10 +291,13 @@ function renderStrategyList() {
       html += `<div class="group">${labels[status] || status} (${list.length})</div>`;
       for (const s of list) {
         const active = selectedStrategy && selectedStrategy.strategy_version_id === s.strategy_version_id;
+        const tierBadges = getStrategyTierBadges(s);
+        const validationBadge = getStrategyValidationBadge(s);
         html += `
           <div class="item ${active ? 'active' : ''}" onclick="selectStrategy('${s.strategy_version_id}')">
-            <div style="font-size:var(--text-body);font-weight:600;">${esc(s.name)}</div>
+            <div style="font-size:var(--text-body);font-weight:600;display:flex;align-items:center;gap:var(--space-6);flex-wrap:wrap;">${esc(s.name)}${tierBadges.map((badge) => ` <span class="tier-badge" title="${esc(badge.title)}">${esc(badge.label)}</span>`).join('')}</div>
             <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;">
+              <span class="validation-badge ${validationBadge.key}" title="${esc(validationBadge.title)}">${esc(validationBadge.label)}</span>
               <span class="status-badge ${s.status}">${s.status}</span>
               <span style="margin-left:var(--space-6);">${esc(s.asset_class || 'N/A')} · ${esc(s.composition || s.scan_mode || '—')} · v${esc(String(s.version || 1))}</span>
             </div>
@@ -203,9 +333,10 @@ function selectStrategy(versionId) {
   updateStrategyTopActions();
 
   if (selectedStrategy) {
+    const manifestCount = Array.isArray(selectedStrategy.parameter_manifest) ? selectedStrategy.parameter_manifest.length : 0;
     strategyChatMessages.push({
       sender: 'ai',
-      text: `Loaded ${selectedStrategy.name} (${selectedStrategy.strategy_version_id}). Risk/exit config auto-populated from Settings defaults. Click **Analyze** or ask me to review for gaps.`
+      text: `Loaded ${selectedStrategy.name} (${selectedStrategy.strategy_version_id}). Risk/exit config auto-populated from Settings defaults.${manifestCount ? ` Parameter manifest loaded with ${manifestCount} declared knobs.` : ''} Click **Analyze** or ask me to review for gaps.`
     });
     renderStrategyChat();
   }
@@ -276,6 +407,7 @@ function getFallbackTierConfig(assetClass) {
     asset_class: ac,
     tiers: {
       tier1: { label: 'Tier 1 - Kill Test', description: RUN_TIER_HINTS.tier1, symbols: tiers.tier1.slice() },
+      tier1b: { label: 'Tier 1B - Evidence Expansion', description: RUN_TIER_HINTS.tier1b, symbols: tiers.tier1b.slice() },
       tier2: { label: 'Tier 2 - Core Validation', description: RUN_TIER_HINTS.tier2, symbols: tiers.tier2.slice() },
       tier3: { label: 'Tier 3 - Robustness', description: RUN_TIER_HINTS.tier3, symbols: tiers.tier3.slice() },
     }
@@ -401,7 +533,7 @@ async function runValidationFromEditor() {
     setStrategyEditorStatus(`Validation queued: ${result.job_id} (${assetClass}, ${interval}, ${dateStart}..${dateEnd}, ${tier}, ${symbolCount} symbols).`);
     const goToValidator = window.confirm(`Validation queued (${result.job_id}). Open Validator page to monitor progress?`);
     if (goToValidator) {
-      window.location.href = `validator.html?strategy_version_id=${encodeURIComponent(selectedStrategy.strategy_version_id)}`;
+      window.location.href = `validator.html?strategy_version_id=${encodeURIComponent(selectedStrategy.strategy_version_id)}&job_id=${encodeURIComponent(result.job_id)}`;
     }
   } catch (err) {
     setStrategyEditorStatus(`Validation failed: ${err.message}`, true);
@@ -418,13 +550,73 @@ function renderStrategyDetails() {
   }
 
   const s = selectedStrategy;
+  const canDeleteStrategy = s.source !== 'registry';
+  const tierBadges = getStrategyTierBadges(s);
+  const validationBadge = getStrategyValidationBadge(s);
+  const parameterManifest = Array.isArray(s.parameter_manifest) ? s.parameter_manifest : [];
+  const anatomyOrder = ['structure', 'location', 'entry_timing', 'regime_filter', 'stop_loss', 'take_profit', 'risk_controls'];
+  const anatomyLabels = {
+    structure: 'Structure',
+    location: 'Location',
+    entry_timing: 'Entry Timing',
+    regime_filter: 'Regime Filter',
+    stop_loss: 'Stop Loss',
+    take_profit: 'Take Profit',
+    risk_controls: 'Risk Controls',
+  };
+  const anatomyCards = anatomyOrder.map((key) => {
+    const items = parameterManifest.filter(item => item?.anatomy === key);
+    const sweepEnabled = items.filter(item => item?.sweep_enabled).length;
+    const sensitivityEnabled = items.filter(item => item?.sensitivity_enabled).length;
+    return `
+      <div class="card" style="padding:var(--space-10) var(--space-12);">
+        <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--font-mono);">${esc(anatomyLabels[key] || key)}</div>
+        <div style="margin-top:var(--space-6);font-size:var(--text-small);font-weight:600;">${items.length} manifest knob${items.length === 1 ? '' : 's'}</div>
+        <div style="margin-top:var(--space-4);font-size:var(--text-caption);color:var(--color-text-subtle);font-family:var(--font-mono);">Sweep ${sweepEnabled} · Sensitivity ${sensitivityEnabled}</div>
+      </div>
+    `;
+  }).join('');
+  const manifestRows = parameterManifest.length
+    ? parameterManifest
+        .slice()
+        .sort((a, b) => {
+          const pa = Number(a?.priority || 0);
+          const pb = Number(b?.priority || 0);
+          if (pb !== pa) return pb - pa;
+          return String(a?.label || '').localeCompare(String(b?.label || ''));
+        })
+        .map((item) => {
+          const suggestions = Array.isArray(item?.suggested_values) && item.suggested_values.length
+            ? item.suggested_values.map(value => esc(String(value))).join(', ')
+            : '—';
+          return `
+            <tr>
+              <td class="text-mono">${esc(item.label || item.key || '—')}</td>
+              <td>${esc(anatomyLabels[item.anatomy] || item.anatomy || '—')}</td>
+              <td class="text-mono">${esc(item.path || '—')}</td>
+              <td class="text-mono">${item.sweep_enabled ? 'yes' : 'no'}</td>
+              <td class="text-mono">${item.sensitivity_enabled ? 'yes' : 'no'}</td>
+              <td class="text-mono">${esc(suggestions)}</td>
+            </tr>
+          `;
+        }).join('')
+    : `<tr><td colspan="6" class="text-muted">No parameter manifest available yet.</td></tr>`;
   container.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-12);margin-bottom:var(--space-8);">
       <div style="display:flex;align-items:center;gap:var(--space-10);">
         <h2 style="margin:0;font-size:var(--text-h2);">${esc(s.name)}</h2>
+        <span class="validation-badge ${validationBadge.key}" title="${esc(validationBadge.title)}">${esc(validationBadge.label)}</span>
         <span class="status-badge ${s.status}">${s.status}</span>
+        ${tierBadges.map((badge) => `<span class="tier-badge" title="${esc(badge.title)}">${esc(badge.label)}</span>`).join('')}
       </div>
       <div style="display:flex;gap:var(--space-8);">
+        <button
+          class="btn btn-ghost"
+          style="color:var(--color-negative);"
+          onclick="deleteSelectedStrategy()"
+          ${canDeleteStrategy ? '' : 'disabled'}
+          title="${canDeleteStrategy ? 'Delete this saved strategy and its validator artifacts' : 'Registry-backed strategies and primitives cannot be deleted'}"
+        >Delete Strategy</button>
         <button class="btn btn-primary" onclick="openStrategyEditor('edit')">Run Validation</button>
       </div>
     </div>
@@ -438,6 +630,33 @@ function renderStrategyDetails() {
         <div><span class="text-muted">Asset Class:</span> <span class="text-mono">${esc(s.asset_class || 'N/A')}</span></div>
         <div><span class="text-muted">Interval:</span> <span class="text-mono">${esc(s.interval || 'N/A')}</span></div>
         <div style="grid-column:1 / -1;"><span class="text-muted">Description:</span> ${esc(s.description || 'N/A')}</div>
+      </div>
+    </div>
+
+    <div class="section-title">Parameter Manifest</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-10);margin-bottom:var(--space-12);">
+      ${anatomyCards}
+    </div>
+    <div class="card">
+      <div style="font-size:var(--text-caption);color:var(--color-text-muted);margin-bottom:var(--space-10);">
+        Canonical sweep and sensitivity knobs for this strategy. These are the identity-preserving parameters the app should use across Strategy, Validator, Sweep, and AI reviewer flows.
+      </div>
+      <div style="overflow:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--color-border);">
+              <th style="padding:0 0 var(--space-8);">Label</th>
+              <th style="padding:0 0 var(--space-8);">Anatomy</th>
+              <th style="padding:0 0 var(--space-8);">Path</th>
+              <th style="padding:0 0 var(--space-8);">Sweep</th>
+              <th style="padding:0 0 var(--space-8);">Sensitivity</th>
+              <th style="padding:0 0 var(--space-8);">Suggested Values</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${manifestRows}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -467,6 +686,30 @@ function initStrategyChat() {
     });
   }
   renderStrategyChat();
+}
+
+async function deleteSelectedStrategy() {
+  if (!selectedStrategy?.strategy_version_id) return;
+  if (selectedStrategy.source === 'registry') {
+    alert('Registry-backed strategies and primitives cannot be deleted. Tombstone the strategy instead.');
+    return;
+  }
+
+  const strategyVersionId = selectedStrategy.strategy_version_id;
+  const strategyName = selectedStrategy.name || strategyVersionId;
+  const ok = window.confirm(`Delete ${strategyName}? This will remove the saved strategy and its validator reports/trade data. This cannot be undone.`);
+  if (!ok) return;
+
+  try {
+    const result = await apiDeleteAbsolute(`/api/strategies/${encodeURIComponent(strategyVersionId)}`);
+    selectedStrategy = null;
+    await loadStrategies();
+    renderStrategyDetails();
+    updateStrategyTopActions();
+    alert(`Deleted ${strategyName}.${result?.deleted_reports ? ` Removed ${result.deleted_reports} report(s).` : ''}`);
+  } catch (err) {
+    alert('Delete failed: ' + err.message);
+  }
 }
 function renderStrategyChat() {
   const container = document.getElementById('strategy-chat-messages');
@@ -640,6 +883,7 @@ function buildStrategyChatContext() {
         asset_class: s.asset_class || null,
         interval: s.interval,
         description: s.description || null,
+        parameter_manifest: Array.isArray(s.parameter_manifest) ? s.parameter_manifest : [],
         structure_config: s.structure_config || null,
         setup_config: s.setup_config || null,
         entry_config: s.entry_config || null,
@@ -713,7 +957,7 @@ function askStrategySummary() {
     sendStrategyChat('No strategy loaded. Load a composite from the Indicator Studio first.');
     return;
   }
-  sendStrategyChat('Analyze this assembled strategy. Give me your quick assessment: is it ready to validate? Summarize the composite pipeline, risk config, exit rules, and flag any obvious issues.');
+  sendStrategyChat('Analyze this assembled strategy. Give me your quick assessment: is it ready to validate? Summarize the composite pipeline, declared parameter manifest, risk config, exit rules, and flag any obvious issues.');
 }
 
 function askStrategyRisks() {
@@ -721,7 +965,7 @@ function askStrategyRisks() {
     sendStrategyChat('No strategy loaded. Load a composite from the Indicator Studio first.');
     return;
   }
-  sendStrategyChat('Review this strategy for risk gaps. Check: is the stop appropriate for this universe? Are min_data_bars sufficient for the indicator lookback? Any regime/universe mismatches? Propose specific numeric fixes.');
+  sendStrategyChat('Review this strategy for risk gaps. Check: is the stop appropriate for this universe? Are min_data_bars sufficient for the indicator lookback? Any regime/universe mismatches? Are the declared manifest knobs the right identity-preserving ones? Propose specific numeric fixes.');
 }
 
 function askStrategyTests() {
@@ -729,7 +973,7 @@ function askStrategyTests() {
     sendStrategyChat('No strategy loaded. Load a composite from the Indicator Studio first.');
     return;
   }
-  sendStrategyChat('Create a validation test plan for this strategy: which tier to run first, what pass/fail thresholds to set, what to watch for in results, and what would make you reject it.');
+  sendStrategyChat('Create a validation test plan for this strategy: which tier to run first, what pass/fail thresholds to set, what to watch for in results, which manifest knobs are legitimate repair levers, and what would make you reject it.');
 }
 
 function defaultStrategyDraft() {
@@ -756,6 +1000,20 @@ function defaultStrategyDraft() {
     created_at: now,
     updated_at: now
   };
+}
+
+function normalizeEditableStrategyStatus(status) {
+  const raw = String(status || '').trim().toLowerCase();
+  if (raw === 'draft' || raw === 'testing' || raw === 'approved' || raw === 'rejected') {
+    return raw;
+  }
+  if (raw === 'stable' || raw === 'active') {
+    return 'testing';
+  }
+  if (raw === 'experimental') {
+    return 'draft';
+  }
+  return 'draft';
 }
 
 function openStrategyEditor(mode = 'new') {
@@ -831,6 +1089,7 @@ function renderInlineStrategyEditor(strategy, mode) {
           <label class="strategy-editor-label" for="sb-run-tier">Validation Tier (Run)</label>
           <select id="sb-run-tier" class="strategy-editor-select" onchange="updateEditorRunValidationNote()">
             <option value="tier1">Tier 1 - Kill Test</option>
+            <option value="tier1b">Tier 1B - Evidence Expansion</option>
             <option value="tier2">Tier 2 - Core Validation</option>
             <option value="tier3">Tier 3 - Robustness</option>
           </select>
@@ -896,7 +1155,7 @@ function renderInlineStrategyEditor(strategy, mode) {
   document.getElementById('sb-prompt').value = '';
   document.getElementById('sb-name').value = strategy.name || '';
   document.getElementById('sb-strategy-id').value = strategy.strategy_id || '';
-  document.getElementById('sb-status').value = strategy.status || 'draft';
+  document.getElementById('sb-status').value = normalizeEditableStrategyStatus(strategy.status);
   document.getElementById('sb-asset-class').value = normalizeAssetClass(strategy.asset_class, 'stocks');
   document.getElementById('sb-interval').value = strategy.interval || '1wk';
   const savedRunSettings = loadRunSettings(strategy?.strategy_version_id);
@@ -999,7 +1258,7 @@ function syncFromFormToJson() {
       ...base,
       name: document.getElementById('sb-name').value.trim(),
       strategy_id: document.getElementById('sb-strategy-id').value.trim(),
-      status: document.getElementById('sb-status').value,
+      status: normalizeEditableStrategyStatus(document.getElementById('sb-status').value),
       asset_class: normalizeAssetClass(document.getElementById('sb-asset-class').value, 'stocks'),
       interval: document.getElementById('sb-interval').value.trim() || '1wk',
       description: document.getElementById('sb-description').value.trim(),
@@ -1066,6 +1325,7 @@ async function saveStrategyDraft() {
     alert('strategy_id and name are required.');
     return;
   }
+  payload.status = normalizeEditableStrategyStatus(payload.status);
   payload.asset_class = normalizeAssetClass(payload.asset_class, '');
   if (!payload.asset_class) {
     delete payload.asset_class;
@@ -1194,4 +1454,3 @@ function toggleStrategyList() {
     btn.title = collapsed ? 'Expand strategies panel' : 'Collapse strategies panel';
   }
 }
-

@@ -1,0 +1,20 @@
+{
+  "symbol": "IWM",
+  "timeframe": "1d",
+  "period": "5y",
+  "reversal_multiple_atr": 2.0,
+  "v1": {
+    "total_unique_families": 128,
+    "families_with_split_coverage_all_three": 0,
+    "families_passing_discovery_and_validation_counts": 0,
+    "families_sign_consistent_across_splits": 0,
+    "candidate_family_count": 0
+  },
+  "v2": {
+    "total_unique_families": 18,
+    "families_with_split_coverage_all_three": 10,
+    "families_passing_discovery_and_validation_counts": 4,
+    "families_sign_consistent_across_splits": 1,
+    "candidate_family_count": 12
+  }
+}

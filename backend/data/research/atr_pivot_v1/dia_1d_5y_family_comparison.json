@@ -1,0 +1,20 @@
+{
+  "symbol": "DIA",
+  "timeframe": "1d",
+  "period": "5y",
+  "reversal_multiple_atr": 2.0,
+  "v1": {
+    "total_unique_families": 105,
+    "families_with_split_coverage_all_three": 2,
+    "families_passing_discovery_and_validation_counts": 0,
+    "families_sign_consistent_across_splits": 0,
+    "candidate_family_count": 2
+  },
+  "v2": {
+    "total_unique_families": 18,
+    "families_with_split_coverage_all_three": 7,
+    "families_passing_discovery_and_validation_counts": 2,
+    "families_sign_consistent_across_splits": 2,
+    "candidate_family_count": 10
+  }
+}

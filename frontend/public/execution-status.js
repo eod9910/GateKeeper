@@ -50,6 +50,8 @@
       }
     }
 
+    updateStrategyEligibilityHint(ctx);
+
     const automationEnabled = capabilities.automated_execution !== false;
     document.getElementById('btn-start').disabled = !automationEnabled;
     document.getElementById('btn-scan').disabled = !automationEnabled;
@@ -78,24 +80,59 @@
 
   async function loadStrategies(ctx) {
     const select = document.getElementById('strategy-version');
+    const hint = document.getElementById('strategy-version-hint');
     select.innerHTML = '<option value="">Loading...</option>';
     try {
-      const list = await ctx.api('/api/strategies');
+      const list = await ctx.api('/api/validator/strategies');
       const options = (Array.isArray(list) ? list : [])
-        .filter((s) => s && s.strategy_version_id && !s.strategy_version_id.startsWith('sweep_'))
+        .filter((s) => s && s.strategy_version_id && !s.strategy_version_id.startsWith('sweep_') && s.source !== 'research')
+        .filter((s) => Boolean(s.execution_eligible))
         .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
       if (!options.length) {
+        ctx.state.strategyCatalog = [];
         select.innerHTML = '<option value="">No strategies found</option>';
+        if (hint) hint.textContent = 'Execution requires an approved strategy with a T3 badge.';
         return;
       }
+      ctx.state.strategyCatalog = options;
       select.innerHTML = options.map((s) => {
         const label = s.name || s.strategy_version_id;
         const shortLabel = label.length > 80 ? label.slice(0, 77) + '...' : label;
-        return `<option value="${s.strategy_version_id}">${shortLabel} (${s.status || 'unknown'})</option>`;
+        const tierLabel = Array.isArray(s.passed_tiers) && s.passed_tiers.length
+          ? s.passed_tiers.map((tier) => tier === 'tier1b' ? 'T1B' : tier.toUpperCase().replace('TIER', 'T')).join('/')
+          : 'NO-TIER';
+        const eligibilityLabel = s.execution_eligible ? 'READY' : 'BLOCKED';
+        return `<option value="${s.strategy_version_id}">${shortLabel} [${tierLabel}] (${s.status || 'unknown'} · ${eligibilityLabel})</option>`;
       }).join('');
+      updateStrategyEligibilityHint(ctx);
     } catch (err) {
       select.innerHTML = `<option value="">${String(err.message || err)}</option>`;
+      if (hint) hint.textContent = 'Unable to load execution-eligible strategies.';
     }
+  }
+
+  function getSelectedStrategyRecord(ctx) {
+    const selectedId = document.getElementById('strategy-version').value;
+    const catalog = Array.isArray(ctx.state.strategyCatalog) ? ctx.state.strategyCatalog : [];
+    return catalog.find((entry) => entry.strategy_version_id === selectedId) || null;
+  }
+
+  function updateStrategyEligibilityHint(ctx) {
+    const hint = document.getElementById('strategy-version-hint');
+    const record = getSelectedStrategyRecord(ctx);
+    if (!hint) return;
+    if (!record) {
+      hint.textContent = 'Execution requires an approved strategy with a T3 badge.';
+      return;
+    }
+    if (record.execution_eligible) {
+      hint.textContent = `Execution ready: ${record.strategy_version_id} is approved and has a T3 pass.`;
+      return;
+    }
+    const tierLabel = Array.isArray(record.passed_tiers) && record.passed_tiers.length
+      ? record.passed_tiers.map((tier) => tier === 'tier1b' ? 'T1B' : tier.toUpperCase().replace('TIER', 'T')).join(', ')
+      : 'none';
+    hint.textContent = `Blocked: ${record.strategy_version_id} needs status approved and a T3 pass. Current status=${record.status || 'unknown'}, passed tiers=${tierLabel}.`;
   }
 
   async function refreshStatus(ctx) {
@@ -139,6 +176,12 @@
     const payload = getStartPayload(ctx);
     if (!payload.strategy_version_id) {
       alert('Select a strategy version first.');
+      return;
+    }
+    const selected = getSelectedStrategyRecord(ctx);
+    if (selected && !selected.execution_eligible) {
+      updateStrategyEligibilityHint(ctx);
+      alert(`Execution Desk requires an approved T3 strategy.\n\n${selected.strategy_version_id} is currently ${selected.status || 'unknown'} and is not execution-eligible.`);
       return;
     }
     await ctx.api('/api/execution/start', {
@@ -242,6 +285,7 @@
 
   function bindEvents(ctx) {
     document.getElementById('btn-start').addEventListener('click', () => startBridge(ctx).catch((e) => alert(e.message)));
+    document.getElementById('strategy-version').addEventListener('change', () => updateStrategyEligibilityHint(ctx));
     document.getElementById('btn-stop').addEventListener('click', () => stopBridge(ctx).catch((e) => alert(e.message)));
     document.getElementById('btn-scan').addEventListener('click', () => manualScan(ctx).catch((e) => alert(e.message)));
     document.getElementById('btn-execute-ticket').addEventListener('click', () => ctx.submitPendingExecutionTicket().catch((e) => alert(e.message)));

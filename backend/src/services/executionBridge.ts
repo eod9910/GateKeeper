@@ -29,6 +29,26 @@ export interface BridgeConfig {
   monitor_interval_ms: number;
 }
 
+async function assertExecutionEligibility(strategyVersionId: string): Promise<void> {
+  const strategy = await storage.getStrategyOrComposite(strategyVersionId);
+  if (!strategy) {
+    throw new Error(`Strategy not found: ${strategyVersionId}`);
+  }
+
+  if (String(strategy.status || '').toLowerCase() !== 'approved') {
+    throw new Error(`Execution Desk only accepts approved strategies. ${strategyVersionId} is currently ${strategy.status || 'unapproved'}.`);
+  }
+
+  const reports = await storage.getAllValidationReports(strategyVersionId);
+  const hasTier3Pass = reports.some((report) =>
+    String(report?.pass_fail || '').toUpperCase() === 'PASS'
+    && String(report?.config?.validation_tier || '').trim().toLowerCase() === 'tier3'
+  );
+  if (!hasTier3Pass) {
+    throw new Error(`Execution Desk requires a Tier 3 PASS before trading ${strategyVersionId}.`);
+  }
+}
+
 function saveBridgeConfig(config: BridgeConfig): void {
   const dir = path.dirname(CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -89,6 +109,8 @@ export async function startBridge(config: BridgeConfig): Promise<void> {
   if (!cron.validate(config.scan_cron)) {
     throw new Error(`Invalid cron expression: ${config.scan_cron}`);
   }
+
+  await assertExecutionEligibility(config.strategy_version_id);
 
   if (_cronJob || _monitorInterval) {
     await shutdownBridge(false);
