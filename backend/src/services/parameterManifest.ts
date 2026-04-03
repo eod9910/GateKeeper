@@ -209,9 +209,71 @@ function mergeManifestItems(
   return merged;
 }
 
+/**
+ * Standard risk-controls manifest entries present on every strategy.
+ * These are the parameters that most directly drive drawdown and position sizing.
+ * Appended to every family-specific manifest builder so sensitivity testing
+ * always shows which risk knobs are affecting Monte Carlo DD.
+ */
+function standardRiskControlItems(strategy: StrategySpec): Array<StrategyParameterManifestItem | null> {
+  return [
+    createManifestItem(strategy, { key: 'max_concurrent_positions', label: 'Max Concurrent Positions', type: 'int', min: 1, max: 20, step: 1, default: 3 }, {
+      path: 'risk_config.max_concurrent_positions',
+      anatomy: 'risk_controls',
+      identity_preserving: false,
+      sweep_enabled: true,
+      sensitivity_enabled: true,
+      suggested_values: [1, 2, 3, 5, 8],
+      priority: 90,
+      failure_modes_targeted: ['high_drawdown', 'montecarlo_dd'],
+    }),
+    createManifestItem(strategy, { key: 'atr_multiplier', label: 'ATR Stop Multiplier', type: 'float', min: 0.5, max: 5.0, step: 0.5, default: 2.0 }, {
+      path: 'risk_config.atr_multiplier',
+      anatomy: 'stop_loss',
+      identity_preserving: true,
+      sweep_enabled: true,
+      sensitivity_enabled: true,
+      priority: 85,
+      failure_modes_targeted: ['high_drawdown', 'montecarlo_dd'],
+    }),
+    createManifestItem(strategy, { key: 'take_profit_R', label: 'Take Profit R', type: 'float', min: 1.0, max: 14.0, step: 0.5, default: 2.0 }, {
+      path: 'risk_config.take_profit_R',
+      anatomy: 'take_profit',
+      identity_preserving: true,
+      sweep_enabled: true,
+      sensitivity_enabled: true,
+      priority: 80,
+      failure_modes_targeted: ['oos_degradation', 'high_drawdown', 'montecarlo_dd'],
+    }),
+    createManifestItem(strategy, { key: 'max_hold_bars', label: 'Max Hold Bars', type: 'int', min: 5, max: 90, step: 5, default: 30 }, {
+      path: 'risk_config.max_hold_bars',
+      anatomy: 'take_profit',
+      identity_preserving: true,
+      sweep_enabled: true,
+      sensitivity_enabled: true,
+      priority: 60,
+      failure_modes_targeted: ['oos_degradation'],
+    }),
+  ];
+}
+
+/**
+ * Merge standard risk-control items into a manifest, skipping any key already defined.
+ */
+function withStandardRiskControls(
+  strategy: StrategySpec,
+  items: Array<StrategyParameterManifestItem | null>,
+): StrategyParameterManifestItem[] {
+  const filtered = items.filter((item): item is StrategyParameterManifestItem => Boolean(item));
+  const seen = new Set(filtered.map(item => item.key));
+  const extras = standardRiskControlItems(strategy)
+    .filter((item): item is StrategyParameterManifestItem => Boolean(item) && !seen.has(item!.key));
+  return [...filtered, ...extras];
+}
+
 function densityBaseManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
   const manifest = genericManifestFromDefinition(strategy, familyDef);
-  const extras = [
+  const extras: Array<StrategyParameterManifestItem | null> = [
     createManifestItem(strategy, { key: 'swing_lookback', label: 'Swing Lookback', type: 'int', min: 3, max: 30, step: 1 }, {
       anatomy: 'structure',
       priority: 100,
@@ -253,7 +315,7 @@ function densityBaseManifest(strategy: StrategySpec, familyDef?: PatternDefiniti
     max_bases: { anatomy: 'risk_controls', sweep_enabled: false, sensitivity_enabled: false, identity_preserving: false },
     max_scan_bars: { anatomy: 'risk_controls', sweep_enabled: false, sensitivity_enabled: false, identity_preserving: false },
   };
-  return mergeManifestItems(manifest, overrides, extras);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides, extras));
 }
 
 function maCrossoverManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
@@ -308,7 +370,7 @@ function maCrossoverManifest(strategy: StrategySpec, familyDef?: PatternDefiniti
       failure_modes_targeted: ['high_sensitivity', 'high_drawdown'],
     },
   };
-  return mergeManifestItems(manifest, overrides, extras);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides, extras));
 }
 
 function fibSignalTriggerManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
@@ -349,7 +411,7 @@ function fibSignalTriggerManifest(strategy: StrategySpec, familyDef?: PatternDef
       failure_modes_targeted: ['high_drawdown'],
     },
   };
-  return mergeManifestItems(manifest, overrides, extras);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides, extras));
 }
 
 function wyckoffAccumulationManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
@@ -392,7 +454,7 @@ function wyckoffAccumulationManifest(strategy: StrategySpec, familyDef?: Pattern
     score_min: { anatomy: 'structure', sensitivity_enabled: false, priority: 35 },
   };
 
-  return mergeManifestItems(manifest, overrides, extras);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides, extras));
 }
 
 function pullbackUptrendManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
@@ -429,14 +491,8 @@ function pullbackUptrendManifest(strategy: StrategySpec): StrategyParameterManif
       priority: 85,
       failure_modes_targeted: ['high_drawdown', 'high_sensitivity'],
     }),
-    createManifestItem(strategy, { key: 'max_concurrent_positions', label: 'Max Concurrent Positions', type: 'int', min: 1, max: 20, step: 1 }, {
-      path: 'risk_config.max_concurrent_positions',
-      anatomy: 'risk_controls',
-      priority: 60,
-      failure_modes_targeted: ['high_drawdown'],
-    }),
   ].filter((item): item is StrategyParameterManifestItem => Boolean(item));
-  return items;
+  return withStandardRiskControls(strategy, items);
 }
 
 function baseBoxManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
@@ -466,7 +522,7 @@ function baseBoxManifest(strategy: StrategySpec, familyDef?: PatternDefinition):
     emit_when_missing: { anatomy: 'risk_controls', sweep_enabled: false, sensitivity_enabled: false, identity_preserving: false, priority: 5 },
   };
 
-  const extras = isHybrid ? [
+  const extras: Array<StrategyParameterManifestItem | null> = isHybrid ? [
     createManifestItem(strategy, { key: 'swing_epsilon_pct', label: 'RDP Epsilon %', type: 'float', min: 0.01, max: 0.15, step: 0.01 }, {
       path: 'structure_config.swing_epsilon_pct',
       anatomy: 'structure',
@@ -480,7 +536,7 @@ function baseBoxManifest(strategy: StrategySpec, familyDef?: PatternDefinition):
     overrides.min_pivot_switches = { ...overrides.min_pivot_switches, sweep_enabled: false, sensitivity_enabled: false };
   }
 
-  return mergeManifestItems(manifest, overrides, extras);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides, extras));
 }
 
 function compressionBoxManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
@@ -518,7 +574,7 @@ function compressionBoxManifest(strategy: StrategySpec, familyDef?: PatternDefin
     }),
   ];
 
-  return mergeManifestItems(manifest, overrides, extras);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides, extras));
 }
 
 function wiggleBaseManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
@@ -535,7 +591,7 @@ function wiggleBaseManifest(strategy: StrategySpec, familyDef?: PatternDefinitio
     max_quiet_ratio: { anatomy: 'regime_filter', sweep_enabled: true, sensitivity_enabled: true, priority: 75, failure_modes_targeted: ['high_drawdown', 'high_sensitivity'] },
     min_final_score: { anatomy: 'structure', sweep_enabled: true, sensitivity_enabled: false, priority: 40 },
   };
-  return mergeManifestItems(manifest, overrides);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides));
 }
 
 function wyckoffAccumulationMajorManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
@@ -572,7 +628,7 @@ function wyckoffAccumulationMajorManifest(strategy: StrategySpec, familyDef?: Pa
     breakout_confirm_bars: { anatomy: 'entry_timing', priority: 75, failure_modes_targeted: ['high_drawdown', 'high_sensitivity'] },
     score_min: { anatomy: 'structure', sensitivity_enabled: false, priority: 40 },
   };
-  return mergeManifestItems(manifest, overrides, extras);
+  return withStandardRiskControls(strategy, mergeManifestItems(manifest, overrides, extras));
 }
 
 function obRegimeLongManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
@@ -617,6 +673,7 @@ function obRegimeLongManifest(strategy: StrategySpec): StrategyParameterManifest
       failure_modes_targeted: ['high_drawdown', 'high_sensitivity'],
     }),
   ].filter((item): item is StrategyParameterManifestItem => Boolean(item));
+  return withStandardRiskControls(strategy, items);
 }
 
 function rdpFibPullbackCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
@@ -665,6 +722,7 @@ function rdpFibPullbackCompositeManifest(strategy: StrategySpec): StrategyParame
       failure_modes_targeted: ['high_drawdown'],
     }),
   ].filter((item): item is StrategyParameterManifestItem => Boolean(item));
+  return withStandardRiskControls(strategy, items);
 }
 
 function trendFollowingRegimeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
@@ -703,6 +761,7 @@ function trendFollowingRegimeManifest(strategy: StrategySpec): StrategyParameter
       priority: 20,
     }),
   ].filter((item): item is StrategyParameterManifestItem => Boolean(item));
+  return withStandardRiskControls(strategy, items);
 }
 
 function rdpExhaustionCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
@@ -745,6 +804,7 @@ function rdpExhaustionCompositeManifest(strategy: StrategySpec): StrategyParamet
       failure_modes_targeted: ['high_sensitivity', 'high_drawdown'],
     }),
   ].filter((item): item is StrategyParameterManifestItem => Boolean(item));
+  return withStandardRiskControls(strategy, items);
 }
 
 function baseBreakoutEntryCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
@@ -786,6 +846,7 @@ function baseBreakoutEntryCompositeManifest(strategy: StrategySpec): StrategyPar
       failure_modes_targeted: ['high_sensitivity'],
     }),
   ].filter((item): item is StrategyParameterManifestItem => Boolean(item));
+  return withStandardRiskControls(strategy, items);
 }
 
 function rdpFibPullbackRsiCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
@@ -834,6 +895,7 @@ function rdpFibPullbackRsiCompositeManifest(strategy: StrategySpec): StrategyPar
       failure_modes_targeted: ['high_sensitivity', 'high_drawdown'],
     }),
   ].filter((item): item is StrategyParameterManifestItem => Boolean(item));
+  return withStandardRiskControls(strategy, items);
 }
 
 const FAMILY_MANIFEST_BUILDERS: Record<string, (strategy: StrategySpec, familyDef?: PatternDefinition) => StrategyParameterManifestItem[]> = {
@@ -863,9 +925,32 @@ function patternTypeForStrategy(strategy: StrategySpec, familyDef?: PatternDefin
 
 export function resolveStrategyParameterManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategyParameterManifestItem[] {
   if (Array.isArray(strategy?.parameter_manifest) && strategy.parameter_manifest.length > 0) {
-    return strategy.parameter_manifest
+    const explicit = strategy.parameter_manifest
       .map(item => normalizeManifestItem(item))
       .filter((item): item is StrategyParameterManifestItem => Boolean(item));
+
+    // If the pattern definition has its own parameter_manifest, merge any entries
+    // that are missing from the stored strategy manifest. This ensures promoted
+    // sweep winners and hand-authored strategies always expose the full set of
+    // sweep-enabled params defined by the pattern, even if their stored manifest
+    // was written before new params were added.
+    const patternManifest: StrategyParameterManifestItem[] = Array.isArray(familyDef?.parameter_manifest)
+      ? (familyDef!.parameter_manifest as any[])
+          .map((item: any) => normalizeManifestItem(item))
+          .filter((item): item is StrategyParameterManifestItem => Boolean(item))
+      : [];
+
+    const merged = explicit;
+    const seenKeys = new Set(merged.map(i => i.key));
+    for (const item of patternManifest) {
+      if (!seenKeys.has(item.key)) {
+        merged.push(item);
+        seenKeys.add(item.key);
+      }
+    }
+
+    // Ensure risk-controls entries are always present, even on hand-authored manifests
+    return withStandardRiskControls(strategy, merged);
   }
 
   const patternType = patternTypeForStrategy(strategy, familyDef);
@@ -876,7 +961,8 @@ export function resolveStrategyParameterManifest(strategy: StrategySpec, familyD
       .filter((item): item is StrategyParameterManifestItem => Boolean(item));
   }
 
-  return genericManifestFromDefinition(strategy, familyDef);
+  // Unknown pattern type — still guarantee risk-controls are testable
+  return withStandardRiskControls(strategy, genericManifestFromDefinition(strategy, familyDef));
 }
 
 export function applyParameterManifest(strategy: StrategySpec, familyDef?: PatternDefinition): StrategySpec {

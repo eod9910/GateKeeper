@@ -126,6 +126,14 @@ export interface GenomeEntry {
   reflection?: string;
   suggested_params?: Record<string, any>;
   created_at: string;
+  /** Symbolic regression: formula string (LISP-style from gplearn) */
+  formula?: string;
+  /** Symbolic regression: human-readable formula (feature names substituted) */
+  formula_readable?: string;
+  /** Symbolic regression: persisted artifact ID */
+  formula_id?: string;
+  /** Symbolic regression: complexity (program length) */
+  complexity?: number;
 }
 
 export interface ReportSummary {
@@ -426,7 +434,9 @@ async function callOpenAI(
   }
 
   const model = modelOverride || RESEARCH_MODEL;
-  const isReasoningModel = /^o[13]/.test(model);
+  // All OpenAI o-series models (o1, o1-mini, o1-preview, o3, o3-mini, o4-mini, etc.)
+  // only accept max_completion_tokens, not max_tokens.
+  const isReasoningModel = /^o\d/.test(model);
 
   const body: Record<string, any> = {
     model,
@@ -439,10 +449,8 @@ async function callOpenAI(
 
   if (!isReasoningModel) {
     body.temperature = 0.7;
-    // OpenAI o1/o3 and some others use max_completion_tokens, standard uses max_tokens
     body.max_tokens = maxTokens;
   } else {
-    // Reasoning models
     body.max_completion_tokens = maxTokens;
   }
 
@@ -462,6 +470,55 @@ async function callOpenAI(
 
   const data = await response.json() as { choices: Array<{ message: { content: string } }> };
   return data.choices?.[0]?.message?.content || '';
+}
+
+/** Chat completion with full message history (for follow-up Q&A). Returns plain text. */
+async function callOpenAIChat(
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  maxTokens = 1500,
+  modelOverride?: string,
+): Promise<string> {
+  const openaiApiKey = getConfiguredOpenAIKey();
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key not configured. Add it in Settings or backend/.env');
+  }
+
+  const model = modelOverride || RESEARCH_MODEL;
+  const isReasoningModel = /^o\d/.test(model);
+
+  // o-series models don't support the 'system' role — remap to 'user' if needed.
+  const safeMessages = isReasoningModel
+    ? messages.map(m => ({ ...m, role: m.role === 'system' ? 'user' : m.role }))
+    : messages;
+
+  const body: Record<string, any> = {
+    model,
+    messages: safeMessages,
+  };
+  if (!isReasoningModel) {
+    body.temperature = 0.5;
+    body.max_tokens = maxTokens;
+  } else {
+    body.max_completion_tokens = maxTokens;
+  }
+  // No response_format so we get plain text
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`OpenAI API error ${response.status}: ${err}`);
+  }
+
+  const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+  return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
 // ─── Dynamic primitive catalogue ─────────────────────────────────────────────
@@ -675,6 +732,317 @@ Analyze these results. What specifically should change in the next generation?`;
   } catch {
     return { reflection: '', param_changes: null };
   }
+}
+
+const STRATEGIES_DIR_FOR_CONTEXT = path.join(__dirname, '..', '..', 'data', 'strategies');
+const PLUGINS_DIR_FOR_CONTEXT = path.join(__dirname, '..', '..', '..', 'services', 'plugins');
+
+/**
+ * Load the full strategy spec JSON from disk for a genome entry.
+ * Returns null if the file is missing or can't be parsed.
+ */
+async function loadStrategySpec(strategyVersionId: string): Promise<Record<string, any> | null> {
+  if (!strategyVersionId) return null;
+  try {
+    const raw = await fs.readFile(
+      path.join(STRATEGIES_DIR_FOR_CONTEXT, `${strategyVersionId}.json`),
+      'utf-8',
+    );
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load the Python source for a plugin file.
+ * Returns truncated source (first 120 lines) to stay within token budget.
+ */
+async function loadPluginSource(patternId: string): Promise<string | null> {
+  const candidates = [
+    `${patternId}.py`,
+    `${patternId}_primitive.py`,
+    `${patternId}_pattern.py`,
+    `${patternId}_composite.py`,
+  ];
+  for (const name of candidates) {
+    try {
+      const raw = await fs.readFile(path.join(PLUGINS_DIR_FOR_CONTEXT, name), 'utf-8');
+      const lines = raw.split('\n');
+      return lines.slice(0, 120).join('\n') + (lines.length > 120 ? '\n# ... (truncated)' : '');
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+/** Build a rich generation context block for the AI (SR or SD). */
+async function buildInterpretationContext(
+  entry: GenomeEntry,
+  sessionConfig: { mode?: string; sr_config?: any },
+): Promise<string> {
+  const isSR = sessionConfig.mode === 'symbolic_regression';
+
+  if (isSR) {
+    const r2 = entry.fitness_score ?? 0;
+    const cx = entry.complexity ?? 0;
+    const formula = entry.formula_readable || entry.formula || 'N/A';
+    const formulaRaw = entry.formula || 'N/A';
+    const isConstant = cx <= 1 || /^-?[\d.]+$/.test(formula.trim());
+    const sr = sessionConfig.sr_config || {};
+    const symbol = sr.symbol || 'unknown';
+    const interval = sr.interval || 'unknown';
+    const targetBars = sr.target_bars || 5;
+    const lookback = sr.lookback_bars || 'default';
+    const normalizeByAtr = sr.normalize_by_atr !== false;
+    const populationSize = sr.population_size || 500;
+    const generations = sr.n_generations || 20;
+    const parsimonyCoeff = sr.parsimony_coefficient ?? 0.001;
+    const stoppingCriteria = sr.stopping_criteria ?? 0.0;
+
+    // Per-feature detail
+    const featuresArr: any[] = sr.features || [];
+    const featureLines = featuresArr.length > 0
+      ? featuresArr.map((f: any) =>
+          `  - ${f.id}(period=${f.period || 'default'})${f.description ? ': ' + f.description : ''}`,
+        ).join('\n')
+      : '  (default set)';
+
+    // Load the sr_score_primitive plugin source
+    const srPluginSrc = await loadPluginSource('sr_score_primitive');
+    const pluginsBlock = srPluginSrc
+      ? `\n=== SR SCORE PRIMITIVE PLUGIN CODE (sr_score_primitive.py) ===\n${srPluginSrc}`
+      : '';
+
+    // Load the sr_score_primitive JSON definition
+    let srJsonDef = '';
+    try {
+      const srJsonPath = path.join(__dirname, '..', '..', 'data', 'patterns', 'sr_score_primitive.json');
+      const raw = await fs.readFile(srJsonPath, 'utf-8');
+      srJsonDef = `\n=== SR SCORE PRIMITIVE DEFINITION (JSON) ===\n${raw}`;
+    } catch { /* not critical */ }
+
+    return `Symbolic Regression result.
+Symbol: ${symbol}, Interval: ${interval}
+Target: predict ${targetBars}-bar forward returns${normalizeByAtr ? ' (ATR-normalized)' : ''}
+Lookback: ${lookback} bars
+
+=== FORMULA ===
+Human-readable: ${formula}
+Raw LISP (gplearn): ${formulaRaw}
+Is trivial constant: ${isConstant}
+R² (fitness): ${r2.toFixed(4)}
+Complexity (program nodes): ${cx}
+
+=== INPUT FEATURES (what the formula combines) ===
+${featureLines}
+
+=== SR SESSION PARAMETERS ===
+Population size: ${populationSize}
+Generations run: ${generations}
+Parsimony coefficient (complexity penalty): ${parsimonyCoeff}
+Stopping criteria (early stop R²): ${stoppingCriteria}
+${pluginsBlock}${srJsonDef}`;
+  }
+
+  // Strategy Discovery — load full spec + plugin code
+  const r = entry.report_summary;
+  const metricsText = r
+    ? `Trades: ${r.total_trades}, Win rate: ${(r.win_rate * 100).toFixed(1)}%, Expectancy: ${r.expectancy_R.toFixed(3)}R, Profit factor: ${r.profit_factor?.toFixed(2) ?? 'N/A'}, Sharpe: ${r.sharpe_ratio?.toFixed(2) ?? 'N/A'}, Max DD: ${r.max_drawdown_pct?.toFixed(1) ?? 'N/A'}%, OOS deg: ${r.oos_degradation_pct?.toFixed(1) ?? 'N/A'}%, Pass/Fail: ${r.pass_fail}, Fitness: ${entry.fitness_score?.toFixed(3) ?? 'N/A'}.`
+    : 'No backtest results.';
+
+  const spec = await loadStrategySpec(entry.strategy_version_id);
+
+  let specBlock = '';
+  let pluginsBlock = '';
+
+  if (spec) {
+    // Risk / exit config
+    const rc = spec.risk_config || {};
+    const riskLines = [
+      rc.stop_type && `Stop type: ${rc.stop_type}`,
+      rc.atr_multiplier != null && `ATR multiplier (stop): ${rc.atr_multiplier}`,
+      rc.take_profit_R != null && `Take profit: ${rc.take_profit_R}R`,
+      rc.max_hold_bars != null && `Max hold bars: ${rc.max_hold_bars}`,
+      rc.max_concurrent_positions != null && `Max concurrent positions: ${rc.max_concurrent_positions}`,
+    ].filter(Boolean).join(', ');
+
+    // Primitive stages
+    const stages: any[] = spec.setup_config?.composite_spec?.stages || [];
+    const stagesText = stages.map((s: any) =>
+      `  - ${s.id} → ${s.pattern_id}: ${JSON.stringify(s.params || {})}`,
+    ).join('\n');
+
+    // Parameter manifest (tunable knobs)
+    const manifest: any[] = spec.parameter_manifest || [];
+    const resolveNestedPath = (obj: any, dotPath: string): any => {
+      return dotPath.split('.').reduce((acc, k) => (acc != null && typeof acc === 'object' ? acc[k] : undefined), obj);
+    };
+    const manifestText = manifest.map((p: any) => {
+      const current = resolveNestedPath(spec, p.path);
+      return `  - ${p.label} (${p.key}): current=${JSON.stringify(current ?? '?')}, range=[${p.min ?? '?'}–${p.max ?? '?'}], step=${p.step ?? '?'}, sweep_enabled=${p.sweep_enabled}`;
+    }).join('\n');
+
+    specBlock = `
+=== FULL STRATEGY SPEC ===
+Name: ${spec.name || entry.strategy_version_id}
+Asset class: ${spec.asset_class || 'unknown'}, Interval: ${spec.interval || 'unknown'}
+Entry type: ${spec.entry_config?.entry_type || 'unknown'}
+Risk config: ${riskLines || 'not defined'}
+Logic stages (AND-chained primitives):
+${stagesText || '  (none)'}
+Tunable parameters (parameter manifest):
+${manifestText || '  (none)'}
+Reducer: ${JSON.stringify(spec.setup_config?.composite_spec?.reducer || {})}`;
+
+    // Load Python source for each primitive
+    const pluginSources: string[] = [];
+    for (const stage of stages) {
+      const src = await loadPluginSource(stage.pattern_id);
+      if (src) {
+        pluginSources.push(`--- Plugin: ${stage.pattern_id} ---\n${src}`);
+      }
+    }
+    if (pluginSources.length > 0) {
+      pluginsBlock = `\n=== PRIMITIVE PLUGIN CODE ===\n${pluginSources.join('\n\n')}`;
+    }
+  }
+
+  return `Strategy Discovery. Hypothesis: ${entry.hypothesis}. Spec: ${entry.spec_summary}. Verdict: ${entry.verdict}.
+Backtest: ${metricsText}${specBlock}${pluginsBlock}`;
+}
+
+/**
+ * AI-powered interpretation of a Research generation's results.
+ * Works for both Strategy Discovery (backtest metrics) and Symbolic Regression (formula/R²).
+ */
+export async function interpretGeneration(
+  entry: GenomeEntry,
+  sessionConfig: { mode?: string; sr_config?: any },
+  modelOverride?: string,
+): Promise<string> {
+  const isSR = sessionConfig.mode === 'symbolic_regression';
+
+  const systemPrompt = applyRolePromptOverride('research_analyst', `You are a quantitative trading analyst explaining research results to a trader who is NOT a math expert.
+
+Your job is to tell them:
+1. WHAT the numbers actually mean in plain English — not restate them
+2. WHETHER this result is useful or garbage, and WHY
+3. WHAT they should do next — specific, actionable steps
+
+Rules:
+- Be brutally honest. If it's bad, say it's bad and say why.
+- No hedging, no fluff, no "it depends." Give a clear verdict.
+- Talk directly to the user: "Your strategy..." / "This formula..."
+- Use short paragraphs. No bullet-point lists longer than 4 items.
+- Max 250 words.
+- Do NOT restate every metric — focus on the 2-3 things that matter most.
+- End with a clear "What to do" recommendation.
+
+Return JSON: { "interpretation": "your analysis text here" }`);
+
+  let userPrompt: string;
+
+  if (isSR) {
+    const richContext = await buildInterpretationContext(entry, sessionConfig);
+
+    userPrompt = `This is a Symbolic Regression result. The system used genetic programming (gplearn) to discover a mathematical formula that predicts forward returns from indicator features.
+
+${richContext}
+
+Benchmarks for your interpretation:
+- In financial price data, R² above 0.05 is unusual; above 0.15 almost always means overfitting
+- Complexity above 20 dramatically increases overfitting risk
+- A trivial constant formula means the features have no detectable relationship with the target
+- Even R² of 0.02–0.04 can represent a real, tradeable edge if it holds on unseen data
+- Parsimony coefficient controls the complexity penalty — higher = simpler formulas
+- More features give the algorithm more to work with, but also more ways to overfit
+
+You have access to the full SR session config (symbol, interval, features, gplearn parameters), the formula itself (human-readable and raw LISP), and the sr_score_primitive plugin code. Use this to give specific recommendations: which features to add/remove, which gplearn parameters to adjust, whether the formula is worth pursuing.
+
+Tell the user what this means and what they should do.`;
+  } else {
+    const r = entry.report_summary;
+    if (!r) {
+      return 'No backtest results available for this generation.';
+    }
+
+    const richContext = await buildInterpretationContext(entry, sessionConfig);
+
+    userPrompt = `This is a Strategy Discovery backtest result. The system generated a trading strategy hypothesis and backtested it across multiple symbols.
+
+${richContext}
+
+Backtest metric benchmarks (for your interpretation):
+- 200+ trades minimum for statistical significance
+- Expectancy above 0.2R is decent; above 0.4R is strong
+- Profit factor above 1.5 is good; below 1.0 means it loses money
+- OOS degradation above 50% is a red flag for curve-fitting
+- Max drawdown above 30% means most traders would abandon the strategy
+- Sharpe above 1.0 is good; below 0.5 is poor
+- The gate requires PASS verdict + 200 trades + positive expectancy
+
+You have access to the full strategy spec, all primitive parameters, stop-loss/take-profit config, the parameter manifest (what can be tuned), and the actual plugin code. Use this to give specific, code-level advice about what to change and why.
+
+Tell the user what this means and what they should do.`;
+  }
+
+  try {
+    const raw = await callOpenAI(systemPrompt, userPrompt, 600, modelOverride);
+    const parsed = JSON.parse(raw);
+    return String(parsed.interpretation || parsed.text || parsed.analysis || raw);
+  } catch (err: any) {
+    throw new Error(`AI interpretation failed: ${err.message}`);
+  }
+}
+
+export interface InterpretAskMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Answer a follow-up question about a generation. Uses the same generation context
+ * plus the initial interpretation and conversation history.
+ */
+export async function interpretAsk(
+  entry: GenomeEntry,
+  sessionConfig: { mode?: string; sr_config?: any },
+  question: string,
+  initialInterpretation: string,
+  conversation: InterpretAskMessage[],
+  modelOverride?: string,
+): Promise<string> {
+  const context = await buildInterpretationContext(entry, sessionConfig);
+  const systemPrompt = applyRolePromptOverride('research_analyst', `You are a quantitative trading analyst. The user is looking at a research result and has already seen an interpretation.
+
+You have access to the full strategy spec including all primitive plugin code, primitive parameters, stop-loss / take-profit config, and the parameter manifest (the complete list of tunable knobs with their ranges).
+
+Use this detail to give specific, actionable advice — reference actual parameter names, current values, and what to change them to.
+
+Generation context:
+${context}
+
+Initial interpretation they saw:
+---
+${initialInterpretation}
+---
+
+The user will ask follow-up questions. Answer in plain language: concise, direct, no fluff. If they ask "why", explain the reasoning. If they ask "what if", give a concrete recommendation. Keep answers to a few sentences unless they ask for more.`);
+
+  const model = modelOverride || RESEARCH_MODEL;
+  const isReasoningModel = /^o\d/.test(model);
+
+  // o-series models don't support the 'system' role — prepend as a 'user' message instead.
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: isReasoningModel ? 'user' : 'system', content: systemPrompt },
+    ...conversation.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    { role: 'user', content: question.trim() },
+  ];
+
+  const reply = await callOpenAIChat(messages, 1500, modelOverride);
+  return reply;
 }
 
 /** Generate Python code for a new plugin primitive. */

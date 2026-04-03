@@ -1,0 +1,106 @@
+{
+  "pattern_id": "ma_base_detector_indicator",
+  "name": "MA Base Detector",
+  "category": "indicator_signals",
+  "description": "Detects consolidation (basing) by measuring whether price is contained within a deviation channel around a moving average. Renders the MA line, upper band, lower band, and highlights base zones on the chart. Default: 89 SMA ±10%.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/ma_base_detector_indicator.py",
+  "plugin_function": "run_ma_base_detector_indicator_plugin",
+  "pattern_type": "ma_base_detector_indicator",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "ma_base_detector_indicator",
+    "ma_period": 89,
+    "ma_type": "SMA",
+    "dev_threshold_pct": 10.0,
+    "min_bars_in_base": 5,
+    "lookback_bars": 500
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "ma_period",
+      "label": "MA Period",
+      "type": "int",
+      "min": 10,
+      "max": 200,
+      "default": 89,
+      "description": "Moving average lookback period"
+    },
+    {
+      "key": "ma_type",
+      "label": "MA Type",
+      "type": "enum",
+      "options": ["SMA", "EMA"],
+      "default": "SMA",
+      "description": "Simple or Exponential moving average"
+    },
+    {
+      "key": "dev_threshold_pct",
+      "label": "Channel Width (%)",
+      "type": "float",
+      "min": 2.0,
+      "max": 30.0,
+      "default": 10.0,
+      "description": "Half-width of the base channel as a % of the MA. Price must stay within ±this% to count as basing."
+    },
+    {
+      "key": "min_bars_in_base",
+      "label": "Min Bars in Base",
+      "type": "int",
+      "min": 1,
+      "max": 60,
+      "default": 5,
+      "description": "Minimum consecutive bars inside the channel to qualify as a base"
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Bars",
+      "type": "int",
+      "min": 50,
+      "max": 2000,
+      "default": 500,
+      "description": "How many historical bars to render on the chart"
+    }
+  ],
+  "examples": [
+    {
+      "name": "Default (89 SMA ±10%)",
+      "setup_config": {
+        "pattern_type": "ma_base_detector_indicator",
+        "ma_period": 89,
+        "ma_type": "SMA",
+        "dev_threshold_pct": 10.0,
+        "min_bars_in_base": 5
+      }
+    },
+    {
+      "name": "Tight Base (50 EMA ±5%)",
+      "setup_config": {
+        "pattern_type": "ma_base_detector_indicator",
+        "ma_period": 50,
+        "ma_type": "EMA",
+        "dev_threshold_pct": 5.0,
+        "min_bars_in_base": 10
+      }
+    },
+    {
+      "name": "Wide Channel (200 SMA ±15%)",
+      "setup_config": {
+        "pattern_type": "ma_base_detector_indicator",
+        "ma_period": 200,
+        "ma_type": "SMA",
+        "dev_threshold_pct": 15.0,
+        "min_bars_in_base": 3
+      }
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 100,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "location"
+}

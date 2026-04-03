@@ -7,6 +7,14 @@ import { Router, Request, Response } from 'express';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import {
+  CacheEnvelope,
+  buildFreshnessInfo,
+  createCacheEnvelope,
+  isFreshTimestamp,
+  readCacheEnvelope,
+  writeCacheEnvelope,
+} from '../services/cacheService';
 
 const router = Router();
 
@@ -14,11 +22,14 @@ const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'universe');
 const MANIFEST_PATH = path.join(DATA_DIR, 'manifest.json');
 const OPTIONABLE_PATH = path.join(DATA_DIR, 'optionable.json');
 const OPTIONABLE_PROGRESS_PATH = path.join(DATA_DIR, 'optionable-progress.json');
+const PRICE_SNAPSHOT_CACHE_PATH = path.join(DATA_DIR, 'prices-cache.json');
 const SERVICES_DIR = path.join(__dirname, '..', '..', 'services');
+const UNIVERSE_MANIFEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const UNIVERSE_PRICE_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Track active job
 interface UniverseJob {
-  type: 'build' | 'update' | 'rebuild_optionable';
+  type: 'build' | 'update' | 'rebuild_optionable' | 'classify_regimes';
   status: 'running' | 'completed' | 'failed';
   started_at: string;
   completed_at?: string;
@@ -54,9 +65,36 @@ interface UniverseJob {
 let activeJob: UniverseJob | null = null;
 let activeProcess: ChildProcess | null = null;
 const MAX_UNIVERSE_LOG_LINES = 400;
-let priceSnapshotCache:
-  | { cacheKey: string; data: Record<string, { last_close: number; end: string | null; source: string }> }
-  | null = null;
+let priceSnapshotCache: CacheEnvelope<Record<string, { last_close: number; end: string | null; source: string }>> | null = null;
+
+type UniversePriceSnapshot = Record<string, { last_close: number; end: string | null; source: string }>;
+
+function parseIsoTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function buildUniverseFreshness(value: string | null | undefined, ttlMs: number) {
+  return buildFreshnessInfo({
+    fetchedAt: parseIsoTimestamp(value),
+    ttlMs,
+    cacheLayer: 'disk',
+  });
+}
+
+async function readPersistedPriceSnapshot(cacheKey: string): Promise<CacheEnvelope<UniversePriceSnapshot> | null> {
+  const parsed = await readCacheEnvelope<UniversePriceSnapshot>(PRICE_SNAPSHOT_CACHE_PATH);
+  if (!parsed || parsed.key !== cacheKey) return null;
+  if (!isFreshTimestamp(parsed.fetchedAt, parsed.ttlMs)) return null;
+  return parsed;
+}
+
+async function persistPriceSnapshot(cacheKey: string, data: UniversePriceSnapshot): Promise<CacheEnvelope<UniversePriceSnapshot>> {
+  const payload = createCacheEnvelope(cacheKey, data, UNIVERSE_PRICE_SNAPSHOT_TTL_MS, 'universePriceSnapshot');
+  await writeCacheEnvelope(PRICE_SNAPSHOT_CACHE_PATH, payload);
+  return payload;
+}
 
 function normalizeUniverseSymbols(values: any): string[] {
   if (!Array.isArray(values)) return [];
@@ -288,17 +326,35 @@ async function readLastCloseFromCsv(filePath: string): Promise<number | null> {
   }
 }
 
-async function buildUniversePriceSnapshot(): Promise<Record<string, { last_close: number; end: string | null; source: string }>> {
+async function buildUniversePriceSnapshot(forceRefresh = false): Promise<{ data: UniversePriceSnapshot; fetchedAt: number; cacheKey: string; cacheLayer: 'memory' | 'disk' | 'refresh' }> {
   const raw = await fs.readFile(MANIFEST_PATH, 'utf-8');
   const manifest = JSON.parse(raw) || {};
   const symbols = manifest.symbols || {};
   const cacheKey = `${manifest.last_updated || manifest.generated_at || ''}:${Object.keys(symbols).length}`;
-  if (priceSnapshotCache?.cacheKey === cacheKey) {
-    return priceSnapshotCache.data;
+  if (!forceRefresh && priceSnapshotCache?.key === cacheKey && isFreshTimestamp(priceSnapshotCache.fetchedAt, priceSnapshotCache.ttlMs)) {
+    return {
+      data: priceSnapshotCache.data,
+      fetchedAt: priceSnapshotCache.fetchedAt,
+      cacheKey,
+      cacheLayer: 'memory',
+    };
+  }
+
+  if (!forceRefresh) {
+    const persisted = await readPersistedPriceSnapshot(cacheKey);
+    if (persisted) {
+      priceSnapshotCache = persisted;
+      return {
+        data: persisted.data,
+        fetchedAt: persisted.fetchedAt,
+        cacheKey,
+        cacheLayer: 'disk',
+      };
+    }
   }
 
   const interval = String(manifest.interval || '1d');
-  const snapshot: Record<string, { last_close: number; end: string | null; source: string }> = {};
+  const snapshot: UniversePriceSnapshot = {};
   const missing: Array<[string, any]> = [];
 
   for (const [symbol, meta] of Object.entries(symbols) as Array<[string, any]>) {
@@ -333,8 +389,9 @@ async function buildUniversePriceSnapshot(): Promise<Record<string, { last_close
     );
   }
 
-  priceSnapshotCache = { cacheKey, data: snapshot };
-  return snapshot;
+  const persisted = await persistPriceSnapshot(cacheKey, snapshot);
+  priceSnapshotCache = persisted;
+  return { data: snapshot, fetchedAt: persisted.fetchedAt, cacheKey, cacheLayer: 'refresh' };
 }
 
 // ─── GET /api/universe/status ─────────────────────────────────────────────────
@@ -433,6 +490,26 @@ router.get('/status', async (req: Request, res: Response) => {
 
     const built = symbolCount > 0;
     const needsUpdate = built && staleCount > 0;
+    const manifestFreshness = buildUniverseFreshness(lastUpdated, UNIVERSE_MANIFEST_TTL_MS);
+    let priceSnapshotFreshness = buildFreshnessInfo({
+      ttlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+      cacheLayer: 'missing',
+      sourceStatus: 'missing',
+    });
+    try {
+      const cacheEntry = await readCacheEnvelope<UniversePriceSnapshot>(PRICE_SNAPSHOT_CACHE_PATH);
+      if (cacheEntry) {
+        priceSnapshotFreshness = buildFreshnessInfo({
+          fetchedAt: cacheEntry.fetchedAt,
+          ttlMs: cacheEntry.ttlMs,
+          cacheLayer: 'disk',
+          cacheKey: cacheEntry.key,
+          version: cacheEntry.version,
+        });
+      }
+    } catch {
+      // no persisted price snapshot yet
+    }
 
     res.json({
       success: true,
@@ -450,6 +527,10 @@ router.get('/status', async (req: Request, res: Response) => {
         last_updated: lastUpdated,
         stale_count: staleCount,
         needs_update: needsUpdate,
+        freshness: {
+          manifest: manifestFreshness,
+          prices: priceSnapshotFreshness,
+        },
         active_job: activeJob ? {
           type: activeJob.type,
           status: activeJob.status,
@@ -495,13 +576,23 @@ router.get('/prices', async (req: Request, res: Response) => {
   }
 
   try {
-    const prices = await buildUniversePriceSnapshot();
+    const forceRefresh = String(req.query.force_refresh || '').trim().toLowerCase() === 'true';
+    const snapshot = await buildUniversePriceSnapshot(forceRefresh);
+    const freshness = buildFreshnessInfo({
+      fetchedAt: snapshot.fetchedAt,
+      ttlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+      cacheLayer: snapshot.cacheLayer,
+      cacheKey: snapshot.cacheKey,
+      version: 1,
+    });
     res.json({
       success: true,
       data: {
-        count: Object.keys(prices).length,
-        prices,
-      }
+        count: Object.keys(snapshot.data).length,
+        prices: snapshot.data,
+        freshness,
+      },
+      freshness,
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -739,6 +830,113 @@ router.post('/update', async (req: Request, res: Response) => {
   });
 
   res.json({ success: true, data: { message: 'Update started.', job: activeJob } });
+});
+
+// ─── POST /api/universe/classify-regimes ─────────────────────────────────────
+// Runs build_regime_universes.py to classify all universe stocks by market phase
+// (expansion / distribution / accumulation / markdown) and save the JSON files.
+router.post('/classify-regimes', async (req: Request, res: Response) => {
+  if (activeJob && activeJob.status === 'running') {
+    return res.status(409).json({
+      success: false,
+      error: `A ${activeJob.type} job is already running. Wait for it to complete.`
+    });
+  }
+
+  const { interval = '1d' } = req.body || {};
+
+  activeJob = {
+    type: 'classify_regimes',
+    status: 'running',
+    started_at: new Date().toISOString(),
+    log: [],
+    progress: 0,
+    progress_label: 'Starting regime classification...',
+    stage: 'classifying',
+    source: 'local_csv',
+    source_label: 'Local CSV cache',
+    lookback: interval,
+    interval: String(interval),
+    workers: 1,
+    min_volume: 0,
+    metrics: {},
+  };
+
+  const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'build_regime_universes.py');
+  const args = ['-u', scriptPath, '--interval', String(interval)];
+
+  activeProcess = spawn('py', args);
+
+  activeProcess.stdout?.on('data', (data: Buffer) => {
+    const lines = data.toString().split('\n').filter(Boolean);
+    for (const line of lines) {
+      // Parse progress from output like "[2000/4440] regimes so far: ..."
+      const progressMatch = line.match(/\[(\d+)\/(\d+)\]/);
+      if (progressMatch && activeJob) {
+        const done = Number(progressMatch[1]);
+        const total = Number(progressMatch[2]);
+        activeJob.progress = Math.round((done / total) * 90);
+        activeJob.progress_label = line.trim();
+      }
+      appendUniverseJobLog(activeJob!, line);
+    }
+  });
+
+  activeProcess.stderr?.on('data', (data: Buffer) => {
+    const lines = data.toString().split('\n').filter(Boolean);
+    for (const line of lines) {
+      appendUniverseJobLog(activeJob!, `[err] ${line}`);
+    }
+  });
+
+  activeProcess.on('close', async (code: number | null) => {
+    if (activeJob) {
+      activeJob.status = code === 0 ? 'completed' : 'failed';
+      activeJob.completed_at = new Date().toISOString();
+      activeJob.progress = code === 0 ? 100 : activeJob.progress;
+      activeJob.progress_label = code === 0 ? 'Regime classification complete.' : `Failed (exit code ${code})`;
+      activeJob.stage = code === 0 ? 'completed' : 'failed';
+      if (code !== 0) {
+        activeJob.error = `Process exited with code ${code}`;
+      }
+
+      // Parse final summary counts from the snapshot file
+      if (code === 0) {
+        try {
+          const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
+          const raw = await fs.readFile(snapshotPath, 'utf-8');
+          const snap = JSON.parse(raw);
+          activeJob.metrics = snap.summary || {};
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
+    activeProcess = null;
+  });
+
+  res.json({ success: true, data: { message: 'Regime classification started.', job: activeJob } });
+});
+
+// ─── GET /api/universe/regime-snapshot ───────────────────────────────────────
+// Returns the latest regime snapshot metadata (counts + generated_at timestamp).
+router.get('/regime-snapshot', async (req: Request, res: Response) => {
+  try {
+    const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
+    const raw = await fs.readFile(snapshotPath, 'utf-8');
+    const snap = JSON.parse(raw);
+    res.json({
+      success: true,
+      data: {
+        generated_at: snap.generated_at,
+        interval: snap.interval,
+        total: snap.total,
+        summary: snap.summary,
+      }
+    });
+  } catch {
+    res.json({ success: true, data: null });
+  }
 });
 
 // ─── DELETE /api/universe/cancel ─────────────────────────────────────────────

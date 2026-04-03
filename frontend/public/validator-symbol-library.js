@@ -7,9 +7,9 @@ const TIER_LABELS = {
   tier3: 'Tier 3 - Robustness',
 };
 const TIER_DESCRIPTIONS = {
-  tier1: 'Fast kill test on a fixed Tier 1 universe. Target evidence: 200-300 trades.',
-  tier2: 'Core validation on a fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires Tier 1 PASS.',
-  tier3: 'Robustness validation on a fixed Tier 3 universe. Stress tests for survivors. Requires Tier 2 PASS.',
+  tier1: 'Fast mixed-cap kill test on 52 stocks: 13 large + 13 mid + 13 small + 13 micro.',
+  tier2: 'Core mixed-cap validation on 200 stocks: 50 large + 50 mid + 50 small + 50 micro. Requires Tier 1 PASS.',
+  tier3: 'Non-overlapping mixed-cap holdout robustness test on 180 stocks: 45 large + 45 mid + 45 small + 45 micro. Requires Tier 2 PASS.',
 };
 const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
   futures: {

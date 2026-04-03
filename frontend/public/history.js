@@ -49,7 +49,7 @@
           timestamp: Date.now(),
         }));
       }
-      window.location.href = 'execution.html';
+      window.location.href = '/execution-desk';
     }
 
     function openPositionPanelAction(id, event) {
@@ -2043,7 +2043,7 @@
       localStorage.setItem('copilotLoadTrade', JSON.stringify(copilotData));
       
       // Navigate to Trading Desk
-      window.location.href = 'copilot.html';
+      window.location.href = '/trading-desk';
     }
     
     // Update option entry premium (what you paid)

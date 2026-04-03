@@ -5,7 +5,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { analyzeChartPattern, checkOllamaStatus, VisionAnalysis, chatWithCopilot } from '../services/visionService';
+import { analyzeChartPattern, checkOllamaStatus, VisionAnalysis, chatWithCopilot, listWorkspaceAnalysts } from '../services/visionService';
 import { ApiResponse } from '../types';
 
 const router = Router();
@@ -26,6 +26,20 @@ router.get('/status', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error.message
+    } as ApiResponse<null>);
+  }
+});
+
+router.get('/analysts', async (_req: Request, res: Response) => {
+  try {
+    res.json({
+      success: true,
+      data: listWorkspaceAnalysts(),
+    } as ApiResponse<ReturnType<typeof listWorkspaceAnalysts>>);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
     } as ApiResponse<null>);
   }
 });
@@ -66,9 +80,9 @@ router.post('/analyze', async (req: Request, res: Response) => {
  */
 router.post('/chat', async (req: Request, res: Response) => {
   try {
-    const { message, context, chartImage, role, aiModel, pluginEngineerModel } = req.body;
+    const { message, context, chartImage, role, analyst, aiModel, pluginEngineerModel } = req.body;
     console.log('[VisionRoute] /api/vision/chat', JSON.stringify({
-      role: role || 'copilot',
+      analyst: analyst || role || 'copilot',
       hasChartImage: !!chartImage,
       chartImageLength: typeof chartImage === 'string' ? chartImage.length : 0,
       aiModel: aiModel || null,
@@ -84,7 +98,7 @@ router.post('/chat', async (req: Request, res: Response) => {
       } as ApiResponse<null>);
     }
     
-    const response = await chatWithCopilot(message, context, chartImage, role, aiModel, pluginEngineerModel);
+    const response = await chatWithCopilot(message, context, chartImage, analyst || role, aiModel, pluginEngineerModel);
     
     res.json({
       success: true,

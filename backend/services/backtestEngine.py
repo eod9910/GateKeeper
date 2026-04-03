@@ -9,12 +9,18 @@ from __future__ import annotations
 import contextlib
 import io
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from strategyRunner import run_strategy
 from platform_sdk.ohlcv import OHLCV
 from platform_sdk.rdp import precompute_rdp_for_backtest
 from plugins.regime_filter import precompute_regime_timeline
+from execution_state import (
+    StrategyState,
+    apply_state_transitions,
+    get_or_create_state,
+    make_state_store,
+)
 
 
 @dataclass
@@ -39,6 +45,104 @@ class TradeResult:
     slippage_applied: float
     setup_type: str
     anchors_snapshot: Dict[str, Any]
+
+
+# ── SPY regime map (built once at module load, used to tag every trade) ────────
+_SPY_REGIME_MAP: Optional[Dict[str, str]] = None
+
+def _build_spy_regime_map() -> Dict[str, str]:
+    """Load SPY daily bars from local cache and classify each date as a regime."""
+    import os
+    import json
+    from datetime import datetime, timedelta
+
+    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    csv_path = os.path.join(data_dir, "universe", "SPY_1d.csv")
+
+    closes: List[float] = []
+    dates: List[str] = []
+
+    if os.path.exists(csv_path):
+        try:
+            with open(csv_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            header = None
+            close_idx = -1
+            date_idx = -1
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(",")
+                if header is None:
+                    header = parts
+                    for i, h in enumerate(header):
+                        h_lower = h.strip().lower()
+                        if h_lower in ("close", "adj close", "adj_close"):
+                            close_idx = i
+                        if h_lower in ("date", "time", "timestamp"):
+                            date_idx = i
+                    continue
+                if close_idx >= 0 and date_idx >= 0:
+                    try:
+                        closes.append(float(parts[close_idx]))
+                        dates.append(parts[date_idx].strip()[:10])
+                    except (ValueError, IndexError):
+                        pass
+        except Exception:
+            pass
+
+    if len(closes) < 210:
+        return {}
+
+    ma_period = 200
+    roc_period = 20
+    regime_map: Dict[str, str] = {}
+
+    for i in range(len(closes)):
+        if i < ma_period - 1 or i < roc_period:
+            continue
+        ma200 = sum(closes[i - ma_period + 1 : i + 1]) / ma_period
+        price = closes[i]
+        roc20 = (price - closes[i - roc_period]) / closes[i - roc_period] * 100 if closes[i - roc_period] > 0 else 0
+        above_ma = price > ma200
+        if above_ma and roc20 > 0:
+            regime = "expansion"
+        elif above_ma and roc20 <= 0:
+            regime = "distribution"
+        elif not above_ma and roc20 > -2:
+            regime = "accumulation"
+        else:
+            regime = "markdown"
+        regime_map[dates[i]] = regime
+
+    return regime_map
+
+
+def _get_spy_regime_map() -> Dict[str, str]:
+    global _SPY_REGIME_MAP
+    if _SPY_REGIME_MAP is None:
+        _SPY_REGIME_MAP = _build_spy_regime_map()
+    return _SPY_REGIME_MAP
+
+
+def _regime_for_date(date_str: str) -> str:
+    """Return SPY regime for a given date, walking back up to 7 days if needed."""
+    from datetime import datetime, timedelta
+    regime_map = _get_spy_regime_map()
+    key = str(date_str)[:10]
+    if key in regime_map:
+        return regime_map[key]
+    # Walk back up to 7 calendar days (for weekends / holidays)
+    try:
+        dt = datetime.strptime(key, "%Y-%m-%d")
+        for delta in range(1, 8):
+            prior = (dt - timedelta(days=delta)).strftime("%Y-%m-%d")
+            if prior in regime_map:
+                return regime_map[prior]
+    except Exception:
+        pass
+    return "unknown"
 
 
 def _safe_float(x: Any, default: float = 0.0) -> float:
@@ -241,6 +345,7 @@ def _entry_signal_indices_from_spec(
     timeframe: str,
     bars: List[Dict[str, Any]],
     spec: Dict[str, Any],
+    state_store: Optional[Dict[str, StrategyState]] = None,
 ) -> set[int]:
     setup_cfg = spec.get("setup_config") or {}
     backtest_cfg = spec.get("backtest_config") or {}
@@ -303,6 +408,18 @@ def _entry_signal_indices_from_spec(
     ohlcv = _bars_to_ohlcv(bars)
     signals: set[int] = set()
 
+    # ── State machine setup ────────────────────────────────────────────────────
+    # Detect whether this strategy has a StateMachineConfig.  When absent the
+    # state-machine path is completely bypassed — no overhead, no behaviour change.
+    _sm_cfg: Optional[Dict[str, Any]] = (
+        (spec.get("setup_config") or {}).get("state_machine") or None
+    )
+    _strategy_version_id: str = str(spec.get("strategy_version_id", "unknown"))
+    _state: Optional[StrategyState] = None
+    if _sm_cfg:
+        _store = state_store if state_store is not None else make_state_store()
+        _state = get_or_create_state(_store, _strategy_version_id, symbol, timeframe)
+
     # ── Precompute RDP on full dataset (Phase 1D optimisation) ────────────────
     # Skip for plugins that don't need structure extraction (e.g. MA crossover).
     # Also skip when the full dataset is much longer than the causal window —
@@ -339,16 +456,51 @@ def _entry_signal_indices_from_spec(
                     pass  # non-fatal
 
     for i in range(min_history, len(ohlcv), window_step):
-        pass  # was: debug print every 100 bars
         window_start = max(0, (i + 1) - causal_window)
         prefix = ohlcv[window_start : i + 1]
         try:
             with contextlib.redirect_stderr(io.StringIO()):
-                candidates = run_strategy(spec, prefix, symbol, timeframe, mode="backtest")
+                candidates = run_strategy(
+                    spec, prefix, symbol, timeframe,
+                    mode="backtest",
+                    strategy_state=_state,
+                )
         except NotImplementedError:
-            # Fallback for older runner behavior.
             with contextlib.redirect_stderr(io.StringIO()):
-                candidates = run_strategy(spec, prefix, symbol, timeframe, mode="scan")
+                candidates = run_strategy(
+                    spec, prefix, symbol, timeframe,
+                    mode="scan",
+                    strategy_state=_state,
+                )
+
+        # ── State machine path ─────────────────────────────────────────────
+        if _sm_cfg is not None and _state is not None:
+            primitive_results = None
+            if candidates:
+                aggregated: Dict[str, List[Dict[str, Any]]] = {}
+                for candidate in candidates:
+                    stage_results = candidate.get("_primitive_results")
+                    if not isinstance(stage_results, dict):
+                        continue
+                    for primitive_id, primitive_candidates in stage_results.items():
+                        if not isinstance(primitive_candidates, list):
+                            continue
+                        aggregated.setdefault(str(primitive_id), []).extend(primitive_candidates)
+                if aggregated:
+                    primitive_results = aggregated
+            emit_signal = apply_state_transitions(
+                _state,
+                _sm_cfg,
+                candidates or [],
+                bar_index=i,
+                all_primitive_results=primitive_results,
+            )
+            if emit_signal:
+                signals.add(i)
+            # Do NOT fall through to the stateless path when sm_cfg is active.
+            continue
+
+        # ── Stateless path (unchanged) ─────────────────────────────────────
         if not candidates:
             continue
 
@@ -499,7 +651,10 @@ def run_backtest_on_bars(
         return [], stats
 
     cfg = get_backtest_config(spec)
-    signal_indices = signal_indices or _entry_signal_indices_from_spec(symbol, timeframe, bars, spec)
+    _state_store = make_state_store()
+    signal_indices = signal_indices or _entry_signal_indices_from_spec(
+        symbol, timeframe, bars, spec, state_store=_state_store
+    )
     if not signal_indices:
         return [], stats
 
@@ -731,6 +886,7 @@ def trades_to_dicts(trades: List[TradeResult], report_id: str, strategy_version_
                 "slippage_applied": t.slippage_applied,
                 "setup_type": t.setup_type,
                 "anchors_snapshot": t.anchors_snapshot,
+                "regime_at_entry": _regime_for_date(t.entry_time),
             }
         )
     return out

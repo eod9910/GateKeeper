@@ -6,6 +6,7 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { ApiResponse } from '../types';
 import { normalizeDefinitionTunableParams } from '../services/parameterManifest';
+import { normalizePrimitiveCatalogMetadata } from '../services/primitiveNormalization';
 import {
   normalizePatternId,
   validatePluginRegisterPayload,
@@ -20,6 +21,7 @@ const router = Router();
 const PATTERNS_DIR = path.join(__dirname, '..', '..', 'data', 'patterns');
 const SERVICES_DIR = path.join(__dirname, '..', '..', 'services');
 const BASE_METHOD_TOMBSTONES_FILE = path.join(__dirname, '..', '..', 'data', 'research', 'base-method-tombstones.json');
+const SCANNER_FAVORITES_FILE = path.join(__dirname, '..', '..', 'data', 'preferences', 'scanner-favorites.json');
 
 // Port declarations for pipeline DAG mode (mirrors port_types.py)
 const PORT_DECLARATIONS: Record<string, { inputs: Record<string, string>; outputs: Record<string, string> }> = {
@@ -88,6 +90,14 @@ type PatternRegistryEntry = {
   composition?: string;
   indicator_role?: string;
   pattern_role?: string;
+  library_tier?: string;
+  autonomy_safe?: boolean;
+  state_compatible?: boolean;
+  cost_class?: string;
+  search_tags?: string[];
+  source_kind?: string;
+  canonical_role?: string | null;
+  scanner_favorite?: boolean;
 };
 
 type PatternRegistry = {
@@ -187,6 +197,42 @@ async function writeRegistry(registry: PatternRegistry): Promise<void> {
   await fsp.writeFile(REGISTRY_FILE, JSON.stringify(registry, null, 2), 'utf-8');
 }
 
+async function readPatternDefinition(entry: Pick<PatternRegistryEntry, 'definition_file'>): Promise<Record<string, unknown>> {
+  const definitionFile = String(entry?.definition_file || '').trim();
+  if (!definitionFile) return {};
+  const definitionPath = path.join(PATTERNS_DIR, definitionFile);
+  if (!isWithin(PATTERNS_DIR, definitionPath) || !fs.existsSync(definitionPath)) return {};
+  try {
+    const raw = await fsp.readFile(definitionPath, 'utf-8');
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+async function enrichRegistryEntry(entry: PatternRegistryEntry): Promise<PatternRegistryEntry> {
+  const definition = await readPatternDefinition(entry);
+  const normalizedMeta = normalizePrimitiveCatalogMetadata(entry, definition);
+  return {
+    ...entry,
+    name: String(definition.name || entry.name || entry.pattern_id),
+    category: String(definition.category || entry.category || 'custom'),
+    status: String(definition.status || entry.status || 'unknown'),
+    artifact_type: String(definition.artifact_type || entry.artifact_type || 'indicator'),
+    composition: String(definition.composition || entry.composition || 'composite'),
+    indicator_role: String(definition.indicator_role || entry.indicator_role || '').trim() || undefined,
+    pattern_role: String(definition.pattern_role || entry.pattern_role || '').trim() || undefined,
+    canonical_role: normalizedMeta.canonical_role,
+    library_tier: normalizedMeta.library_tier,
+    autonomy_safe: normalizedMeta.autonomy_safe,
+    state_compatible: normalizedMeta.state_compatible,
+    cost_class: normalizedMeta.cost_class,
+    search_tags: normalizedMeta.search_tags,
+    source_kind: normalizedMeta.source_kind,
+    scanner_favorite: entry.scanner_favorite === true,
+  };
+}
+
 type BaseMethodTombstoneEntry = {
   pattern_id: string;
   name?: string;
@@ -199,6 +245,17 @@ type BaseMethodTombstoneStore = {
   schema_version: number;
   updated_at: string | null;
   entries: BaseMethodTombstoneEntry[];
+};
+
+type ScannerFavoriteEntry = {
+  pattern_id: string;
+  favorited_at: string;
+};
+
+type ScannerFavoriteStore = {
+  schema_version: number;
+  updated_at: string | null;
+  entries: ScannerFavoriteEntry[];
 };
 
 async function ensureBaseMethodTombstones(): Promise<BaseMethodTombstoneStore> {
@@ -236,6 +293,40 @@ async function writeBaseMethodTombstones(store: BaseMethodTombstoneStore): Promi
   await fsp.writeFile(BASE_METHOD_TOMBSTONES_FILE, JSON.stringify(store, null, 2), 'utf-8');
 }
 
+async function ensureScannerFavorites(): Promise<ScannerFavoriteStore> {
+  const dir = path.dirname(SCANNER_FAVORITES_FILE);
+  await fsp.mkdir(dir, { recursive: true });
+  if (!fs.existsSync(SCANNER_FAVORITES_FILE)) {
+    const seed: ScannerFavoriteStore = {
+      schema_version: 1,
+      updated_at: null,
+      entries: [],
+    };
+    await fsp.writeFile(SCANNER_FAVORITES_FILE, JSON.stringify(seed, null, 2), 'utf-8');
+    return seed;
+  }
+  try {
+    const raw = await fsp.readFile(SCANNER_FAVORITES_FILE, 'utf-8');
+    const parsed = JSON.parse(raw) as Partial<ScannerFavoriteStore>;
+    return {
+      schema_version: 1,
+      updated_at: parsed.updated_at || null,
+      entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+    };
+  } catch {
+    return {
+      schema_version: 1,
+      updated_at: null,
+      entries: [],
+    };
+  }
+}
+
+async function writeScannerFavorites(store: ScannerFavoriteStore): Promise<void> {
+  store.updated_at = new Date().toISOString();
+  await fsp.writeFile(SCANNER_FAVORITES_FILE, JSON.stringify(store, null, 2), 'utf-8');
+}
+
 function extractLastJsonObject(stdout: string): unknown | null {
   const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i -= 1) {
@@ -252,7 +343,23 @@ function extractLastJsonObject(stdout: string): unknown | null {
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const registry = await ensureRegistry();
-    res.json({ success: true, data: registry } as ApiResponse<PatternRegistry>);
+    const favorites = await ensureScannerFavorites();
+    const favoriteIds = new Set(
+      (favorites.entries || []).map((entry) => String(entry?.pattern_id || '').trim()).filter(Boolean),
+    );
+    const enrichedPatterns = await Promise.all((registry.patterns || []).map((pattern) =>
+      enrichRegistryEntry({
+        ...pattern,
+        scanner_favorite: favoriteIds.has(String(pattern.pattern_id || '').trim()),
+      }),
+    ));
+    res.json({
+      success: true,
+      data: {
+        ...registry,
+        patterns: enrichedPatterns,
+      },
+    } as ApiResponse<PatternRegistry>);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
   }
@@ -266,10 +373,17 @@ router.get('/primitives', async (_req: Request, res: Response) => {
       pattern_id: string;
       name: string;
       indicator_role: string;
+      canonical_role: string | null;
       description: string;
       composition: string;
       artifact_type: string;
       category: string;
+      library_tier: string;
+      autonomy_safe: boolean;
+      state_compatible: boolean;
+      cost_class: string;
+      search_tags: string[];
+      source_kind: string;
       tunable_params: Array<Record<string, unknown>>;
       default_setup_params: Record<string, unknown>;
       port_inputs: Record<string, string>;
@@ -309,15 +423,23 @@ router.get('/primitives', async (_req: Request, res: Response) => {
 
       const patternId = String(pattern.pattern_id);
       const portDecl = PORT_DECLARATIONS[patternId] || { inputs: {}, outputs: {} };
+      const normalizedMeta = normalizePrimitiveCatalogMetadata(pattern, definition);
 
       primitives.push({
         pattern_id: patternId,
         name: String((definition as any).name || pattern.name || pattern.pattern_id),
         indicator_role: String((definition as any).indicator_role || 'unknown'),
+        canonical_role: normalizedMeta.canonical_role,
         description: String((definition as any).description || ''),
         composition,
         artifact_type: artifactType,
         category: String((definition as any).category || pattern.category || 'custom'),
+        library_tier: normalizedMeta.library_tier,
+        autonomy_safe: normalizedMeta.autonomy_safe,
+        state_compatible: normalizedMeta.state_compatible,
+        cost_class: normalizedMeta.cost_class,
+        search_tags: normalizedMeta.search_tags,
+        source_kind: normalizedMeta.source_kind,
         tunable_params: tunableParams,
         default_setup_params: defaultSetupParams,
         port_inputs: { data: 'PriceData', ...portDecl.inputs },
@@ -344,7 +466,14 @@ router.get('/patterns', async (_req: Request, res: Response) => {
       artifact_type: string;
       category: string;
       indicator_role: string;
+      canonical_role: string | null;
       pattern_role: string;
+      library_tier: string;
+      autonomy_safe: boolean;
+      state_compatible: boolean;
+      cost_class: string;
+      search_tags: string[];
+      source_kind: string;
       port_inputs: Record<string, string>;
       port_outputs: Record<string, string>;
     }> = [];
@@ -368,6 +497,7 @@ router.get('/patterns', async (_req: Request, res: Response) => {
 
       const artifactType = String((definition as any).artifact_type || (pattern as any).artifact_type || 'pattern')
         .trim().toLowerCase();
+      const normalizedMeta = normalizePrimitiveCatalogMetadata(pattern, definition);
 
       patterns.push({
         pattern_id: String(pattern.pattern_id),
@@ -377,7 +507,14 @@ router.get('/patterns', async (_req: Request, res: Response) => {
         artifact_type: artifactType,
         category: String((definition as any).category || pattern.category || 'custom'),
         indicator_role: String((definition as any).indicator_role || '').trim(),
+        canonical_role: normalizedMeta.canonical_role,
         pattern_role: String((definition as any).pattern_role || (pattern as any).pattern_role || '').trim(),
+        library_tier: normalizedMeta.library_tier,
+        autonomy_safe: normalizedMeta.autonomy_safe,
+        state_compatible: normalizedMeta.state_compatible,
+        cost_class: normalizedMeta.cost_class,
+        search_tags: normalizedMeta.search_tags,
+        source_kind: normalizedMeta.source_kind,
         port_inputs: { data: 'PriceData' },
         port_outputs: { signal: 'Signal', pattern_result: 'PatternResult' },
       });
@@ -395,8 +532,14 @@ router.get('/scanner/options', async (_req: Request, res: Response) => {
   try {
     const registry = await ensureRegistry();
     const tombstones = await ensureBaseMethodTombstones();
+    const favorites = await ensureScannerFavorites();
     const tombstonedIds = new Set(
       (tombstones.entries || [])
+        .map((entry) => String(entry?.pattern_id || '').trim())
+        .filter(Boolean),
+    );
+    const favoriteIds = new Set(
+      (favorites.entries || [])
         .map((entry) => String(entry?.pattern_id || '').trim())
         .filter(Boolean),
     );
@@ -408,7 +551,13 @@ router.get('/scanner/options', async (_req: Request, res: Response) => {
       status: string;
       artifact_type: string;
       composition: string;
+      canonical_role: string | null;
+      library_tier: string;
+      autonomy_safe: boolean;
+      state_compatible: boolean;
+      cost_class: string;
       tombstoned: boolean;
+      scanner_favorite: boolean;
     }> = [];
 
     for (const pattern of registry.patterns || []) {
@@ -432,6 +581,7 @@ router.get('/scanner/options', async (_req: Request, res: Response) => {
       const patternType = String(
         setup.pattern_type || definition.pattern_type || pattern.pattern_id
       ).trim() || String(pattern.pattern_id);
+      const normalizedMeta = normalizePrimitiveCatalogMetadata(pattern, definition);
 
       options.push({
         pattern_id: String(pattern.pattern_id),
@@ -441,7 +591,13 @@ router.get('/scanner/options', async (_req: Request, res: Response) => {
         status: String(pattern.status || definition.status || 'unknown'),
         artifact_type: String((pattern as any).artifact_type || (definition as any).artifact_type || 'indicator'),
         composition: String((pattern as any).composition || (definition as any).composition || 'composite'),
+        canonical_role: normalizedMeta.canonical_role,
+        library_tier: normalizedMeta.library_tier,
+        autonomy_safe: normalizedMeta.autonomy_safe,
+        state_compatible: normalizedMeta.state_compatible,
+        cost_class: normalizedMeta.cost_class,
         tombstoned: tombstonedIds.has(String(pattern.pattern_id)),
+        scanner_favorite: favoriteIds.has(String(pattern.pattern_id)),
       });
     }
 
@@ -454,6 +610,58 @@ router.get('/scanner/options', async (_req: Request, res: Response) => {
     res.json({ success: true, data: options });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
+router.get('/scanner/favorites', async (_req: Request, res: Response) => {
+  try {
+    const store = await ensureScannerFavorites();
+    return res.json({ success: true, data: store } as ApiResponse<ScannerFavoriteStore>);
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
+router.post('/scanner/favorites', async (req: Request, res: Response) => {
+  try {
+    const patternId = String(req.body?.patternId || req.body?.pattern_id || '').trim();
+    const favorite = req.body?.favorite !== false;
+    if (!patternId) {
+      return res.status(400).json({ success: false, error: 'patternId is required' } as ApiResponse<null>);
+    }
+
+    const registry = await ensureRegistry();
+    const exists = (registry.patterns || []).some((p) => String(p?.pattern_id || '').trim() === patternId);
+    if (!exists) {
+      return res.status(404).json({ success: false, error: 'Pattern not found' } as ApiResponse<null>);
+    }
+
+    const store = await ensureScannerFavorites();
+    const existingIdx = (store.entries || []).findIndex((entry) => String(entry?.pattern_id || '').trim() === patternId);
+    if (favorite) {
+      const nextEntry: ScannerFavoriteEntry = {
+        pattern_id: patternId,
+        favorited_at: new Date().toISOString(),
+      };
+      if (existingIdx >= 0) {
+        store.entries[existingIdx] = nextEntry;
+      } else {
+        store.entries.push(nextEntry);
+      }
+    } else if (existingIdx >= 0) {
+      store.entries.splice(existingIdx, 1);
+    }
+    await writeScannerFavorites(store);
+
+    return res.json({
+      success: true,
+      data: {
+        pattern_id: patternId,
+        scanner_favorite: favorite,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
   }
 });
 
@@ -502,6 +710,29 @@ router.post('/scanner/tombstones', async (req: Request, res: Response) => {
   }
 });
 
+router.delete('/scanner/tombstones/:patternId', async (req: Request, res: Response) => {
+  try {
+    const patternId = String(req.params.patternId || '').trim();
+    if (!patternId) {
+      return res.status(400).json({ success: false, error: 'patternId is required' } as ApiResponse<null>);
+    }
+
+    const store = await ensureBaseMethodTombstones();
+    const before = store.entries.length;
+    store.entries = store.entries.filter(
+      (entry) => String(entry?.pattern_id || '').trim() !== patternId,
+    );
+    if (store.entries.length === before) {
+      return res.status(404).json({ success: false, error: `No tombstone found for ${patternId}` } as ApiResponse<null>);
+    }
+    await writeBaseMethodTombstones(store);
+
+    return res.json({ success: true, data: { restored: patternId } });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
 // GET /api/plugins/chart-indicators
 // Returns registered indicators/composites formatted for the Chart Indicators panel.
 // Excludes patterns (not visual). Includes chart_indicator flag from definitions.
@@ -516,6 +747,11 @@ router.get('/chart-indicators', async (_req: Request, res: Response) => {
       backend: boolean;
       colors: string[];
       indicator_role?: string;
+      canonical_role?: string | null;
+      library_tier?: string;
+      autonomy_safe?: boolean;
+      state_compatible?: boolean;
+      cost_class?: string;
       composition?: string;
     }> = [];
 
@@ -545,6 +781,7 @@ router.get('/chart-indicators', async (_req: Request, res: Response) => {
       if (!isChartIndicator) continue;
 
       const role = String((pattern as any).indicator_role || (definition as any).indicator_role || '').toLowerCase();
+      const normalizedMeta = normalizePrimitiveCatalogMetadata(pattern, definition);
 
       // Map to chart indicator category
       let category = 'user_composite';
@@ -564,6 +801,11 @@ router.get('/chart-indicators', async (_req: Request, res: Response) => {
         backend: true,
         colors: ['#6366f1'],
         indicator_role: role || undefined,
+        canonical_role: normalizedMeta.canonical_role || undefined,
+        library_tier: normalizedMeta.library_tier,
+        autonomy_safe: normalizedMeta.autonomy_safe,
+        state_compatible: normalizedMeta.state_compatible,
+        cost_class: normalizedMeta.cost_class,
         composition: composition || undefined,
       });
     }
@@ -891,14 +1133,26 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const entry: PatternRegistryEntry = {
       pattern_id: assignedPatternId,
-      name: String((definition as Record<string, unknown>).name || assignedPatternId),
+      name: String(normalizedDefinition.name || assignedPatternId),
       category: validation.category,
       definition_file: definitionFile,
-      status: String((definition as Record<string, unknown>).status || 'experimental'),
+      status: String(normalizedDefinition.status || 'experimental'),
       artifact_type: validation.artifactType,
       composition: validation.composition,
-      indicator_role: String((definition as Record<string, unknown>).indicator_role || '').trim() || undefined,
-      pattern_role: String((definition as Record<string, unknown>).pattern_role || '').trim() || undefined,
+      indicator_role: String(normalizedDefinition.indicator_role || '').trim() || undefined,
+      pattern_role: String(normalizedDefinition.pattern_role || '').trim() || undefined,
+      library_tier: String(normalizedDefinition.library_tier || '').trim() || undefined,
+      autonomy_safe: typeof normalizedDefinition.autonomy_safe === 'boolean'
+        ? normalizedDefinition.autonomy_safe as boolean
+        : undefined,
+      state_compatible: typeof normalizedDefinition.state_compatible === 'boolean'
+        ? normalizedDefinition.state_compatible as boolean
+        : undefined,
+      cost_class: String(normalizedDefinition.cost_class || '').trim() || undefined,
+      search_tags: Array.isArray(normalizedDefinition.search_tags)
+        ? normalizedDefinition.search_tags.map((tag) => String(tag).trim()).filter(Boolean)
+        : undefined,
+      source_kind: String(normalizedDefinition.source_kind || '').trim() || undefined,
     };
 
     if (existingIdx >= 0 && overwrite) {
@@ -981,8 +1235,26 @@ router.get('/:id', async (req: Request, res: Response) => {
     const definitionPath = path.join(PATTERNS_DIR, pattern.definition_file);
     const definitionRaw = await fsp.readFile(definitionPath, 'utf-8');
     const definition = JSON.parse(definitionRaw);
+    const normalizedMeta = normalizePrimitiveCatalogMetadata(pattern, definition);
+    const favorites = await ensureScannerFavorites();
+    const favoriteIds = new Set(
+      (favorites.entries || []).map((entry) => String(entry?.pattern_id || '').trim()).filter(Boolean),
+    );
 
-    return res.json({ success: true, data: definition });
+    return res.json({
+      success: true,
+      data: {
+        ...definition,
+        canonical_role: normalizedMeta.canonical_role,
+        library_tier: normalizedMeta.library_tier,
+        autonomy_safe: normalizedMeta.autonomy_safe,
+        state_compatible: normalizedMeta.state_compatible,
+        cost_class: normalizedMeta.cost_class,
+        search_tags: normalizedMeta.search_tags,
+        source_kind: normalizedMeta.source_kind,
+        scanner_favorite: favoriteIds.has(patternId),
+      },
+    });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
   }
@@ -1037,8 +1309,20 @@ router.put('/:patternId/definition', async (req: Request, res: Response) => {
 
     await fsp.writeFile(defPath, JSON.stringify(safe, null, 2), 'utf-8');
 
-    // Mirror name, category, status into registry
-    for (const field of ['name', 'category', 'status'] as const) {
+    // Mirror catalog metadata into registry so consumers can read it without opening each definition file.
+    for (const field of [
+      'name',
+      'category',
+      'status',
+      'indicator_role',
+      'pattern_role',
+      'library_tier',
+      'autonomy_safe',
+      'state_compatible',
+      'cost_class',
+      'search_tags',
+      'source_kind',
+    ] as const) {
       if (safe[field] !== undefined) {
         (entry as Record<string, unknown>)[field] = safe[field];
       }

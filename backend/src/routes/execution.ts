@@ -1,6 +1,4 @@
 import { Router, Request, Response } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
 import * as bridge from '../services/executionBridge';
 import * as broker from '../services/brokerClient';
 import * as logger from '../services/executionLogger';
@@ -23,41 +21,24 @@ import {
   providerSupportsManualExternal,
   updateManualExternalPosition,
 } from '../services/manualExternalPositions';
+import {
+  syncExecutionPositionsToPositionBook,
+  syncPositionBookToExecutionMirror,
+} from '../services/positionMirrorService';
+import {
+  loadExecutionSettings,
+  saveExecutionSettings,
+  type ExecutionSettings,
+} from '../services/executionSettings';
 
 const router = Router();
 
-const SETTINGS_PATH = path.join(__dirname, '..', '..', 'data', 'execution-settings.json');
-
-interface ExecutionSettings {
-  execution_broker_provider?: 'alpaca' | 'oanda';
-  broker_provider?: 'alpaca' | 'oanda';
-  alpaca_api_key?: string;
-  alpaca_secret_key?: string;
-  alpaca_base_url?: string;
-  alpaca_mode?: 'paper' | 'live';
-  oanda_api_token?: string;
-  oanda_account_id?: string;
-  oanda_environment?: 'practice' | 'live';
-  oanda_base_url?: string;
-  robinhood_username?: string;
-  robinhood_password?: string;
-  robinhood_totp_secret?: string;
-  robinhood_session_path?: string;
-}
-
 function loadSettings(): ExecutionSettings | null {
-  try {
-    if (fs.existsSync(SETTINGS_PATH)) {
-      return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
-    }
-  } catch { /* ignore */ }
-  return null;
+  return loadExecutionSettings();
 }
 
 function saveSettings(settings: ExecutionSettings): void {
-  const dir = path.dirname(SETTINGS_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
+  saveExecutionSettings(settings);
 }
 
 function maskKey(key: string): string {
@@ -163,6 +144,32 @@ function mergeManualExternalPositionsIntoConnectedBrokers(
 }
 
 router.get('/status', async (_req: Request, res: Response) => {
+  // Robinhood position fetch can hang; cap the whole status call at 20s so the
+  // Execution Desk always gets a response even when Robinhood is slow/down.
+  const TIMEOUT_MS = 20_000;
+  let settled = false;
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    clearRobinhoodConnectedStatusCache();
+    const status = bridge.getBridgeStatus();
+    const executionBrokerProvider = broker.getExecutionBrokerProvider();
+    res.status(200).json({
+      success: true,
+      data: {
+        ...status,
+        execution_broker_provider: executionBrokerProvider,
+        broker_provider: executionBrokerProvider,
+        broker_capabilities: broker.getBrokerCapabilities(executionBrokerProvider),
+        connected_brokers: [],
+        default_import_strategy_version_id: null,
+        account: null,
+        broker_positions: [],
+        _broker_timeout: true,
+      },
+    });
+  }, TIMEOUT_MS);
+
   try {
     const status = bridge.getBridgeStatus();
     const executionBrokerProvider = broker.getExecutionBrokerProvider();
@@ -177,6 +184,15 @@ router.get('/status', async (_req: Request, res: Response) => {
     const baseConnectedBrokerStatuses = robinhoodStatus
       ? [...connectedBrokerStatuses, robinhoodStatus]
       : connectedBrokerStatuses;
+    try {
+      await syncPositionBookToExecutionMirror({
+        executionBrokerProvider,
+        bridgeState: status.state,
+        connectedBrokers: baseConnectedBrokerStatuses as any,
+      });
+    } catch (syncErr) {
+      console.warn('position-book to execution sync failed', syncErr);
+    }
     const allConnectedBrokerStatuses = mergeManualExternalPositionsIntoConnectedBrokers(baseConnectedBrokerStatuses, currentSettings);
     const enriched = await enrichConnectedBrokerStatuses({
       executionBrokerProvider,
@@ -184,7 +200,19 @@ router.get('/status', async (_req: Request, res: Response) => {
       state: status.state,
       connectedBrokers: allConnectedBrokerStatuses,
     });
+    try {
+      await syncExecutionPositionsToPositionBook({
+        executionBrokerProvider,
+        bridgeState: status.state,
+        connectedBrokers: enriched.connectedBrokers,
+      });
+    } catch (syncErr) {
+      console.warn('execution to position-book sync failed', syncErr);
+    }
     const executionBroker = enriched.connectedBrokers.find((entry) => entry.provider === executionBrokerProvider) || null;
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
     res.json({
       success: true,
       data: {
@@ -199,6 +227,9 @@ router.get('/status', async (_req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
     res.status(500).json({ success: false, error: err?.message || String(err) });
   }
 });
@@ -255,13 +286,22 @@ router.post('/kill', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/scan', async (_req: Request, res: Response) => {
+router.post('/scan', async (req: Request, res: Response) => {
   try {
-    await bridge.triggerManualScan();
+    const universeKey = req.body?.universe_key || 'auto';
+    // Run async — don't await, so the client gets an immediate response
+    // and can poll /scan-progress for live status
+    bridge.triggerManualScan(universeKey).catch((err) => {
+      console.error('[scan route]', err?.message || String(err));
+    });
     res.json({ success: true, data: bridge.getBridgeStatus() });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err?.message || String(err) });
   }
+});
+
+router.get('/scan-progress', (_req: Request, res: Response) => {
+  res.json({ success: true, data: bridge.getScanProgress() });
 });
 
 router.post('/repair-exits', async (req: Request, res: Response) => {

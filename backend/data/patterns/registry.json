@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated_at": "2026-03-17T02:18:41.167Z",
+  "updated_at": "2026-03-18T06:26:41.108Z",
   "categories": [
     {
       "id": "chart_patterns",
@@ -57,7 +57,13 @@
       "status": "stable",
       "artifact_type": "indicator",
       "composition": "primitive",
-      "indicator_role": "timing_trigger"
+      "indicator_role": "timing_trigger",
+      "library_tier": "core_stable",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "cheap",
+      "search_tags": ["moving_average", "ma", "sma", "ema", "crossover", "trend", "timing"],
+      "source_kind": "imported"
     },
     {
       "pattern_id": "fib_location_primitive",
@@ -67,7 +73,65 @@
       "status": "experimental",
       "artifact_type": "indicator",
       "composition": "primitive",
+      "indicator_role": "location",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "moderate",
+      "search_tags": ["fib", "fibonacci", "retracement", "location", "pullback"],
+      "source_kind": "custom"
+    },
+    {
+      "pattern_id": "atr_primitive",
+      "name": "ATR (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "atr_primitive.json",
+      "status": "stable",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "context",
+      "library_tier": "core_stable",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "cheap",
+      "search_tags": ["atr", "average_true_range", "volatility", "context", "risk"],
+      "source_kind": "imported"
+    },
+    {
+      "pattern_id": "ma_base_detector_primitive",
+      "name": "MA Base Detector (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "ma_base_detector_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
       "indicator_role": "location"
+    },
+    {
+      "pattern_id": "ma_base_detector_indicator",
+      "name": "MA Base Detector",
+      "category": "indicator_signals",
+      "definition_file": "ma_base_detector_indicator.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "location"
+    },
+    {
+      "pattern_id": "fundamental_quality_filter_primitive",
+      "name": "Fundamental Quality Filter",
+      "category": "indicator_signals",
+      "definition_file": "fundamental_quality_filter_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "regime_state",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": false,
+      "state_compatible": true,
+      "cost_class": "moderate",
+      "search_tags": ["fundamental", "quality", "survivability", "growth", "filter"],
+      "source_kind": "custom"
     },
     {
       "pattern_id": "energy_state_primitive",
@@ -97,7 +161,13 @@
       "status": "experimental",
       "artifact_type": "indicator",
       "composition": "primitive",
-      "indicator_role": "regime_state"
+      "indicator_role": "regime_state",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "moderate",
+      "search_tags": ["regime", "trend", "dow_theory", "filter", "reference_symbol"],
+      "source_kind": "custom"
     },
     {
       "pattern_id": "rdp_swing_structure",
@@ -127,13 +197,35 @@
       "status": "stable",
       "artifact_type": "indicator",
       "composition": "primitive",
-      "indicator_role": "timing_trigger"
+      "indicator_role": "timing_trigger",
+      "library_tier": "core_stable",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "cheap",
+      "search_tags": ["rsi", "momentum", "oscillator", "oversold", "overbought", "timing"],
+      "source_kind": "imported"
     },
     {
       "pattern_id": "macd_primitive",
       "name": "MACD (Primitive)",
       "category": "indicator_signals",
       "definition_file": "macd_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "timing_trigger",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "cheap",
+      "search_tags": ["macd", "momentum", "crossover", "trend", "timing"],
+      "source_kind": "imported"
+    },
+    {
+      "pattern_id": "sr_score",
+      "name": "SR Score",
+      "category": "indicator_signals",
+      "definition_file": "sr_score_primitive.json",
       "status": "experimental",
       "artifact_type": "indicator",
       "composition": "primitive",
@@ -317,7 +409,13 @@
       "status": "active",
       "artifact_type": "indicator",
       "composition": "primitive",
-      "indicator_role": "timing_trigger"
+      "indicator_role": "timing_trigger",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "cheap",
+      "search_tags": ["macd", "histogram", "momentum", "zero_cross", "timing"],
+      "source_kind": "native"
     },
     {
       "pattern_id": "pullback_uptrend_entry_composite",
@@ -414,7 +512,7 @@
       "name": "Head and Shoulders (Pattern)",
       "category": "chart_patterns",
       "definition_file": "head_shoulders_context_pattern.json",
-      "status": "rejected",
+      "status": "experimental",
       "artifact_type": "pattern",
       "composition": "monolithic",
       "pattern_role": "reversal_structure_pattern"
@@ -424,10 +522,20 @@
       "name": "Three Drives Pattern",
       "category": "chart_patterns",
       "definition_file": "three_drives_pattern.json",
-      "status": "rejected",
+      "status": "experimental",
       "artifact_type": "pattern",
       "composition": "monolithic",
       "pattern_role": "reversal_structure_pattern"
+    },
+    {
+      "pattern_id": "hs_pullback_continuation",
+      "name": "H&S Pullback Continuation (Long)",
+      "category": "chart_patterns",
+      "definition_file": "hs_pullback_continuation.json",
+      "status": "experimental",
+      "artifact_type": "pattern",
+      "composition": "monolithic",
+      "pattern_role": "continuation_pullback_pattern"
     },
     {
       "pattern_id": "structural_family_signal",
@@ -437,7 +545,23 @@
       "status": "experimental",
       "artifact_type": "indicator",
       "composition": "primitive",
-      "indicator_role": "timing_trigger"
+      "indicator_role": "anchor_structure",
+      "library_tier": "research_only",
+      "autonomy_safe": false,
+      "state_compatible": true,
+      "cost_class": "expensive",
+      "search_tags": ["structure", "family", "motif", "atr_pivot", "research"],
+      "source_kind": "custom"
+    },
+    {
+      "pattern_id": "lth_continuation_composite",
+      "name": "LTH Continuation Composite",
+      "category": "indicator_signals",
+      "definition_file": "lth_continuation_composite.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "composite",
+      "indicator_role": "entry_composite"
     }
   ]
 }

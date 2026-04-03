@@ -125,5 +125,11 @@
   ],
   "artifact_type": "indicator",
   "composition": "primitive",
-  "indicator_role": "timing_trigger"
+  "indicator_role": "timing_trigger",
+  "library_tier": "core_stable",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "cheap",
+  "search_tags": ["rsi", "momentum", "oscillator", "oversold", "overbought", "timing"],
+  "source_kind": "imported"
 }

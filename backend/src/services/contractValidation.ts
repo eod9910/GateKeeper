@@ -3,6 +3,8 @@ import {
   FundamentalsTone,
   FundamentalsEarningsHistoryRow,
   FundamentalsForwardExpectations,
+  FundamentalsHistoricalStatementRow,
+  FundamentalsHistoricalStatements,
   FundamentalsInsiderTrade,
   FundamentalsInstitutionalHolder,
   FundamentalsMarketContext,
@@ -173,6 +175,39 @@ function sanitizeOwnership(value: unknown): FundamentalsOwnership | null {
       ? obj.topInstitutionalHolders
         .map(sanitizeInstitutionalHolder)
         .filter((row): row is FundamentalsInstitutionalHolder => Boolean(row))
+      : [],
+  };
+}
+
+function sanitizeHistoricalStatementRow(value: unknown): FundamentalsHistoricalStatementRow | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const rawMetrics = asObject(obj.metrics);
+  const metrics: Record<string, number | null> = {};
+  if (rawMetrics) {
+    for (const [key, rawValue] of Object.entries(rawMetrics)) {
+      const normalizedKey = String(key || '').trim();
+      if (!normalizedKey) continue;
+      metrics[normalizedKey] = asNullableNumber(rawValue);
+    }
+  }
+  return {
+    period: asNullableString(obj.period),
+    periodEnd: asNullableString(obj.periodEnd),
+    availableAt: asNullableString(obj.availableAt),
+    availabilityBasis: asNullableString(obj.availabilityBasis),
+    metrics,
+  };
+}
+
+function sanitizeHistoricalStatements(value: unknown): FundamentalsHistoricalStatements | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  return {
+    quarterly: Array.isArray(obj.quarterly)
+      ? obj.quarterly
+        .map(sanitizeHistoricalStatementRow)
+        .filter((row): row is FundamentalsHistoricalStatementRow => Boolean(row))
       : [],
   };
 }
@@ -482,6 +517,7 @@ export function normalizeFundamentalsSnapshot(payload: unknown): FundamentalsSna
     positioning: sanitizePositioning(obj.positioning),
     marketContext: sanitizeMarketContext(obj.marketContext),
     ownership: sanitizeOwnership(obj.ownership),
+    historicalStatements: sanitizeHistoricalStatements(obj.historicalStatements),
     stockdex: obj.stockdex && typeof obj.stockdex === 'object' ? (obj.stockdex as Record<string, unknown>) : null,
   };
 }

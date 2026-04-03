@@ -69,7 +69,7 @@ function displayDiscountResults(candidates) {
       <td class="px-3 py-2">${wyckoffHtml}</td>
       <td class="px-3 py-2">${labelHtml}</td>
       <td class="px-3 py-2">
-        <a href="copilot.html?symbol=${c.symbol}&interval=1wk" onclick="event.stopPropagation()" class="text-blue-400 hover:text-blue-300 text-xs underline" target="_blank">Trading Desk</a>
+        <a href="/trading-desk?symbol=${c.symbol}&interval=1wk" onclick="event.stopPropagation()" class="text-blue-400 hover:text-blue-300 text-xs underline" target="_blank">Trading Desk</a>
       </td>
     </tr>`;
   }).join('');

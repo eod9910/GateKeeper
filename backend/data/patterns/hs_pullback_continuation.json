@@ -1,0 +1,349 @@
+{
+  "pattern_id": "hs_pullback_continuation",
+  "name": "H&S Pullback Continuation (Long)",
+  "category": "chart_patterns",
+  "description": "Uses the same H&S detection as the bearish variant but treats the pattern as a pullback within an uptrend. Enters long in the OTE zone after the H&S breakdown completes, with stop below the break-of-structure low. Based on the thesis that H&S patterns in uptrends are pullback setups, not regime changes.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/hs_pullback_continuation.py",
+  "plugin_function": "run_hs_pullback_continuation_plugin",
+  "pattern_type": "hs_pullback_continuation",
+  "artifact_type": "pattern",
+  "composition": "monolithic",
+  "pattern_role": "continuation_pullback_pattern",
+  "indicator_role": "anchor_structure",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true
+  },
+  "default_setup_params": {
+    "pattern_type": "hs_pullback_continuation",
+    "lookback_bars": 220,
+    "pivot_source": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true,
+    "shoulder_tolerance_pct": 0.08,
+    "head_dominance_pct": 0.015,
+    "neckline_tolerance_pct": 0.08,
+    "break_min_pct": 0.01,
+    "entry_zone_min_level": 0.618,
+    "entry_zone_max_level": 0.786,
+    "min_score": 0.6,
+    "max_candidates": 2,
+    "require_above_200ma": false,
+    "min_history_bars": 200,
+    "min_market_cap_billions": 0.0,
+    "min_avg_volume_k": 0.0,
+    "market_cap_tier": "all"
+  },
+  "default_entry": {
+    "entry_type": "pullback_ote_long"
+  },
+  "default_validator_config": {
+    "min_trades_pass_tier1": 25,
+    "min_trades_fail_tier1": 15,
+    "min_trades_pass_tier1s": 25,
+    "min_trades_fail_tier1s": 15,
+    "min_trades_pass_tier1b": 100,
+    "min_trades_fail_tier1b": 50,
+    "min_trades_pass_tier1bs": 100,
+    "min_trades_fail_tier1bs": 50,
+    "min_trades_pass_tier2": 150,
+    "min_trades_fail_tier2": 75,
+    "min_trades_pass_tier3": 200,
+    "min_trades_fail_tier3": 100
+  },
+  "default_risk_config": {
+    "stop_type": "atr",
+    "atr_length": 14,
+    "atr_multiplier": 2.0,
+    "take_profit_R": 3.0,
+    "max_hold_bars": 60
+  },
+  "backtest_config": {
+    "direction": "long"
+  },
+  "tunable_params": [
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.005,
+      "default": 0.08
+    },
+    {
+      "key": "use_exact_epsilon",
+      "label": "Exact Epsilon",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Bars",
+      "type": "int",
+      "min": 80,
+      "max": 500,
+      "default": 220
+    },
+    {
+      "key": "pivot_source",
+      "label": "Pivot Source",
+      "type": "select",
+      "options": [
+        "rdp",
+        "structure",
+        "auto"
+      ],
+      "default": "rdp"
+    },
+    {
+      "key": "shoulder_tolerance_pct",
+      "label": "Shoulder Tolerance",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.01,
+      "default": 0.08
+    },
+    {
+      "key": "head_dominance_pct",
+      "label": "Head Dominance",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.1,
+      "step": 0.005,
+      "default": 0.015
+    },
+    {
+      "key": "neckline_tolerance_pct",
+      "label": "Neckline Tolerance",
+      "type": "float",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.01,
+      "default": 0.08
+    },
+    {
+      "key": "break_min_pct",
+      "label": "Break Min",
+      "type": "float",
+      "min": 0,
+      "max": 0.1,
+      "step": 0.005,
+      "default": 0.01
+    },
+    {
+      "key": "entry_zone_min_level",
+      "label": "OTE Min",
+      "type": "float",
+      "min": 0.382,
+      "max": 0.786,
+      "step": 0.01,
+      "default": 0.618
+    },
+    {
+      "key": "entry_zone_max_level",
+      "label": "OTE Max",
+      "type": "float",
+      "min": 0.5,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.786
+    },
+    {
+      "key": "min_score",
+      "label": "Min Score",
+      "type": "float",
+      "min": 0.25,
+      "max": 0.95,
+      "step": 0.05,
+      "default": 0.55
+    },
+    {
+      "key": "require_above_200ma",
+      "label": "Require Above 200MA",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "min_history_bars",
+      "label": "Min History Bars",
+      "type": "int",
+      "min": 50,
+      "max": 500,
+      "default": 200
+    },
+    {
+      "key": "min_market_cap_billions",
+      "label": "Min Market Cap ($B)",
+      "type": "float",
+      "min": 0,
+      "max": 50,
+      "step": 0.5,
+      "default": 0.0,
+      "anatomy": "regime_filter",
+      "description": "Exclude stocks below this market cap (billions). 0 = disabled. Filters thin-float names with no institutional follow-through."
+    },
+    {
+      "key": "min_avg_volume_k",
+      "label": "Min Avg Volume (K shares)",
+      "type": "float",
+      "min": 0,
+      "max": 5000,
+      "step": 100,
+      "default": 0.0,
+      "anatomy": "regime_filter",
+      "description": "Exclude stocks below this 3-month avg daily volume (thousands). 0 = disabled."
+    }
+  ],
+  "parameter_manifest": [
+    {
+      "key": "neckline_tolerance_pct",
+      "path": "setup_config.neckline_tolerance_pct",
+      "label": "Neckline Tolerance",
+      "anatomy": "structure",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.05,
+        0.08,
+        0.1,
+        0.12
+      ]
+    },
+    {
+      "key": "min_score",
+      "path": "setup_config.min_score",
+      "label": "Min Score",
+      "anatomy": "structure",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.55,
+        0.6,
+        0.65,
+        0.7
+      ]
+    },
+    {
+      "key": "shoulder_tolerance_pct",
+      "path": "setup_config.shoulder_tolerance_pct",
+      "label": "Shoulder Tolerance",
+      "anatomy": "structure",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.06,
+        0.08,
+        0.1,
+        0.12
+      ]
+    },
+    {
+      "key": "head_dominance_pct",
+      "path": "setup_config.head_dominance_pct",
+      "label": "Head Dominance",
+      "anatomy": "structure",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.01,
+        0.015,
+        0.02,
+        0.03
+      ]
+    },
+    {
+      "key": "entry_zone_min_level",
+      "path": "setup_config.entry_zone_min_level",
+      "label": "OTE Zone Min",
+      "anatomy": "location",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.5,
+        0.618,
+        0.65,
+        0.7
+      ]
+    },
+    {
+      "key": "entry_zone_max_level",
+      "path": "setup_config.entry_zone_max_level",
+      "label": "OTE Zone Max",
+      "anatomy": "location",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.75,
+        0.786,
+        0.85,
+        0.9
+      ]
+    },
+    {
+      "key": "break_min_pct",
+      "path": "setup_config.break_min_pct",
+      "label": "Break Min %",
+      "anatomy": "entry_timing",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.005,
+        0.01,
+        0.015,
+        0.02
+      ]
+    },
+    {
+      "key": "require_above_200ma",
+      "path": "setup_config.require_above_200ma",
+      "label": "Require Above 200MA",
+      "anatomy": "regime_filter",
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        true,
+        false
+      ]
+    },
+    {
+      "key": "min_market_cap_billions",
+      "path": "setup_config.min_market_cap_billions",
+      "label": "Min Market Cap ($B)",
+      "anatomy": "regime_filter",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        1,
+        2,
+        5,
+        10
+      ]
+    },
+    {
+      "key": "min_avg_volume_k",
+      "path": "setup_config.min_avg_volume_k",
+      "label": "Min Avg Volume (K)",
+      "anatomy": "regime_filter",
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        250,
+        500,
+        1000
+      ]
+    }
+  ],
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 200,
+  "status": "experimental"
+}

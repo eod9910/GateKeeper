@@ -1,0 +1,76 @@
+{
+  "strategy_id": "lth_reversal_up_test",
+  "strategy_version_id": "lth_reversal_up_test_v1",
+  "version": 1,
+  "name": "LTH Reversal Up Test v1",
+  "description": "Structure-only diagnostic baseline for the LTH reversal-up family. This isolates the structural_family_signal stage for LTH|REVERSAL_UP|LL_ONLY|DEEP_DOM so we can test whether the family itself has standalone edge before adding any location or timing filters.",
+  "status": "rejected",
+  "asset_class": "stocks",
+  "interval": "1d",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "setup_config": {
+    "pattern_type": "lth_reversal_up_test",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "structure",
+          "pattern_id": "structural_family_signal",
+          "params": {
+            "allowed_families": "LTH|REVERSAL_UP|LL_ONLY|DEEP_DOM",
+            "reversal_multiple_atr": 2,
+            "min_bars_between_pivots": 3,
+            "equal_band_atr": 0.25
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "structure"
+        ]
+      }
+    }
+  },
+  "entry_config": {
+    "entry_type": "market_on_close"
+  },
+  "risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 1.5,
+    "take_profit_R": 1.5,
+    "max_hold_bars": 20,
+    "max_concurrent_positions": 2
+  },
+  "exit_config": {
+    "target_type": "R_multiple",
+    "target_level": 1.5,
+    "time_stop_bars": 20,
+    "trailing": null
+  },
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {
+    "auto_breakeven_r": 1,
+    "production_lock": true
+  },
+  "created_at": "2026-03-20T00:00:00.000Z",
+  "updated_at": "2026-03-20T05:27:05.070Z",
+  "_diagnostic_notes": {
+    "family_signature": "LTH|REVERSAL_UP|LL_ONLY|DEEP_DOM",
+    "purpose": "Structure-only validation baseline",
+    "what_is_removed": [
+      "fib_location_primitive",
+      "rsi_primitive",
+      "state_machine"
+    ]
+  },
+  "parameter_manifest": [],
+  "spec_hash": "5383d46d16bf21968b0cccb8a882d6866ba2bb5a0f5b96fe9dfacee1d114ecf5"
+}

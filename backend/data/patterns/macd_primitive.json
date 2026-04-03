@@ -118,5 +118,11 @@
   "min_data_bars": 200,
   "artifact_type": "indicator",
   "composition": "primitive",
-  "indicator_role": "timing_trigger"
+  "indicator_role": "timing_trigger",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "cheap",
+  "search_tags": ["macd", "momentum", "crossover", "trend", "timing"],
+  "source_kind": "imported"
 }

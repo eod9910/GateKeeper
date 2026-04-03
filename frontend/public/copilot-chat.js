@@ -48,6 +48,7 @@ function addChatMessage(text, sender) {
   div.innerHTML = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('copilot-chat-panel');
 }
 
 function quickChat(message) {
@@ -81,8 +82,12 @@ async function captureChart() {
   }
 }
 
-async function sendChat(includeChart = false) {
+async function sendChat(includeChartOrPrefill) {
   const input = document.getElementById('chat-input');
+  var includeChart = includeChartOrPrefill === true;
+  if (typeof includeChartOrPrefill === 'string' && includeChartOrPrefill.trim()) {
+    input.value = includeChartOrPrefill.trim();
+  }
   let message = input.value.trim();
 
   if (!message && includeChart) {

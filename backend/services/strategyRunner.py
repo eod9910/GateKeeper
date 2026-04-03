@@ -1387,17 +1387,21 @@ def run_strategy(
     data: List[OHLCV],
     symbol: str,
     timeframe: str,
-    mode: str = 'scan'
+    mode: str = 'scan',
+    strategy_state: Any = None,
 ) -> List[Dict[str, Any]]:
     """
     Main entry point.
 
     Args:
-        spec:      Parsed StrategySpec JSON
-        data:      OHLCV data
-        symbol:    Ticker symbol
-        timeframe: Timeframe label (e.g. 'W', 'D')
-        mode:      'scan' or 'backtest'
+        spec:           Parsed StrategySpec JSON
+        data:           OHLCV data
+        symbol:         Ticker symbol
+        timeframe:      Timeframe label (e.g. 'W', 'D')
+        mode:           'scan' or 'backtest'
+        strategy_state: Optional StrategyState instance for stateful strategies.
+                        Passed through to the plugin when provided; stateless
+                        plugins are free to ignore it.
 
     Returns:
         List of StrategyCandidate dicts
@@ -1464,9 +1468,15 @@ def run_strategy(
         if _RUNNER_DEBUG: print(f"[Runner] Skipping structure extraction (role={indicator_role or 'unknown'} does not require it)", file=sys.stderr)
         structure = StructureExtraction(pivots=[], bases=[], trend="UNKNOWN")
 
-    # Run plugin
+    # Run plugin — pass strategy_state as a keyword arg when provided.
+    # Plugins that do not accept it (all existing stateless plugins) receive
+    # the call without the kwarg so they continue to work unchanged.
     if _RUNNER_DEBUG: print(f"[Runner] Running plugin: {pattern_type}", file=sys.stderr)
-    candidates = plugin_fn(data, structure, spec, symbol, timeframe)
+    try:
+        candidates = plugin_fn(data, structure, spec, symbol, timeframe, strategy_state=strategy_state)
+    except TypeError:
+        # Plugin does not accept strategy_state — stateless plugin, call normally.
+        candidates = plugin_fn(data, structure, spec, symbol, timeframe)
     if _RUNNER_DEBUG: print(f"[Runner] Plugin returned {len(candidates)} candidates", file=sys.stderr)
 
     return candidates

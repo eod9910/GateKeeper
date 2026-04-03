@@ -10,6 +10,8 @@ let _compositeDefinition = null;
 let _compositeDefinitionConfirmed = false;
 let _compositeValidationPassed = false;
 let _compositeValidationHash = '';
+let _compositeFundamentalEditor = null;
+const FUNDAMENTAL_FILTER_PRIMITIVE_ID = 'fundamental_quality_filter_primitive';
 
 // Role tag constants
 const ROLE_LABELS = {
@@ -33,6 +35,7 @@ function initCompositeBuilder() {
   _compositeInitialized = true;
 
   _loadCompositePrimitives();
+  _initCompositeFundamentalEditor();
   _initCompositeChat();
   _renderCompositeJsonPreview();
 }
@@ -49,17 +52,147 @@ async function _loadCompositePrimitives() {
         pattern_id: String(r.pattern_id || '').trim(),
         name: String(r.name || r.pattern_id || '').trim(),
         indicator_role: String(r.indicator_role || 'unknown').trim(),
+        canonical_role: String(r.canonical_role || r.indicator_role || 'unknown').trim(),
         description: String(r.description || '').trim(),
         category: String(r.category || 'custom').trim(),
+        library_tier: String(r.library_tier || '').trim(),
+        autonomy_safe: r.autonomy_safe === true,
+        state_compatible: r.state_compatible === true,
+        cost_class: String(r.cost_class || '').trim(),
         tunable_params: Array.isArray(r.tunable_params) ? r.tunable_params : [],
+        default_setup_params: r.default_setup_params && typeof r.default_setup_params === 'object' && !Array.isArray(r.default_setup_params)
+          ? r.default_setup_params
+          : {},
       }))
-      .sort((a, b) => a.indicator_role.localeCompare(b.indicator_role) || a.pattern_id.localeCompare(b.pattern_id));
+      .sort((a, b) => {
+        const aRole = String(a.canonical_role || a.indicator_role || '');
+        const bRole = String(b.canonical_role || b.indicator_role || '');
+        return aRole.localeCompare(bRole) || a.pattern_id.localeCompare(b.pattern_id);
+      });
   } catch (err) {
     console.warn('[CompositeBuilder] Failed to load primitives:', err);
     _compositePrimitives = [];
   }
 
   _renderCompositePrimitivesSidebar();
+}
+
+function _findCompositePrimitiveRow(patternId) {
+  return _compositePrimitives.find((row) => String(row?.pattern_id || '').trim() === String(patternId || '').trim()) || null;
+}
+
+function _cloneCompositeParams(params) {
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return {};
+  return JSON.parse(JSON.stringify(params));
+}
+
+function _initCompositeFundamentalEditor() {
+  if (typeof initFundamentalConfigEditor !== 'function') return;
+  _compositeFundamentalEditor = initFundamentalConfigEditor({
+    hostId: 'composite-fundamental-config-host',
+    prefix: 'composite-fundamentals',
+    onChange: () => {
+      _syncCompositeFundamentalConfig();
+      _compositeValidationPassed = false;
+      _updateCompositeRegisterButton();
+      _renderCompositeJsonPreview();
+    },
+  });
+}
+
+function _syncCompositeFundamentalConfig() {
+  if (!_compositeDefinition || !_compositeFundamentalEditor) return [];
+  const issues = _compositeFundamentalEditor.getIssues();
+  const config = _compositeFundamentalEditor.getValue();
+  if (config) {
+    _compositeDefinition.fundamental_config = config;
+  } else {
+    delete _compositeDefinition.fundamental_config;
+  }
+  return Array.isArray(issues) ? issues : [];
+}
+
+function _inferCompositeAnatomy(stageLabel, patternId, row) {
+  const text = `${stageLabel} ${patternId} ${row?.indicator_role || ''} ${row?.pattern_role || ''}`.toLowerCase();
+  if (text.includes('regime') || text.includes('gate') || text.includes('filter') || text.includes('state')) return 'regime_filter';
+  if (text.includes('location') || text.includes('fib')) return 'location';
+  if (text.includes('timing') || text.includes('trigger') || text.includes('entry') || text.includes('signal') || text.includes('divergence') || text.includes('rsi') || text.includes('cross')) return 'entry_timing';
+  return 'structure';
+}
+
+function _buildCompositeTunableParam(stageLabel, patternId, paramKey, path, value, row) {
+  const tunable = Array.isArray(row?.tunable_params)
+    ? row.tunable_params.find((item) => String(item?.key || '') === String(paramKey))
+    : null;
+  const safeStage = String(stageLabel || patternId || 'stage')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+  return {
+    key: `${safeStage}_${paramKey}`,
+    label: `${stageLabel}: ${String(tunable?.label || paramKey)}`,
+    path,
+    type: String(tunable?.type || (typeof value === 'number'
+      ? (Number.isInteger(value) ? 'int' : 'float')
+      : typeof value === 'boolean'
+      ? 'bool'
+      : 'enum')),
+    min: typeof tunable?.min === 'number' ? tunable.min : undefined,
+    max: typeof tunable?.max === 'number' ? tunable.max : undefined,
+    step: typeof tunable?.step === 'number' ? tunable.step : undefined,
+    default: tunable?.default ?? value,
+    options: Array.isArray(tunable?.options) ? tunable.options : undefined,
+    description: tunable?.description || undefined,
+    anatomy: _inferCompositeAnatomy(stageLabel, patternId, row),
+    identity_preserving: true,
+    sweep_enabled: true,
+    sensitivity_enabled: typeof value === 'number',
+  };
+}
+
+function _syncCompositeTunableParams() {
+  if (!_compositeDefinition?.default_setup_params?.composite_spec) return [];
+
+  const stages = Array.isArray(_compositeDefinition.default_setup_params.composite_spec.stages)
+    ? _compositeDefinition.default_setup_params.composite_spec.stages
+    : [];
+  const tunables = [];
+  const fingerprints = new Set();
+
+  stages.forEach((stage, idx) => {
+    if (!stage?.pattern_id) return;
+
+    const row = _findCompositePrimitiveRow(stage.pattern_id);
+    const defaults = _cloneCompositeParams(row?.default_setup_params);
+    const params = _cloneCompositeParams(stage.params);
+
+    Object.entries(defaults).forEach(([paramKey, value]) => {
+      if (!(paramKey in params)) {
+        params[paramKey] = value;
+      }
+    });
+
+    if (Object.keys(params).length) {
+      stage.params = params;
+    } else {
+      delete stage.params;
+      return;
+    }
+
+    const stageLabel = String(stage.id || stage.pattern_id || `stage_${idx}`);
+    Object.entries(stage.params).forEach(([paramKey, value]) => {
+      const path = `setup_config.composite_spec.stages.${idx}.params.${paramKey}`;
+      const param = _buildCompositeTunableParam(stageLabel, stage.pattern_id, paramKey, path, value, row);
+      const fingerprint = `${String(param.key || '')}|${String(param.path || '')}`;
+      if (!fingerprints.has(fingerprint)) {
+        fingerprints.add(fingerprint);
+        tunables.push(param);
+      }
+    });
+  });
+
+  _compositeDefinition.tunable_params = tunables;
+  return tunables;
 }
 
 // -------------------------------------------------------------------------
@@ -77,7 +210,7 @@ function _renderCompositePrimitivesSidebar() {
 
   const grouped = {};
   for (const p of _compositePrimitives) {
-    const role = p.indicator_role || 'unknown';
+    const role = p.canonical_role || p.indicator_role || 'unknown';
     if (!grouped[role]) grouped[role] = [];
     grouped[role].push(p);
   }
@@ -90,10 +223,23 @@ function _renderCompositePrimitivesSidebar() {
   });
 
   let html = '';
+  const fundamentalRow = _findCompositePrimitiveRow(FUNDAMENTAL_FILTER_PRIMITIVE_ID);
+  if (fundamentalRow) {
+    html += `<div class="panel" style="padding:8px 10px;margin-bottom:10px;border:1px solid var(--color-border);background:rgba(141,103,199,0.08);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div>
+          <div style="font-size:12px;font-weight:600;">Runtime Fundamental Filter</div>
+          <div class="text-muted" style="font-size:11px;">Use live fundamentals as a real strategy gate.</div>
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="addCompositeFundamentalFilter()">Add</button>
+      </div>
+    </div>`;
+  }
   for (const role of sortedRoles) {
     const info = ROLE_LABELS[role] || { label: role, cls: 'filter' };
     for (const p of grouped[role]) {
-      html += `<button class="composite-primitive-chip" onclick="_addPrimitiveToComposite('${_escHtmlAttr(p.pattern_id)}','${_escHtmlAttr(role)}')" title="${_escHtml(p.description || p.name)}">
+      const tierText = p.library_tier ? ` • ${p.library_tier}` : '';
+      html += `<button class="composite-primitive-chip" onclick="_addPrimitiveToComposite('${_escHtmlAttr(p.pattern_id)}','${_escHtmlAttr(role)}')" title="${_escHtml((p.description || p.name) + tierText)}">
         <span class="chip-role chip-role--${info.cls}">${_escHtml(info.label)}</span>
         <span>${_escHtml(p.name)}</span>
       </button>`;
@@ -101,6 +247,12 @@ function _renderCompositePrimitivesSidebar() {
   }
 
   container.innerHTML = html;
+}
+
+function addCompositeFundamentalFilter() {
+  _addPrimitiveToComposite(FUNDAMENTAL_FILTER_PRIMITIVE_ID, 'regime_state');
+  const statusBadge = document.getElementById('composite-status');
+  if (statusBadge) statusBadge.textContent = 'draft';
 }
 
 function _addPrimitiveToComposite(patternId, role) {
@@ -113,9 +265,17 @@ function _addPrimitiveToComposite(patternId, role) {
 
   if (stages.find((s) => s.pattern_id === patternId)) return;
 
-  stages.push({ id: stageId, pattern_id: patternId });
+  const row = _findCompositePrimitiveRow(patternId);
+  const stage = { id: stageId, pattern_id: patternId };
+  const defaultParams = _cloneCompositeParams(row?.default_setup_params);
+  if (Object.keys(defaultParams).length) {
+    stage.params = defaultParams;
+  }
+
+  stages.push(stage);
   if (!reducer.inputs.includes(stageId)) reducer.inputs.push(stageId);
 
+  _syncCompositeTunableParams();
   _renderCompositeStages();
   _renderCompositeJsonPreview();
   _compositeValidationPassed = false;
@@ -182,6 +342,7 @@ function _scaffoldCompositeDefinition() {
     composition: 'composite',
     indicator_role: `${intent}_composite`,
   };
+  _syncCompositeFundamentalConfig();
 }
 
 function _toCompositeId(name) {
@@ -266,6 +427,7 @@ function _removeCompositeStage(index) {
     const idx = reducer.inputs.indexOf(removed.id);
     if (idx !== -1) reducer.inputs.splice(idx, 1);
   }
+  _syncCompositeTunableParams();
   _renderCompositeStages();
   _renderCompositeJsonPreview();
   _compositeValidationPassed = false;
@@ -279,6 +441,11 @@ function _removeCompositeStage(index) {
 function _renderCompositeJsonPreview() {
   const el = document.getElementById('composite-json-preview');
   if (!el) return;
+
+  if (_compositeDefinition) {
+    _syncCompositeTunableParams();
+    _syncCompositeFundamentalConfig();
+  }
 
   if (_compositeDefinitionConfirmed && _compositeDefinition) {
     const json = JSON.stringify(_compositeDefinition, null, 2);
@@ -305,6 +472,9 @@ async function validateCompositeDefinition() {
     return false;
   }
 
+  _syncCompositeTunableParams();
+  const fundamentalIssues = _syncCompositeFundamentalConfig();
+
   const errors = [];
   const def = _compositeDefinition;
   if (!def.pattern_id || !/^[a-z][a-z0-9_]*$/.test(def.pattern_id)) errors.push('Invalid pattern_id (must be lowercase snake_case).');
@@ -318,6 +488,7 @@ async function validateCompositeDefinition() {
   for (const s of stages) {
     if (!knownIds.has(s.pattern_id)) errors.push(`Stage "${s.id}" references unknown primitive "${s.pattern_id}".`);
   }
+  errors.push(...fundamentalIssues);
 
   if (errors.length) {
     _showCompositeBadge(false, errors.join(' '));
@@ -338,6 +509,9 @@ async function registerCompositeDefinition() {
     alert('Please validate the composite first.');
     return;
   }
+
+  _syncCompositeTunableParams();
+  _syncCompositeFundamentalConfig();
 
   const currentHash = await _computeHash(JSON.stringify(_compositeDefinition));
   if (currentHash !== _compositeValidationHash) {
@@ -450,6 +624,7 @@ function _renderCompositeChat() {
   }).join('');
 
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('composite-ai-chat-panel');
 }
 
 function _formatAiMessage(text) {
@@ -534,6 +709,8 @@ function _buildCompositeContext() {
       intent: String(document.getElementById('composite-intent')?.value || 'entry').trim(),
     },
     currentDefinition: _compositeDefinition || null,
+    fundamentalConfig: _compositeFundamentalEditor?.getValue() || null,
+    availableFundamentalMetrics: typeof getFundamentalMetricOptions === 'function' ? getFundamentalMetricOptions() : [],
     availablePrimitives: primitiveSummary,
     chatHistory,
   };
@@ -589,6 +766,10 @@ function _extractAndApplyCompositeJson(aiText) {
         parsed.pattern_type = parsed.pattern_id;
 
         _compositeDefinition = parsed;
+        if (_compositeFundamentalEditor) {
+          _compositeFundamentalEditor.setValue(parsed.fundamental_config || null);
+        }
+        _syncCompositeTunableParams();
         _compositeDefinitionConfirmed = true;
 
         const nameEl = document.getElementById('composite-name');
@@ -652,6 +833,11 @@ function seedCompositeFromPrimitive(primitiveId, primitiveRole, primitiveName, d
     composition: 'composite',
     indicator_role: 'entry_composite',
   };
+  if (_compositeFundamentalEditor) {
+    _compositeFundamentalEditor.setValue(null);
+  }
+
+  _syncCompositeTunableParams();
 
   // Sync UI
   const nameEl = document.getElementById('composite-name');

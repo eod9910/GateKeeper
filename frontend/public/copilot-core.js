@@ -24,9 +24,41 @@
     let takeProfitLine = null;
 
     // Initialize
+    // ── Watch List panel (Trading Desk sidebar) ──────────────────────────
+    // Watch List — drawer rendering is handled by inline script in copilot.html.
+    // These functions are exposed globally for star buttons and drawer controls.
+
+    function tdWatchListLoad(symbol) {
+      const sym = String(symbol || '').toUpperCase().trim();
+      if (!sym) return;
+      // Close drawer first, then load on next tick so the input isn't stolen
+      if (typeof toggleWlDrawer === 'function') toggleWlDrawer(false);
+      setTimeout(() => {
+        const input = document.getElementById('copilot-symbol');
+        if (input) input.value = sym;
+        if (typeof autoPopulateInstrumentSettings === 'function') autoPopulateInstrumentSettings(sym);
+        if (typeof runCopilotAnalysis === 'function') runCopilotAnalysis();
+      }, 50);
+    }
+
+    function tdWatchListRemoveOne(symbol) {
+      if (typeof watchListRemove === 'function') watchListRemove(symbol);
+      // watchListSubscribe listener in the drawer will auto-re-render
+    }
+
+    function tdWatchListClearAll() {
+      if (!confirm('Clear the entire Watch List?')) return;
+      if (typeof watchListClear === 'function') watchListClear();
+    }
+
+    window.tdWatchListLoad      = tdWatchListLoad;
+    window.tdWatchListRemoveOne = tdWatchListRemoveOne;
+    window.tdWatchListClearAll  = tdWatchListClearAll;
+
     document.addEventListener('DOMContentLoaded', async () => {
       loadSettings();
       loadSavedCandidates();
+      // Watch List drawer renders itself via inline script + watchListSubscribe
       initChart();
       await loadSymbolCatalog();
       initCopilotSymbolAutocomplete();
@@ -72,17 +104,21 @@
           const option = Array.from(intervalSelect.options).find(o => o.value === _bootstrapInterval);
           if (option) intervalSelect.value = _bootstrapInterval;
         }
+        // Correct instrument type based on the symbol — overrides any stale saved setting
+        autoPopulateInstrumentSettings(_bootstrapSymbol);
         if (typeof runCopilotAnalysis === 'function') {
           runCopilotAnalysis();
         }
       } else if (_matchingTradePlan?.symbol) {
         const symbolInput = document.getElementById('copilot-symbol');
         const intervalSelect = document.getElementById('copilot-interval');
-        if (symbolInput) symbolInput.value = String(_matchingTradePlan.symbol).trim().toUpperCase();
+        const planSym = String(_matchingTradePlan.symbol).trim().toUpperCase();
+        if (symbolInput) symbolInput.value = planSym;
         if (intervalSelect && _matchingTradePlan.interval) {
           const option = Array.from(intervalSelect.options).find((item) => item.value === _matchingTradePlan.interval);
           if (option) intervalSelect.value = _matchingTradePlan.interval;
         }
+        autoPopulateInstrumentSettings(planSym);
         if (typeof runCopilotAnalysis === 'function') {
           runCopilotAnalysis();
         }
@@ -408,12 +444,13 @@
     function toggleInstrumentSettings() {
       const type = document.getElementById('instrument-type').value;
       // Hide all instrument panels
+      document.getElementById('stock-settings').classList.add('hidden');
       document.getElementById('futures-settings').classList.add('hidden');
       document.getElementById('options-settings').classList.add('hidden');
       document.getElementById('forex-settings').classList.add('hidden');
       document.getElementById('crypto-settings').classList.add('hidden');
       // Show the selected one
-      const panelMap = { futures: 'futures-settings', options: 'options-settings', forex: 'forex-settings', crypto: 'crypto-settings' };
+      const panelMap = { stock: 'stock-settings', futures: 'futures-settings', options: 'options-settings', forex: 'forex-settings', crypto: 'crypto-settings' };
       if (panelMap[type]) document.getElementById(panelMap[type]).classList.remove('hidden');
       
       // Update position size label based on instrument type
@@ -445,6 +482,134 @@
         window.syncExecutionRouteSelection(true);
       }
     }
+
+    // ── Stock Risk Configuration ──────────────────────────────────────────────
+    // Computes stop/TP prices from the selected method and calls the chart's
+    // setStopLoss / setTakeProfit functions so lines appear on the chart.
+
+    function _computeATR(bars, period) {
+      if (!bars || bars.length < period + 1) return null;
+      const trs = [];
+      for (let i = 1; i < bars.length; i++) {
+        const h = bars[i].high, l = bars[i].low, pc = bars[i - 1].close;
+        trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+      }
+      // Wilder smoothed ATR
+      let atr = trs.slice(0, period).reduce((s, v) => s + v, 0) / period;
+      for (let i = period; i < trs.length; i++) {
+        atr = (atr * (period - 1) + trs[i]) / period;
+      }
+      return atr;
+    }
+
+    function applyStockRiskConfig() {
+      const stopType = (document.getElementById('stock-stop-type')?.value) || '';
+      const tpType   = (document.getElementById('stock-tp-type')?.value) || '';
+
+      // Show/hide sub-panels
+      const atrFields = document.getElementById('stock-atr-fields');
+      const pctFields = document.getElementById('stock-pct-fields');
+      const tpRFields  = document.getElementById('stock-tp-R-fields');
+      const tpPctFields = document.getElementById('stock-tp-pct-fields');
+      const hintEl    = document.getElementById('stock-stop-hint');
+
+      if (atrFields)  atrFields.style.display  = stopType === 'atr' ? '' : 'none';
+      if (pctFields)  pctFields.style.display   = stopType === 'pct' ? '' : 'none';
+      if (tpRFields)  tpRFields.style.display   = tpType  === 'R'   ? '' : 'none';
+      if (tpPctFields) tpPctFields.style.display = tpType  === 'pct' ? '' : 'none';
+      if (hintEl)     hintEl.style.display      = 'none';
+
+      if (!stopType) return; // manual — leave chart lines as-is
+
+      // Resolve entry price from chart state
+      const entryInput = document.getElementById('entry-price-input');
+      const entryPrice = entryInput ? parseFloat(entryInput.value) : NaN;
+      if (!Number.isFinite(entryPrice) || entryPrice <= 0) {
+        if (hintEl) { hintEl.textContent = 'Set Entry first, then the stop will be calculated.'; hintEl.style.display = ''; }
+        return;
+      }
+
+      let stopPrice = null;
+
+      if (stopType === 'atr') {
+        const bars   = window._copilotChartBars;
+        const period = parseInt(document.getElementById('stock-atr-length')?.value) || 14;
+        const mult   = parseFloat(document.getElementById('stock-atr-mult')?.value) || 2.0;
+        const atr    = _computeATR(bars, period);
+        if (!atr) {
+          if (hintEl) { hintEl.textContent = 'Not enough chart data to compute ATR — load the chart first.'; hintEl.style.display = ''; }
+          return;
+        }
+        stopPrice = entryPrice - atr * mult;
+        if (hintEl) { hintEl.textContent = `ATR(${period}) = ${atr.toFixed(2)}, stop = entry − ${(atr * mult).toFixed(2)}`; hintEl.style.display = ''; }
+      } else if (stopType === 'pct') {
+        const pct = parseFloat(document.getElementById('stock-stop-pct')?.value) || 5;
+        stopPrice = entryPrice * (1 - pct / 100);
+        if (hintEl) { hintEl.textContent = `${pct}% below entry`; hintEl.style.display = ''; }
+      }
+
+      if (!stopPrice || stopPrice <= 0) return;
+
+      // Draw the stop line on the chart
+      if (typeof window.setStopLoss === 'function') {
+        window.setStopLoss(stopPrice);
+      }
+
+      // Calculate and draw take-profit
+      if (tpType) {
+        const risk = entryPrice - stopPrice;
+        let tpPrice = null;
+        if (tpType === 'R') {
+          const R = parseFloat(document.getElementById('stock-tp-R')?.value) || 2;
+          tpPrice = entryPrice + risk * R;
+        } else if (tpType === 'pct') {
+          const pct = parseFloat(document.getElementById('stock-tp-pct')?.value) || 10;
+          tpPrice = entryPrice * (1 + pct / 100);
+        }
+        if (tpPrice && tpPrice > entryPrice && typeof window.setTakeProfit === 'function') {
+          window.setTakeProfit(tpPrice);
+        }
+      }
+    }
+
+    window.applyStockRiskConfig = applyStockRiskConfig;
+
+    function saveStockRiskConfig() {
+      let s = {};
+      try { s = JSON.parse(localStorage.getItem('copilotSettings') || '{}') || {}; } catch(e) {}
+      s.stockStopType = document.getElementById('stock-stop-type')?.value ?? '';
+      s.stockAtrLength = document.getElementById('stock-atr-length')?.value || '14';
+      s.stockAtrMult = document.getElementById('stock-atr-mult')?.value || '2.0';
+      s.stockStopPct = document.getElementById('stock-stop-pct')?.value || '5';
+      s.stockTpType = document.getElementById('stock-tp-type')?.value ?? '';
+      s.stockTpR = document.getElementById('stock-tp-R')?.value || '2';
+      s.stockTpPct = document.getElementById('stock-tp-pct')?.value || '10';
+      localStorage.setItem('copilotSettings', JSON.stringify(s));
+    }
+    window.saveStockRiskConfig = saveStockRiskConfig;
+
+    // Called by copilot-chart.js when the user manually places a stop on the chart.
+    // Resets the programmatic stop type to "manual" so the dropdown goes blank.
+    window._stockRiskClearStop = function () {
+      const el = document.getElementById('stock-stop-type');
+      if (el) el.value = '';
+      const atrFields = document.getElementById('stock-atr-fields');
+      const pctFields = document.getElementById('stock-pct-fields');
+      const hintEl    = document.getElementById('stock-stop-hint');
+      if (atrFields) atrFields.style.display = 'none';
+      if (pctFields) pctFields.style.display = 'none';
+      if (hintEl)    hintEl.style.display = 'none';
+    };
+
+    // Called by copilot-chart.js when the user manually places a take-profit on the chart.
+    window._stockRiskClearTP = function () {
+      const el = document.getElementById('stock-tp-type');
+      if (el) el.value = '';
+      const tpRFields   = document.getElementById('stock-tp-R-fields');
+      const tpPctFields = document.getElementById('stock-tp-pct-fields');
+      if (tpRFields)   tpRFields.style.display   = 'none';
+      if (tpPctFields) tpPctFields.style.display = 'none';
+    };
 
     // Apply or remove Options mode on the trade level inputs
     function applyOptionsMode(isOptions) {
@@ -559,6 +724,9 @@
       if (typeof window.renderExecutionRouteSummary === 'function') {
         window.renderExecutionRouteSummary();
       }
+      if (typeof window.syncInstrumentPnlSummary === 'function') {
+        window.syncInstrumentPnlSummary();
+      }
     }
 
     // Update the options P&L summary in the sidebar
@@ -644,12 +812,24 @@
         optionCurrentPremium: document.getElementById('option-current-premium').value,
         optionType: document.getElementById('option-type').value,
         contractMultiplier: document.getElementById('contract-multiplier').value,
+        optionTpR: document.getElementById('option-tp-R')?.value || '2',
         // Forex
         lotSize: document.getElementById('lot-size').value,
         pipValue: document.getElementById('pip-value').value,
         leverage: document.getElementById('leverage').value,
         // Crypto
         exchangeFee: document.getElementById('exchange-fee').value,
+        // Stock Risk Config — always keep existing saved values; only overwrite when
+        // the user explicitly saves (via the dedicated saveStockRiskConfig call on onchange).
+        // This prevents autoPopulateInstrumentSettings's saveSettings() call from
+        // clobbering a persisted "atr" selection with the default blank value on page load.
+        stockStopType: existingSettings.stockStopType ?? '',
+        stockAtrLength: existingSettings.stockAtrLength ?? '14',
+        stockAtrMult: existingSettings.stockAtrMult ?? '2.0',
+        stockStopPct: existingSettings.stockStopPct ?? '5',
+        stockTpType: existingSettings.stockTpType ?? '',
+        stockTpR: existingSettings.stockTpR ?? '2',
+        stockTpPct: existingSettings.stockTpPct ?? '10',
         // Risk Rules
         riskPercent: document.getElementById('risk-percent').value,
         minRR: document.getElementById('min-rr').value,
@@ -697,10 +877,18 @@
         'option-current-premium': 'optionCurrentPremium',
         'option-type': 'optionType',
         'contract-multiplier': 'contractMultiplier',
+        'option-tp-R': 'optionTpR',
         'lot-size': 'lotSize',
         'pip-value': 'pipValue',
         'leverage': 'leverage',
         'exchange-fee': 'exchangeFee',
+        'stock-stop-type': 'stockStopType',
+        'stock-atr-length': 'stockAtrLength',
+        'stock-atr-mult': 'stockAtrMult',
+        'stock-stop-pct': 'stockStopPct',
+        'stock-tp-type': 'stockTpType',
+        'stock-tp-R': 'stockTpR',
+        'stock-tp-pct': 'stockTpPct',
         'risk-percent': 'riskPercent',
         'min-rr': 'minRR',
         'max-position': 'maxPosition',
@@ -728,6 +916,19 @@
       updateSwingSensitivityLabel();
       const savedSize = parseInt(document.getElementById('manual-position-size').value);
       manualSizeOverride = savedSize && savedSize > 0 ? savedSize : null;
+      // Restore risk config sub-panel visibility (don't recalculate — no entry yet)
+      if (typeof applyStockRiskConfig === 'function') {
+        const stopType = document.getElementById('stock-stop-type')?.value;
+        const tpType   = document.getElementById('stock-tp-type')?.value;
+        const atrFields   = document.getElementById('stock-atr-fields');
+        const pctFields   = document.getElementById('stock-pct-fields');
+        const tpRFields   = document.getElementById('stock-tp-R-fields');
+        const tpPctFields = document.getElementById('stock-tp-pct-fields');
+        if (atrFields)   atrFields.style.display   = stopType === 'atr' ? '' : 'none';
+        if (pctFields)   pctFields.style.display    = stopType === 'pct' ? '' : 'none';
+        if (tpRFields)   tpRFields.style.display    = tpType  === 'R'   ? '' : 'none';
+        if (tpPctFields) tpPctFields.style.display  = tpType  === 'pct' ? '' : 'none';
+      }
     }
     window.applyTradingDeskSettingsSnapshot = applyTradingDeskSettingsSnapshot;
 
@@ -763,6 +964,7 @@
         optionCurrentPremium: parseFloat(document.getElementById('option-current-premium').value) || 0,
         optionType: document.getElementById('option-type').value || 'call',
         contractMultiplier: parseInt(document.getElementById('contract-multiplier').value) || 100,
+        optionTpR: parseFloat(document.getElementById('option-tp-R')?.value) || 2,
         // Forex
         lotSize: document.getElementById('lot-size').value || 'standard',
         pipValue: parseFloat(document.getElementById('pip-value').value) || 10,
@@ -1204,6 +1406,9 @@
       }
       if (typeof window.syncTradePlanStoreFromDesk === 'function') {
         window.syncTradePlanStoreFromDesk('size_changed');
+      }
+      if (typeof window.syncInstrumentPnlSummary === 'function') {
+        window.syncInstrumentPnlSummary();
       }
     }
     

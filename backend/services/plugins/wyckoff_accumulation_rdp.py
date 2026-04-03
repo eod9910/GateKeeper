@@ -11,6 +11,60 @@ from typing import Any, Dict, List, Optional
 from platform_sdk.ohlcv import OHLCV, _detect_intraday, _format_chart_time
 from platform_sdk.swing_structure import find_major_peaks
 from platform_sdk.copilot import Base
+from universe_registry import load_market_cap_snapshot_billions
+
+# ── Liquidity / cap-tier gate (shared pattern with hs_pullback_continuation) ──
+_LIQUIDITY_CACHE: dict[str, tuple[float | None, float | None]] = {}
+_CAP_TIERS: dict[str, tuple[float | None, float | None]] = {
+    "all":   (None,  None),
+    "micro": (0.0,   0.3),
+    "small": (0.3,   2.0),
+    "mid":   (2.0,   10.0),
+    "large": (10.0,  200.0),
+    "mega":  (200.0, None),
+}
+
+def _seed_cache_from_known_lists() -> None:
+    """Pre-populate the liquidity cache from verified cap snapshots so live
+    yfinance fetches are never needed for known symbols."""
+    for sym, cap_b in load_market_cap_snapshot_billions().items():
+        if sym not in _LIQUIDITY_CACHE:
+            _LIQUIDITY_CACHE[sym] = (float(cap_b), None)
+
+_seed_cache_from_known_lists()
+
+def _fetch_liquidity(symbol: str) -> tuple[float | None, float | None]:
+    if symbol in _LIQUIDITY_CACHE:
+        return _LIQUIDITY_CACHE[symbol]
+    try:
+        import yfinance as yf
+        info = yf.Ticker(symbol).fast_info
+        mc = getattr(info, "market_cap", None)
+        vol = getattr(info, "three_month_average_volume", None)
+        result = (float(mc) / 1e9 if mc else None, float(vol) / 1000 if vol else None)
+    except Exception:
+        result = (None, None)
+    _LIQUIDITY_CACHE[symbol] = result
+    return result
+
+def _check_cap_gate(symbol: str, setup: dict) -> bool:
+    tier = str(setup.get("market_cap_tier") or "all").strip().lower()
+    min_cap = float(setup.get("min_market_cap_billions") or 0.0)
+    min_vol = float(setup.get("min_avg_volume_k") or 0.0)
+    if tier == "all" and min_cap <= 0 and min_vol <= 0:
+        return True
+    mktcap_b, avg_vol_k = _fetch_liquidity(symbol)
+    tier_min, tier_max = _CAP_TIERS.get(tier, (None, None))
+    if mktcap_b is not None:
+        if tier_min is not None and mktcap_b < tier_min:
+            return False
+        if tier_max is not None and mktcap_b >= tier_max:
+            return False
+        if min_cap > 0 and mktcap_b < min_cap:
+            return False
+    if min_vol > 0 and avg_vol_k is not None and avg_vol_k < min_vol:
+        return False
+    return True
 
 
 def compute_spec_hash(spec: Dict[str, Any]) -> str:
@@ -490,6 +544,9 @@ def run_wyckoff_plugin(
         or spec.get("strategy_id")
         or "wyckoff_accumulation"
     ).strip() or "wyckoff_accumulation"
+
+    if not _check_cap_gate(symbol, setup):
+        return []
 
     n = len(data)
     if n < 120:

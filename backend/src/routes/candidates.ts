@@ -30,6 +30,7 @@ import {
   runScannerUniverseViaService,
 } from '../services/pluginServiceClient';
 import { normalizeMarketDataSymbol } from '../services/marketSymbols';
+import { loadUniverseSymbols } from '../services/universeRegistry';
 
 const router = Router();
 const CANDIDATES_USE_PY_SERVICE = isPyServiceEnabled();
@@ -566,32 +567,8 @@ router.get('/symbols', async (req: Request, res: Response) => {
       ).sort((a, b) => a.localeCompare(b));
     };
 
-    const universeDir = path.join(__dirname, '..', '..', 'data', 'universe');
-    const optionablePath = path.join(universeDir, 'optionable.json');
-    const manifestPath = path.join(universeDir, 'manifest.json');
-    let optionable: string[] = [];
-    let sourceAll: string[] = [];
-    try {
-      const optRaw = await fs.readFile(optionablePath, 'utf-8');
-      const optJson = JSON.parse(optRaw) || {};
-      let manifestJson: any = null;
-      try {
-        const manifestRaw = await fs.readFile(manifestPath, 'utf-8');
-        manifestJson = JSON.parse(manifestRaw) || null;
-      } catch {
-        manifestJson = null;
-      }
-      const optionableSource = String(optJson.source || '').trim();
-      const manifestSource = String(manifestJson?.source || '').trim();
-      const sourceMatchesManifest = !manifestSource || !optionableSource || optionableSource === manifestSource;
-      if (sourceMatchesManifest) {
-        optionable = normalizeSymbols(optJson.optionable || optJson.symbols || []);
-        sourceAll = normalizeSymbols(optJson.source_symbols || []);
-      }
-    } catch {
-      optionable = [];
-      sourceAll = [];
-    }
+    const optionable = await loadUniverseSymbols('optionable_stocks');
+    const sourceAll = await loadUniverseSymbols('clean_stocks');
 
     const data = {
       ...symbols,
@@ -759,8 +736,9 @@ router.post('/scan', async (req: Request, res: Response) => {
           commission_per_trade: 0,
           spread_pct: 0,
           slippage_pct: 0.001
-        }
-      };
+        },
+        backtest_config: resolved.definition?.backtest_config || undefined,
+      } as any;
 
       // Merge any pluginParams from the frontend into setup_config
       const pluginParams = (scanRequest as any).pluginParams;

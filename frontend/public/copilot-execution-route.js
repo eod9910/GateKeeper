@@ -268,7 +268,7 @@ function sendTradeToExecution() {
     status: 'execution_staged',
     executionIntentId: intent.id,
   });
-  window.location.href = 'execution.html';
+  window.location.href = '/execution-desk';
 }
 
 initExecutionRouteControls();

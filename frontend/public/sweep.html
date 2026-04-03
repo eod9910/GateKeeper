@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page-id="sweep">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,20 +12,37 @@
     /* ── Sweep layout ───────────────────────────────────────── */
     .sweep-layout {
       display: grid;
-      grid-template-columns: 320px 1fr;
+      grid-template-columns: var(--sweep-config-width, 320px) 4px 1fr;
       gap: 0;
       height: 100%;
       overflow: hidden;
       border: 1px solid var(--color-border);
       border-radius: var(--radius);
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 88%, transparent), var(--color-bg)),
+        var(--color-bg);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
     }
     .sweep-layout.config-collapsed {
-      grid-template-columns: 48px 1fr;
+      grid-template-columns: 48px 4px 1fr;
+    }
+    .sweep-resize-handle {
+      background: var(--color-border);
+      cursor: col-resize;
+      transition: background 0.15s;
+      position: relative;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+    .sweep-resize-handle:hover,
+    .sweep-resize-handle.dragging {
+      background: var(--color-accent);
     }
 
     /* ── Config panel (left) ────────────────────────────────── */
     .sweep-config-panel {
-      background: var(--color-surface);
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, transparent), color-mix(in srgb, var(--color-bg-subtle) 55%, transparent));
       border-right: 1px solid var(--color-border);
       display: flex;
       flex-direction: column;
@@ -75,7 +92,7 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: var(--space-16);
+      gap: var(--space-12);
     }
 
     /* ── Results panel (right) ──────────────────────────────── */
@@ -83,7 +100,10 @@
       display: flex;
       flex-direction: column;
       overflow-y: auto;
-      background: var(--color-bg);
+      background:
+        radial-gradient(circle at top center, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 42%),
+        linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 30%, transparent), transparent 28%),
+        var(--color-bg);
     }
     .results-panel {
       display: flex;
@@ -138,6 +158,17 @@
       flex-direction: column;
       gap: var(--space-8);
     }
+    .config-card {
+      padding: var(--space-12);
+      border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+      border-radius: calc(var(--radius) + 2px);
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--color-bg-subtle) 78%, transparent), color-mix(in srgb, var(--color-void) 86%, transparent));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+    .config-card.tight {
+      gap: var(--space-6);
+    }
     .sweep-section-label {
       font-size: 10px;
       color: var(--color-text-muted);
@@ -146,6 +177,16 @@
       font-weight: 600;
       padding-bottom: var(--space-4);
       border-bottom: 1px solid var(--color-border);
+    }
+    .inline-link {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-decoration: none;
+      font-family: var(--font-mono);
+      transition: color 0.15s ease;
+    }
+    .inline-link:hover {
+      color: var(--color-accent);
     }
 
     /* ── Preset grid ────────────────────────────────────────── */
@@ -276,6 +317,102 @@
       margin-top: var(--space-10);
     }
 
+    /* ── Universal Dims ─────────────────────────────────────── */
+    #universal-dims-details summary::-webkit-details-marker { display: none; }
+    #universal-dims-details > summary::after {
+      content: '▸';
+      color: var(--color-text-muted);
+      font-size: 10px;
+      transition: transform 0.15s;
+    }
+    #universal-dims-details[open] > summary::after { transform: rotate(90deg); }
+    .udim-card {
+      border: none;
+      overflow: hidden;
+    }
+    .udim-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      padding: var(--space-4) 0;
+      user-select: none;
+    }
+    .udim-toggle {
+      width: 14px; height: 14px;
+      border-radius: 3px;
+      border: 1.5px solid var(--color-border);
+      background: transparent;
+      flex-shrink: 0;
+      transition: background 0.1s, border-color 0.1s;
+      position: relative;
+    }
+    .udim-toggle.checked {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+    .udim-toggle.checked::after {
+      content: '✓';
+      position: absolute;
+      top: -2px; left: 1px;
+      font-size: 10px;
+      color: #000;
+      font-weight: 700;
+    }
+    .udim-name {
+      /* matches form-label */
+      font-size: var(--text-caption);
+      font-family: inherit;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      flex: 1;
+    }
+    .udim-count {
+      font-size: var(--text-caption);
+      font-family: inherit;
+      color: var(--color-text-muted);
+    }
+    .udim-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: var(--space-4) 0 var(--space-8) var(--space-22);
+    }
+    .udim-pill {
+      /* matches .suggested-value-btn sizing and feel */
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+      background: transparent;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    .udim-pill:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+    .udim-pill.selected {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: #000;
+      font-weight: 600;
+    }
+    .udim-group-label {
+      /* matches sweep-section-label */
+      font-size: var(--text-caption);
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--color-border);
+    }
+
     /* ── Run button ─────────────────────────────────────────── */
     .btn-run-sweep {
       width: 100%;
@@ -366,15 +503,19 @@
 
     /* ── Sweep history ──────────────────────────────────────── */
     .sweep-history-item {
-      background: var(--color-void);
+      background: color-mix(in srgb, var(--color-void) 82%, transparent);
       border: 1px solid var(--color-border);
-      border-radius: var(--radius-sm);
-      padding: var(--space-10) var(--space-12);
+      border-radius: calc(var(--radius-sm) + 2px);
+      padding: var(--space-12) var(--space-12);
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, transform 0.15s, background 0.15s;
       margin-bottom: var(--space-6);
     }
-    .sweep-history-item:hover, .sweep-history-item.active { border-color: var(--color-accent); }
+    .sweep-history-item:hover, .sweep-history-item.active {
+      border-color: color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
+      background: color-mix(in srgb, var(--color-accent) 7%, var(--color-void));
+      transform: translateY(-1px);
+    }
     .sweep-history-item .sweep-name { font-size: var(--text-small); font-weight: 500; color: var(--color-text); }
     .sweep-history-item .sweep-meta { font-size: 11px; color: var(--color-text-muted); margin-top: 3px; font-family: var(--font-mono); }
 
@@ -434,6 +575,14 @@
       min-width: 156px;
       white-space: nowrap;
     }
+    .results-table th:nth-child(1),
+    .results-table td:nth-child(1) { min-width: 90px; }
+    .results-table th:nth-child(2),
+    .results-table td:nth-child(2) { min-width: 110px; padding-left: var(--space-16); padding-right: var(--space-16); }
+    .results-table th:nth-child(3),
+    .results-table td:nth-child(3) { min-width: 100px; padding-left: var(--space-16); padding-right: var(--space-16); }
+    .results-table th:nth-child(4),
+    .results-table td:nth-child(4) { min-width: 110px; padding-left: var(--space-16); padding-right: var(--space-16); }
 
     /* ── Badges ─────────────────────────────────────────────── */
     .badge-status {
@@ -523,7 +672,26 @@
     }
     .winner-banner-text { font-size: var(--text-small); color: var(--color-text); }
     .winner-banner-text strong { color: var(--color-positive); }
-    .btn-promote {
+    .btn-send-to-validator {
+      display: block;
+      width: 100%;
+      margin-top: var(--space-8);
+      padding: var(--space-6) var(--space-10);
+      background: color-mix(in srgb, var(--color-positive) 15%, transparent);
+      border: 1px solid var(--color-positive);
+      border-radius: var(--radius-sm);
+      color: var(--color-positive);
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+    .btn-send-to-validator:hover {
+      background: color-mix(in srgb, var(--color-positive) 25%, transparent);
+    }
+    .btn-promote { 
       padding: var(--space-8) var(--space-14);
       background: var(--color-positive);
       color: #000;
@@ -818,15 +986,61 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 80px 20px;
+      padding: 64px 20px;
       color: var(--color-text-muted);
       gap: var(--space-12);
       text-align: center;
       flex: 1;
     }
-    .empty-state-icon { font-size: 36px; opacity: 0.3; }
-    .empty-state-title { font-size: var(--text-small); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
-    .empty-state-subtitle { font-size: var(--text-caption); max-width: 340px; line-height: 1.5; }
+    .empty-state-shell {
+      width: min(520px, 100%);
+      padding: 32px 28px;
+      border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+      border-radius: calc(var(--radius) + 2px);
+      background:
+        radial-gradient(circle at top center, color-mix(in srgb, var(--color-accent) 9%, transparent), transparent 56%),
+        linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 72%, transparent), color-mix(in srgb, var(--color-bg-subtle) 38%, transparent));
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+    }
+    .empty-state-kicker {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      color: var(--color-accent);
+      font-family: var(--font-mono);
+      margin-bottom: var(--space-8);
+    }
+    .empty-state-icon { font-size: 34px; opacity: 0.5; margin-bottom: var(--space-4); }
+    .empty-state-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--color-text);
+      letter-spacing: -0.01em;
+    }
+    .empty-state-subtitle {
+      font-size: var(--text-small);
+      max-width: 420px;
+      line-height: 1.6;
+      margin: 0 auto;
+      color: var(--color-text-subtle);
+    }
+    .empty-state-steps {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      margin-top: var(--space-12);
+    }
+    .empty-state-step {
+      padding: 6px 10px;
+      border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-void) 80%, transparent);
+      color: var(--color-text-muted);
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+    }
     .loaded-sweep-banner {
       margin-top: var(--space-10);
       display: none;
@@ -854,6 +1068,20 @@
       font-weight: 700;
     }
 
+    .sweep-promote-banner {
+      display: none;
+      align-items: center;
+      gap: var(--space-10);
+      margin: var(--space-12) 0 0 0;
+      padding: var(--space-10) var(--space-14);
+      background: color-mix(in srgb, var(--color-positive) 10%, transparent);
+      border: 1px solid var(--color-positive);
+      border-radius: var(--radius-md);
+      font-size: var(--text-caption);
+      color: var(--color-text);
+    }
+    .sweep-promote-banner span { flex: 1; }
+
     @media (max-width: 1200px) {
       .metrics-grid.cols-5,
       .metrics-grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -865,28 +1093,192 @@
       .metrics-grid.cols-3,
       .metrics-grid.cols-2 { grid-template-columns: 1fr; }
     }
+
+    /* ── Results / JSON tabs ─────────────────────────────────── */
+    .sweep-results-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+      flex-shrink: 0;
+      padding: 0 var(--space-16);
+      gap: 0;
+    }
+    .sweep-tab {
+      padding: var(--space-8) var(--space-14);
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--color-text-muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .sweep-tab:hover { color: var(--color-text); }
+    .sweep-tab.active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+    .sweep-tab-badge {
+      font-size: 9px;
+      background: var(--color-warning, #c8aa3c);
+      color: #000;
+      border-radius: 2px;
+      padding: 1px 4px;
+      font-weight: 700;
+    }
+    .sweep-tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; min-height: 0; }
+    .sweep-tab-content.active { display: flex; }
+
+    /* Results tab wraps existing results-body */
+    #sweep-tab-results { overflow-y: auto; }
+    #results-body { flex: 1; }
+
+    /* ── JSON viewer ─────────────────────────────────────────── */
+    .json-viewer-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-8) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+      flex-shrink: 0;
+      gap: var(--space-12);
+    }
+    .results-panel > .panel-header .results-meta {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .results-panel > .panel-header .header-pill-btn {
+      flex-shrink: 0;
+      margin-left: var(--space-12);
+      font-size: 10px;
+      padding: 4px 10px;
+      background: color-mix(in srgb, var(--color-bg-subtle) 90%, transparent);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .results-panel > .panel-header .header-pill-btn:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    }
+    .json-viewer-filename {
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      color: var(--color-text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .json-viewer-btn {
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      padding: var(--space-4) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-subtle);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .json-viewer-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+    .json-viewer-btn-save {
+      background: color-mix(in srgb, var(--color-positive) 12%, transparent);
+      border-color: color-mix(in srgb, var(--color-positive) 40%, transparent);
+      color: var(--color-positive);
+    }
+    .json-viewer-btn-save:hover {
+      background: color-mix(in srgb, var(--color-positive) 22%, transparent);
+      border-color: var(--color-positive);
+      color: var(--color-positive);
+    }
+    .json-changed-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+      padding: var(--space-6) var(--space-16);
+      background: color-mix(in srgb, #c8aa3c 10%, transparent);
+      border-bottom: 1px solid color-mix(in srgb, #c8aa3c 30%, transparent);
+      font-size: var(--text-caption);
+      color: #c8aa3c;
+      flex-shrink: 0;
+    }
+    .json-changed-bar span { flex: 1; }
+    .json-editor-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .json-pane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-6) var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-bg-subtle);
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .json-editor {
+      flex: 1;
+      width: 100%;
+      background: var(--color-void);
+      color: var(--color-text);
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      padding: var(--space-16);
+      tab-size: 2;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
   <div class="app">
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-header">
-        <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
           <span class="logo-mark">PD</span>
           <span class="sidebar-label-text">Pattern Detector</span>
         </a>
         <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
       </div>
       <nav class="sidebar-nav">
-        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
-        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
-        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
-        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
-        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
-        <a href="research.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Agent</span></a>
-        <a href="sweep.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
-        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
-        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+        <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="/position-book" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="/validator" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="/indicator-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="/research-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Studio</span></a>
+        <a href="/parameter-sweep" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
       </nav>
     </aside>
 
@@ -911,56 +1303,60 @@
             </div>
             <div class="panel-body">
 
-              <!-- Strategy selector -->
-              <div class="sweep-section">
-                <label class="form-label">Strategy</label>
-                <select id="sweep-strategy-select" class="form-select">
-                  <option value="">— Select a strategy —</option>
-                </select>
-                <div id="strategy-anatomy" class="anatomy-summary">
-                  <div class="text-muted">Choose a strategy to see its anatomy: structure, location, entry timing, stop loss, take profit, and optional regime filter.</div>
+              <!-- Strategy display (hidden select kept for JS compatibility) -->
+              <select id="sweep-strategy-select" style="display:none;"></select>
+              <div class="sweep-section config-card tight">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">
+                  <label class="form-label" style="margin:0;">Strategy</label>
+                  <a href="index.html" class="inline-link" title="Go to strategy list to pick a different strategy">Change ›</a>
                 </div>
+                <div id="sweep-strategy-display" class="sweep-history-item" style="cursor:default;margin-bottom:0;">
+                  <div class="sweep-name" style="font-style:italic;color:var(--color-text-muted);">No strategy selected</div>
+                  <div class="sweep-meta">Go to Strategy list and use "Send to Sweep"</div>
+                </div>
+                <!-- anatomy panel removed — grouping is shown directly in the parameter dropdown -->
               </div>
 
               <!-- Tier selector -->
-              <div class="sweep-section">
+              <div class="sweep-section config-card tight">
                 <label class="form-label">Validation Tier</label>
                 <select id="sweep-tier-select" class="form-select">
-                  <option value="tier1" selected>Tier 1 — Fast (10 symbols, early stop)</option>
-                  <option value="tier2">Tier 2 — Full Universe (all symbols)</option>
+                  <option value="tier1" selected>Tier 1 — Fast mixed-cap (52 stocks)</option>
+                  <option value="tier1b">Tier 1B — Mixed-cap expansion (100 stocks)</option>
+                  <option value="tier1s">Tier 1S — Tier 1 + Sensitivity</option>
+                  <option value="tier2">Tier 2 — Core mixed-cap (200 stocks)</option>
+                  <option value="large_cap_known">Large Cap (Known) — 76 confirmed large caps</option>
                 </select>
               </div>
 
-              <!-- Presets -->
-              <div class="sweep-section">
-                <div class="sweep-section-label">Quick Presets</div>
-                <div class="preset-grid" id="preset-grid">
-                  <button class="preset-btn" data-preset="stop_type">Stop Type<br><span class="preset-sub">% vs ATR vs swing</span></button>
-                  <button class="preset-btn" data-preset="atr_multiplier">ATR Multiplier<br><span class="preset-sub">0.75x &rarr; 3.0x</span></button>
-                  <button class="preset-btn" data-preset="stop_pct">Stop %<br><span class="preset-sub">3% &rarr; 15%</span></button>
-                  <button class="preset-btn" data-preset="take_profit_r">Take Profit R<br><span class="preset-sub">1.5R &rarr; 4.0R</span></button>
-                  <button class="preset-btn" data-preset="max_hold_bars">Max Hold Bars<br><span class="preset-sub">13 &rarr; 52 wks</span></button>
-                  <button class="preset-btn" data-preset="rsi_oversold">RSI Oversold<br><span class="preset-sub">20 &rarr; 40</span></button>
-                  <button class="preset-btn" data-preset="rdp_epsilon">RDP Epsilon<br><span class="preset-sub">1% &rarr; 15%</span></button>
-                  <button class="preset-btn" data-preset="max_concurrent">Max Positions<br><span class="preset-sub">3 &rarr; 20</span></button>
-                </div>
+              <!-- Smart Plan (sensitivity-driven) -->
+              <div id="smart-plan-banner"></div>
+
+              <!-- Universal Dimensions — collapsible -->
+              <div class="sweep-section config-card" id="universal-dims-section" style="display:none;">
+                <details id="universal-dims-details">
+                  <summary style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;list-style:none;padding:var(--space-4) 0;">
+                    <div style="display:flex;align-items:center;gap:var(--space-8);">
+                      <span class="sweep-section-label" style="border:none;padding:0;margin:0;">Universal Dimensions</span>
+                      <span id="universal-dims-active-badge" style="display:none;background:var(--color-accent);color:#000;font-size:10px;font-family:var(--font-mono);font-weight:700;padding:1px 7px;border-radius:10px;"></span>
+                    </div>
+                  </summary>
+                  <div id="universal-dims-body" style="padding:var(--space-8) 0 0 0;display:flex;flex-direction:column;gap:var(--space-8);"></div>
+                </details>
               </div>
 
-              <!-- Custom param -->
-              <div class="sweep-section">
-                <div class="sweep-section-label">Custom Parameter</div>
+              <!-- Strategy-specific Parameter picker -->
+              <div class="sweep-section config-card">
+                <div class="sweep-section-label">Strategy Parameter <span style="font-size:9px;font-weight:400;color:var(--color-text-muted);font-family:var(--font-mono);text-transform:none;letter-spacing:0;">(optional — entry-logic knobs)</span></div>
                 <div class="form-group">
-                  <label class="form-label">Parameter</label>
                   <select id="custom-param-select" class="form-select">
                     <option value="">Choose a parameter...</option>
                   </select>
-                  <div id="custom-param-help" class="custom-param-help">Pick a parameter to prefill path, label, and suggested values.</div>
+                  <div id="custom-param-help" class="custom-param-help" style="display:none;"></div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="suggested-values-group" style="display:none;">
                   <label class="form-label">Suggested Values</label>
-                  <div id="suggested-values" class="suggested-values">
-                    <span class="text-muted">Pick a parameter to see suggested values.</span>
-                  </div>
+                  <div id="suggested-values" class="suggested-values"></div>
                 </div>
                 <details class="advanced-custom-details">
                   <summary>Advanced Path</summary>
@@ -985,6 +1381,12 @@
                 </div>
               </div>
 
+              <!-- Second parameter slot (grid sweep) -->
+              <div id="sweep-param-slot-2" style="display:none;"></div>
+
+              <!-- Grid info / add param button -->
+              <div id="sweep-grid-controls" style="display:flex;flex-direction:column;gap:var(--space-8);"></div>
+
               <!-- Selected config summary -->
               <div id="selected-config-summary" class="selected-config-summary" style="display:none;">
                 <div class="config-label">Selected</div>
@@ -996,8 +1398,8 @@
               </button>
 
               <!-- Promoted sweeps -->
-              <div class="sweep-section">
-                <div class="sweep-section-label">Promoted Sweeps</div>
+              <div class="sweep-section config-card tight">
+                <div class="sweep-section-label">This Session</div>
                 <div id="sweep-history-list">
                   <div style="font-size:var(--text-caption); color:var(--color-text-muted); font-family:var(--font-mono);">No promoted sweeps yet.</div>
                 </div>
@@ -1006,23 +1408,71 @@
             </div>
           </div>
 
+          <!-- Resize handle -->
+          <div class="sweep-resize-handle" id="sweep-resize-handle" title="Drag to resize"></div>
+
           <!-- Right: Results panel -->
           <div class="sweep-results-panel" id="sweep-results-panel">
             <div class="results-panel">
-              <div class="panel-header">
-                <span>Results</span>
-                <span style="display:flex;gap:var(--space-8);flex-wrap:wrap;align-items:center;">
-                  <span id="results-loaded-strategy" style="font-size:10px; color:var(--color-text); font-family:var(--font-mono);"></span>
-                  <span id="results-sweep-id" style="font-size:10px; color:var(--color-text-muted); font-family:var(--font-mono);"></span>
+              <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;min-width:0;">
+                <span style="display:flex;align-items:center;gap:var(--space-12);min-width:0;overflow:hidden;">
+                  <span style="flex-shrink:0;">Results</span>
+                  <span id="results-loaded-strategy" class="results-meta"></span>
+                  <span id="results-sweep-id" class="results-meta" style="flex-shrink:0;"></span>
                 </span>
+                <button id="new-session-btn" class="header-pill-btn" onclick="startNewSession()" title="Clear this session and start fresh">New Session</button>
               </div>
-              <div id="results-body">
-                <div class="empty-state">
-                  <div class="empty-state-icon">&#9889;</div>
-                  <div class="empty-state-title">No sweep running</div>
-                  <div class="empty-state-subtitle">Select a strategy, pick a preset or custom parameter, then click Run Sweep.</div>
+
+              <!-- Results / JSON tabs -->
+              <div class="sweep-results-tabs" id="sweep-results-tabs">
+                <button class="sweep-tab active" id="tab-btn-results" onclick="switchSweepTab('results')">Results</button>
+                <button class="sweep-tab" id="tab-btn-json" onclick="switchSweepTab('json')">Strategy JSON <span id="json-tab-badge" class="sweep-tab-badge" style="display:none;">EDITED</span></button>
+              </div>
+
+              <div id="sweep-promote-banner" class="sweep-promote-banner"></div>
+
+              <!-- Tab: Results (existing) -->
+              <div id="sweep-tab-results" class="sweep-tab-content active">
+                <div id="results-body">
+                  <div class="empty-state">
+                    <div class="empty-state-shell">
+                      <div class="empty-state-kicker">Ready To Sweep</div>
+                      <div class="empty-state-icon">&#9889;</div>
+                      <div class="empty-state-title">No sweep running</div>
+                      <div class="empty-state-subtitle">Pick a strategy, choose a validation tier, then sweep either a universal dimension like timeframe or a strategy-specific entry parameter.</div>
+                      <div class="empty-state-steps">
+                        <div class="empty-state-step">1. Select strategy</div>
+                        <div class="empty-state-step">2. Choose tier</div>
+                        <div class="empty-state-step">3. Pick dimension</div>
+                        <div class="empty-state-step">4. Run sweep</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              <!-- Tab: Strategy JSON (new) -->
+              <div id="sweep-tab-json" class="sweep-tab-content">
+                <div class="json-viewer-toolbar">
+                  <span class="json-viewer-filename" id="json-viewer-filename">No strategy loaded</span>
+                  <div style="display:flex;gap:var(--space-8);align-items:center;">
+                    <button class="json-viewer-btn" id="json-reset-btn" onclick="jsonViewerReset()" title="Discard edits and reload from disk">↺ Reset</button>
+                    <button class="json-viewer-btn json-viewer-btn-save" id="json-save-btn" onclick="jsonViewerSave()">✓ Save Changes</button>
+                  </div>
+                </div>
+                <div class="json-changed-bar" id="json-changed-bar" style="display:none;">
+                  <span id="json-changed-msg">Unsaved changes</span>
+                  <button class="json-viewer-btn" style="padding:2px 8px;font-size:10px;" onclick="jsonViewerReset()">Discard</button>
+                </div>
+                <div class="json-editor-wrap">
+                  <div class="json-pane-header">
+                    <span>Strategy JSON</span>
+                    <span id="json-strategy-id" style="font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono);"></span>
+                  </div>
+                  <textarea id="json-editor" class="json-editor" spellcheck="false" oninput="onJsonEditorInput()" placeholder="Load a strategy from the session list on the left to view its JSON here."></textarea>
+                </div>
+              </div>
+
             </div>
           </div>
 

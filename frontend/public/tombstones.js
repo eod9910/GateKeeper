@@ -1,3 +1,51 @@
+async function archiveRejected() {
+  const btn = document.getElementById('btn-archive-rejected');
+  if (!confirm('This counts rejected strategies. Files are preserved and can be restored.\n\nContinue?')) return;
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
+    const res = await fetch('/api/strategies/archive-rejected', { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Archive failed');
+    const count = data.data?.archived ?? 0;
+    alert(`${count} rejected ${count === 1 ? 'strategy' : 'strategies'} found. All files are preserved.`);
+    await loadTombstonesPage();
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Archive Rejected'; }
+  }
+}
+
+async function restoreMethod(patternId) {
+  if (!patternId) return;
+  if (!confirm('Restore "' + patternId + '" back to the active method library?')) return;
+  try {
+    const res = await fetch('/api/plugins/scanner/tombstones/' + encodeURIComponent(patternId), { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Restore failed');
+    await loadTombstonesPage();
+  } catch (e) {
+    alert('Restore failed: ' + e.message);
+  }
+}
+
+async function restoreStrategy(strategyVersionId) {
+  if (!strategyVersionId) return;
+  if (!confirm('Restore "' + strategyVersionId + '" back to draft status?')) return;
+  try {
+    const res = await fetch('/api/strategies/' + encodeURIComponent(strategyVersionId) + '/status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'draft' }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Restore failed');
+    await loadTombstonesPage();
+  } catch (e) {
+    alert('Restore failed: ' + e.message);
+  }
+}
+
 function tombstonesFormatDateTime(value) {
   if (!value) return '--';
   const d = new Date(value);
@@ -98,8 +146,11 @@ function tombstonesRender(methodStore, strategyStore) {
               <span class="text-mono">tombstoned: ${time}</span>
             </div>
           </div>
-          <div style="padding:4px 8px;border:1px solid var(--color-border);font-size:var(--text-caption);font-family:var(--font-mono);color:#ef9a9a;">
-            TOMBSTONED
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+            <div style="padding:4px 8px;border:1px solid var(--color-border);font-size:var(--text-caption);font-family:var(--font-mono);color:#ef9a9a;">
+              TOMBSTONED
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="restoreMethod('${patternId}')" style="font-size:11px;padding:3px 10px;color:var(--color-positive,#4ade80);border-color:var(--color-positive,#4ade80);">Restore</button>
           </div>
         </div>
       `;
@@ -149,8 +200,11 @@ function tombstonesRender(methodStore, strategyStore) {
             <span class="text-mono">max dd: ${tombstonesFmtPct(metrics.max_drawdown_pct)}</span>
           </div>
         </div>
-        <div style="padding:4px 8px;border:1px solid var(--color-border);font-size:var(--text-caption);font-family:var(--font-mono);color:#ef9a9a;">
-          STRATEGY
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <div style="padding:4px 8px;border:1px solid var(--color-border);font-size:var(--text-caption);font-family:var(--font-mono);color:#ef9a9a;">
+            REJECTED
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="restoreStrategy('${strategyId}')" style="font-size:11px;padding:3px 10px;color:var(--color-positive,#4ade80);border-color:var(--color-positive,#4ade80);">Restore</button>
         </div>
       </div>
     `;

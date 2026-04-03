@@ -5,18 +5,206 @@
 const API = '/api';
 let selectedPreset = null;
 let customValues = [];
+let secondSlot = { active: false, paramPath: '', label: '', values: [] };
 let activeSweepId = null;
 let pollTimer = null;
 const strategyCatalog = new Map();
 const sweepReportCache = new Map();
 let sweepSummaryCache = [];
+// Maps sweep_id → session version number (V1, V2, ...) — populated by _loadRecentSweepsImpl
+const sweepVersionMap = new Map();
 const ACTIVE_SWEEP_STORAGE_KEY = 'activeSweepId';
+const ACTIVE_STRATEGY_STORAGE_KEY = 'activeSweepStrategyId';
+const SESSION_START_STORAGE_KEY = 'sweepSessionStartedAt';
+let sessionStartedAt = null;
 let selectedSweepReportId = null;
 let selectedSweepVariantId = null;
 const selectedComparisonVariantIds = new Set();
 let activeSweepReferenceKey = null;
 let activeSweepReferenceReportId = null;
 let activeConfiguredStrategyVersionId = null;
+
+// ─── Universal Dimensions state ───────────────────────────────────────────────
+// Maps dim.key → Set of selected values
+const universalDimSelections = new Map();
+let universalDimsSpec = null; // loaded from API
+const UNIVERSAL_SWEEP_FALLBACK_PATHS = [
+  'validation_tier',
+  'setup_config.market_cap_tier',
+  'interval',
+  'risk_config.take_profit_R',
+  'risk_config.atr_multiplier',
+  'risk_config.max_hold_bars',
+  'execution_config.auto_breakeven_r',
+  'risk_config.max_concurrent_positions',
+];
+const STRATEGY_PICKER_BASELINE_EXCLUDED_PATHS = [
+  'setup_config.min_market_cap_billions',
+  'setup_config.min_avg_volume_k',
+  'setup_config.require_above_200ma',
+];
+
+async function loadUniversalDims() {
+  if (universalDimsSpec) return universalDimsSpec;
+  try {
+    const res = await fetch(`${API}/sweep/universal-dims`);
+    const json = await res.json();
+    universalDimsSpec = json.success ? json.data : null;
+  } catch { universalDimsSpec = null; }
+  return universalDimsSpec;
+}
+
+function getStrategyPickerExcludedPaths() {
+  const excluded = new Set([
+    ...UNIVERSAL_SWEEP_FALLBACK_PATHS,
+    ...STRATEGY_PICKER_BASELINE_EXCLUDED_PATHS,
+  ]);
+  (universalDimsSpec?.dims || []).forEach(dim => {
+    const path = String(dim?.param_path || '').trim();
+    if (path) excluded.add(path);
+  });
+  return excluded;
+}
+
+function shouldHideFromStrategyParameterPicker(definition) {
+  const path = String(definition?.param_path || definition?.path || '').trim();
+  return Boolean(path) && getStrategyPickerExcludedPaths().has(path);
+}
+
+function getActiveDimParams() {
+  // Returns array of { label, param_path, values[] } for each dim that has ≥1 value selected
+  if (!universalDimsSpec) return [];
+  return universalDimsSpec.dims
+    .map(dim => {
+      const sel = universalDimSelections.get(dim.key);
+      if (!sel || sel.size === 0) return null;
+      return {
+        label: dim.label,
+        param_path: dim.param_path,
+        identity_preserving: dim.identity_preserving || false,
+        values: Array.from(sel),
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderUniversalDims() {
+  const section = document.getElementById('universal-dims-section');
+  const body = document.getElementById('universal-dims-body');
+  if (!section || !body || !universalDimsSpec) return;
+  section.style.display = 'block';
+
+  const dims = universalDimsSpec.dims;
+  const groups = [...new Set(dims.map(d => d.group))];
+
+  let html = '';
+  for (const group of groups) {
+    const groupDims = dims.filter(d => d.group === group);
+    const groupLabel = groupDims[0].group_label;
+    html += `<div class="udim-group-label">${groupLabel}</div>`;
+    for (const dim of groupDims) {
+      const sel = universalDimSelections.get(dim.key) || new Set();
+      const hasAny = sel.size > 0;
+      html += `
+        <div class="udim-card${hasAny ? ' active' : ''}" id="udim-card-${dim.key}">
+          <div class="udim-header">
+            <div class="udim-toggle${hasAny ? ' checked' : ''}" id="udim-toggle-${dim.key}"></div>
+            <div class="udim-name">${dim.label}</div>
+            <div class="udim-count" id="udim-count-${dim.key}">${hasAny ? sel.size + ' selected' : ''}</div>
+          </div>
+          <div class="udim-values" id="udim-pills-${dim.key}">
+            ${dim.suggested_values.map(sv => {
+              const isSelected = [...sel].some(v => String(v) === String(sv.value));
+              const encodedVal = encodeURIComponent(String(sv.value));
+              return `<span class="udim-pill${isSelected ? ' selected' : ''}"
+                onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
+                title="${sv.label}">${sv.label}</span>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+  }
+  body.innerHTML = html;
+  updateUniversalDimsBadge();
+}
+
+function toggleUniversalDimValue(dimKey, value) {
+  // Coerce to number if the dim's suggested values are numeric
+  const dim = universalDimsSpec?.dims.find(d => d.key === dimKey);
+  const firstSuggested = dim?.suggested_values?.[0]?.value;
+  const coerced = (typeof firstSuggested === 'number' && !isNaN(Number(value)))
+    ? Number(value) : value;
+  let sel = universalDimSelections.get(dimKey);
+  if (!sel) { sel = new Set(); universalDimSelections.set(dimKey, sel); }
+  if (sel.has(coerced)) sel.delete(coerced); else sel.add(coerced);
+  // Re-render just this dim's pills and toggle
+  if (!dim) return;
+  const card = document.getElementById(`udim-card-${dimKey}`);
+  const toggle = document.getElementById(`udim-toggle-${dimKey}`);
+  const count = document.getElementById(`udim-count-${dimKey}`);
+  const pillsEl = document.getElementById(`udim-pills-${dimKey}`);
+  if (!card || !toggle || !count || !pillsEl) return;
+  const hasAny = sel.size > 0;
+  card.className = 'udim-card' + (hasAny ? ' active' : '');
+  toggle.className = 'udim-toggle' + (hasAny ? ' checked' : '');
+  count.textContent = hasAny ? sel.size + ' selected' : '';
+  pillsEl.innerHTML = dim.suggested_values.map(sv => {
+    const isSelected = [...sel].some(v => String(v) === String(sv.value));
+    const encodedVal = encodeURIComponent(String(sv.value));
+    return `<span class="udim-pill${isSelected ? ' selected' : ''}"
+      onclick="toggleUniversalDimValue('${dimKey}', decodeURIComponent('${encodedVal}'))"
+      title="${sv.label}">${sv.label}</span>`;
+  }).join('');
+  updateUniversalDimsBadge();
+  updateRunButton();
+}
+
+function updateUniversalDimsBadge() {
+  const badge = document.getElementById('universal-dims-active-badge');
+  if (!badge) return;
+  const active = getActiveDimParams();
+  if (active.length > 0) {
+    const totalValues = active.reduce((acc, d) => acc + d.values.length, 0);
+    badge.textContent = active.length + ' dim' + (active.length > 1 ? 's' : '') + ', ' + totalValues + ' values';
+    badge.style.display = 'inline';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderUniversalDimsVariantCount() {
+  // Show a count indicator below the universal dims section
+  const section = document.getElementById('universal-dims-section');
+  if (!section) return;
+  const existing = document.getElementById('udim-variant-count');
+  const active = getActiveDimParams();
+  const primary = getPrimarySweepParamConfig();
+  if (active.length === 0) {
+    if (existing) existing.remove();
+    return;
+  }
+  const primaryBaseCount = primary.values.length || 1;
+  const primaryCount = secondSlot.active
+    ? primaryBaseCount * (secondSlot.values.length || 1)
+    : primaryBaseCount;
+  const dimsProduct = active.reduce((acc, d) => acc * d.values.length, 1);
+  const total = primaryCount * dimsProduct;
+  const overCap = total > 20;
+  const el = existing || (() => {
+    const div = document.createElement('div');
+    div.id = 'udim-variant-count';
+    div.style.cssText = 'font-size:11px;font-family:var(--font-mono);padding:var(--space-6) var(--space-10);border-radius:var(--radius-sm);margin-top:var(--space-4);';
+    section.after(div);
+    return div;
+  })();
+  el.style.background = overCap
+    ? 'color-mix(in srgb, var(--color-negative) 10%, transparent)'
+    : 'color-mix(in srgb, var(--color-accent) 8%, transparent)';
+  el.style.color = overCap ? 'var(--color-negative)' : 'var(--color-accent)';
+  el.textContent = overCap
+    ? `⚠ ${total} total variants — max is 20. Reduce selections.`
+    : `${primaryCount} strategy × ${dimsProduct} universal dims = ${total} total variants`;
+}
 
 const ANATOMY_GROUPS = [
   { key: 'structure', label: 'Structure' },
@@ -216,6 +404,37 @@ function getConfiguredStrategyVersionId() {
   return String(activeConfiguredStrategyVersionId || document.getElementById('sweep-strategy-select')?.value || '').trim();
 }
 
+async function switchToStrategy(strategyVersionId, options = {}) {
+  const strategySelect = document.getElementById('sweep-strategy-select');
+  if (!strategySelect) return;
+
+  // Fetch full spec first so parameter_manifest is available for the picker
+  await ensureStrategySpec(strategyVersionId);
+
+  // Keep hidden select in sync
+  if (!strategySelect.querySelector(`option[value="${CSS.escape(strategyVersionId)}"]`)) {
+    const opt = document.createElement('option');
+    opt.value = strategyVersionId;
+    strategySelect.appendChild(opt);
+  }
+  strategySelect.value = strategyVersionId;
+  activeConfiguredStrategyVersionId = strategyVersionId;
+  persistActiveStrategyId(strategyVersionId);
+
+  updateStrategyDisplay(strategyVersionId);
+  renderStrategyAnatomy();
+  configureSweepTierSelector();
+  setupCustomParameterPicker();
+  // Load and render universal dims whenever a strategy is selected
+  loadUniversalDims().then(() => {
+    renderUniversalDims();
+    setupCustomParameterPicker();
+  });
+  // Allow caller to suppress the default loadRecentSweeps (e.g. after promotion,
+  // so the caller can load sessions for the previous strategy instead)
+  if (!options.skipLoadSweeps) await loadRecentSweeps();
+}
+
 function getSelectedStrategySpec() {
   const strategyVersionId = getConfiguredStrategyVersionId();
   return strategyCatalog.get(strategyVersionId) || null;
@@ -233,6 +452,7 @@ function getManifestPresetDefs(strategy = getSelectedStrategySpec()) {
   const manifest = Array.isArray(strategy?.parameter_manifest) ? strategy.parameter_manifest : [];
   manifest.forEach(item => {
     if (!item?.key || !item?.path || item?.sweep_enabled !== true) return;
+    if (shouldHideFromStrategyParameterPicker(item)) return;
     defs[item.key] = {
       label: item.label || item.key,
       anatomy: normalizeAnatomyKey(item.anatomy),
@@ -279,7 +499,7 @@ function getPresetEntries(strategy = getSelectedStrategySpec()) {
   const allPresetDefs = { ...PRESET_DEFS, ...getStrategyNativePresetDefs(strategy) };
   return Object.keys(allPresetDefs)
     .map(key => [key, resolvePresetDef(key, strategy)])
-    .filter(([, preset]) => Boolean(preset));
+    .filter(([, preset]) => Boolean(preset) && !shouldHideFromStrategyParameterPicker(preset));
 }
 
 function getAnatomyDefinitionSummary(strategy = getSelectedStrategySpec()) {
@@ -347,19 +567,209 @@ function renderStrategyAnatomy() {
   `;
 }
 
+// ─── Smart Plan (sensitivity-driven sweep recommendation) ─────────────────────
+
+let _smartPlan = null;
+
+async function loadSmartPlan(strategyVersionId) {
+  const banner = document.getElementById('smart-plan-banner');
+  if (!banner) return;
+  if (!strategyVersionId) { banner.innerHTML = ''; return; }
+
+  banner.innerHTML = `<div style="color:var(--color-text-subtle);font-size:var(--text-caption);padding:var(--space-8);">Loading sensitivity-driven sweep plan…</div>`;
+
+  try {
+    const res = await fetch(`${API}/sweep/smart-plan/${encodeURIComponent(strategyVersionId)}`);
+    const data = await res.json();
+    if (!data.success || !data.data?.sweep_params?.length) {
+      banner.innerHTML = `<div style="color:var(--color-text-subtle);font-size:var(--text-caption);padding:var(--space-8);">No smart plan available — run Tier 1S or Tier 2 validation first to generate sensitivity data.</div>`;
+      _smartPlan = null;
+      return;
+    }
+    _smartPlan = data.data;
+    renderSmartPlan(_smartPlan, banner);
+  } catch (e) {
+    banner.innerHTML = `<div style="color:var(--color-text-subtle);font-size:var(--text-caption);padding:var(--space-8);">Could not load smart plan.</div>`;
+    _smartPlan = null;
+  }
+}
+
+function renderSmartPlan(plan, container) {
+  if (!plan || !container) return;
+
+  const rows = plan.sweep_params.map((p, i) => {
+    // Extract raw impact from label e.g. "(impact: +15.0% / -2.7%)"
+    const impactMatch = p.label.match(/impact:\s*([+\-\d.]+)%\s*\/\s*([+\-\d.]+)%/);
+    const upImpact = impactMatch ? parseFloat(impactMatch[1]) : 0;
+    const downImpact = impactMatch ? parseFloat(impactMatch[2]) : 0;
+    const maxImpact = Math.max(Math.abs(upImpact), Math.abs(downImpact));
+    const impactColor = maxImpact > 10 ? 'var(--color-positive)' : 'var(--color-text-muted)';
+
+    // Clean label — remove the "(impact: ...)" suffix for display
+    const cleanLabel = p.label.replace(/\s*\(impact:.*\)/, '').trim();
+    const valuesStr = p.values.join(', ');
+
+    return `
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:var(--space-8);align-items:center;padding:var(--space-6) var(--space-12);border-bottom:1px solid var(--color-border);">
+        <div>
+          <div style="font-size:var(--text-caption);color:var(--color-text);">${reportEscHtml(cleanLabel)}</div>
+          <div style="font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono);margin-top:2px;">${reportEscHtml(p.param_path)}</div>
+        </div>
+        <div style="font-size:var(--text-caption);color:${impactColor};font-weight:600;white-space:nowrap;">${maxImpact > 0 ? (upImpact > 0 ? '+' : '') + upImpact.toFixed(1) + '%' : '—'}</div>
+        <button
+          class="btn btn-sm"
+          style="font-size:var(--text-caption);padding:2px 10px;white-space:nowrap;"
+          onclick="applySmartPlanParam(${i})"
+        >Use</button>
+      </div>
+    `;
+  }).join('');
+
+  const excludedNote = plan.excluded_params?.length
+    ? `<div style="padding:var(--space-6) var(--space-12);font-size:10px;color:var(--color-text-subtle);">Excluded (flat): ${plan.excluded_params.map(e => e.param).join(', ')}</div>`
+    : '';
+
+  container.innerHTML = `
+    <div style="border:1px solid var(--color-border);border-radius:var(--radius);overflow:hidden;margin-bottom:var(--space-12);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-8) var(--space-12);background:var(--color-surface);border-bottom:1px solid var(--color-border);">
+        <div>
+          <span style="font-size:var(--text-caption);font-weight:600;color:var(--color-text);">Sensitivity-Driven Sweep Plan</span>
+          <span style="margin-left:var(--space-8);font-size:10px;color:var(--color-text-subtle);">Base: ${plan.base_expectancy > 0 ? '+' : ''}${plan.base_expectancy.toFixed(2)}R · Score: ${plan.sensitivity_score}/100</span>
+        </div>
+        <button class="btn btn-sm btn-primary" style="font-size:var(--text-caption);padding:3px 12px;" onclick="applyAllSmartPlanParams()">Run All</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:0;padding:var(--space-6) var(--space-12);border-bottom:1px solid var(--color-border);font-size:10px;color:var(--color-text-subtle);text-transform:uppercase;letter-spacing:.05em;">
+        <span>Parameter</span><span>Impact</span><span></span>
+      </div>
+      ${rows}
+      ${excludedNote}
+    </div>
+  `;
+}
+
+function applySmartPlanParam(index) {
+  if (!_smartPlan?.sweep_params?.[index]) return;
+  const p = _smartPlan.sweep_params[index];
+  const cleanLabel = p.label.replace(/\s*\(impact:.*\)/, '').trim();
+
+  // Set the custom param path and values then trigger a run
+  const pathInput = document.getElementById('custom-param-path');
+  const labelInput = document.getElementById('custom-param-label');
+  if (pathInput) pathInput.value = p.param_path;
+  if (labelInput) labelInput.value = cleanLabel;
+
+  clearPresetSelection();
+  customValues = [...p.values];
+  renderValuePills();
+  updateSelectedSummary();
+  updateRunButton();
+
+  // Scroll to run button
+  document.getElementById('run-sweep-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function applyAllSmartPlanParams() {
+  if (!_smartPlan?.sweep_params?.length) return;
+  // Apply all smart plan params as multi-param sweep
+  // For now, apply the highest-impact param and surface a message
+  applySmartPlanParam(0);
+}
+
 // ─── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  sessionStartedAt = window.localStorage.getItem(SESSION_START_STORAGE_KEY) || null;
   restoreSweepConfigPanelState();
+  initSweepResizeHandle();
   configureSweepTierSelector();
   await loadStrategyCatalog();
   await loadStrategies();
-  await loadRecentSweeps();
   setupPresetButtons();
   setupCustomParameterPicker();
   setupAddValueOnEnter();
+  // Pre-load universal dims so the section is ready when a strategy is selected
+  loadUniversalDims().then(() => {
+    renderUniversalDims();
+    setupCustomParameterPicker();
+  });
+
+  const requestedStrategy = getRequestedStrategyId();
+  if (requestedStrategy) {
+    const urlStrategy = new URLSearchParams(window.location.search).get('strategy_version_id');
+    const persistedStrategy = String(window.localStorage.getItem(ACTIVE_STRATEGY_STORAGE_KEY) || '').trim();
+    // Only start a fresh session on an explicit cross-page handoff. If we are
+    // merely refreshing the same sweep page, keep the existing session and
+    // active sweep instead of clearing the winner cards.
+    if (urlStrategy && String(urlStrategy).trim() !== persistedStrategy) {
+      sessionStartedAt = new Date().toISOString();
+      window.localStorage.setItem(SESSION_START_STORAGE_KEY, sessionStartedAt);
+      persistActiveSweepId('');
+    }
+    await switchToStrategy(requestedStrategy.trim());
+    if (urlStrategy) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('strategy_version_id');
+      window.history.replaceState({}, '', url.toString());
+    }
+  } else {
+    await loadRecentSweeps();
+  }
+
   await restoreActiveSweepFromState();
 });
+
+function initSweepResizeHandle() {
+  const handle = document.getElementById('sweep-resize-handle');
+  const layout = document.querySelector('.sweep-layout');
+  if (!handle || !layout) return;
+
+  const STORAGE_KEY = 'sweep_config_panel_width';
+  const MIN_WIDTH = 240;
+  const MAX_WIDTH = 600;
+
+  // Restore saved width
+  const saved = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+  if (saved >= MIN_WIDTH && saved <= MAX_WIDTH) {
+    layout.style.setProperty('--sweep-config-width', `${saved}px`);
+  }
+
+  let dragging = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  handle.addEventListener('mousedown', (e) => {
+    const panel = document.getElementById('sweep-config-panel');
+    if (!panel) return;
+    dragging = true;
+    startX = e.clientX;
+    startWidth = panel.getBoundingClientRect().width;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+    layout.style.setProperty('--sweep-config-width', `${newWidth}px`);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    // Persist width
+    const panel = document.getElementById('sweep-config-panel');
+    if (panel) {
+      const w = Math.round(panel.getBoundingClientRect().width);
+      localStorage.setItem(STORAGE_KEY, String(w));
+    }
+  });
+}
 
 function toggleSweepConfigPanel(forceCollapsed = null) {
   const layout = document.querySelector('.sweep-layout');
@@ -377,6 +787,8 @@ function toggleSweepConfigPanel(forceCollapsed = null) {
   if (label) label.style.display = nextCollapsed ? 'none' : '';
   toggle.textContent = nextCollapsed ? '»' : '«';
   toggle.title = nextCollapsed ? 'Expand configuration' : 'Collapse configuration';
+  const handle = document.getElementById('sweep-resize-handle');
+  if (handle) handle.style.pointerEvents = nextCollapsed ? 'none' : '';
   window.localStorage.setItem('sweepConfigCollapsed', nextCollapsed ? '1' : '0');
 }
 
@@ -394,6 +806,15 @@ function getRequestedSweepId() {
     if (fromQuery) return fromQuery;
   } catch {}
   return String(window.localStorage.getItem(ACTIVE_SWEEP_STORAGE_KEY) || '').trim();
+}
+
+function getRequestedStrategyId() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = String(params.get('strategy_version_id') || '').trim();
+    if (fromQuery) return fromQuery;
+  } catch {}
+  return String(window.localStorage.getItem(ACTIVE_STRATEGY_STORAGE_KEY) || '').trim();
 }
 
 function getLatestRunningSweepId(sweeps = []) {
@@ -417,6 +838,15 @@ function persistActiveSweepId(sweepId = '') {
   }
 }
 
+function persistActiveStrategyId(strategyVersionId = '') {
+  const value = String(strategyVersionId || '').trim();
+  if (value) {
+    window.localStorage.setItem(ACTIVE_STRATEGY_STORAGE_KEY, value);
+  } else {
+    window.localStorage.removeItem(ACTIVE_STRATEGY_STORAGE_KEY);
+  }
+}
+
 async function restoreActiveSweepFromState() {
   const requestedSweepId = getRequestedSweepId();
   const sweeps = await fetchSweepSummaries(true).catch(() => []);
@@ -437,15 +867,32 @@ function configureSweepTierSelector() {
   if (tierSelect) {
     const strategy = getSelectedStrategySpec();
     const stage = String(strategy?.sweep_stage || '').toLowerCase();
-    if (stage === 'tier3') {
-      tierSelect.innerHTML = `
-        <option value="tier3" selected>Tier 3 - Holdout robustness check</option>
-      `;
-    } else {
-      tierSelect.innerHTML = `
-        <option value="tier2" selected>Tier 2 - Sweep on core validation universe</option>
-      `;
-    }
+    const tier1Stages = new Set(['tier1', 'tier1s', 'tier1b', 'tier1bs']);
+
+    // Always show all tiers — default selection based on strategy stage
+    const defaultTier = stage === 'tier3' ? 'tier3'
+      : (stage === 'tier2' || stage === 'tier2r') ? 'tier2'
+      : stage === 'tier1b' ? 'tier1b'
+      : stage === 'tier1s' ? 'tier1s'
+      : 'tier1';
+
+    tierSelect.innerHTML = `
+      <option value="tier1"${defaultTier === 'tier1' ? ' selected' : ''}>Tier 1 — Fast mixed-cap (52 stocks)</option>
+      <option value="tier1b"${defaultTier === 'tier1b' ? ' selected' : ''}>Tier 1B — Mixed-cap expansion (100 stocks)</option>
+      <option value="tier1s"${defaultTier === 'tier1s' ? ' selected' : ''}>Tier 1S — Tier 1 + Sensitivity</option>
+      <option value="tier2"${defaultTier === 'tier2' ? ' selected' : ''}>Tier 2 — Core mixed-cap (200 stocks)</option>
+      <option value="tier3"${defaultTier === 'tier3' ? ' selected' : ''}>Tier 3 — Mixed-cap holdout (180 stocks)</option>
+      <option value="large_cap_known"${defaultTier === 'large_cap_known' ? ' selected' : ''}>Large Cap (Known) — 76 confirmed large caps</option>
+      <option value="sp500"${defaultTier === 'sp500' ? ' selected' : ''}>S&P 500 — ~406 large cap stocks</option>
+      <option value="sp400"${defaultTier === 'sp400' ? ' selected' : ''}>S&P 400 — ~341 mid cap stocks</option>
+      <option value="sp600"${defaultTier === 'sp600' ? ' selected' : ''}>S&P 600 — ~474 small cap stocks</option>
+      <optgroup label="Regime Universes (run build_regime_universes.py first)">
+        <option value="regime_expansion"${defaultTier === 'regime_expansion' ? ' selected' : ''}>Regime: Expansion — stocks above 200MA, momentum up</option>
+        <option value="regime_distribution"${defaultTier === 'regime_distribution' ? ' selected' : ''}>Regime: Distribution — stocks above 200MA, fading</option>
+        <option value="regime_accumulation"${defaultTier === 'regime_accumulation' ? ' selected' : ''}>Regime: Accumulation — stocks below 200MA, recovering</option>
+        <option value="regime_markdown"${defaultTier === 'regime_markdown' ? ' selected' : ''}>Regime: Markdown — stocks below 200MA, declining</option>
+      </optgroup>
+    `;
   }
 
   const strategySelect = document.getElementById('sweep-strategy-select');
@@ -477,71 +924,51 @@ function setupAddValueOnEnter() {
 
 // ─── Strategy loading ──────────────────────────────────────────────────────────
 
+function stripStrategyNameSuffixes(name) {
+  return String(name || '')
+    .replace(/\s*—.*$/, '')          // strip everything from first em-dash (param suffixes)
+    .replace(/\s*\[v\d+\]/gi, '')    // strip [v1], [v2] etc
+    .replace(/\s*\[Sweep Winner\]/gi, '')
+    .replace(/\s+v\d+$/i, '')
+    .trim();
+}
+
+function updateStrategyDisplay(strategyVersionId) {
+  const display = document.getElementById('sweep-strategy-display');
+  if (!display) return;
+  const spec = strategyCatalog.get(strategyVersionId);
+  if (!strategyVersionId || spec?._not_found) {
+    display.innerHTML = `
+      <div class="sweep-name" style="font-style:italic;color:var(--color-text-muted);">No strategy selected</div>
+      <div class="sweep-meta">Go to Strategy list and use "Send to Sweep"</div>`;
+    return;
+  }
+  const rawName = String(spec?.name || strategyVersionId);
+  const displayName = stripStrategyNameSuffixes(rawName) || rawName;
+  const interval = spec?.interval || '';
+  const stage = String(spec?.sweep_stage || '').toUpperCase();
+  const stageMeta = [interval, stage].filter(Boolean).join(' · ');
+  display.innerHTML = `
+    <div class="sweep-name" title="${reportEscHtml(rawName)}">${reportEscHtml(displayName)}</div>
+    ${stageMeta ? `<div class="sweep-meta">${reportEscHtml(stageMeta)}</div>` : ''}`;
+}
+
 async function loadStrategies() {
   try {
     const res = await fetch(`${API}/sweep/strategies/list`);
     const data = await res.json();
     const select = document.getElementById('sweep-strategy-select');
-    const currentValue = select.value;
-    select.innerHTML = '<option value="">— Select a strategy —</option>';
 
+    // Populate the hidden select and catalog — no visible dropdown needed
     const items = data.data || [];
-    const groups = {
-      candidates: items.filter(s => s.sweep_stage === 'tier2' || s.sweep_stage === 'tier2r'),
-      baselines: items.filter(s => s.sweep_stage === 'tier3'),
-    };
-
-    const addGroup = (label, strategies) => {
-      if (strategies.length === 0) return;
-      const group = document.createElement('optgroup');
-      group.label = label;
-      strategies.forEach(s => {
-        const existing = strategyCatalog.get(s.strategy_version_id) || {};
-        strategyCatalog.set(s.strategy_version_id, { ...existing, ...s });
-        const opt = document.createElement('option');
-        opt.value = s.strategy_version_id;
-        const badge = String(s.sweep_stage || '').toUpperCase();
-        opt.textContent = `${s.name} (${s.interval || '?'}) [${badge}]`;
-        opt.title = s.sweep_stage_title || '';
-        group.appendChild(opt);
-      });
-      select.appendChild(group);
-    };
-
-    addGroup('Tier 2 Sweep Candidates', groups.candidates);
-    addGroup('Tier 3 Baselines', groups.baselines);
-
-    if (items.length === 0) {
+    select.innerHTML = '<option value=""></option>';
+    items.forEach(s => {
+      const existing = strategyCatalog.get(s.strategy_version_id) || {};
+      strategyCatalog.set(s.strategy_version_id, { ...existing, ...s });
       const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = 'No T2, T2R, or T3 strategies available';
-      opt.disabled = true;
+      opt.value = s.strategy_version_id;
       select.appendChild(opt);
-    }
-
-    if (currentValue) {
-      select.value = currentValue;
-    }
-
-    select.onchange = () => {
-      activeConfiguredStrategyVersionId = null;
-      configureSweepTierSelector();
-      if (selectedPreset && !resolvePresetDef(selectedPreset, getSelectedStrategySpec())) {
-        clearPresetSelection();
-        customValues = [];
-        renderValuePills();
-        const pathInput = document.getElementById('custom-param-path');
-        const labelInput = document.getElementById('custom-param-label');
-        if (pathInput) pathInput.value = '';
-        if (labelInput) labelInput.value = '';
-      }
-      renderStrategyAnatomy();
-      setupCustomParameterPicker();
-      updateSelectedSummary();
-      updateRunButton();
-    };
-    renderStrategyAnatomy();
-    setupCustomParameterPicker();
+    });
   } catch (e) {
     console.error('Failed to load strategies', e);
   }
@@ -568,12 +995,19 @@ async function ensureStrategySpec(strategyVersionId) {
   if (!id) return null;
 
   const existing = strategyCatalog.get(id);
+  // Already fetched full spec
   if (existing && (existing.structure_config || existing.setup_config || existing.risk_config || existing.entry_config || existing.exit_config)) {
     return existing;
   }
+  // Previously returned 404 — don't retry
+  if (existing?._not_found) return null;
 
   try {
     const res = await fetch(`${API}/strategies/${encodeURIComponent(id)}`);
+    if (res.status === 404) {
+      strategyCatalog.set(id, { _not_found: true });
+      return null;
+    }
     const data = await res.json();
     if (data?.success && data?.data?.strategy_version_id) {
       const merged = { ...(existing || {}), ...data.data };
@@ -681,20 +1115,24 @@ function applyCustomParameterPreset(presetKey, options = {}) {
 
 function renderSuggestedValueButtons(presetKey = '') {
   const container = document.getElementById('suggested-values');
+  const group = document.getElementById('suggested-values-group');
   const help = document.getElementById('custom-param-help');
   if (!container) return;
 
   const preset = resolvePresetDef(presetKey);
   if (!preset) {
-    container.innerHTML = '<span class="text-muted">Pick a parameter to prefill path, label, and suggested values.</span>';
-    if (help) help.textContent = 'Advanced mode still accepts any raw JSON path below.';
+    if (group) group.style.display = 'none';
+    if (help) help.style.display = 'none';
     return;
   }
 
+  // Show path hint in the help element, but only as a small mono hint
   if (help) {
-    const anatomyLabel = ANATOMY_GROUPS.find(group => group.key === preset.anatomy)?.label || 'Parameter';
-    help.textContent = `${anatomyLabel} • Path: ${preset.param_path}`;
+    help.textContent = preset.param_path;
+    help.style.display = 'block';
   }
+
+  if (group) group.style.display = preset.values.length > 0 ? 'flex' : 'none';
 
   container.innerHTML = preset.values.map(value => {
     const normalized = String(value);
@@ -762,15 +1200,22 @@ function renderValuePills() {
 function updateSelectedSummary() {
   const summary = document.getElementById('selected-config-summary');
   const text = document.getElementById('selected-config-text');
+  if (!summary || !text) return;
 
-  if (selectedPreset) {
-    const preset = resolvePresetDef(selectedPreset);
-    text.textContent = preset ? `${preset.label}: ${preset.values.join(', ')}` : selectedPreset;
-    summary.style.display = 'block';
-  } else if (customValues.length > 0) {
-    const path = document.getElementById('custom-param-path').value.trim();
-    const label = document.getElementById('custom-param-label').value.trim() || path;
-    text.textContent = `${label}: ${customValues.join(', ')}`;
+  const primary = getPrimarySweepParamConfig();
+
+  let line1 = '';
+  if (primary.path && primary.values.length > 0) {
+    line1 = `${primary.label}: ${primary.values.join(', ')}`;
+  }
+
+  let line2 = '';
+  if (secondSlot.active && secondSlot.values.length > 0 && secondSlot.label) {
+    line2 = `${secondSlot.label}: ${secondSlot.values.join(', ')}`;
+  }
+
+  if (line1) {
+    text.textContent = line2 ? `${line1}  ×  ${line2}` : line1;
     summary.style.display = 'block';
   } else {
     summary.style.display = 'none';
@@ -779,11 +1224,44 @@ function updateSelectedSummary() {
 
 function updateRunButton() {
   const strategy = getConfiguredStrategyVersionId();
-  const hasParam = selectedPreset || (
-    customValues.length > 0 &&
-    document.getElementById('custom-param-path').value.trim()
-  );
-  document.getElementById('btn-run-sweep').disabled = !strategy || !hasParam;
+  const activeDims = getActiveDimParams();
+  const primary = getPrimarySweepParamConfig();
+
+  // A sweep is valid if:
+  // (a) a strategy is selected AND
+  // (b) EITHER a strategy-specific param has values OR at least one universal dim has values
+  const hasStrategyParam = primary.values.length > 0 && primary.path;
+  const hasUniversalDim = activeDims.length > 0;
+  let disabled = !strategy || (!hasStrategyParam && !hasUniversalDim);
+
+  if (secondSlot.active && hasStrategyParam) {
+    const hasSecond = secondSlot.values.length > 0 && secondSlot.paramPath;
+    const gridSize = primary.values.length * secondSlot.values.length;
+    disabled = disabled || !hasSecond || gridSize > 20 || gridSize === 0;
+  }
+
+  // Check total variant count across all axes
+  const primaryCount = hasStrategyParam
+    ? (secondSlot.active
+        ? primary.values.length * (secondSlot.values.length || 1)
+        : primary.values.length)
+    : 1; // no strategy param = 1 "variant" per dim combo
+  const dimsProduct = activeDims.length > 0
+    ? activeDims.reduce((acc, d) => acc * d.values.length, 1)
+    : 1;
+  const totalVariants = primaryCount * dimsProduct;
+
+  if (totalVariants > 20) disabled = true;
+
+  const btn = document.getElementById('btn-run-sweep');
+  if (btn) {
+    btn.disabled = disabled;
+    btn.title = totalVariants > 20
+      ? `${totalVariants} variants (max 20) — reduce selections`
+      : totalVariants > 1 ? `${totalVariants} total variants` : '';
+  }
+  renderGridControls();
+  renderUniversalDimsVariantCount();
 }
 
 function clearPresetSelection() {
@@ -800,6 +1278,232 @@ function setPresetSelection(presetKey) {
     }
   });
 }
+
+function getPrimarySweepParamConfig() {
+  const pathInput = document.getElementById('custom-param-path');
+  const labelInput = document.getElementById('custom-param-label');
+  const manualPath = pathInput?.value?.trim() || '';
+  const manualLabel = labelInput?.value?.trim() || manualPath;
+
+  if (selectedPreset) {
+    const preset = resolvePresetDef(selectedPreset);
+    if (preset) {
+      return {
+        path: preset.param_path || manualPath,
+        label: preset.label || manualLabel,
+        values: Array.isArray(preset.values) ? [...preset.values] : [],
+      };
+    }
+  }
+
+  return {
+    path: manualPath,
+    label: manualLabel,
+    values: Array.isArray(customValues) ? [...customValues] : [],
+  };
+}
+
+// ─── Grid sweep: second parameter slot ─────────────────────────────────────────
+
+function renderGridControls() {
+  const container = document.getElementById('sweep-grid-controls');
+  if (!container) return;
+  const primary = getPrimarySweepParamConfig();
+
+  if (!secondSlot.active) {
+    const hasFirstParam = primary.values.length > 0 && primary.path;
+    container.innerHTML = hasFirstParam
+      ? `<button type="button" onclick="addSecondParamSlot()" style="width:100%;padding:var(--space-8);background:none;border:1px dashed var(--color-border);border-radius:var(--radius-sm);color:var(--color-text-muted);cursor:pointer;font-size:var(--text-caption);font-family:var(--font-mono);transition:all 0.15s;"
+          onmouseover="this.style.borderColor='var(--color-accent)';this.style.color='var(--color-accent)'"
+          onmouseout="this.style.borderColor='var(--color-border)';this.style.color='var(--color-text-muted)'"
+          >+ Add 2nd Parameter (Grid Sweep)</button>`
+      : '';
+    return;
+  }
+
+  const gridSize = primary.values.length * secondSlot.values.length;
+  const overCap = gridSize > 20;
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-8) var(--space-10);background:${overCap ? 'color-mix(in srgb, var(--color-negative) 8%, transparent)' : 'color-mix(in srgb, var(--color-accent) 8%, transparent)'};border:1px solid ${overCap ? 'var(--color-negative)' : 'color-mix(in srgb, var(--color-accent) 30%, transparent)'};border-radius:var(--radius-sm);">
+      <span style="font-size:var(--text-caption);font-family:var(--font-mono);color:${overCap ? 'var(--color-negative)' : 'var(--color-accent)'};">
+        Grid: ${primary.values.length} × ${secondSlot.values.length} = <strong>${gridSize}</strong> variants${overCap ? ' (max 20)' : ''}
+      </span>
+    </div>`;
+}
+
+function addSecondParamSlot() {
+  secondSlot.active = true;
+  const slot = document.getElementById('sweep-param-slot-2');
+  if (!slot) return;
+  slot.style.display = 'block';
+
+  const entries = getPresetEntries();
+  const groupsHtml = ANATOMY_GROUPS.map(group => {
+    const options = entries
+      .filter(([, preset]) => preset.anatomy === group.key)
+      .map(([key, preset]) => `<option value="${key}">${preset.label}</option>`)
+      .join('');
+    return options ? `<optgroup label="${group.label}">${options}</optgroup>` : '';
+  }).join('');
+
+  slot.innerHTML = `
+    <div class="sweep-section" style="border-top:1px solid var(--color-border);padding-top:var(--space-12);">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="sweep-section-label" style="border:none;padding:0;">2nd Parameter</div>
+        <button type="button" onclick="removeSecondParamSlot()" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:14px;padding:0 4px;" title="Remove 2nd parameter">×</button>
+      </div>
+      <div class="form-group">
+        <select id="custom-param-select-2" class="form-select">
+          <option value="">Choose a parameter...</option>
+          ${groupsHtml}
+        </select>
+        <div id="custom-param-help-2" class="custom-param-help" style="display:none;"></div>
+      </div>
+      <div class="form-group" id="suggested-values-group-2" style="display:none;">
+        <label class="form-label">Suggested Values</label>
+        <div id="suggested-values-2" class="suggested-values"></div>
+      </div>
+      <details class="advanced-custom-details">
+        <summary>Advanced Path</summary>
+        <div class="advanced-custom-body">
+          <div class="form-group">
+            <label class="form-label">Parameter Path</label>
+            <input id="custom-param-path-2" class="form-input" type="text" placeholder="e.g. setup_config.ote_zone_max" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Label</label>
+            <input id="custom-param-label-2" class="form-input" type="text" placeholder="e.g. OTE Zone Max" />
+          </div>
+        </div>
+      </details>
+      <div class="form-group">
+        <label class="form-label">Values to Test</label>
+        <div class="values-pills" id="values-pills-2"></div>
+        <div class="add-value-row">
+          <input id="add-value-input-2" type="text" placeholder="e.g. 0.79" />
+          <button onclick="addSecondSlotValue()">+ Add</button>
+        </div>
+      </div>
+    </div>`;
+
+  const select2 = document.getElementById('custom-param-select-2');
+  if (select2) {
+    select2.onchange = () => {
+      const key = select2.value;
+      if (!key) {
+        renderSecondSlotSuggestedValues('');
+        return;
+      }
+      applySecondSlotPreset(key);
+    };
+  }
+  const input2 = document.getElementById('add-value-input-2');
+  if (input2) {
+    input2.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addSecondSlotValue(); }
+    });
+  }
+  renderGridControls();
+  updateRunButton();
+}
+
+function removeSecondParamSlot() {
+  secondSlot = { active: false, paramPath: '', label: '', values: [] };
+  const slot = document.getElementById('sweep-param-slot-2');
+  if (slot) { slot.style.display = 'none'; slot.innerHTML = ''; }
+  renderGridControls();
+  updateSelectedSummary();
+  updateRunButton();
+}
+
+function applySecondSlotPreset(presetKey) {
+  const preset = resolvePresetDef(presetKey);
+  if (!preset) return;
+  const pathInput = document.getElementById('custom-param-path-2');
+  const labelInput = document.getElementById('custom-param-label-2');
+  if (pathInput) pathInput.value = preset.param_path;
+  if (labelInput) labelInput.value = preset.label;
+  secondSlot.paramPath = preset.param_path;
+  secondSlot.label = preset.label;
+  secondSlot.values = [...preset.values];
+  renderSecondSlotPills();
+  renderSecondSlotSuggestedValues(presetKey);
+  renderGridControls();
+  updateSelectedSummary();
+  updateRunButton();
+}
+
+function renderSecondSlotSuggestedValues(presetKey = '') {
+  const container = document.getElementById('suggested-values-2');
+  const group = document.getElementById('suggested-values-group-2');
+  const help = document.getElementById('custom-param-help-2');
+  if (!container) return;
+  const preset = resolvePresetDef(presetKey);
+  if (!preset) {
+    if (group) group.style.display = 'none';
+    if (help) help.style.display = 'none';
+    return;
+  }
+  if (help) { help.textContent = preset.param_path; help.style.display = 'block'; }
+  if (group) group.style.display = preset.values.length > 0 ? 'flex' : 'none';
+  container.innerHTML = preset.values.map(value => {
+    const normalized = String(value);
+    const active = secondSlot.values.some(item => String(item) === normalized);
+    return `<button type="button" class="suggested-value-btn${active ? ' active' : ''}" onclick="toggleSecondSlotSuggestedValue('${reportEscHtml(normalized)}')">${reportEscHtml(normalized)}</button>`;
+  }).join('');
+}
+
+function toggleSecondSlotSuggestedValue(rawValue) {
+  const value = isNaN(Number(rawValue)) ? rawValue : Number(rawValue);
+  const idx = secondSlot.values.findIndex(item => String(item) === String(value));
+  if (idx >= 0) { secondSlot.values.splice(idx, 1); } else { secondSlot.values.push(value); }
+  renderSecondSlotPills();
+  renderSecondSlotSuggestedValues(document.getElementById('custom-param-select-2')?.value || '');
+  renderGridControls();
+  updateSelectedSummary();
+  updateRunButton();
+}
+
+function addSecondSlotValue() {
+  const input = document.getElementById('add-value-input-2');
+  const raw = input?.value?.trim();
+  if (!raw) return;
+  const val = isNaN(Number(raw)) ? raw : Number(raw);
+  if (!secondSlot.values.some(v => String(v) === String(val))) {
+    secondSlot.values.push(val);
+    const pathInput = document.getElementById('custom-param-path-2');
+    const labelInput = document.getElementById('custom-param-label-2');
+    if (pathInput) secondSlot.paramPath = pathInput.value.trim();
+    if (labelInput) secondSlot.label = labelInput.value.trim();
+    renderSecondSlotPills();
+    renderGridControls();
+    updateSelectedSummary();
+    updateRunButton();
+  }
+  if (input) { input.value = ''; input.focus(); }
+}
+
+function removeSecondSlotValue(idx) {
+  secondSlot.values.splice(idx, 1);
+  renderSecondSlotPills();
+  renderGridControls();
+  updateSelectedSummary();
+  updateRunButton();
+}
+
+function renderSecondSlotPills() {
+  const container = document.getElementById('values-pills-2');
+  if (!container) return;
+  container.innerHTML = '';
+  secondSlot.values.forEach((v, i) => {
+    const pill = document.createElement('span');
+    pill.className = 'value-pill';
+    pill.innerHTML = `${v} <button onclick="removeSecondSlotValue(${i})" title="Remove">×</button>`;
+    container.appendChild(pill);
+  });
+}
+
+// ─── Misc helpers ──────────────────────────────────────────────────────────────
 
 function valuesMatch(left = [], right = []) {
   if (left.length !== right.length) return false;
@@ -838,6 +1542,7 @@ function tierLabel(tier) {
   if (normalized === 'tier2') return 'Tier 2';
   if (normalized === 'tier2r') return 'T2R';
   if (normalized === 'tier3') return 'Tier 3';
+  if (normalized === 'tier1s') return 'Tier 1S';
   if (normalized === 'tier1b') return 'Tier 1B';
   if (normalized === 'tier1') return 'Tier 1';
   return normalized ? normalized.toUpperCase() : 'Tier ?';
@@ -853,6 +1558,9 @@ function getStrategyStageLabel(strategyVersionId, fallbackTier) {
   if (stage === 'tier2r') return 'T2R';
   if (stage === 'tier2') return 'Tier 2';
   if (stage === 'tier3') return 'Tier 3';
+  if (stage === 'tier1s') return 'T1S';
+  if (stage === 'tier1b') return 'T1B';
+  if (stage === 'tier1') return 'T1';
   return tierLabel(fallbackTier);
 }
 
@@ -870,10 +1578,15 @@ function renderLoadedSweepBanner(sweep = null) {
     return;
   }
 
-  const displayStrategyId = getSweepDisplayStrategyId(sweep);
-  const displayStrategyName = getStrategyName(displayStrategyId);
-  resultsLoadedStrategy.textContent = displayStrategyName
-    ? `Loaded Strategy: ${displayStrategyName}`
+  const baseStrategyId = String(sweep?.base_strategy_version_id || '').trim();
+  const baseName = stripStrategyNameSuffixes(getStrategyName(baseStrategyId)) || getStrategyName(baseStrategyId);
+
+  // Look up session version number from the module-level map populated by the session list
+  const vNum = sweepVersionMap.get(sweep.sweep_id);
+  const versionTag = vNum ? ` · V${vNum}` : '';
+
+  resultsLoadedStrategy.textContent = baseName
+    ? `Loaded: ${baseName}${versionTag}`
     : '';
   resultsSweepId.textContent = sweep.sweep_id
     ? `${sweep.sweep_id} · ${tierLabel(sweep.tier)}`
@@ -887,11 +1600,25 @@ function restoreSweepConfig(sweep) {
   const labelInput = document.getElementById('custom-param-label');
   const valueInput = document.getElementById('add-value-input');
   const param = sweep?.sweep_params?.[0];
-  const restoreStrategyVersionId = getSweepDisplayStrategyId(sweep);
+  // Use the promoted strategy if one exists (that's the winner from this sweep,
+  // and clicking V3 means you want to sweep ON TOP of V3's result).
+  // Fall back to the base strategy if nothing was promoted yet.
+  const restoreStrategyVersionId = String(sweep?.promoted_strategy_version_id || sweep?.base_strategy_version_id || '').trim()
+    || getSweepDisplayStrategyId(sweep);
 
   if (!strategySelect || !tierSelect || !param || !restoreStrategyVersionId) return;
 
+  // Keep hidden select in sync
+  if (!strategySelect.querySelector(`option[value="${CSS.escape(restoreStrategyVersionId)}"]`)) {
+    const opt = document.createElement('option');
+    opt.value = restoreStrategyVersionId;
+    strategySelect.appendChild(opt);
+  }
+  strategySelect.value = restoreStrategyVersionId;
+
   activeConfiguredStrategyVersionId = restoreStrategyVersionId;
+  persistActiveStrategyId(restoreStrategyVersionId);
+  updateStrategyDisplay(restoreStrategyVersionId);
   renderStrategyAnatomy();
   configureSweepTierSelector();
   setupCustomParameterPicker();
@@ -901,23 +1628,38 @@ function restoreSweepConfig(sweep) {
     tierSelect.value = sweep.tier;
   }
 
-  const presetKey = findPresetKeyForParam(param);
-  const pickerKey = presetKey || findPresetKeyByPath(param.param_path);
-  if (presetKey) {
-    setPresetSelection(presetKey);
-    customValues = [];
-    if (pathInput) pathInput.value = '';
-    if (labelInput) labelInput.value = '';
-  } else {
-    clearPresetSelection();
-    customValues = Array.isArray(param.values) ? [...param.values] : [];
-    if (pathInput) pathInput.value = param.param_path || '';
-    if (labelInput) labelInput.value = param.label || '';
-  }
+  // Always restore as explicit sweep_params (path + values) — never as a named
+  // backend preset, since dropdown picker keys are frontend-only and unknown to the backend.
+  const pickerKey = findPresetKeyForParam(param) || findPresetKeyByPath(param.param_path);
+  clearPresetSelection();
+  customValues = Array.isArray(param.values) ? [...param.values] : [];
+  if (pathInput) pathInput.value = param.param_path || '';
+  if (labelInput) labelInput.value = param.label || '';
   setCustomParameterPickerValue(pickerKey);
 
   if (valueInput) valueInput.value = '';
   renderValuePills();
+
+  // Restore second param slot if this was a grid sweep
+  const param2 = sweep?.sweep_params?.[1];
+  if (param2) {
+    addSecondParamSlot();
+    secondSlot.paramPath = param2.param_path || '';
+    secondSlot.label = param2.label || '';
+    secondSlot.values = Array.isArray(param2.values) ? [...param2.values] : [];
+    const pathInput2 = document.getElementById('custom-param-path-2');
+    const labelInput2 = document.getElementById('custom-param-label-2');
+    if (pathInput2) pathInput2.value = secondSlot.paramPath;
+    if (labelInput2) labelInput2.value = secondSlot.label;
+    const pickerKey2 = findPresetKeyForParam(param2) || findPresetKeyByPath(param2.param_path);
+    const select2 = document.getElementById('custom-param-select-2');
+    if (select2 && pickerKey2) select2.value = pickerKey2;
+    renderSecondSlotPills();
+    renderSecondSlotSuggestedValues(pickerKey2 || '');
+  } else {
+    removeSecondParamSlot();
+  }
+
   updateSelectedSummary();
   updateRunButton();
 }
@@ -1009,7 +1751,30 @@ function renderSweepValidationCriteria(report) {
     `;
   }
 
+  const copyId = `copy-sweep-criteria-btn-${Math.random().toString(36).slice(2, 8)}`;
+  const displayVerdict = getDisplayVerdict(report).replace('_', ' ');
+  const copyText = checks.map(c => `${c.label}\t${c.threshold}\t${c.actual}\t${c.ok ? 'pass' : 'fail'}`).join('\n') + `\nFinal verdict: ${displayVerdict}`;
+
+  html += `
+    <div style="margin-top:var(--space-10);display:flex;align-items:center;gap:var(--space-12);">
+      <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">
+        Final verdict: <span class="verdict-badge ${getDisplayVerdict(report)}" style="margin-left:var(--space-6);">${displayVerdict}</span>
+      </div>
+      <button id="${copyId}" style="font-size:var(--text-caption);padding:var(--space-4) var(--space-10);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);color:var(--color-text-subtle);cursor:pointer;">Copy</button>
+    </div>
+  `;
   html += `</div>`;
+
+  setTimeout(() => {
+    const btn = document.getElementById(copyId);
+    if (btn) btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(copyText).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 1500);
+      });
+    });
+  }, 0);
+
   return html;
 }
 
@@ -1271,6 +2036,32 @@ async function clearSweepComparison() {
   }
 }
 
+async function deleteSweepVariant(sweepId, variantId) {
+  if (!sweepId || !variantId) return;
+  const ok = window.confirm('Delete this variant card from the sweep results?');
+  if (!ok) return;
+
+  try {
+    const res = await fetch(`${API}/sweep/${encodeURIComponent(sweepId)}/variants/${encodeURIComponent(variantId)}/delete`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to delete variant');
+
+    selectedComparisonVariantIds.delete(variantId);
+    if (selectedSweepVariantId === variantId) {
+      selectedSweepVariantId = null;
+      selectedSweepReportId = null;
+    }
+    if (activeSweepId === sweepId) {
+      await fetchAndRenderSweep(sweepId);
+    }
+    showToast('Variant deleted', 'success');
+  } catch (e) {
+    alert(`Failed to delete variant: ${e.message}`);
+  }
+}
+
 function compareMetricDelta(current, baseline, higherIsBetter = true, isPct = false) {
   const a = Number(current);
   const b = Number(baseline);
@@ -1408,7 +2199,10 @@ function renderSweepComparisonPanel(sweep, variants) {
           <div class="section-title" style="margin:0 0 var(--space-8) 0;">Variant Comparison</div>
           <div class="sweep-compare-subtitle">Reference is the original validator report for ${reportEscHtml(getStrategyName(sweep.base_strategy_version_id))} at ${reportEscHtml(tierLabel(sweep.tier))}. Each selected sweep value appears as a row underneath. Hover the short headers for the full validation-criteria meaning.</div>
         </div>
-        <button class="sweep-inline-btn" onclick="clearSweepComparison()">Clear Compare</button>
+        <div style="display:flex;gap:var(--space-8);">
+          <button class="sweep-inline-btn" id="copy-compare-table-btn">Copy Table</button>
+          <button class="sweep-inline-btn" onclick="clearSweepComparison()">Clear Compare</button>
+        </div>
       </div>
       <div class="sweep-compare-table-wrap">
         <table class="sweep-compare-table">
@@ -1422,9 +2216,14 @@ function renderSweepComparisonPanel(sweep, variants) {
   `;
 
   for (const entry of rows) {
-    const label = entry.isReference
-      ? 'Original Validator'
-      : `Value ${reportEscHtml(String(entry.variant.param_value))}`;
+    let label;
+    if (entry.isReference) {
+      label = 'Original Validator';
+    } else if (Array.isArray(entry.variant?.param_values) && entry.variant.param_values.length > 1) {
+      label = entry.variant.param_values.map(pv => `${reportEscHtml(String(pv.value))}`).join(' / ');
+    } else {
+      label = `Value ${reportEscHtml(String(entry.variant.param_value))}`;
+    }
     html += `
       <tr class="${entry.isReference ? 'reference-row' : ''}">
         <td class="variant-cell">
@@ -1446,6 +2245,28 @@ function renderSweepComparisonPanel(sweep, variants) {
     </div>
   `;
 
+  // Build copy text for the comparison table
+  const headerRow = ['Variant', ...criteria.map(c => c.key)].join('\t');
+  const dataRows = rows.map(entry => {
+    let copyLabel;
+    if (entry.isReference) { copyLabel = 'Original Validator'; }
+    else if (Array.isArray(entry.variant?.param_values) && entry.variant.param_values.length > 1) {
+      copyLabel = entry.variant.param_values.map(pv => String(pv.value)).join(' / ');
+    } else { copyLabel = `Value ${String(entry.variant.param_value)}`; }
+    return [copyLabel, ...criteria.map(c => String(c.value(entry)))].join('\t');
+  });
+  const compareTableText = [headerRow, ...dataRows].join('\n');
+
+  setTimeout(() => {
+    const btn = document.getElementById('copy-compare-table-btn');
+    if (btn) btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(compareTableText).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy Table', 1500);
+      });
+    });
+  }, 0);
+
   return html;
 }
 
@@ -1462,13 +2283,39 @@ async function runSweep() {
   try {
     const tier = document.getElementById('sweep-tier-select')?.value || 'tier1';
     const body = { strategy_version_id: strategyVersionId, tier };
+    const primary = getPrimarySweepParamConfig();
+    const path = primary.path;
+    const label = primary.label;
+    const values = primary.values;
+    const activeDims = getActiveDimParams();
 
-    if (selectedPreset) {
-      body.preset = selectedPreset;
-    } else {
-      const path = document.getElementById('custom-param-path').value.trim();
-      const label = document.getElementById('custom-param-label').value.trim() || path;
-      body.sweep_params = [{ label, param_path: path, values: customValues }];
+    if (!path && activeDims.length === 0) {
+      throw new Error('Select at least one Universal Dimension or Strategy Parameter to sweep.');
+    }
+    if (path && values.length === 0 && activeDims.length === 0) {
+      throw new Error('No values to test — select suggested values or add custom ones.');
+    }
+
+    // Build all axes as a flat sweep_params array.
+    // Strategy-specific param comes first (if any); universal dims are sent separately
+    // and merged by the backend into additional Cartesian axes.
+    const sweepParams = [];
+    if (path && values.length > 0) {
+      sweepParams.push({ label, param_path: path, values });
+      if (secondSlot.active && secondSlot.values.length > 0 && secondSlot.paramPath) {
+        sweepParams.push({ label: secondSlot.label || secondSlot.paramPath, param_path: secondSlot.paramPath, values: secondSlot.values });
+      }
+    } else if (activeDims.length > 0) {
+      // No strategy param — use first universal dim as the primary axis
+      const first = activeDims[0];
+      sweepParams.push({ label: first.label, param_path: first.param_path, values: first.values });
+    }
+    body.sweep_params = sweepParams;
+
+    // Remaining universal dims (all of them if strategy param exists, or all-but-first if not)
+    const dimsForBackend = (path && values.length > 0) ? activeDims : activeDims.slice(1);
+    if (dimsForBackend.length > 0) {
+      body.universal_dims = dimsForBackend;
     }
 
     const res = await fetch(`${API}/sweep/run`, {
@@ -1637,14 +2484,17 @@ function renderSweepResults(sweep) {
   `;
 
   // Results table
-  const paramLabel = sweep.sweep_params?.[0]?.label || 'Parameter';
+  const isGrid = (sweep.sweep_params?.length || 0) > 1;
+  const paramHeaders = isGrid
+    ? sweep.sweep_params.map(sp => `<th>${reportEscHtml(sp.label || sp.param_path || 'Param')}</th>`).join('')
+    : `<th>${reportEscHtml(sweep.sweep_params?.[0]?.label || 'Parameter')}</th>`;
   html += `
     <div style="overflow-x:auto;">
       <table class="results-table">
         <thead>
           <tr>
             <th>Compare</th>
-            <th>${paramLabel}</th>
+            ${paramHeaders}
             <th>Status</th>
             <th>Tier Result</th>
             <th>Trades</th>
@@ -1693,20 +2543,29 @@ function renderSweepResults(sweep) {
       ? `<div class="sweep-action-group">
           <button class="sweep-inline-btn" onclick="viewSweepReport('${v.report_id || ''}','${v.variant_id}')">Report</button>
           <button class="sweep-inline-btn" onclick="promoteWinner('${sweep.sweep_id}','${v.variant_id}')">Promote</button>
+          <button class="sweep-inline-btn" onclick="deleteSweepVariant('${sweep.sweep_id}','${v.variant_id}')">Delete</button>
         </div>`
-      : 'N/A';
+      : (v.status === 'failed' || v.status === 'pending')
+        ? `<div class="sweep-action-group">
+            <button class="sweep-inline-btn" onclick="deleteSweepVariant('${sweep.sweep_id}','${v.variant_id}')">Delete</button>
+          </div>`
+        : 'N/A';
     const fmt = (n, digits = 2) => n != null ? Number(n).toFixed(digits) : '—';
     const fmtPct = (n) => n != null ? `${Number(n).toFixed(1)}%` : '—';
     const compareHtml = v.status === 'completed' && v.report_id
       ? `<label class="sweep-compare-toggle"><input type="checkbox" ${selectedComparisonVariantIds.has(v.variant_id) ? 'checked' : ''} onchange="toggleSweepComparison('${v.variant_id}','${v.report_id || ''}')"><span>Compare</span></label>`
       : '<span class="text-muted">—</span>';
 
+    const paramCells = isGrid && Array.isArray(v.param_values)
+      ? v.param_values.map(pv => `<td style="font-weight:600;color:${isWinner ? 'var(--color-positive)' : 'var(--color-text)'}">${reportEscHtml(String(pv.value))}</td>`).join('')
+      : `<td style="font-weight:600; color:${isWinner ? 'var(--color-positive)' : 'var(--color-text)'}">
+          ${v.param_value}${typeof v.param_value === 'number' && v.param_value < 1 && v.param_path?.includes('stop_value') ? ' (' + (v.param_value * 100).toFixed(0) + '%)' : ''}
+        </td>`;
+
     html += `
       <tr class="${rowClass}">
         <td>${compareHtml}</td>
-        <td style="font-weight:600; color:${isWinner ? 'var(--color-positive)' : 'var(--color-text)'}">
-          ${v.param_value}${typeof v.param_value === 'number' && v.param_value < 1 && v.param_path?.includes('stop_value') ? ' (' + (v.param_value * 100).toFixed(0) + '%)' : ''}
-        </td>
+        ${paramCells}
         <td>${statusBadge}</td>
         <td><span class="verdict-badge ${verdict}">${verdict.replace('_', ' ')}</span></td>
         <td>${m ? m.total_trades : '—'}</td>
@@ -1724,13 +2583,19 @@ function renderSweepResults(sweep) {
   html += '</tbody></table></div>';
 
   // Build copy text
-  const copyHeader = `${paramLabel}\tStatus\tTier Result\tTrades\tExpectancy\tWin Rate\tProfit Factor\tMax DD\tSharpe\tFitness`;
+  const copyParamHeaders = isGrid
+    ? sweep.sweep_params.map(sp => sp.label || sp.param_path || 'Param').join('\t')
+    : (sweep.sweep_params?.[0]?.label || 'Parameter');
+  const copyHeader = `${copyParamHeaders}\tStatus\tTier Result\tTrades\tExpectancy\tWin Rate\tProfit Factor\tMax DD\tSharpe\tFitness`;
   const copyRows = sorted.map(v => {
     const m = v.metrics;
     const isWinner = sweep.winner?.variant_id === v.variant_id;
     const status = isWinner ? 'Winner' : v.status;
-    if (!m) return `${v.param_value}\t${status}\t—\t—\t—\t—\t—\t—\t—`;
-    return `${v.param_value}\t${status}\t${m.total_trades}\t${m.expectancy_R.toFixed(2)}R\t${(m.win_rate * 100).toFixed(1)}%\t${m.profit_factor.toFixed(2)}\t${m.max_drawdown_pct.toFixed(1)}%\t${m.sharpe_ratio.toFixed(2)}\t${m.fitness_score.toFixed(3)}`;
+    const paramValStr = isGrid && Array.isArray(v.param_values)
+      ? v.param_values.map(pv => String(pv.value)).join('\t')
+      : String(v.param_value);
+    if (!m) return `${paramValStr}\t${status}\t—\t—\t—\t—\t—\t—\t—`;
+    return `${paramValStr}\t${status}\t${m.total_trades}\t${m.expectancy_R.toFixed(2)}R\t${(m.win_rate * 100).toFixed(1)}%\t${m.profit_factor.toFixed(2)}\t${m.max_drawdown_pct.toFixed(1)}%\t${m.sharpe_ratio.toFixed(2)}\t${m.fitness_score.toFixed(3)}`;
   }).join('\n');
   window.__sweepCopyText = `${copyHeader}\n${copyRows}`;
 
@@ -1745,17 +2610,17 @@ function renderSweepResults(sweep) {
   // Winner banner
   if (sweep.status === 'completed' && sweep.winner?.metrics) {
     const w = sweep.winner;
+    const winnerLabel = isGrid && Array.isArray(w.param_values)
+      ? w.param_values.map(pv => `${pv.label} = ${pv.value}`).join(', ')
+      : `${sweep.sweep_params?.[0]?.label || 'Parameter'} = ${w.param_value}`;
     html += `
       <div class="winner-banner">
         <div class="winner-banner-text">
-          ★ Winner: <strong>${paramLabel} = ${w.param_value}</strong>
+          ★ Winner: <strong>${reportEscHtml(winnerLabel)}</strong>
           &nbsp;·&nbsp; ${w.metrics.total_trades} trades
           &nbsp;·&nbsp; ${w.metrics.expectancy_R.toFixed(3)}R expectancy
           &nbsp;·&nbsp; fitness ${w.metrics.fitness_score.toFixed(3)}
         </div>
-        <button class="btn-promote" onclick="promoteWinner('${sweep.sweep_id}','${w.variant_id}')">
-          Promote Winner →
-        </button>
       </div>
     `;
   }
@@ -1772,10 +2637,17 @@ function renderSweepResults(sweep) {
   const report = reportVariant?.report_id ? sweepReportCache.get(reportVariant.report_id) : null;
   html += `<div id="sweep-report-detail">`;
   if (report && reportVariant) {
-    html += renderSweepReportDetail(report, {
+    const reportContext = {
       param_value: reportVariant.param_value,
       winner_value: sweep.winner?.param_value,
-    });
+    };
+    if (isGrid && Array.isArray(reportVariant.param_values) && reportVariant.param_values.length > 1) {
+      reportContext.param_value = reportVariant.param_values.map(pv => `${pv.label}=${pv.value}`).join(', ');
+    }
+    if (isGrid && Array.isArray(sweep.winner?.param_values) && sweep.winner.param_values.length > 1) {
+      reportContext.winner_value = sweep.winner.param_values.map(pv => `${pv.label}=${pv.value}`).join(', ');
+    }
+    html += renderSweepReportDetail(report, reportContext);
   } else if (reportVariant?.report_id) {
     html += `<div class="metric-card" style="margin-top:var(--space-16);">Click <strong>Report</strong> to load the full validator report for this sweep variant.</div>`;
   } else {
@@ -1816,21 +2688,114 @@ async function promoteWinner(sweepId, variantId = '') {
     if (activeSweepId === sweepId) {
       await fetchAndRenderSweep(sweepId);
     }
-    alert(`Variant promoted as new strategy version:\n${data.data.strategy_version_id}\n\nYou can now run validation on it in the Validator.`);
+    const newId = data.data.strategy_version_id;
+    showToast(`Promoted: ${newId}`, 'success');
+
+    // Switch dropdown to promoted strategy but keep session cards from the previous strategy visible
+    const previousStrategyId = getConfiguredStrategyVersionId();
+    await loadStrategyCatalog();
+    await switchToStrategy(newId, { skipLoadSweeps: true });
+    await _loadRecentSweepsImpl(previousStrategyId);
+
+    // Show banner with link to open in validator (no forced redirect)
+    const bannerEl = document.getElementById('sweep-promote-banner');
+    if (bannerEl) {
+      bannerEl.innerHTML = `<span>Winner promoted as <strong>${reportEscHtml(newId)}</strong> — now selected as base strategy.</span>
+        <a class="sweep-inline-btn" href="/validator.html?strategy_version_id=${encodeURIComponent(newId)}" target="_blank" style="margin-left:12px;">Open in Validator</a>`;
+      bannerEl.style.display = 'flex';
+    }
   } catch (e) {
     alert(`Failed to promote: ${e.message}`);
   }
 }
 
+// ─── Send to Validator ─────────────────────────────────────────────────────────
+
+async function sendToValidator(strategyVersionId) {
+  if (!strategyVersionId) return;
+  try {
+    // Flip status to "testing" so the validator can see it
+    await fetch(`${API}/strategies/${encodeURIComponent(strategyVersionId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'testing' }),
+    });
+  } catch (e) {
+    // Non-fatal — open anyway, validator may still find it
+    console.warn('Could not update strategy status:', e);
+  }
+  window.open(`/validator.html?strategy_version_id=${encodeURIComponent(strategyVersionId)}`, '_blank');
+}
+
+// ─── Toast ─────────────────────────────────────────────────────────────────────
+
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  const bg = type === 'success' ? 'var(--color-positive)' : type === 'error' ? 'var(--color-negative)' : 'var(--color-accent)';
+  toast.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;padding:10px 18px;border-radius:6px;background:${bg};color:#fff;font-size:13px;font-family:var(--font-mono);box-shadow:0 4px 16px rgba(0,0,0,0.3);opacity:0;transition:opacity 0.2s;max-width:420px;word-break:break-all;`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => { toast.style.opacity = '1'; });
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
 // ─── Recent sweeps ─────────────────────────────────────────────────────────────
 
+async function loadRecentSweepsForStrategy(strategyId) {
+  return _loadRecentSweepsImpl(strategyId);
+}
+
 async function loadRecentSweeps() {
+  return _loadRecentSweepsImpl(getConfiguredStrategyVersionId());
+}
+
+async function _loadRecentSweepsImpl(strategyId) {
   try {
     const sweepsData = await fetchSweepSummaries(true);
     const list = document.getElementById('sweep-history-list');
-    const sweeps = (sweepsData || [])
-      .filter(s => String(s?.promoted_strategy_version_id || '').trim())
-      .slice(0, 10);
+
+    const currentStrategyId = strategyId;
+
+    // Match sessions where this strategy was the base, OR where this strategy
+    // was promoted as a winner (so promoted versions still show parent sessions).
+    // If a session boundary is active, only show sweeps created after it.
+    const sessionCutoff = sessionStartedAt ? new Date(sessionStartedAt).getTime() : 0;
+
+    let sweeps = (sweepsData || [])
+      .filter(s => {
+        if (!currentStrategyId) return false;
+        if (sessionCutoff && new Date(s.created_at || 0).getTime() < sessionCutoff) return false;
+        const baseMatch = String(s?.base_strategy_version_id || '').trim() === currentStrategyId;
+        const promotedMatch = String(s?.promoted_strategy_version_id || '').trim() === currentStrategyId;
+        return baseMatch || promotedMatch;
+      })
+      .slice(0, 20);
+
+    // If the session cutoff hides everything, fall back to this strategy's
+    // recent sweeps so a refresh does not leave the UI looking empty.
+    if (sweeps.length === 0 && currentStrategyId && sessionCutoff) {
+      sweeps = (sweepsData || [])
+        .filter(s => {
+          const baseMatch = String(s?.base_strategy_version_id || '').trim() === currentStrategyId;
+          const promotedMatch = String(s?.promoted_strategy_version_id || '').trim() === currentStrategyId;
+          return baseMatch || promotedMatch;
+        })
+        .slice(0, 20);
+    }
+
+    // If still no matches, walk up one level — find any sweep that promoted into this strategy
+    if (sweeps.length === 0) {
+      sweeps = (sweepsData || [])
+        .filter(s => {
+          if (!currentStrategyId) return false;
+          if (sessionCutoff && new Date(s.created_at || 0).getTime() < sessionCutoff) return false;
+          return String(s?.promoted_strategy_version_id || '').trim() === currentStrategyId;
+        })
+        .slice(0, 20);
+    }
 
     await Promise.all(sweeps.flatMap(s => ([
       ensureStrategySpec(s.promoted_strategy_version_id),
@@ -1838,31 +2803,151 @@ async function loadRecentSweeps() {
     ])));
 
     if (sweeps.length === 0) {
-      list.innerHTML = '<div style="font-size:var(--text-caption); color:var(--color-text-muted);">No promoted sweeps yet.</div>';
+      list.innerHTML = `<div style="font-size:var(--text-caption);color:var(--color-text-muted);">${currentStrategyId ? 'No sweeps run for this strategy yet.' : 'No strategy selected.'}</div>`;
       return;
     }
 
-    list.innerHTML = sweeps.map(s => {
-      const displayStrategyId = s.promoted_strategy_version_id || s.base_strategy_version_id;
-      const strategyName = getStrategyName(displayStrategyId);
-      const baseStrategyName = getStrategyName(s.base_strategy_version_id);
-      const param = s.sweep_params?.[0] || {};
-      const paramLabel = param.label || 'Parameter';
-      const valuesSummary = formatSweepValueSummary(param.values || []);
-      const variantCount = s.variants?.length || 0;
-      const completedCount = s.variants?.filter(v => v.status === 'completed').length || 0;
-      const statusColor = s.status === 'completed' ? 'var(--color-positive)' : s.status === 'running' ? 'var(--color-accent)' : 'var(--color-text-muted)';
+    // Assign session version numbers (V1, V2...) in chronological order
+    const chronological = [...sweeps].sort((a, b) =>
+      new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    );
+    const versionMap = new Map(chronological.map((s, i) => [s.sweep_id, i + 1]));
+
+    // Keep module-level map in sync so the banner can show "V3" etc. after a card click
+    versionMap.forEach((vNum, sweepId) => sweepVersionMap.set(sweepId, vNum));
+
+    const displayOrderedSweeps = [...sweeps].sort((a, b) =>
+      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
+
+    const groupedSweeps = [];
+    const groupedSweepMap = new Map();
+    for (const sweep of displayOrderedSweeps) {
+      const displayStrategyId = getSweepDisplayStrategyId(sweep) || currentStrategyId || String(sweep?.base_strategy_version_id || '').trim();
+      const rawGroupName = getStrategyName(displayStrategyId) || getStrategyName(sweep?.base_strategy_version_id) || displayStrategyId;
+      const displayGroupName = stripStrategyNameSuffixes(rawGroupName) || rawGroupName;
+      const groupKey = displayGroupName;
+      if (!groupedSweepMap.has(groupKey)) {
+        const group = {
+          key: groupKey,
+          strategyId: displayStrategyId,
+          name: displayGroupName,
+          rawName: rawGroupName,
+          sweeps: [],
+        };
+        groupedSweepMap.set(groupKey, group);
+        groupedSweeps.push(group);
+      }
+      groupedSweepMap.get(groupKey).sweeps.push(sweep);
+    }
+
+    const buildParamPillsHtml = (sweep) => {
+      const isCardGrid = (sweep.sweep_params?.length || 0) > 1;
+      const winnerVal = sweep.winner?.param_value != null ? String(sweep.winner.param_value) : null;
+      return (sweep.sweep_params || []).map(sp => {
+        const allValues = sp.values || [];
+        const spLabel = sp.label || sp.param_path || 'Param';
+        const pills = allValues.map(v => {
+          const vStr = String(v);
+          let isWinnerVal = false;
+          if (sweep.winner && Array.isArray(sweep.winner.param_values)) {
+            isWinnerVal = sweep.winner.param_values.some(pv => pv.param_path === sp.param_path && String(pv.value) === vStr);
+          } else {
+            isWinnerVal = winnerVal !== null && vStr === winnerVal && sp.param_path === sweep.sweep_params?.[0]?.param_path;
+          }
+          return `<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-family:var(--font-mono);
+            background:${isWinnerVal ? 'var(--color-positive)' : 'var(--color-border)'};
+            color:${isWinnerVal ? '#fff' : 'var(--color-text-muted)'};
+            font-weight:${isWinnerVal ? '700' : '400'};">${reportEscHtml(vStr)}${isWinnerVal ? ' ✓' : ''}</span>`;
+        }).join(' ');
+        return `
+          <div style="margin-bottom:4px;">
+            <div style="font-size:10px;color:var(--color-text-muted);margin-bottom:3px;font-family:var(--font-mono);">${reportEscHtml(spLabel)}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:3px;">${pills || '<span style="font-size:10px;color:var(--color-text-subtle);">no values</span>'}</div>
+          </div>`;
+      }).join('');
+    };
+
+    const buildSweepStepTitle = (sweep) => {
+      const labels = (sweep.sweep_params || [])
+        .map(sp => String(sp?.label || sp?.param_path || '').trim())
+        .filter(Boolean);
+      return labels.length ? labels.join(' × ') : 'Sweep';
+    };
+
+    const buildWinnerDisplay = (sweep) => {
+      const isCardGrid = (sweep.sweep_params?.length || 0) > 1;
+      if (!sweep.winner) return null;
+      if (isCardGrid && Array.isArray(sweep.winner.param_values) && sweep.winner.param_values.length > 1) {
+        return sweep.winner.param_values.map(pv => `${pv.label}=${pv.value}`).join(', ');
+      }
+      return sweep.winner.param_value != null ? String(sweep.winner.param_value) : null;
+    };
+
+    const buildSweepStepCard = (sweep) => {
+      const variantCount = sweep.variants?.length || 0;
+      const completedCount = sweep.variants?.filter(v => v.status === 'completed').length || 0;
+      const statusColor = sweep.status === 'completed' ? 'var(--color-positive)' : sweep.status === 'running' ? 'var(--color-accent)' : 'var(--color-text-muted)';
+      const vNum = versionMap.get(sweep.sweep_id) || '?';
+      const sweepDate = sweep.created_at ? new Date(sweep.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      const tierLabel_ = sweep.tier ? tierLabel(sweep.tier) : '—';
+      const winnerDisplay = buildWinnerDisplay(sweep);
+      const stepTitle = buildSweepStepTitle(sweep);
+      const active = activeSweepId === sweep.sweep_id;
       return `
-        <div class="sweep-history-item ${activeSweepId === s.sweep_id ? 'active' : ''}" onclick="loadSweep('${s.sweep_id}')">
-          <div class="sweep-name">${strategyName}</div>
-          <div class="sweep-meta">${getStrategyStageLabel(s.base_strategy_version_id, s.tier)} • ${paramLabel}</div>
-          <div class="sweep-meta">Values: ${valuesSummary}</div>
-          <div class="sweep-meta">Promoted from: ${baseStrategyName}</div>
-          <div class="sweep-meta">
-            <span style="color:${statusColor}">${s.status}</span>
-            · ${completedCount}/${variantCount} variants
-            ${s.winner ? `· winner: ${s.winner.param_value}` : ''}
+        <div
+          class="sweep-history-item ${active ? 'active' : ''}"
+          onclick="loadSweep('${sweep.sweep_id}')"
+          style="margin-top:8px;padding:10px 12px;border-radius:var(--radius-sm);background:${active ? 'rgba(108,178,255,0.08)' : 'var(--color-void)'};border:1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'};"
+        >
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-8);">
+            <div style="font-size:12px;font-weight:700;color:var(--color-text);font-family:var(--font-mono);">${reportEscHtml(stepTitle)}</div>
+            <div class="sweep-meta" style="flex-shrink:0;font-weight:700;color:var(--color-text);font-size:11px;">V${vNum}</div>
           </div>
+          ${(sweepDate || tierLabel_) ? `<div class="sweep-meta" style="color:var(--color-text-subtle);margin-top:2px;">${reportEscHtml(sweepDate)}${sweepDate && tierLabel_ ? ' · ' : ''}${reportEscHtml(tierLabel_)}</div>` : ''}
+
+          <div style="margin-top:6px;padding:6px 8px;background:rgba(255,255,255,0.02);border:1px solid var(--color-border);border-radius:var(--radius-sm);">
+            ${buildParamPillsHtml(sweep)}
+            <div style="margin-top:5px;display:flex;align-items:center;justify-content:space-between;gap:var(--space-8);">
+              <span style="font-size:10px;color:${statusColor};font-family:var(--font-mono);">${sweep.status} · ${completedCount}/${variantCount}</span>
+              ${winnerDisplay ? `<span style="font-size:10px;color:var(--color-positive);font-family:var(--font-mono);font-weight:600;">winner: ${reportEscHtml(winnerDisplay)}</span>` : ''}
+            </div>
+          </div>
+
+          <div style="margin-top:6px;display:flex;gap:4px;">
+            ${sweep.promoted_strategy_version_id ? `
+            <button class="btn-send-to-validator"
+              onclick="event.stopPropagation(); sendToValidator('${sweep.promoted_strategy_version_id}')"
+              title="Open promoted winner in the Validator"
+              style="flex:1;">
+              Send Winner to Validator →
+            </button>` : `
+            <button class="btn-send-to-validator"
+              onclick="event.stopPropagation(); sendToValidator('${sweep.base_strategy_version_id}')"
+              title="Open base strategy in the Validator"
+              style="flex:1;opacity:0.7;">
+              Send to Validator →
+            </button>`}
+          </div>
+        </div>
+      `;
+    };
+
+    list.innerHTML = groupedSweeps.map(group => {
+      const orderedSteps = [...group.sweeps].sort((a, b) =>
+        new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+      );
+      const hasActiveStep = orderedSteps.some(sweep => activeSweepId === sweep.sweep_id);
+      return `
+        <div
+          style="padding:12px;border:1px solid ${hasActiveStep ? 'var(--color-accent)' : 'var(--color-border)'};border-radius:var(--radius-md);background:var(--color-bg-subtle);margin-bottom:12px;"
+        >
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-8);margin-bottom:4px;">
+            <div class="sweep-name" style="flex:1;" title="${reportEscHtml(group.rawName)}">${reportEscHtml(group.name)}</div>
+            <div class="sweep-meta" style="font-size:11px;font-family:var(--font-mono);">${orderedSteps.length} ${orderedSteps.length === 1 ? 'sweep' : 'sweeps'}</div>
+          </div>
+          <div class="sweep-meta" style="color:var(--color-text-subtle);margin-bottom:8px;">Optimization trail</div>
+          ${orderedSteps.map(buildSweepStepCard).join('')}
         </div>
       `;
     }).join('');
@@ -1889,11 +2974,16 @@ async function loadSweepInternal(sweepId, options = {}) {
     const res = await fetch(`${API}/sweep/${requestedId}`);
     const data = await res.json();
     if (data.success) {
-      await ensureStrategySpec(getSweepDisplayStrategyId(data.data));
+      await ensureStrategySpec(data.data.promoted_strategy_version_id);
       await ensureStrategySpec(data.data.base_strategy_version_id);
       restoreSweepConfig(data.data);
+      const sweepStrategyId = getSweepDisplayStrategyId(data.data) || getConfiguredStrategyVersionId();
+      // Rebuild the session list for the strategy this sweep actually belongs to,
+      // otherwise a refresh can leave the winner hidden behind the previously
+      // restored strategy filter.
+      await loadRecentSweepsForStrategy(sweepStrategyId);
+      renderLoadedSweepBanner(data.data);
       startPolling(requestedId);
-      loadRecentSweeps();
       return true;
     } else {
       activeSweepId = null;
@@ -1907,3 +2997,249 @@ async function loadSweepInternal(sweepId, options = {}) {
   }
   return false;
 }
+
+// ─── New Session ────────────────────────────────────────────────────────────────
+
+function startNewSession() {
+  const btn = document.getElementById('new-session-btn');
+  if (btn && btn.dataset.confirming === 'true') {
+    // Second click — confirmed
+    btn.dataset.confirming = 'false';
+    btn.textContent = 'New Session';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+    _doStartNewSession();
+  } else {
+    // First click — ask for confirmation
+    if (btn) {
+      btn.dataset.confirming = 'true';
+      btn.textContent = 'Confirm?';
+      btn.style.color = 'var(--color-warning, #f59e0b)';
+      btn.style.borderColor = 'var(--color-warning, #f59e0b)';
+      setTimeout(() => {
+        if (btn.dataset.confirming === 'true') {
+          btn.dataset.confirming = 'false';
+          btn.textContent = 'New Session';
+          btn.style.color = '';
+          btn.style.borderColor = '';
+        }
+      }, 3000);
+    }
+  }
+}
+
+function _doStartNewSession() {
+  // Set session boundary — only sweeps created after this point will appear
+  sessionStartedAt = new Date().toISOString();
+  window.localStorage.setItem(SESSION_START_STORAGE_KEY, sessionStartedAt);
+
+  // Clear active sweep state
+  activeSweepId = null;
+  persistActiveSweepId('');
+  clearInterval(pollTimer);
+  pollTimer = null;
+
+  // Reset strategy selection
+  activeConfiguredStrategyVersionId = null;
+  persistActiveStrategyId('');
+  const select = document.getElementById('sweep-strategy-select');
+  if (select) select.value = '';
+  updateStrategyDisplay('');
+
+  // Reset parameter config — clear all state AND visual state together
+  selectedPreset = null;
+  customValues = [];
+  removeSecondParamSlot();
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  renderValuePills();
+  const pathInput = document.getElementById('custom-param-path');
+  const labelInput = document.getElementById('custom-param-label');
+  if (pathInput) pathInput.value = '';
+  if (labelInput) labelInput.value = '';
+
+  // Explicitly reset the dropdown and hide suggested value buttons so the
+  // UI doesn't look pre-loaded when internal state is actually empty
+  const customParamSelect = document.getElementById('custom-param-select');
+  if (customParamSelect) customParamSelect.value = '';
+  renderSuggestedValueButtons('');
+
+  // Clear UI panels
+  renderLoadedSweepBanner(null);
+  renderStrategyAnatomy();
+  setupCustomParameterPicker();
+  updateSelectedSummary();
+  updateRunButton();
+
+  const smartPlan = document.getElementById('smart-plan-banner');
+  if (smartPlan) smartPlan.innerHTML = '';
+
+  const historyList = document.getElementById('sweep-history-list');
+  if (historyList) historyList.innerHTML = '<div style="font-size:var(--text-caption);color:var(--color-text-muted);font-family:var(--font-mono);">Session cleared — select a strategy to begin.</div>';
+  sweepVersionMap.clear();
+
+  // Clear the results panel back to the empty state
+  const resultsBody = document.getElementById('results-body');
+  if (resultsBody) resultsBody.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-state-icon">&#9889;</div>
+      <div class="empty-state-title">No sweep running</div>
+      <div class="empty-state-subtitle">Select a strategy, pick a preset or custom parameter, then click Run Sweep.</div>
+    </div>`;
+
+  const promoteBanner = document.getElementById('sweep-promote-banner');
+  if (promoteBanner) { promoteBanner.style.display = 'none'; promoteBanner.innerHTML = ''; }
+
+  document.getElementById('results-loaded-strategy').textContent = '';
+  document.getElementById('results-sweep-id').textContent = '';
+
+  // Remove strategy_version_id from URL without reloading
+  const url = new URL(window.location.href);
+  url.searchParams.delete('strategy_version_id');
+  url.searchParams.delete('sweep');
+  window.history.replaceState({}, '', url.toString());
+}
+
+// ─── Results / JSON tab switching ──────────────────────────────────────────────
+
+function switchSweepTab(name) {
+  document.querySelectorAll('.sweep-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sweep-tab-content').forEach(p => p.classList.remove('active'));
+  const btn = document.getElementById(`tab-btn-${name}`);
+  const pane = document.getElementById(`sweep-tab-${name}`);
+  if (btn) btn.classList.add('active');
+  if (pane) pane.classList.add('active');
+
+  if (name === 'json') {
+    jsonViewerLoad();
+  }
+}
+
+// ─── JSON Viewer ───────────────────────────────────────────────────────────────
+
+let _jsonViewerOriginal = null;   // last text fetched from server
+let _jsonViewerStrategyId = null; // strategy_version_id currently shown
+
+async function jsonViewerLoad() {
+  const strategyId = getConfiguredStrategyVersionId();
+  if (!strategyId) {
+    _jsonViewerClearUI('No strategy loaded — select a strategy or load a sweep from the session list first.');
+    return;
+  }
+
+  // Already showing this exact strategy with content — nothing to reload
+  if (strategyId === _jsonViewerStrategyId && _jsonViewerOriginal !== null) return;
+
+  // Different strategy — reset dirty state so we don't preserve stale edits
+  if (strategyId !== _jsonViewerStrategyId) {
+    _jsonViewerOriginal = null;
+    _jsonViewerMarkClean();
+  }
+
+  _jsonViewerStrategyId = strategyId;
+
+  const editor = document.getElementById('json-editor');
+  const filename = document.getElementById('json-viewer-filename');
+  const stratIdEl = document.getElementById('json-strategy-id');
+  if (editor) editor.value = 'Loading…';
+  if (filename) filename.textContent = strategyId;
+  if (stratIdEl) stratIdEl.textContent = '';
+
+  try {
+    const res = await fetch(`${API}/strategies/${encodeURIComponent(strategyId)}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Not found');
+    const pretty = JSON.stringify(data.data, null, 2);
+    _jsonViewerOriginal = pretty;
+    if (editor) editor.value = pretty;
+    if (filename) filename.textContent = `${strategyId}.json`;
+    if (stratIdEl) stratIdEl.textContent = data.data.name || strategyId;
+    _jsonViewerMarkClean();
+  } catch (err) {
+    if (editor) editor.value = `// Error loading strategy: ${err.message}`;
+    _jsonViewerOriginal = null;
+  }
+}
+
+function _jsonViewerClearUI(msg = '') {
+  const editor = document.getElementById('json-editor');
+  const filename = document.getElementById('json-viewer-filename');
+  const stratIdEl = document.getElementById('json-strategy-id');
+  if (editor) editor.value = msg;
+  if (filename) filename.textContent = msg ? 'No strategy loaded' : '';
+  if (stratIdEl) stratIdEl.textContent = '';
+  _jsonViewerOriginal = null;
+  _jsonViewerStrategyId = null;
+  _jsonViewerMarkClean();
+}
+
+function _jsonViewerMarkClean() {
+  const bar = document.getElementById('json-changed-bar');
+  const badge = document.getElementById('json-tab-badge');
+  if (bar) bar.style.display = 'none';
+  if (badge) badge.style.display = 'none';
+}
+
+function _jsonViewerMarkDirty() {
+  const bar = document.getElementById('json-changed-bar');
+  const badge = document.getElementById('json-tab-badge');
+  if (bar) { bar.style.display = 'flex'; }
+  if (badge) { badge.style.display = ''; }
+}
+
+function onJsonEditorInput() {
+  const editor = document.getElementById('json-editor');
+  if (!editor || _jsonViewerOriginal === null) return;
+  if (editor.value !== _jsonViewerOriginal) {
+    _jsonViewerMarkDirty();
+  } else {
+    _jsonViewerMarkClean();
+  }
+}
+
+function jsonViewerReset() {
+  const editor = document.getElementById('json-editor');
+  if (!editor || _jsonViewerOriginal === null) return;
+  editor.value = _jsonViewerOriginal;
+  _jsonViewerMarkClean();
+}
+
+async function jsonViewerSave() {
+  const editor = document.getElementById('json-editor');
+  if (!editor || !_jsonViewerStrategyId) return;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(editor.value);
+  } catch (err) {
+    alert(`Invalid JSON — please fix the syntax error before saving.\n\n${err.message}`);
+    return;
+  }
+
+  const saveBtn = document.getElementById('json-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+  try {
+    const res = await fetch(`${API}/strategies/${encodeURIComponent(_jsonViewerStrategyId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parsed),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Save failed');
+
+    const saved = data.data || parsed;
+    const pretty = JSON.stringify(saved, null, 2);
+    _jsonViewerOriginal = pretty;
+    editor.value = pretty;
+    _jsonViewerMarkClean();
+
+    // Invalidate catalog so next load re-fetches the updated spec
+    strategyCatalog.delete(_jsonViewerStrategyId);
+    showToast('Strategy saved.', 'success');
+  } catch (err) {
+    alert(`Save failed: ${err.message}`);
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✓ Save Changes'; }
+  }
+}
+

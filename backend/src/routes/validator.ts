@@ -10,8 +10,10 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as storage from '../services/storageService';
+import { getPersistedBridgeStrategyVersionId } from '../services/executionBridge';
 import { ApiResponse, StrategySpec, StrategyAssetClass, ValidationReport, TradeInstance, ValidatorComparisonDiagnostics } from '../types';
 import { applyParameterManifest } from '../services/parameterManifest';
+import { loadUniverseSymbolsSync } from '../services/universeRegistry';
 import {
   getPluginServiceHealth,
   isPyServiceEnabled,
@@ -90,187 +92,142 @@ const JOBS_FILE = path.join(__dirname, '..', '..', 'data', 'validator-run-jobs.j
 const MAX_CONCURRENT_RUNS = Math.max(1, Number(process.env.VALIDATOR_MAX_CONCURRENT_RUNS || 2));
 const PIPELINE_BASE_TIMEOUT_MS = Math.max(60_000, Number(process.env.VALIDATOR_PIPELINE_TIMEOUT_MS || 10 * 60_000));
 const VALIDATOR_USE_PY_SERVICE = isPyServiceEnabled();
-type ValidationTier = 'tier1' | 'tier1b' | 'tier2' | 'tier3';
-const VALIDATION_TIER_KEYS: ValidationTier[] = ['tier1', 'tier1b', 'tier2', 'tier3'];
+type ValidationTier = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
+const VALIDATION_TIER_KEYS: ValidationTier[] = ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3', 'large_cap_known', 'sp500', 'sp400', 'sp600', 'regime_expansion', 'regime_distribution', 'regime_accumulation', 'regime_markdown'];
 const ASSET_CLASSES: StrategyAssetClass[] = ['futures', 'stocks', 'options', 'forex', 'crypto'];
 const OPTIONABLE_UNIVERSE_FILE = path.join(__dirname, '..', '..', 'data', 'universe', 'optionable.json');
+const CLEAN_STOCK_UNIVERSE_FILE = path.join(__dirname, '..', '..', 'data', 'universe_clean.json');
 const STOCKS_TIER1B_TARGET_SYMBOLS = Math.max(150, Number(process.env.VALIDATOR_TIER1B_STOCKS_TARGET_SYMBOLS || 250));
+const SP500_SYMBOLS = loadUniverseSymbolsSync('sp500');
+const SP400_SYMBOLS = loadUniverseSymbolsSync('sp400');
+const SP600_SYMBOLS = loadUniverseSymbolsSync('sp600');
+const TIER1_MIXED_CAP_SYMBOLS = loadUniverseSymbolsSync('validation_tier1_stocks');
+const TIER1B_MIXED_CAP_SYMBOLS = loadUniverseSymbolsSync('validation_tier1b_stocks');
+const TIER2_MIXED_CAP_SYMBOLS = loadUniverseSymbolsSync('validation_tier2_stocks');
+const TIER3_MIXED_CAP_HOLDOUT_SYMBOLS = loadUniverseSymbolsSync('validation_tier3_stocks');
+const LARGE_CAP_KNOWN_SYMBOLS = loadUniverseSymbolsSync('large_cap_known');
+
+const REGIME_EXPANSION_SYMBOLS = loadUniverseSymbolsSync('regime_expansion');
+const REGIME_DISTRIBUTION_SYMBOLS = loadUniverseSymbolsSync('regime_distribution');
+const REGIME_ACCUMULATION_SYMBOLS = loadUniverseSymbolsSync('regime_accumulation');
+const REGIME_MARKDOWN_SYMBOLS = loadUniverseSymbolsSync('regime_markdown');
 const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTier, string[]>> = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
+    tier1s: ['ES=F', 'NQ=F', 'CL=F'],
     tier1b: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
+    tier1bs: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
+    large_cap_known: [],
+    sp500: [],
+    sp400: [],
+    sp600: [],
+    regime_expansion: [],
+    regime_distribution: [],
+    regime_accumulation: [],
+    regime_markdown: [],
   },
   stocks: {
-    // TIER 1 — Kill Test (50 stocks, stratified random sample)
-    // One representative from each sector group, proportional to universe composition.
-    // Goal: fast falsification with 200-300 trade target. Run time: minutes.
-    tier1: [
-      // Biotech/Pharma (9 — 18% of universe)
-      'APLS','ARWR','BEAM','HALO','INSM','KRTX','PRCT','RVMD','IOVA',
-      // SaaS/Enterprise Tech (10 — 20%)
-      'ANET','ALRM','BRZE','CALX','CRDO','DDOG','ESTC','JAMF','NTNX','SMCI',
-      // Consumer/Restaurant/Retail (7 — 14%)
-      'BROS','CAVA','CROX','DNUT','FIGS','SHAK','WRBY',
-      // Fintech/Lending (6 — 12%)
-      'AFRM','BILL','HOOD','SOFI','TOST','UPST',
-      // Clean Energy/Solar (5 — 10%)
-      'ARRY','ENPH','RUN','SEDG','SHLS',
-      // Space/Defense/Quantum (5 — 10%)
-      'ASTS','IONQ','JOBY','LUNR','RKLB',
-      // Metals/Mining/Critical Materials (4 — 8%)
-      'AG','CCJ','MP','PAAS',
-      // Industrials/Infrastructure (2 — 4%)
-      'BWXT','POWL',
-      // Crypto/Digital Assets (2 — 4%)
-      'MARA','RIOT',
-    ],
-    tier1b: [
-      'IWM','SPY','QQQ','XLK','XLF','XLE','XLI','XLV','XLY','XLB',
-      'APLS','ARWR','BEAM','HALO','INSM','KRTX','PRCT','RVMD','IOVA',
-      'CRNX','DVAX','FATE','IMVT','MNKD','NARI','PCVX','SDGR','TGTX','TMDX','VRNA',
-      'ANET','ALRM','BRZE','CALX','CRDO','DDOG','ESTC','JAMF','NTNX','SMCI',
-      'CWAN','DCBO','EVCM','FLYW','GENI','PAYO','TBLA',
-      'BROS','CAVA','CROX','DNUT','FIGS','SHAK','WRBY',
-      'AEO','ARKO','JACK','LOCO','PRPL',
-      'AFRM','BILL','HOOD','SOFI','TOST','UPST',
-      'COIN','LPRO','OPEN','PSFE','RELY',
-      'ARRY','ENPH','RUN','SEDG','SHLS',
-      'FLNC','MAXN','NOVA','SPWR',
-      'ASTS','IONQ','JOBY','LUNR','RKLB',
-      'ACHR','AEHR','BKSY','RGTI',
-      'AG','CCJ','MP','PAAS',
-      'AMR','HCC','IAUX','LAC','NXE','UUUU',
-      'BWXT','POWL','ARIS','CSWI','ROAD',
-      'MARA','RIOT','BTBT','CIFR','CLSK','IREN','WULF',
-      'VERX','ARLO','TASK','RAMP','PUBM','SEMR','WEAV','INOD',
-      'KNBE','PRCH','COMP','SGHC','OUST','CXAI','ADPT','VNET','INTA',
-      'CORT','PGNY','RCKT','NUVB','KRYS','ACCD','CPRX','TYRA','IRMD',
-      'GPCR','VERA','RVNC','RLAY','DAWN','IDYA','SNDX','XNCR','ACLX',
-      'VSCO','BIRD','XPOF','LESL','COOK',
-      'SHCO','GOOS','DTC','LOVE','FLXS','XMTR','PLYA','EVRI','PTLO',
-      'STEM','OPAL','GNE','KRNT','NNOX',
-      'GTLS','ENVX','AMSC','WLDN','PRIM',
-      'STEP','HASI','ALIT','UWMC','RKT','GHLD',
-      'LILM','EVTL','RDW','MNTS','SATL',
-      'GATO','PLL','ORGN','DNN','MAG',
-      'VUZI','BFLY','SSYS','DM','MKFG',
-    ],
-    // TIER 2 — Core Validation (100 stocks = Tier 1 + 50 more, stratified)
-    // Adds out-of-sample split, walk-forward, Monte Carlo, parameter sensitivity.
-    // Goal: 500-1000 trade target. Requires Tier 1 PASS.
-    tier2: [
-      // === Tier 1 stocks (50) ===
-      'APLS','ARWR','BEAM','HALO','INSM','KRTX','PRCT','RVMD','IOVA',
-      'ANET','ALRM','BRZE','CALX','CRDO','DDOG','ESTC','JAMF','NTNX','SMCI',
-      'BROS','CAVA','CROX','DNUT','FIGS','SHAK','WRBY',
-      'AFRM','BILL','HOOD','SOFI','TOST','UPST',
-      'ARRY','ENPH','RUN','SEDG','SHLS',
-      'ASTS','IONQ','JOBY','LUNR','RKLB',
-      'AG','CCJ','MP','PAAS',
-      'BWXT','POWL',
-      'MARA','RIOT',
-      // === Tier 2 additions (50) ===
-      // Additional Biotech/Pharma (11)
-      'CRNX','DVAX','FATE','IMVT','MNKD','NARI','PCVX','SDGR','TGTX','TMDX','VRNA',
-      // Additional SaaS/Tech (7)
-      'CWAN','DCBO','EVCM','FLYW','GENI','PAYO','TBLA',
-      // Additional Consumer (5)
-      'AEO','ARKO','JACK','LOCO','PRPL',
-      // Additional Fintech (5)
-      'COIN','LPRO','OPEN','PSFE','RELY',
-      // Additional Clean Energy (4)
-      'FLNC','MAXN','NOVA','SPWR',
-      // Additional Space/Defense/Quantum (4)
-      'ACHR','AEHR','BKSY','RGTI',
-      // Additional Metals/Mining (6)
-      'AMR','HCC','IAUX','LAC','NXE','UUUU',
-      // Additional Industrials (3)
-      'ARIS','CSWI','ROAD',
-      // Additional Crypto (5)
-      'BTBT','CIFR','CLSK','IREN','WULF',
-    ],
-    // TIER 3 — Robustness (all 180 stocks + sector ETFs)
-    // Full universe stress test. Requires Tier 2 PASS.
-    // Goal: 800+ trade target across full market breadth.
-    tier3: [
-      // Sector ETFs (diversification anchors)
-      'IWM','SPY','QQQ','XLK','XLF','XLE','XLI','XLV','XLY','XLB',
-      // === All 100 Tier 2 stocks ===
-      'APLS','ARWR','BEAM','HALO','INSM','KRTX','PRCT','RVMD','IOVA',
-      'CRNX','DVAX','FATE','IMVT','MNKD','NARI','PCVX','SDGR','TGTX','TMDX','VRNA',
-      'ANET','ALRM','BRZE','CALX','CRDO','DDOG','ESTC','JAMF','NTNX','SMCI',
-      'CWAN','DCBO','EVCM','FLYW','GENI','PAYO','TBLA',
-      'BROS','CAVA','CROX','DNUT','FIGS','SHAK','WRBY',
-      'AEO','ARKO','JACK','LOCO','PRPL',
-      'AFRM','BILL','HOOD','SOFI','TOST','UPST',
-      'COIN','LPRO','OPEN','PSFE','RELY',
-      'ARRY','ENPH','RUN','SEDG','SHLS',
-      'FLNC','MAXN','NOVA','SPWR',
-      'ASTS','IONQ','JOBY','LUNR','RKLB',
-      'ACHR','AEHR','BKSY','RGTI',
-      'AG','CCJ','MP','PAAS',
-      'AMR','HCC','IAUX','LAC','NXE','UUUU',
-      'BWXT','POWL','ARIS','CSWI','ROAD',
-      'MARA','RIOT','BTBT','CIFR','CLSK','IREN','WULF',
-      // === Tier 3 additional stocks (remaining 80 from full universe) ===
-      // SaaS/Tech (remaining)
-      'VERX','ARLO','TASK','RAMP','PUBM','SEMR','WEAV','INOD',
-      'KNBE','PRCH','COMP','SGHC','OUST','CXAI','ADPT','VNET','INTA',
-      // Biotech/Pharma (remaining)
-      'CORT','PGNY','RCKT','NUVB','KRYS','ACCD','CPRX','TYRA','IRMD',
-      'GPCR','VERA','RVNC','RLAY','DAWN','IDYA','SNDX','XNCR','ACLX',
-      // Consumer/Retail (remaining)
-      'VSCO','BIRD','XPOF','LESL','COOK',
-      'SHCO','GOOS','DTC','LOVE','FLXS','XMTR','PLYA','EVRI','PTLO',
-      // Clean Energy (remaining)
-      'STEM','OPAL','GNE','KRNT','NNOX',
-      // Industrials/Infrastructure (remaining)
-      'GTLS','ENVX','AMSC','WLDN','PRIM',
-      // Fintech (remaining)
-      'STEP','HASI','ALIT','UWMC','RKT','GHLD',
-      // Space/Defense (remaining)
-      'LILM','EVTL','RDW','MNTS','SATL',
-      // Materials/Mining (remaining)
-      'GATO','PLL','ORGN','DNN','MAG',
-      // Hardware/Robotics/Other Tech (remaining)
-      'VUZI','BFLY','SSYS','DM','MKFG',
-    ],
+    tier1: TIER1_MIXED_CAP_SYMBOLS,
+    tier1bs: TIER1B_MIXED_CAP_SYMBOLS,
+    large_cap_known: LARGE_CAP_KNOWN_SYMBOLS,
+    tier1s: TIER1_MIXED_CAP_SYMBOLS,
+    tier1b: TIER1B_MIXED_CAP_SYMBOLS,
+    tier2: TIER2_MIXED_CAP_SYMBOLS,
+    tier3: TIER3_MIXED_CAP_HOLDOUT_SYMBOLS,
+    sp500: SP500_SYMBOLS,
+    sp400: SP400_SYMBOLS,
+    sp600: SP600_SYMBOLS,
+    regime_expansion: REGIME_EXPANSION_SYMBOLS,
+    regime_distribution: REGIME_DISTRIBUTION_SYMBOLS,
+    regime_accumulation: REGIME_ACCUMULATION_SYMBOLS,
+    regime_markdown: REGIME_MARKDOWN_SYMBOLS,
   },
   options: {
     tier1: ['SPY', 'QQQ'],
+    tier1s: ['SPY', 'QQQ'],
     tier1b: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
+    tier1bs: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
+    large_cap_known: [],
+    sp500: [],
+    sp400: [],
+    sp600: [],
+    regime_expansion: [],
+    regime_distribution: [],
+    regime_accumulation: [],
+    regime_markdown: [],
   },
   forex: {
     tier1: ['EURUSD=X', 'GBPUSD=X'],
+    tier1s: ['EURUSD=X', 'GBPUSD=X'],
     tier1b: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
+    tier1bs: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
+    large_cap_known: [],
+    sp500: [],
+    sp400: [],
+    sp600: [],
+    regime_expansion: [],
+    regime_distribution: [],
+    regime_accumulation: [],
+    regime_markdown: [],
   },
   crypto: {
     tier1: ['BTC-USD', 'ETH-USD'],
+    tier1s: ['BTC-USD', 'ETH-USD'],
     tier1b: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
+    tier1bs: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
+    large_cap_known: [],
+    sp500: [],
+    sp400: [],
+    sp600: [],
+    regime_expansion: [],
+    regime_distribution: [],
+    regime_accumulation: [],
+    regime_markdown: [],
   },
 };
 const VALIDATION_TIER_LABELS: Record<ValidationTier, string> = {
   tier1: 'Tier 1 - Kill Test',
+  tier1s: 'Tier 1S - Kill Test + Sensitivity',
   tier1b: 'Tier 1B - Evidence Expansion',
+  tier1bs: 'Tier 1BS - Evidence Expansion + Sensitivity',
   tier2: 'Tier 2 - Core Validation',
   tier3: 'Tier 3 - Robustness',
+  large_cap_known: `Large Cap (Known) - ${LARGE_CAP_KNOWN_SYMBOLS.length} Stocks`,
+  sp500: `S&P 500 — ${SP500_SYMBOLS.length} Large Cap Stocks`,
+  sp400: `S&P 400 — ${SP400_SYMBOLS.length} Mid Cap Stocks`,
+  sp600: `S&P 600 — ${SP600_SYMBOLS.length} Small Cap Stocks`,
+  regime_expansion: `Regime: Expansion — ${REGIME_EXPANSION_SYMBOLS.length} stocks (above 200MA, momentum up)`,
+  regime_distribution: `Regime: Distribution — ${REGIME_DISTRIBUTION_SYMBOLS.length} stocks (above 200MA, fading)`,
+  regime_accumulation: `Regime: Accumulation — ${REGIME_ACCUMULATION_SYMBOLS.length} stocks (below 200MA, recovering)`,
+  regime_markdown: `Regime: Markdown — ${REGIME_MARKDOWN_SYMBOLS.length} stocks (below 200MA, declining)`,
 };
 const VALIDATION_TIER_DESCRIPTIONS: Record<ValidationTier, string> = {
-  tier1: 'Fast kill test on a fixed Tier 1 universe. Target evidence: 200-300 trades.',
-  tier1b: 'Evidence expansion on a deterministic slice of the full optionable stock universe. Use this when Tier 1 quality looks good but sample size is thin.',
-  tier2: 'Core validation on a fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires Tier 1 PASS.',
-  tier3: 'Robustness validation on a fixed Tier 3 universe. Stress tests for survivors. Requires Tier 2 PASS.',
+  tier1: `Fast mixed-cap kill test on a nested ${TIER1_MIXED_CAP_SYMBOLS.length}-stock universe (13 large + 13 mid + 13 small + 13 micro). No parameter sensitivity.`,
+  tier1s: `Tier 1 mixed-cap kill test with parameter sensitivity analysis on the same ${TIER1_MIXED_CAP_SYMBOLS.length}-stock universe.`,
+  tier1b: `Mixed-cap evidence expansion on a nested ${TIER1B_MIXED_CAP_SYMBOLS.length}-stock universe (25 per cap bucket). Use this when Tier 1 looks viable but the sample is still thin.`,
+  tier1bs: `Tier 1B mixed-cap evidence expansion with parameter sensitivity analysis on the same ${TIER1B_MIXED_CAP_SYMBOLS.length}-stock universe.`,
+  tier2: `Core mixed-cap validation on a ${TIER2_MIXED_CAP_SYMBOLS.length}-stock universe (50 large + 50 mid + 50 small + 50 micro). Requires Tier 1 or Tier 1B PASS.`,
+  tier3: `Non-overlapping mixed-cap robustness holdout on ${TIER3_MIXED_CAP_HOLDOUT_SYMBOLS.length} stocks (45 per cap bucket). Use this to confirm the edge survives outside the Tier 2 sample.`,
+  large_cap_known: 'Quick large-cap spot check. Use this when you already suspect a large-cap edge and want a fast baseline before running the full S&P 500 universe.',
+  sp500: 'Broad large-cap benchmark. Use this to confirm a strategy truly generalizes across large caps, not just a curated subset.',
+  sp400: 'Mid-cap benchmark. Use this to see whether the edge survives outside large caps or is cap-specific.',
+  sp600: 'Small-cap benchmark. Use this to test whether the strategy prefers smaller, noisier, higher-volatility names.',
+  regime_expansion: 'Environment diagnosis for trend-friendly conditions. Use this for breakouts, momentum, and pullback-continuation ideas. Built by build_regime_universes.py.',
+  regime_distribution: 'Environment diagnosis for fading uptrends. Use this to see whether a strategy weakens when momentum rolls over. Built by build_regime_universes.py.',
+  regime_accumulation: 'Environment diagnosis for bottoming and recovery conditions. Useful for reversal and early-trend strategies. Built by build_regime_universes.py.',
+  regime_markdown: 'Environment diagnosis for downtrends and deterioration. Use this to test whether a long strategy should be avoided there, or whether a short idea belongs there. Built by build_regime_universes.py.',
 };
 
 let optionableStocksUniverseCache: string[] | null = null;
+let cleanStockUniverseCache: Set<string> | null = null;
 
 function normalizeUniverseSymbols(input: any): string[] {
   if (!Array.isArray(input)) return [];
@@ -283,6 +240,23 @@ function normalizeUniverseSymbols(input: any): string[] {
     out.push(symbol);
   }
   return out;
+}
+
+async function loadCleanStockUniverseSet(): Promise<Set<string>> {
+  if (cleanStockUniverseCache && cleanStockUniverseCache.size > 0) {
+    return new Set(cleanStockUniverseCache);
+  }
+  try {
+    const raw = await fs.readFile(CLEAN_STOCK_UNIVERSE_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const stocks = Array.isArray(parsed?.stocks) ? parsed.stocks : [];
+    const symbols = normalizeUniverseSymbols(stocks.map((entry: any) => entry?.ticker));
+    cleanStockUniverseCache = new Set(symbols);
+    return new Set(cleanStockUniverseCache);
+  } catch {
+    cleanStockUniverseCache = new Set();
+    return new Set();
+  }
 }
 
 function buildDeterministicUniverseSlice(symbols: string[], targetCount: number): string[] {
@@ -310,7 +284,11 @@ async function loadOptionableStocksTier1BUniverse(): Promise<string[]> {
     const raw = await fs.readFile(OPTIONABLE_UNIVERSE_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     const optionable = normalizeUniverseSymbols(parsed?.optionable || parsed?.symbols || []);
-    const sampled = buildDeterministicUniverseSlice(optionable, STOCKS_TIER1B_TARGET_SYMBOLS);
+    const cleanSet = await loadCleanStockUniverseSet();
+    const filtered = cleanSet.size > 0
+      ? optionable.filter(symbol => cleanSet.has(symbol))
+      : optionable;
+    const sampled = buildDeterministicUniverseSlice(filtered, STOCKS_TIER1B_TARGET_SYMBOLS);
     if (sampled.length > 0) {
       optionableStocksUniverseCache = sampled;
       return sampled.slice();
@@ -318,7 +296,10 @@ async function loadOptionableStocksTier1BUniverse(): Promise<string[]> {
   } catch {
     // Fall through to the static fallback below.
   }
-  optionableStocksUniverseCache = VALIDATION_TIER_UNIVERSES.stocks.tier1b.slice();
+  const cleanSet = await loadCleanStockUniverseSet();
+  optionableStocksUniverseCache = (cleanSet.size > 0
+    ? VALIDATION_TIER_UNIVERSES.stocks.tier1b.filter(symbol => cleanSet.has(symbol))
+    : VALIDATION_TIER_UNIVERSES.stocks.tier1b.slice());
   return optionableStocksUniverseCache.slice();
 }
 // Scale timeout by tier: Tier 1 is intentionally faster, Tier 2/3 include robustness.
@@ -327,10 +308,20 @@ async function loadOptionableStocksTier1BUniverse(): Promise<string[]> {
 function pipelineTimeoutMs(symbolCount: number, tier: ValidationTier = 'tier2'): number {
   const perSymbol = 30_000 * Math.max(1, symbolCount);
   const multiplierByTier: Record<ValidationTier, number> = {
-    tier1: 2,   // ~20 min for 50 symbols (was cutting off at 18m)
-    tier1b: 2,  // evidence expansion still uses baseline-only runtime
-    tier2: 3,   // ~2.5 hours for 106 symbols
-    tier3: 3,   // ~2.5 hours for 190 symbols
+    tier1: 2,          // ~20 min for 50 symbols
+    tier1s: 3,         // same as tier1 but with sensitivity analysis
+    tier1b: 2,         // evidence expansion still uses baseline-only runtime
+    tier1bs: 4,        // tier1b universe + sensitivity — longest of the fast tiers
+    tier2: 3,          // ~2.5 hours for 106 symbols
+    tier3: 3,          // ~2.5 hours for 190 symbols
+    large_cap_known: 2, // 76 symbols, baseline only
+    sp500: 2,              // ~406 symbols, baseline only (no sensitivity)
+    sp400: 2,              // ~341 symbols, baseline only
+    sp600: 2,              // ~474 symbols, baseline only
+    regime_expansion: 2,   // dynamic size, baseline only
+    regime_distribution: 2,
+    regime_accumulation: 2,
+    regime_markdown: 2,
   };
   return PIPELINE_BASE_TIMEOUT_MS + perSymbol * multiplierByTier[tier];
 }
@@ -405,11 +396,8 @@ function parseUniverse(input: any): string[] | null {
 
 function parseValidationTier(input: any): ValidationTier | null {
   if (input == null) return null;
-  const key = String(input).trim().toLowerCase();
-  if (key === 'tier1' || key === 'tier1b' || key === 'tier2' || key === 'tier3') {
-    return key;
-  }
-  return null;
+  const key = String(input).trim().toLowerCase() as ValidationTier;
+  return (VALIDATION_TIER_KEYS as string[]).includes(key) ? key : null;
 }
 
 function parseAssetClass(input: any): StrategyAssetClass | null {
@@ -453,9 +441,6 @@ function resolveReportAssetClass(report: any): StrategyAssetClass {
 }
 
 async function getValidationTierUniverse(assetClass: StrategyAssetClass, tier: ValidationTier): Promise<string[]> {
-  if (assetClass === 'stocks' && tier === 'tier1b') {
-    return loadOptionableStocksTier1BUniverse();
-  }
   const byClass = VALIDATION_TIER_UNIVERSES[assetClass] || VALIDATION_TIER_UNIVERSES.stocks;
   return (byClass[tier] || VALIDATION_TIER_UNIVERSES.stocks[tier] || []).slice();
 }
@@ -492,7 +477,9 @@ function latestTierReport(reports: any[], tierKey: ValidationTier, assetClass: S
 
 function isTier1EvidenceExpansionEligible(report: any): boolean {
   if (!report) return false;
-  if (report?.pass_fail === 'NEEDS_REVIEW') return true;
+  // PASS or NEEDS_REVIEW both allow Tier 1B — PASS means edge confirmed, 1B expands evidence
+  if (report?.pass_fail === 'PASS' || report?.pass_fail === 'NEEDS_REVIEW') return true;
+  // FAIL is eligible only if the sole reason is too few trades
   if (report?.pass_fail !== 'FAIL') return false;
   const reasons = Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [];
   return reasons.length > 0 && reasons.every((reason: any) => /too few trades/i.test(String(reason || '')));
@@ -517,6 +504,7 @@ async function runValidatorPipeline(
   dateEnd: string,
   universe?: string[],
   tier?: ValidationTier,
+  forceRefresh?: boolean,
   onProgress?: (evt: PipelineProgressEvent) => void,
   jobId?: string,
 ): Promise<{ report: ValidationReport; trades: TradeInstance[] }> {
@@ -537,6 +525,7 @@ async function runValidatorPipeline(
           dateEnd,
           universe,
           tier || 'tier3',
+          Boolean(forceRefresh),
           abortController.signal,
           onProgress,
         );
@@ -572,6 +561,9 @@ async function runValidatorPipeline(
     }
     if (tier) {
       args.push('--tier', tier);
+    }
+    if (forceRefresh) {
+      args.push('--force-refresh');
     }
 
     const proc = spawn('py', args);
@@ -687,6 +679,19 @@ async function runValidatorPipeline(
 // Strategy Endpoints
 // =====================
 
+/**
+ * GET /api/validator/active-strategy
+ * Returns the strategy_version_id currently configured for the execution bridge (the "active" strategy).
+ */
+router.get('/active-strategy', async (req: Request, res: Response) => {
+  try {
+    const strategyVersionId = getPersistedBridgeStrategyVersionId();
+    res.json({ success: true, data: strategyVersionId } as ApiResponse<string | null>);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
 router.get('/strategies', async (req: Request, res: Response) => {
   try {
     const registryPath = path.join(__dirname, '..', '..', 'data', 'patterns', 'registry.json');
@@ -723,6 +728,7 @@ router.get('/strategies', async (req: Request, res: Response) => {
           exit_config: {} as any,
           cost_config: { commission_per_trade: 0, slippage_pct: 0.001 },
           execution_config: {},
+          fundamental_config: def.fundamental_config || undefined,
           updated_at: def.updated_at || new Date().toISOString(),
         } as unknown as StrategySpec, def);
         strategies.push({
@@ -778,7 +784,11 @@ router.get('/strategies', async (req: Request, res: Response) => {
     const mergedIds = new Set(mergedStrategies.map((s: any) => s.strategy_version_id));
     for (const s of allSaved) {
       if (mergedIds.has(s.strategy_version_id)) continue;
-      if (s.strategy_version_id?.startsWith('sweep_')) continue;
+      // Exclude raw sweep variant files (status 'pending'/'running') but allow promoted ones
+      if (s.strategy_version_id?.startsWith('sweep_')) {
+        const status = String(s.status || '').toLowerCase();
+        if (status !== 'testing' && status !== 'approved' && status !== 'active') continue;
+      }
       if (String(s.status || '').toLowerCase() === 'rejected') continue;
       mergedStrategies.push({
         ...s,
@@ -836,6 +846,7 @@ async function resolveStrategy(strategyVersionId: string): Promise<StrategySpec 
       exit_config: {} as any,
       cost_config: { commission_per_trade: 0, slippage_pct: 0.001 },
       execution_config: {},
+      fundamental_config: def.fundamental_config || undefined,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     } as unknown as StrategySpec, def);
@@ -917,7 +928,7 @@ router.get('/tier-config', async (req: Request, res: Response) => {
 
 router.post('/run', async (req: Request, res: Response) => {
   try {
-    const { strategy_version_id, date_start, date_end, universe, tier, asset_class, interval, skip_tier_gate } = req.body;
+    const { strategy_version_id, date_start, date_end, universe, tier, asset_class, interval, skip_tier_gate, force_refresh } = req.body;
     const activeRuns = Array.from(runJobs.values()).filter((j) => j.status === 'queued' || j.status === 'running').length;
     if (activeRuns >= MAX_CONCURRENT_RUNS) {
       return res.status(429).json({
@@ -945,7 +956,7 @@ router.post('/run', async (req: Request, res: Response) => {
     }
     const parsedTier = parseValidationTier(tier);
     if (tier != null && parsedTier === null) {
-      return res.status(400).json({ success: false, error: 'tier must be one of: tier1, tier1b, tier2, tier3' } as ApiResponse<null>);
+      return res.status(400).json({ success: false, error: `tier must be one of: ${VALIDATION_TIER_KEYS.join(', ')}` } as ApiResponse<null>);
     }
     const parsedAssetClass = parseAssetClass(asset_class);
     if (asset_class != null && parsedAssetClass === null) {
@@ -957,6 +968,9 @@ router.post('/run', async (req: Request, res: Response) => {
         success: false,
         error: 'interval must be one of: 1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo',
       } as ApiResponse<null>);
+    }
+    if (force_refresh != null && typeof force_refresh !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'force_refresh must be a boolean' } as ApiResponse<null>);
     }
 
     const strategy = await resolveStrategy(strategy_version_id);
@@ -975,15 +989,18 @@ router.post('/run', async (req: Request, res: Response) => {
         r?.config?.validation_tier === tierName &&
         resolveReportAssetClass(r) === effectiveAssetClass
       );
-    const latestTier1 = latestTierReport(existingReports, 'tier1', effectiveAssetClass);
+    const latestTier1 = latestTierReport(existingReports, 'tier1', effectiveAssetClass)
+      || latestTierReport(existingReports, 'tier1s', effectiveAssetClass);
+    const latestTier1B = latestTierReport(existingReports, 'tier1b', effectiveAssetClass)
+      || latestTierReport(existingReports, 'tier1bs', effectiveAssetClass);
     if (!skip_tier_gate) {
-      if (effectiveTier === 'tier1b' && !isTier1EvidenceExpansionEligible(latestTier1)) {
+      if ((effectiveTier === 'tier1b' || effectiveTier === 'tier1bs') && !isTier1EvidenceExpansionEligible(latestTier1)) {
         return res.status(400).json({
           success: false,
-          error: `Tier 1B requires an inconclusive Tier 1 result first for this strategy (${strategy_version_id}). Run Tier 1, then use Tier 1B only when the edge looks viable but the evidence is thin.`,
+          error: `Tier 1B/1BS requires an inconclusive Tier 1 result first for this strategy (${strategy_version_id}). Run Tier 1, then use Tier 1B only when the edge looks viable but the evidence is thin.`,
         } as ApiResponse<null>);
       }
-      if (effectiveTier === 'tier2' && !(hasTierPass('tier1') || hasTierPass('tier1b'))) {
+      if (effectiveTier === 'tier2' && !(hasTierPass('tier1') || hasTierPass('tier1s') || hasTierPass('tier1b') || hasTierPass('tier1bs'))) {
         return res.status(400).json({
           success: false,
           error: `Tier 2 requires a passing Tier 1 or Tier 1B report first for this strategy (${strategy_version_id}).`,
@@ -1040,6 +1057,14 @@ router.post('/run', async (req: Request, res: Response) => {
       j.timeout_sec = runTimeoutSec;
       await persistRunJobs();
 
+      // Auto-transition: move draft strategies to testing the moment validation starts
+      try {
+        const stratSpec = await storage.getStrategy(strategy_version_id);
+        if (stratSpec && stratSpec.status === 'draft') {
+          await storage.saveStrategy({ ...stratSpec, status: 'testing', updated_at: new Date().toISOString() }, true);
+        }
+      } catch { /* non-fatal */ }
+
       const startedAtMs = Date.now();
       const progressTicker = setInterval(async () => {
         const live = runJobs.get(jobId);
@@ -1068,6 +1093,7 @@ router.post('/run', async (req: Request, res: Response) => {
           de,
           effectiveUniverse,
           effectiveTier,
+          Boolean(force_refresh),
           (evt) => {
             const live = runJobs.get(jobId);
             if (!live || live.status !== 'running') return;
@@ -1094,6 +1120,16 @@ router.post('/run', async (req: Request, res: Response) => {
 
         await storage.saveValidationReport(report);
         await storage.saveTradeInstances(report.report_id, trades);
+
+        // Auto-approve: if this is a Tier 3 PASS, promote the strategy to approved in place
+        if (effectiveTier === 'tier3' && String(report.pass_fail || '').toUpperCase() === 'PASS') {
+          try {
+            const existing = await storage.getStrategy(strategy_version_id);
+            if (existing && existing.status !== 'approved') {
+              await storage.saveStrategy({ ...existing, status: 'approved', updated_at: new Date().toISOString() }, true);
+            }
+          } catch { /* non-fatal — report is already saved */ }
+        }
 
         j.status = 'completed';
         j.completed_at = new Date().toISOString();

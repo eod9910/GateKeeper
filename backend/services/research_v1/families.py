@@ -29,12 +29,13 @@ def _rate(values: Sequence[bool]) -> Optional[float]:
 
 
 def _stddev(values: Sequence[float]) -> Optional[float]:
+    """Sample standard deviation (Bessel-corrected, N-1 denominator)."""
     if not values:
         return None
     if len(values) == 1:
         return 0.0
     mean_value = sum(values) / len(values)
-    variance = sum((value - mean_value) ** 2 for value in values) / len(values)
+    variance = sum((value - mean_value) ** 2 for value in values) / (len(values) - 1)
     return variance ** 0.5
 
 

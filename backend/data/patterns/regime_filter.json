@@ -61,5 +61,11 @@
   "status": "active",
   "artifact_type": "indicator",
   "composition": "primitive",
-  "indicator_role": "regime_state"
+  "indicator_role": "regime_state",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["regime", "trend", "dow_theory", "filter", "reference_symbol"],
+  "source_kind": "custom"
 }

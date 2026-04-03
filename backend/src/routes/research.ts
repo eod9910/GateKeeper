@@ -10,10 +10,14 @@
  * POST   /research/sessions/:id/unarchive  — unarchive a session
  * POST   /research/sessions/:id/promote/:gen — manually promote a generation
  * POST   /research/sessions/:id/reflect/:gen — regenerate reflection for a generation
+ * POST   /research/sessions/:id/interpret/:gen — AI-powered interpretation of a generation
+ * POST   /research/sessions/:id/interpret/:gen/ask — follow-up question about a generation
  * GET    /research/sessions/:id/stream     — SSE live event stream
  */
 
 import { Router, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import {
   createSession,
   continueSession,
@@ -29,6 +33,13 @@ import {
   regenerateReflection,
   ResearchSessionConfig,
 } from '../services/researchAgent';
+import { interpretGeneration, interpretAsk } from '../services/strategyGenService';
+import {
+  runFormulaRanking,
+  getRankingJob,
+  cancelRanking,
+  subscribeToRanking,
+} from '../services/formulaRankingEngine';
 
 const router = Router();
 
@@ -54,6 +65,8 @@ router.post('/sessions', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'name is required' });
     }
 
+    const mode = body.mode === 'symbolic_regression' ? 'symbolic_regression' : 'strategy_discovery';
+    const sr = body.sr_config && typeof body.sr_config === 'object' ? body.sr_config : undefined;
     const config: ResearchSessionConfig = {
       name: String(name).trim(),
       max_generations: Math.max(1, Math.min(Number(max_generations) || 5, 50)),
@@ -66,6 +79,21 @@ router.post('/sessions', async (req: Request, res: Response) => {
       hypothesis_model: body.hypothesis_model ? String(body.hypothesis_model) : undefined,
       reflection_model: body.reflection_model ? String(body.reflection_model) : undefined,
       risk_defaults: body.risk_defaults || undefined,
+      mode,
+      sr_config: mode === 'symbolic_regression' && sr
+        ? {
+            symbol: String(sr.symbol || 'SPY').trim(),
+            interval: String(sr.interval || '1d').trim(),
+            years: sr.years != null ? Number(sr.years) : 2,
+            target_bars: sr.target_bars != null ? Number(sr.target_bars) : 5,
+            population_size: sr.population_size != null ? Number(sr.population_size) : 500,
+            generations: sr.generations != null ? Number(sr.generations) : 20,
+            features: Array.isArray(sr.features) ? sr.features.map((f: any) => ({
+              id: String(f.id || '').trim(),
+              period: f.period != null ? Number(f.period) : undefined,
+            })).filter((f: any) => f.id) : undefined,
+          }
+        : undefined,
     };
 
     const session = await createSession(config);
@@ -209,6 +237,79 @@ router.post('/sessions/:id/reflect/:gen', async (req: Request, res: Response) =>
   }
 });
 
+// ─── POST /sessions/:id/interpret/:gen ────────────────────────────────────────
+
+router.post('/sessions/:id/interpret/:gen', async (req: Request, res: Response) => {
+  const gen = parseInt(req.params.gen, 10);
+  if (isNaN(gen)) {
+    return res.status(400).json({ success: false, error: 'Invalid generation number' });
+  }
+
+  await sessionsReadyPromise;
+  if (!getSession(req.params.id)) {
+    sessionsReadyPromise = loadAllSessions().catch(console.error);
+    await sessionsReadyPromise;
+  }
+
+  const session = getSession(req.params.id);
+  if (!session) {
+    return res.status(404).json({ success: false, error: 'Session not found' });
+  }
+
+  const entry = session.genome.find((e: any) => e.generation === gen);
+  if (!entry) {
+    return res.status(404).json({ success: false, error: 'Generation not found' });
+  }
+
+  const model = req.body?.model ? String(req.body.model) : undefined;
+  try {
+    const interpretation = await interpretGeneration(entry, session.config, model);
+    res.json({ success: true, data: { interpretation, generation: gen } });
+  } catch (err: any) {
+    console.error(`[interpret route] Error:`, err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── POST /sessions/:id/interpret/:gen/ask ────────────────────────────────────
+
+router.post('/sessions/:id/interpret/:gen/ask', async (req: Request, res: Response) => {
+  const gen = parseInt(req.params.gen, 10);
+  if (isNaN(gen)) {
+    return res.status(400).json({ success: false, error: 'Invalid generation number' });
+  }
+
+  const { question, initial_interpretation, conversation } = req.body || {};
+  if (!question || typeof question !== 'string' || !question.trim()) {
+    return res.status(400).json({ success: false, error: 'question is required' });
+  }
+
+  await sessionsReadyPromise;
+  const session = getSession(req.params.id);
+  if (!session) {
+    return res.status(404).json({ success: false, error: 'Session not found' });
+  }
+
+  const entry = session.genome.find((e: any) => e.generation === gen);
+  if (!entry) {
+    return res.status(404).json({ success: false, error: 'Generation not found' });
+  }
+
+  const conv = Array.isArray(conversation)
+    ? conversation.filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    : [];
+  const initial = typeof initial_interpretation === 'string' ? initial_interpretation : '';
+
+  const model = req.body?.model ? String(req.body.model) : undefined;
+  try {
+    const answer = await interpretAsk(entry, session.config, question.trim(), initial, conv, model);
+    res.json({ success: true, data: { answer, generation: gen } });
+  } catch (err: any) {
+    console.error(`[interpret/ask route] Error:`, err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── GET /sessions/:id/stream (SSE) ──────────────────────────────────────────
 
 router.get('/sessions/:id/stream', (req: Request, res: Response) => {
@@ -244,6 +345,143 @@ router.get('/sessions/:id/stream', (req: Request, res: Response) => {
   req.on('close', () => {
     unsubscribe();
   });
+});
+
+// ─── GET /families ───────────────────────────────────────────────────────────
+// Returns the list of known familySignatureV2 values from the latest research
+// artifacts so the Blockly composer can render a family picker.
+
+const FAMILY_COMPARISON_PATH = path.join(
+  __dirname, '..', '..', 'data', 'research', 'atr_pivot_v1',
+  'etf_1d_10y_family_comparison_v2.json'
+);
+
+router.get('/families', (_req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(FAMILY_COMPARISON_PATH)) {
+      return res.json({ success: true, data: [] });
+    }
+    const raw = JSON.parse(fs.readFileSync(FAMILY_COMPARISON_PATH, 'utf-8'));
+    const familyRows: any[] = raw?.familyBehaviorStability?.familyRows ?? [];
+    const families = familyRows
+      .map((row: any) => ({
+        signature: String(row.familySignatureV2 || ''),
+        symbolCount: row.symbolCount ?? 0,
+        totalOccurrenceCount: row.totalOccurrenceCount ?? 0,
+        crossSymbolMeanTScoreForward10: row.crossSymbolMeanTScoreForward10 ?? null,
+        crossSymbolMeanAvgForward10ReturnAtr: row.crossSymbolMeanAvgForward10ReturnAtr ?? null,
+        isCandidateFamily: row.isCandidateFamily ?? false,
+      }))
+      .filter((f: any) => !!f.signature)
+      .sort((a: any, b: any) => {
+        // Candidates first, then by abs(t10) descending
+        if (b.isCandidateFamily !== a.isCandidateFamily) return b.isCandidateFamily ? 1 : -1;
+        return Math.abs(b.crossSymbolMeanTScoreForward10 ?? 0) - Math.abs(a.crossSymbolMeanTScoreForward10 ?? 0);
+      });
+    res.json({ success: true, data: families });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /research/sr-formulas — list all persisted SR formulas with ranking data
+router.get('/sr-formulas', async (_req: Request, res: Response) => {
+  try {
+    const formulasPath = path.join(__dirname, '..', '..', 'data', 'sr_formulas.json');
+    let registry: Record<string, any> = {};
+    if (fs.existsSync(formulasPath)) {
+      const raw = fs.readFileSync(formulasPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') registry = parsed;
+    }
+    const formulas = Object.values(registry).map((entry: any) => {
+      const ranking = entry.backtest_ranking || null;
+      return {
+        formula_id: entry.formula_id,
+        formula_readable: entry.formula_readable || entry.formula || '',
+        complexity: entry.complexity || 0,
+        fitness: entry.fitness || 0,
+        training_symbol: entry.training_context?.symbol || '',
+        training_interval: entry.training_context?.interval || '',
+        created_at: entry.created_at || '',
+        backtest_ranking: ranking ? {
+          rank: ranking.rank,
+          composite_score: ranking.composite_score,
+          expectancy_R: ranking.expectancy_R,
+          win_rate: ranking.win_rate,
+          profit_factor: ranking.profit_factor,
+          sharpe_ratio: ranking.sharpe_ratio,
+          total_trades: ranking.total_trades,
+          pass_fail: ranking.pass_fail,
+          ranked_at: ranking.ranked_at,
+        } : null,
+      };
+    });
+    res.json({ success: true, data: formulas });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /research/sr-formulas/rank — trigger formula ranking
+router.post('/sr-formulas/rank', async (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const jobId = await runFormulaRanking({
+      baseline_strategy_version_id: body.baseline_strategy_version_id,
+      symbol: body.symbol,
+      interval: body.interval,
+      tier: body.tier,
+      force: body.force === true,
+    });
+    const job = getRankingJob(jobId);
+    res.status(201).json({ success: true, data: { job_id: jobId, status: job?.status, progress: job?.progress } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /research/sr-formulas/rank/:jobId — poll ranking job status
+router.get('/sr-formulas/rank/:jobId', (req: Request, res: Response) => {
+  const job = getRankingJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ success: false, error: 'Ranking job not found' });
+  }
+  res.json({ success: true, data: job });
+});
+
+// POST /research/sr-formulas/rank/:jobId/cancel — cancel a running ranking job
+router.post('/sr-formulas/rank/:jobId/cancel', async (req: Request, res: Response) => {
+  try {
+    await cancelRanking(req.params.jobId);
+    res.json({ success: true, data: { cancelled: true } });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// GET /research/sr-formulas/rank/:jobId/stream — SSE for ranking progress
+router.get('/sr-formulas/rank/:jobId/stream', (req: Request, res: Response) => {
+  const jobId = req.params.jobId;
+  const job = getRankingJob(jobId);
+  if (!job) {
+    return res.status(404).json({ success: false, error: 'Ranking job not found' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send('snapshot', { job_id: job.job_id, status: job.status, progress: job.progress });
+
+  const unsubscribe = subscribeToRanking(jobId, send);
+  req.on('close', () => { unsubscribe(); });
 });
 
 export default router;

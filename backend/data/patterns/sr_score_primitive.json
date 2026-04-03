@@ -1,0 +1,44 @@
+{
+  "pattern_id": "sr_score",
+  "name": "SR Score",
+  "category": "indicator_signals",
+  "description": "Evaluates a persisted symbolic-regression formula on the latest causal feature row. Use as a stage in composites; entry_ready when predicted forward return >= score_threshold.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/sr_score_primitive.py",
+  "plugin_function": "run_sr_score_primitive_plugin",
+  "pattern_type": "sr_score",
+  "chart_indicator": false,
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "sr_score",
+    "score_threshold": 0.0,
+    "formula_id": null
+  },
+  "default_entry": { "entry_type": "analysis_only" },
+  "tunable_params": [
+    {
+      "key": "formula_id",
+      "label": "SR Formula",
+      "type": "string",
+      "default": "",
+      "description": "ID of a persisted symbolic-regression formula to evaluate. Leave blank for placeholder score.",
+      "dynamic_options_endpoint": "/api/research/sr-formulas"
+    },
+    {
+      "key": "score_threshold",
+      "label": "Predicted Return Threshold",
+      "type": "float",
+      "min": -3,
+      "max": 3,
+      "default": 0.0,
+      "description": "Minimum predicted ATR-normalized forward return required to set entry_ready"
+    }
+  ],
+  "suggested_timeframes": ["D", "W", "4H"],
+  "min_data_bars": 30,
+  "status": "active",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "regime_state"
+}

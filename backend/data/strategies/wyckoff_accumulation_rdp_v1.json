@@ -34,7 +34,10 @@
     "pullback_retracement_max": 5,
     "double_bottom_tolerance": 1.05,
     "breakout_multiplier": 1.02,
-    "score_min": 0
+    "score_min": 0,
+    "market_cap_tier": "all",
+    "min_market_cap_billions": 0,
+    "min_avg_volume_k": 0
   },
   "entry_config": {
     "entry_type": "breakout",
@@ -182,6 +185,53 @@
       "failure_modes_targeted": [
         "high_sensitivity",
         "low_trade_count"
+      ]
+    },
+    {
+      "key": "min_market_cap_billions",
+      "label": "Min Market Cap ($B)",
+      "path": "setup_config.min_market_cap_billions",
+      "anatomy": "regime_filter",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        1,
+        2,
+        5,
+        10
+      ],
+      "min": 0,
+      "max": 50,
+      "step": 0.5,
+      "priority": 75,
+      "failure_modes_targeted": [
+        "thin_float_noise"
+      ]
+    },
+    {
+      "key": "min_avg_volume_k",
+      "label": "Min Avg Volume (K)",
+      "path": "setup_config.min_avg_volume_k",
+      "anatomy": "regime_filter",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        250,
+        500,
+        1000
+      ],
+      "min": 0,
+      "max": 5000,
+      "step": 100,
+      "priority": 74,
+      "failure_modes_targeted": [
+        "thin_float_noise"
       ]
     }
   ]

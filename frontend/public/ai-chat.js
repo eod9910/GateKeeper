@@ -5,10 +5,108 @@
 let aiAvailable = false;
 let aiStatusProviderLabel = 'Ready';
 const SCANNER_FUNDAMENTALS_TIMEOUT_MS = 10000;
+const SCANNER_ANALYST_STORAGE_KEY = 'scanner.selectedAnalyst';
+const DEFAULT_SCANNER_ANALYST = 'technical_analyst';
+let scannerAnalystRegistry = [
+  { id: 'pattern_analyst', label: 'Atlas' },
+  { id: 'technical_analyst', label: 'Structure' },
+  { id: 'financial_analyst', label: 'Ledger' },
+];
 const scannerChatAttachments = {
   'scanner-chat-input': null,
   'fundamentals-chat-input': null,
 };
+
+function getDefaultScannerAnalysts() {
+  return [
+    { id: 'pattern_analyst', label: 'Atlas' },
+    { id: 'technical_analyst', label: 'Structure' },
+    { id: 'financial_analyst', label: 'Ledger' },
+  ];
+}
+
+function normalizeScannerAnalystId(value) {
+  const analystId = String(value || '').trim();
+  if (!analystId || analystId === 'scanner_copilot') {
+    return DEFAULT_SCANNER_ANALYST;
+  }
+  return analystId;
+}
+
+function getScannerAnalystSelect() {
+  return document.getElementById('scanner-analyst-select');
+}
+
+function getStoredScannerAnalyst() {
+  try {
+    return normalizeScannerAnalystId(localStorage.getItem(SCANNER_ANALYST_STORAGE_KEY) || DEFAULT_SCANNER_ANALYST);
+  } catch (_error) {
+    return DEFAULT_SCANNER_ANALYST;
+  }
+}
+
+function saveStoredScannerAnalyst(value) {
+  try {
+    localStorage.setItem(SCANNER_ANALYST_STORAGE_KEY, normalizeScannerAnalystId(value));
+  } catch (_error) {
+    // ignore storage failures
+  }
+}
+
+function getScannerAnalystLabel(id) {
+  const match = scannerAnalystRegistry.find((item) => item && item.id === id);
+  return match?.label || 'Copilot';
+}
+
+function populateScannerAnalystSelect() {
+  const select = getScannerAnalystSelect();
+  if (!select) return;
+  const currentValue = normalizeScannerAnalystId(select.value || getStoredScannerAnalyst());
+  select.innerHTML = '';
+  scannerAnalystRegistry.forEach((analyst) => {
+    const option = document.createElement('option');
+    option.value = analyst.id;
+    option.textContent = analyst.label;
+    select.appendChild(option);
+  });
+  select.value = scannerAnalystRegistry.some((item) => item.id === currentValue)
+    ? currentValue
+    : DEFAULT_SCANNER_ANALYST;
+  saveStoredScannerAnalyst(select.value);
+}
+
+function getSelectedScannerAnalyst() {
+  const select = getScannerAnalystSelect();
+  return normalizeScannerAnalystId(select?.value || getStoredScannerAnalyst());
+}
+
+function handleScannerAnalystChange(value) {
+  const analystId = normalizeScannerAnalystId(value || DEFAULT_SCANNER_ANALYST);
+  saveStoredScannerAnalyst(analystId);
+  setScannerChatStatus(`Analyst: ${getScannerAnalystLabel(analystId)}`, 'ai-status');
+  setTimeout(() => setScannerChatStatus('Ready', 'ai-status'), 1200);
+}
+
+async function loadScannerAnalysts() {
+  try {
+    const response = await fetch('/api/vision/analysts');
+    const payload = await response.json();
+    if (response.ok && payload?.success && Array.isArray(payload?.data) && payload.data.length) {
+      scannerAnalystRegistry = payload.data
+        .map((item) => ({
+          id: normalizeScannerAnalystId(item?.id),
+          label: String(item?.label || item?.id || 'Analyst').trim(),
+        }))
+        .filter((item) => item.id)
+        .filter((item) => item.id !== 'scanner_copilot');
+    } else {
+      scannerAnalystRegistry = getDefaultScannerAnalysts();
+    }
+  } catch (_error) {
+    scannerAnalystRegistry = getDefaultScannerAnalysts();
+  }
+  populateScannerAnalystSelect();
+}
 
 function getChatAttachmentContainerId(inputId) {
   return inputId === 'fundamentals-chat-input'
@@ -313,6 +411,11 @@ document.addEventListener('DOMContentLoaded', () => {
   applyScannerFullWidthLayout();
   mountScannerReviewWidgets();
   mountScannerFundamentalsPanel();
+  loadScannerAnalysts();
+  const analystSelect = getScannerAnalystSelect();
+  if (analystSelect) {
+    analystSelect.addEventListener('change', (event) => handleScannerAnalystChange(event.target.value));
+  }
 });
 
 function resetScannerChatVisualState() {
@@ -406,7 +509,9 @@ function resetChatThread(containerId, welcomeText) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
-  appendScannerChatMessage(welcomeText, 'ai', containerId);
+  if (welcomeText) {
+    appendScannerChatMessage(welcomeText, 'ai', containerId);
+  }
 }
 
 function clearScannerChatSession(symbol, timeframe) {
@@ -421,12 +526,8 @@ function clearScannerChatSession(symbol, timeframe) {
     lastAIAnalysis = null;
   }
 
-  resetChatThread('scanner-chat-messages', 'Welcome. Ask about this setup, or run AI chart analysis.');
-  resetChatThread('fundamentals-chat-messages', 'Ask how these fundamentals change the quality, risk, or timing of the current scanner setup.');
-  if (symbol) {
-    appendScannerChatMessage(`Loaded ${symbol}${timeframe ? ` (${timeframe})` : ''}. New session started.`, 'ai', 'scanner-chat-messages');
-    appendScannerChatMessage(`Loaded ${symbol}${timeframe ? ` (${timeframe})` : ''}. Fundamentals context refreshed.`, 'ai', 'fundamentals-chat-messages');
-  }
+  resetChatThread('scanner-chat-messages', '');
+  resetChatThread('fundamentals-chat-messages', '');
 
   if (scannerInput) {
     scannerInput.value = '';
@@ -448,14 +549,14 @@ function clearScannerChatSession(symbol, timeframe) {
 }
 
 function clearFundamentalsChatSession() {
-  resetChatThread('fundamentals-chat-messages', 'Ask how these fundamentals change the quality, risk, or timing of the current scanner setup.');
-  const input = document.getElementById('fundamentals-chat-input');
+  resetChatThread('scanner-chat-messages', '');
+  const input = document.getElementById('scanner-chat-input');
   if (input) {
     input.value = '';
-    autoResizeScannerChatInput('fundamentals-chat-input');
+    autoResizeScannerChatInput('scanner-chat-input');
   }
-  clearChatAttachment('fundamentals-chat-input');
-  setScannerChatStatus('Ready', 'fundamentals-chat-status');
+  clearChatAttachment('scanner-chat-input');
+  setScannerChatStatus('Ready');
 }
 
 function buildFundamentalsContext(snapshot) {
@@ -512,6 +613,7 @@ function buildFundamentalsContext(snapshot) {
     positioning: snapshot.positioning || null,
     marketContext: snapshot.marketContext || null,
     ownership: snapshot.ownership || null,
+    socialBuzz: snapshot.socialBuzz || null,
     tags: Array.isArray(snapshot.tags) ? snapshot.tags : [],
   };
 }
@@ -577,16 +679,28 @@ async function ensureScannerFundamentals(symbol) {
     const timeoutId = controller
       ? setTimeout(() => controller.abort(), SCANNER_FUNDAMENTALS_TIMEOUT_MS)
       : null;
-    const res = await fetch(`${apiBase}/api/fundamentals/${encodeURIComponent(normalized)}`, controller
-      ? { signal: controller.signal }
-      : undefined);
+    const requestOptions = controller ? { signal: controller.signal } : undefined;
+    const [fundamentalsRes, buzzRes] = await Promise.allSettled([
+      fetch(`${apiBase}/api/fundamentals/${encodeURIComponent(normalized)}`, requestOptions),
+      fetch(`${apiBase}/api/fundamentals/${encodeURIComponent(normalized)}/buzz`, requestOptions),
+    ]);
     if (timeoutId) clearTimeout(timeoutId);
-    const data = await res.json();
-    if (!res.ok || !data?.success || !data?.data) return null;
-    if (typeof fundamentalsCache !== 'undefined') {
-      fundamentalsCache.set(normalized, data.data);
+    if (fundamentalsRes.status !== 'fulfilled') return null;
+    const data = await fundamentalsRes.value.json();
+    if (!fundamentalsRes.value.ok || !data?.success || !data?.data) return null;
+    const merged = { ...data.data };
+    if (buzzRes.status === 'fulfilled') {
+      try {
+        const buzzData = await buzzRes.value.json();
+        if (buzzRes.value.ok && buzzData?.success && buzzData?.data?.available) {
+          merged.socialBuzz = buzzData.data;
+        }
+      } catch {}
     }
-    return data.data;
+    if (typeof fundamentalsCache !== 'undefined') {
+      fundamentalsCache.set(normalized, merged);
+    }
+    return merged;
   } catch (err) {
     console.warn('Failed to fetch fundamentals for AI context:', normalized, err);
     return null;
@@ -699,6 +813,24 @@ function buildFundamentalsMessageBlock(snapshot) {
     lines.push(`\n[OWNERSHIP]`, `- top_institutions: ${snapshot.ownership.topInstitutionalHolders.slice(0, 5).map(h => h.holder).join(', ')}`);
   }
 
+  if (snapshot.socialBuzz && snapshot.socialBuzz.available) {
+    const buzz = snapshot.socialBuzz;
+    const messages = Array.isArray(buzz.recent_messages) ? buzz.recent_messages.slice(0, 3) : [];
+    lines.push(
+      `\n[SOCIAL_BUZZ]`,
+      `- mood: ${buzz.mood || 'N/A'}`,
+      `- watchers: ${buzz.watchlist_count ?? 'N/A'}`,
+      `- message_count: ${buzz.message_count ?? 'N/A'}`,
+      `- bullish: ${buzz.bullish ?? 'N/A'}`,
+      `- bearish: ${buzz.bearish ?? 'N/A'}`,
+      `- bull_pct: ${buzz.bull_pct ?? 'N/A'}`,
+      `- bear_pct: ${buzz.bear_pct ?? 'N/A'}`,
+    );
+    if (messages.length > 0) {
+      lines.push(`- recent_messages: ${messages.map((m) => `${m.sentiment || 'Neutral'}:${String(m.body || '').replace(/\s+/g, ' ').trim()}`).join(' | ')}`);
+    }
+  }
+
   return `\nFUNDAMENTALS_SNAPSHOT:\n${lines.join('\n')}\n`;
 }
 
@@ -741,13 +873,17 @@ function appendScannerChatMessage(text, sender = 'ai', containerId = 'scanner-ch
   bubble.className = `scanner-chat-bubble ${sender === 'user' ? 'user' : 'ai'}`;
   container.appendChild(bubble);
   container.scrollTop = container.scrollHeight;
+  const panelId = containerId === 'fundamentals-chat-messages' ? null : 'ai-panel';
   if (!shouldAnimateScannerChatMessage(text, sender, options)) {
     bubble.textContent = String(text);
     container.scrollTop = container.scrollHeight;
+    if (panelId && typeof notifyPopout === 'function') notifyPopout(panelId);
     return Promise.resolve();
   }
   bubble.textContent = '';
-  return animateScannerChatBubble(bubble, container, text);
+  return animateScannerChatBubble(bubble, container, text).then(function () {
+    if (panelId && typeof notifyPopout === 'function') notifyPopout(panelId);
+  });
 }
 
 function setScannerChatStatus(text, statusId = 'ai-status') {
@@ -877,7 +1013,7 @@ async function captureScannerChartDataUrl() {
   }
   const canvas = await html2canvas(chartElement, {
     backgroundColor: '#1e1e1e',
-    scale: 2,
+    scale: 1,
     logging: false,
     useCORS: true,
   });
@@ -1188,6 +1324,7 @@ function getScannerChatRole(rawMessage = '', hasImage = false) {
 async function sendScannerChatRequest(options = {}) {
   const {
     prefill,
+    analystId,
     inputId = 'scanner-chat-input',
     messagesId = 'scanner-chat-messages',
     statusId = 'ai-status',
@@ -1229,15 +1366,19 @@ async function sendScannerChatRequest(options = {}) {
       : includeChart
       ? await captureScannerChartImage()
       : null;
-    const chatRole = getScannerChatRole(raw, Boolean(chartImage));
+    const chatAnalyst = analystId || getSelectedScannerAnalyst();
+    const chatRole = shouldUseLiteralChartReader(raw, Boolean(chartImage)) && chatAnalyst !== 'financial_analyst'
+      ? 'literal_chart_reader'
+      : null;
     const context = buildScannerChatContext(fundamentals);
-    const fetchVisionChat = async (role, finalMessage, imagePayload = chartImage) => {
+    const fetchVisionChat = async (analyst, finalMessage, imagePayload = chartImage, role = chatRole) => {
       const response = await fetch('/api/vision/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: finalMessage,
           context,
+          analyst,
           role,
           aiModel: settings.aiModel,
           chartImage: imagePayload,
@@ -1249,13 +1390,13 @@ async function sendScannerChatRequest(options = {}) {
       }
       return String(data.data?.response || 'No response.');
     };
-    let responseText = await fetchVisionChat(chatRole, message);
+    let responseText = await fetchVisionChat(chatAnalyst, message);
     if (
       chartImage &&
       /can't actually see|cannot actually see|don't see any actual chart|do not see any actual chart|upload the image itself|can't confirm a literal/i.test(responseText)
     ) {
       const retryMessage = `${message}\n\nIMAGE_RETRY_INSTRUCTION:\n- The chart screenshot is attached to this request.\n- Do not say you cannot see the chart unless the attached screenshot is blank.\n- Use the attached image and the VISUAL_CONTEXT together.\n- Explicitly mention any visible swing points, labels, or drawn polylines if present.`;
-      responseText = await fetchVisionChat(chatRole, retryMessage);
+      responseText = await fetchVisionChat(chatAnalyst, retryMessage);
     }
     setScannerChatStatus('Typing', statusId);
     await appendScannerChatMessage(responseText, 'ai', messagesId, { animate: true });
@@ -1278,18 +1419,18 @@ async function sendScannerChatWithChart(prefill) {
 async function sendFundamentalsChat(prefill) {
   return sendScannerChatRequest({
     prefill,
-    inputId: 'fundamentals-chat-input',
-    messagesId: 'fundamentals-chat-messages',
-    statusId: 'fundamentals-chat-status',
+    inputId: 'scanner-chat-input',
+    messagesId: 'scanner-chat-messages',
+    statusId: 'ai-status',
   });
 }
 
 async function sendFundamentalsChatWithChart(prefill) {
   return sendScannerChatRequest({
     prefill,
-    inputId: 'fundamentals-chat-input',
-    messagesId: 'fundamentals-chat-messages',
-    statusId: 'fundamentals-chat-status',
+    inputId: 'scanner-chat-input',
+    messagesId: 'scanner-chat-messages',
+    statusId: 'ai-status',
     includeChart: true,
   });
 }
@@ -1309,19 +1450,28 @@ function askScannerEdits() {
 function askFundamentalsQuality() {
   const candidate = candidates[currentIndex];
   if (!candidate) { sendFundamentalsChat('No candidate loaded yet. Tell me what symbol to analyze first.'); return; }
-  sendFundamentalsChat('Explain the quality of this company and how those fundamentals support or weaken this scanner setup.');
+  sendScannerChatRequest({
+    prefill: 'Explain the quality of this company and how those fundamentals support or weaken this scanner setup.',
+    analystId: 'financial_analyst',
+  });
 }
 
 function askFundamentalsRisk() {
   const candidate = candidates[currentIndex];
   if (!candidate) { sendFundamentalsChat('No candidate loaded yet. Tell me what symbol to analyze first.'); return; }
-  sendFundamentalsChat('Explain the main fundamental risks here, especially balance sheet, dilution, cash runway, and earnings/catalyst risk, in context of this setup.');
+  sendScannerChatRequest({
+    prefill: 'Explain the main fundamental risks here, especially balance sheet, dilution, cash runway, and earnings/catalyst risk, in context of this setup.',
+    analystId: 'financial_analyst',
+  });
 }
 
 function askFundamentalsCatalyst() {
   const candidate = candidates[currentIndex];
   if (!candidate) { sendFundamentalsChat('No candidate loaded yet. Tell me what symbol to analyze first.'); return; }
-  sendFundamentalsChat('Explain the earnings and catalyst picture here and whether the fundamentals make this setup more actionable or more dangerous.');
+  sendScannerChatRequest({
+    prefill: 'Explain the earnings and catalyst picture here and whether the fundamentals make this setup more actionable or more dangerous.',
+    analystId: 'financial_analyst',
+  });
 }
 
 async function checkAIStatus() {
@@ -1365,6 +1515,24 @@ async function checkAIStatus() {
 async function askAI() {
   const candidate = candidates[currentIndex];
   if (!candidate) return;
+  const selectedAnalyst = typeof getSelectedScannerAnalyst === 'function'
+    ? String(getSelectedScannerAnalyst() || DEFAULT_SCANNER_ANALYST)
+    : DEFAULT_SCANNER_ANALYST;
+
+  if (selectedAnalyst === 'financial_analyst') {
+    return sendScannerChatRequest({
+      analystId: 'financial_analyst',
+      prefill: 'Evaluate this company.',
+    });
+  }
+
+  if (selectedAnalyst === 'technical_analyst') {
+    return sendScannerChatRequest({
+      analystId: 'technical_analyst',
+      includeChart: true,
+      prefill: 'Analyze this chart.',
+    });
+  }
 
   mountScannerReviewWidgets();
   const btn = document.getElementById('btn-ask-ai');

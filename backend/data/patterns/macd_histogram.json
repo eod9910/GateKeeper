@@ -62,5 +62,11 @@
   "status": "active",
   "artifact_type": "indicator",
   "composition": "primitive",
-  "indicator_role": "timing_trigger"
+  "indicator_role": "timing_trigger",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "cheap",
+  "search_tags": ["macd", "histogram", "momentum", "zero_cross", "timing"],
+  "source_kind": "imported"
 }

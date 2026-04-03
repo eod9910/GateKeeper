@@ -42,6 +42,7 @@ let indicatorLibrary = {
   selectedPatternId: '',
   loadingDetailId: '',
   localDrafts: [],
+  favoriteIds: new Set(),
 };
 
 let workshopScannerState = {
@@ -139,8 +140,15 @@ async function loadAvailablePrimitives(force = false) {
         pattern_id: String(row.pattern_id || '').trim(),
         name: String(row.name || row.pattern_id || '').trim(),
         indicator_role: String(row.indicator_role || 'unknown').trim(),
+        canonical_role: String(row.canonical_role || row.indicator_role || 'unknown').trim(),
         description: String(row.description || '').trim(),
         category: String(row.category || 'custom').trim(),
+        library_tier: String(row.library_tier || '').trim(),
+        autonomy_safe: row.autonomy_safe === true,
+        state_compatible: row.state_compatible === true,
+        cost_class: String(row.cost_class || '').trim(),
+        source_kind: String(row.source_kind || '').trim(),
+        search_tags: Array.isArray(row.search_tags) ? row.search_tags : [],
       }))
       .filter((row) => !!row.pattern_id)
       .sort((a, b) => a.pattern_id.localeCompare(b.pattern_id));
@@ -228,7 +236,7 @@ function setCompositeSubTab(sub) {
   // Lazy-load iframes
   if (sub === 'blockly') {
     const iframe = document.getElementById('composite-blockly-iframe');
-    if (iframe && !iframe.src) iframe.src = 'blockly-composer.html';
+    if (iframe && !iframe.src) iframe.src = 'blockly-composer.html?embed=1&v=20260322-chatstretch2';
   } else if (sub === 'pipeline') {
     const iframe = document.getElementById('composite-pipeline-iframe');
     if (iframe && !iframe.src) iframe.src = 'pipeline-composer.html';
@@ -521,6 +529,15 @@ async function initializeIndicatorLibrary(force = false) {
           status,
           artifact_type: inferArtifactTypeFromPattern(pattern),
           composition: inferCompositionFromPattern(pattern),
+          indicator_role: String(pattern.indicator_role || '').trim(),
+          canonical_role: String(pattern.canonical_role || pattern.indicator_role || '').trim(),
+          library_tier: String(pattern.library_tier || '').trim(),
+          autonomy_safe: pattern.autonomy_safe === true,
+          state_compatible: pattern.state_compatible === true,
+          cost_class: String(pattern.cost_class || '').trim(),
+          source_kind: String(pattern.source_kind || '').trim(),
+          search_tags: Array.isArray(pattern.search_tags) ? pattern.search_tags : [],
+          scanner_favorite: pattern.scanner_favorite === true,
         };
       })
       .filter((row) => !!row.pattern_id)
@@ -537,6 +554,7 @@ async function initializeIndicatorLibrary(force = false) {
       detailsById: indicatorLibrary.detailsById || {},
       selectedPatternId: indicatorLibrary.selectedPatternId || '',
       loadingDetailId: '',
+      favoriteIds: new Set(rows.filter((row) => row.scanner_favorite).map((row) => row.pattern_id)),
     };
 
     populateIndicatorLibraryFilters();
@@ -606,7 +624,58 @@ function getLibraryFilters() {
   const type = String(getFieldValue('workshop-library-type') || '');
   const category = String(getFieldValue('workshop-library-category') || '');
   const status = String(getFieldValue('workshop-library-status') || '');
-  return { search, type, category, status };
+  const favorites = String(getFieldValue('workshop-library-favorites') || '');
+  const sort = String(getFieldValue('workshop-library-sort') || 'favorites_first');
+  return { search, type, category, status, favorites, sort };
+}
+
+function getLibraryTierRank(value) {
+  const tier = String(value || '').trim().toLowerCase();
+  if (tier === 'core_stable') return 0;
+  if (tier === 'advanced_experimental') return 1;
+  if (tier === 'research_only') return 2;
+  return 3;
+}
+
+function tokenizeSearch(value) {
+  return String(value || '')
+    .split(/\s+/g)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function getLibraryRowRole(row) {
+  return String(row?.canonical_role || row?.indicator_role || '').trim();
+}
+
+function getLibraryRowSourceLabel(row) {
+  return String(row?.source_kind || row?.source || '').trim();
+}
+
+function compareLibraryRows(a, b, sortMode = 'favorites_first') {
+  const mode = String(sortMode || 'favorites_first').trim().toLowerCase();
+  const aFavorite = a?.scanner_favorite === true ? 0 : 1;
+  const bFavorite = b?.scanner_favorite === true ? 0 : 1;
+  const aName = String(a?.name || a?.pattern_id || '').localeCompare(String(b?.name || b?.pattern_id || ''));
+
+  if (mode === 'tier') {
+    const tierCompare = getLibraryTierRank(a?.library_tier) - getLibraryTierRank(b?.library_tier);
+    if (tierCompare !== 0) return tierCompare;
+    if (aFavorite !== bFavorite) return aFavorite - bFavorite;
+    return aName;
+  }
+
+  if (mode === 'role') {
+    const roleCompare = getLibraryRowRole(a).localeCompare(getLibraryRowRole(b));
+    if (roleCompare !== 0) return roleCompare;
+    if (aFavorite !== bFavorite) return aFavorite - bFavorite;
+    return aName;
+  }
+
+  if (mode === 'name') return aName;
+
+  if (aFavorite !== bFavorite) return aFavorite - bFavorite;
+  return aName;
 }
 
 function getFilteredIndicatorRows() {
@@ -618,8 +687,11 @@ function getFilteredIndicatorRows() {
     if (filters.type === 'pattern' && row.artifact_type !== 'pattern') return false;
     if (filters.category && row.category !== filters.category) return false;
     if (filters.status && row.status !== filters.status) return false;
+    if (filters.favorites === 'favorites' && row.scanner_favorite !== true) return false;
+    if (filters.favorites === 'not_favorites' && row.scanner_favorite === true) return false;
 
-    if (!filters.search) return true;
+    const tokens = tokenizeSearch(filters.search);
+    if (!tokens.length) return true;
     const haystack = [
       row.pattern_id,
       row.name,
@@ -629,23 +701,35 @@ function getFilteredIndicatorRows() {
       row.artifact_type,
       row.composition,
       row.source,
+      row.indicator_role,
+      row.canonical_role,
+      row.library_tier,
+      row.cost_class,
+      row.source_kind,
+      ...(Array.isArray(row.search_tags) ? row.search_tags : []),
     ]
       .join(' ')
       .toLowerCase();
-    return haystack.includes(filters.search);
+    return tokens.every((token) => haystack.includes(token));
   });
 }
 
 function renderIndicatorLibrary() {
   const summaryEl = document.getElementById('workshop-library-summary');
+  const listStatusEl = document.getElementById('workshop-library-list-status');
   const filtered = getFilteredIndicatorRows();
   const allRows = getAllLibraryRows();
+  const registeredRows = allRows.filter((row) => row.source !== 'draft');
+  const favoriteCount = registeredRows.filter((row) => row.scanner_favorite).length;
 
   if (summaryEl) {
     const total = allRows.length;
     const draftCount = allRows.filter((r) => r.source === 'draft').length;
     const regCount = total - draftCount;
-    summaryEl.textContent = `${filtered.length} of ${total} items (${draftCount} drafts, ${regCount} registered)`;
+    summaryEl.textContent = `Showing ${filtered.length} of ${total} items`;
+    if (listStatusEl) {
+      listStatusEl.textContent = `${favoriteCount} scanner favorite${favoriteCount === 1 ? '' : 's'} • ${draftCount} draft${draftCount === 1 ? '' : 's'} • ${regCount} registered`;
+    }
   }
 
   renderIndicatorLibraryList(filtered);
@@ -668,8 +752,22 @@ function renderIndicatorLibraryList(filteredRows) {
   const listEl = document.getElementById('workshop-library-list');
   if (!listEl) return;
 
-  const draftRows = filteredRows.filter((row) => row.source === 'draft');
-  const registeredRows = filteredRows.filter((row) => row.source !== 'draft');
+  const filters = getLibraryFilters();
+  const sortedRows = filteredRows.slice().sort((a, b) => compareLibraryRows(a, b, filters.sort));
+  const draftRows = sortedRows.filter((row) => row.source === 'draft');
+  const registeredRows = sortedRows.filter((row) => row.source !== 'draft');
+  const favoriteRows = registeredRows.filter((row) => row.scanner_favorite);
+  const otherRows = registeredRows.filter((row) => !row.scanner_favorite);
+
+  const buildRowChips = (row) => {
+    const chips = [];
+    const role = getLibraryRowRole(row);
+    const source = getLibraryRowSourceLabel(row);
+    if (role) chips.push(`<span class="workshop-library-chip workshop-library-chip--role">${escapeHtml(toLabelCase(role))}</span>`);
+    if (source) chips.push(`<span class="workshop-library-chip workshop-library-chip--source">${escapeHtml(toLabelCase(source))}</span>`);
+    if (row.library_tier) chips.push(`<span class="workshop-library-chip workshop-library-chip--tier">${escapeHtml(toLabelCase(row.library_tier))}</span>`);
+    return chips.join('');
+  };
 
   const renderGroup = (rows, groupTitle, emptyText) => {
     const groupRows = rows
@@ -677,30 +775,58 @@ function renderIndicatorLibraryList(filteredRows) {
         const active = row.row_key === indicatorLibrary.selectedPatternId ? ' active' : '';
         const sourceLabel = row.source === 'draft' ? 'Local Draft' : 'Registered';
         const sourceClass = row.source === 'draft' ? 'is-draft' : 'is-registered';
+        const favoriteToggle = row.source !== 'draft'
+          ? `<button class="btn btn-ghost workshop-library-favorite-toggle" data-pattern-id="${escapeHtml(row.pattern_id)}" data-next-favorite="${row.scanner_favorite ? 'false' : 'true'}" type="button" title="${row.scanner_favorite ? 'Remove from scanner favorites' : 'Add to scanner favorites'}">${row.scanner_favorite ? '★' : '☆'}</button>`
+          : '';
         return `
-          <button class="workshop-library-row${active}" data-row-key="${escapeHtml(row.row_key)}" type="button">
-            <div class="workshop-library-row-top">
-              <span class="workshop-library-row-name">${escapeHtml(row.name)}</span>
-              <span class="workshop-library-row-source ${sourceClass}">${escapeHtml(sourceLabel)}</span>
-            </div>
-            <div class="workshop-library-row-meta">
-              <span>${escapeHtml(row.pattern_id)}</span>
-              <span>${escapeHtml(row.category_name || toLabelCase(row.category))}</span>
-            </div>
-          </button>
+          <div class="workshop-library-row-shell${active}">
+            ${favoriteToggle}
+            <button class="workshop-library-row${active}" data-row-key="${escapeHtml(row.row_key)}" type="button">
+              <div class="workshop-library-row-top">
+                <span class="workshop-library-row-name">${escapeHtml(row.name)}</span>
+                <span class="workshop-library-row-source ${sourceClass}">${escapeHtml(sourceLabel)}</span>
+              </div>
+              <div class="workshop-library-row-id">${escapeHtml(row.pattern_id)}</div>
+              <div class="workshop-library-row-chipline">${buildRowChips(row)}</div>
+              <div class="workshop-library-row-meta">
+                <span>${escapeHtml(row.category_name || toLabelCase(row.category))}</span>
+                <span>${escapeHtml(toLabelCase(row.status || 'unknown'))}</span>
+              </div>
+            </button>
+          </div>
         `;
       })
       .join('');
     const body = groupRows || `<p class="workshop-test-placeholder">${escapeHtml(emptyText)}</p>`;
-    return `<div class="workshop-library-group-title">${escapeHtml(groupTitle)}</div>${body}`;
+    return `<section class="workshop-library-group"><div class="workshop-library-group-title">${escapeHtml(groupTitle)}</div>${body}</section>`;
   };
 
-  listEl.innerHTML = `${renderGroup(draftRows, `Drafts (${draftRows.length})`, 'No local drafts yet. Use Save Draft in Indicator Builder.')}${renderGroup(registeredRows, `Registered (${registeredRows.length})`, 'No registered indicators match current filters.')}`;
+  const sections = [];
+  if (favoriteRows.length || filters.favorites === 'favorites') {
+    sections.push(renderGroup(favoriteRows, `Scanner Favorites (${favoriteRows.length})`, 'No scanner favorites match the current filters.'));
+  }
+  if (draftRows.length) {
+    sections.push(renderGroup(draftRows, `Drafts (${draftRows.length})`, 'No local drafts yet. Use Save Draft in Indicator Builder.'));
+  }
+  sections.push(renderGroup(otherRows, `All Indicators (${otherRows.length})`, 'No registered indicators match current filters.'));
+
+  listEl.innerHTML = sections.join('');
 
   listEl.querySelectorAll('.workshop-library-row').forEach((node) => {
     node.addEventListener('click', () => {
       const rowKey = node.getAttribute('data-row-key');
       if (rowKey) selectIndicatorFromLibrary(rowKey);
+    });
+  });
+  listEl.querySelectorAll('.workshop-library-favorite-toggle').forEach((node) => {
+    node.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const patternId = node.getAttribute('data-pattern-id');
+      const nextFavorite = node.getAttribute('data-next-favorite') === 'true';
+      const row = patternId ? findLibraryRowByKey(patternId) || getAllLibraryRows().find((item) => item.pattern_id === patternId) : null;
+      if (row) {
+        await toggleScannerFavorite(row, nextFavorite);
+      }
     });
   });
 }
@@ -730,33 +856,77 @@ function renderIndicatorLibraryDetail(rowKey) {
   const tfCount = detail && Array.isArray(detail.suggested_timeframes) ? detail.suggested_timeframes.length : 0;
   const minBars = detail && detail.min_data_bars != null ? String(detail.min_data_bars) : 'N/A';
   const savedAt = row.saved_at ? new Date(row.saved_at).toLocaleString() : '';
+  const effectiveRole = String(detail?.canonical_role || detail?.indicator_role || row.canonical_role || row.indicator_role || 'unknown');
+  const libraryTier = String(detail?.library_tier || row.library_tier || '');
+  const sourceKind = String(detail?.source_kind || row.source_kind || row.source || '');
+  const costClass = String(detail?.cost_class || row.cost_class || '');
+  const autonomySafe = detail?.autonomy_safe ?? row.autonomy_safe;
+  const stateCompatible = detail?.state_compatible ?? row.state_compatible;
+  const searchTags = Array.isArray(detail?.search_tags) ? detail.search_tags : (Array.isArray(row.search_tags) ? row.search_tags : []);
 
   detailEl.innerHTML = `
-    <div class="workshop-library-detail-grid">
-      <div><span class="label">Name</span><div>${escapeHtml(row.name)}</div></div>
-      <div><span class="label">Pattern ID</span><div class="text-mono">${escapeHtml(row.pattern_id)}</div></div>
-      <div><span class="label">Category</span><div>${escapeHtml(row.category_name || toLabelCase(row.category))}</div></div>
-      <div><span class="label">Status</span><div>${escapeHtml(toLabelCase(row.status))}</div></div>
-      <div><span class="label">Min Bars</span><div>${escapeHtml(minBars)}</div></div>
-      <div><span class="label">Timeframes</span><div>${escapeHtml(String(tfCount))}</div></div>
-      <div><span class="label">Tunable Params</span><div>${escapeHtml(String(tunableCount))}</div></div>
-      <div><span class="label">Definition</span><div class="text-mono">${escapeHtml(row.definition_file || 'N/A')}</div></div>
-      ${row.source === 'draft' ? `<div><span class="label">Saved</span><div>${escapeHtml(savedAt || 'Unknown')}</div></div>` : ''}
+    <div class="workshop-library-detail-top">
+      <div class="workshop-library-detail-title-row">
+        <div>
+          <div class="workshop-library-detail-title">${escapeHtml(row.name)}</div>
+          <div class="workshop-library-detail-subtitle">${escapeHtml(row.pattern_id)}</div>
+        </div>
+        ${row.source !== 'draft'
+          ? `<button id="workshop-scanner-favorite-btn" class="btn workshop-library-scanner-toggle" type="button">${row.scanner_favorite ? '★ In Scanner' : '☆ Add To Scanner'}</button>`
+          : ''}
+      </div>
+      <div class="workshop-library-detail-chipline">
+        <span class="workshop-library-chip workshop-library-chip--role">${escapeHtml(toLabelCase(effectiveRole))}</span>
+        ${libraryTier ? `<span class="workshop-library-chip workshop-library-chip--tier">${escapeHtml(toLabelCase(libraryTier))}</span>` : ''}
+        ${sourceKind ? `<span class="workshop-library-chip workshop-library-chip--source">${escapeHtml(toLabelCase(sourceKind))}</span>` : ''}
+        ${costClass ? `<span class="workshop-library-chip workshop-library-chip--cost">${escapeHtml(toLabelCase(costClass))}</span>` : ''}
+      </div>
     </div>
-    ${description ? `<p class="workshop-library-description">${escapeHtml(description)}</p>` : ''}
-    <div class="workshop-library-detail-actions">
+
+    ${row.source !== 'draft'
+      ? `<section class="workshop-library-detail-section">
+          <div class="workshop-library-status-card ${row.scanner_favorite ? 'is-favorited' : ''}">
+            <div class="workshop-library-status-title">${row.scanner_favorite ? 'Included In Scanner Favorites' : 'Not In Scanner Favorites'}</div>
+            <div class="workshop-library-status-copy">${row.scanner_favorite ? 'This indicator will appear in curated scanner dropdowns.' : 'Star this indicator to include it in scanner dropdowns.'}</div>
+          </div>
+        </section>`
+      : ''}
+
+    ${description ? `<section class="workshop-library-detail-section"><div class="workshop-library-section-title">Description</div><p class="workshop-library-description">${escapeHtml(description)}</p></section>` : ''}
+
+    <section class="workshop-library-detail-section">
+      <div class="workshop-library-section-title">Key Facts</div>
+      <div class="workshop-library-facts-grid">
+        <div class="workshop-library-fact-card"><span class="label">Category</span><div>${escapeHtml(row.category_name || toLabelCase(row.category))}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">Status</span><div>${escapeHtml(toLabelCase(row.status))}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">Autonomy</span><div>${escapeHtml(autonomySafe === true ? 'Yes' : autonomySafe === false ? 'No' : 'Unknown')}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">State Compatible</span><div>${escapeHtml(stateCompatible === true ? 'Yes' : stateCompatible === false ? 'No' : 'Unknown')}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">Min Bars</span><div>${escapeHtml(minBars)}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">Timeframes</span><div>${escapeHtml(String(tfCount))}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">Tunable Params</span><div>${escapeHtml(String(tunableCount))}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">Definition</span><div class="text-mono">${escapeHtml(row.definition_file || 'N/A')}</div></div>
+        ${row.source === 'draft' ? `<div class="workshop-library-fact-card"><span class="label">Saved</span><div>${escapeHtml(savedAt || 'Unknown')}</div></div>` : ''}
+      </div>
+    </section>
+
+    ${searchTags.length ? `<section class="workshop-library-detail-section"><div class="workshop-library-section-title">Search Tags</div><div class="workshop-library-detail-chipline">${searchTags.map((tag) => `<span class="workshop-library-chip workshop-library-chip--tag">${escapeHtml(String(tag))}</span>`).join('')}</div></section>` : ''}
+
+    <section class="workshop-library-detail-section">
+      <div class="workshop-library-section-title">Actions</div>
+      <div class="workshop-library-detail-actions">
       <button id="workshop-load-builder-btn" class="btn btn-primary" type="button">${row.source === 'draft' ? 'Load Draft to Indicator Builder' : 'Load to Indicator Builder'}</button>
       ${row.composition !== 'composite' && row.source !== 'draft'
-        ? '<button id="workshop-build-composite-btn" class="btn" style="background:var(--color-purple,#6366f1);color:#fff;" type="button" title="Start a new composite indicator using this primitive as a stage">Build Composite →</button>'
+        ? '<button id="workshop-build-composite-btn" class="btn workshop-library-action-accent" type="button" title="Start a new composite indicator using this primitive as a stage">Build Composite</button>'
         : ''}
-      <button id="workshop-load-strategy-btn" class="btn" style="background:var(--color-surface-hover);" type="button" title="Open Strategy Page to build a strategy using this indicator">Build Strategy</button>
+      <button id="workshop-load-strategy-btn" class="btn" type="button" title="Open Strategy Page to build a strategy using this indicator">Build Strategy</button>
       ${row.source === 'draft'
         ? '<button id="workshop-delete-draft-btn" class="btn btn-ghost" type="button">Delete Draft</button>'
         : '<button id="workshop-refresh-detail-btn" class="btn btn-ghost" type="button">Refresh Detail</button>'}
       ${row.source !== 'draft' ? '<button id="workshop-edit-indicator-btn" class="btn btn-ghost" type="button">Edit</button>' : ''}
       ${row.source !== 'draft' ? '<button id="workshop-edit-json-btn" class="btn btn-ghost" type="button">Edit JSON</button>' : ''}
       ${row.source !== 'draft' ? '<button id="workshop-delete-indicator-btn" class="btn btn-ghost" style="color:var(--color-red,#ef4444);" type="button">Delete</button>' : ''}
-    </div>
+      </div>
+    </section>
     ${isLoading ? '<p class="workshop-test-placeholder">Loading full definition...</p>' : ''}
   `;
 
@@ -775,6 +945,13 @@ function renderIndicatorLibraryDetail(rowKey) {
     loadStrategyBtn.addEventListener('click', () => {
       const seedText = `Create a breakout strategy using the existing \`${row.pattern_id}\` primitive.\n\nSetup Rules:\n- Use the \`${row.pattern_id}\` primitive.\n\nEntry Logic:\n- Enter on the first weekly close above the breakout point.\n\nExit Logic:\n- Stop Loss: ATR-based trailing stop (multiplier: 2.0).\n- Take Profit: Fixed target of 3.0R.\n- Max Hold Time: 20 bars.`;
       window.location.href = `strategy.html?seed=${encodeURIComponent(seedText)}`;
+    });
+  }
+
+  const scannerFavoriteBtn = document.getElementById('workshop-scanner-favorite-btn');
+  if (scannerFavoriteBtn) {
+    scannerFavoriteBtn.addEventListener('click', async () => {
+      await toggleScannerFavorite(row, !row.scanner_favorite);
     });
   }
 
@@ -847,8 +1024,10 @@ function renderIndicatorEditForm(row, detail) {
     ['location_filter', 'Location Filter'],
     ['timing_trigger', 'Timing Trigger'],
     ['trigger', 'Trigger'],
+    ['context', 'Context'],
     ['state_filter', 'State Filter'],
     ['regime_state', 'Regime State'],
+    ['structure_filter', 'Structure Filter'],
     ['pattern_gate', 'Regime Filter'],
     ['entry_composite', 'Entry Composite'],
     ['exit_composite', 'Exit Composite'],
@@ -946,6 +1125,48 @@ function renderIndicatorEditForm(row, detail) {
       if (feedback) feedback.textContent = `Error: ${err?.message || 'Unknown error.'}`;
     }
   });
+}
+
+async function toggleScannerFavorite(row, nextFavorite) {
+  if (!row || row.source === 'draft') return;
+  try {
+    const res = await fetch('/api/plugins/scanner/favorites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patternId: row.pattern_id,
+        favorite: nextFavorite === true,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    const nextValue = nextFavorite === true;
+    indicatorLibrary.rows = (indicatorLibrary.rows || []).map((item) => (
+      item.pattern_id === row.pattern_id ? { ...item, scanner_favorite: nextValue } : item
+    ));
+    if (indicatorLibrary.detailsById[row.pattern_id]) {
+      indicatorLibrary.detailsById[row.pattern_id] = {
+        ...indicatorLibrary.detailsById[row.pattern_id],
+        scanner_favorite: nextValue,
+      };
+    }
+    if (nextValue) {
+      indicatorLibrary.favoriteIds.add(row.pattern_id);
+    } else {
+      indicatorLibrary.favoriteIds.delete(row.pattern_id);
+    }
+    renderIndicatorLibrary();
+    if (indicatorLibrary.selectedPatternId === row.row_key) {
+      renderIndicatorLibraryDetail(row.row_key);
+    }
+    if (typeof loadWorkshopScannerOptions === 'function' && workshopScannerState?.initialized) {
+      await loadWorkshopScannerOptions();
+    }
+  } catch (error) {
+    alert(`Failed to update scanner favorite: ${error.message || 'Unknown error'}`);
+  }
 }
 
 function renderIndicatorJsonEditor(row, detail) {
@@ -1128,7 +1349,7 @@ async function startCompositeFromPrimitive(rowKey) {
     } catch (_) {}
   }
 
-  const primitiveRole = detail?.indicator_role || row.indicator_role || 'unknown';
+  const primitiveRole = detail?.canonical_role || detail?.indicator_role || row.canonical_role || row.indicator_role || 'unknown';
   const primitiveName = row.name || row.pattern_id;
   const primitiveId = row.pattern_id;
 

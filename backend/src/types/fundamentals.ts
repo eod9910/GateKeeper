@@ -1,4 +1,22 @@
 export type FundamentalsTone = 'positive' | 'warning' | 'danger' | 'neutral' | 'muted';
+export type LedgerCoverageTier =
+  | 'full_filing_supported'
+  | 'vendor_pit_only'
+  | 'foreign_reporting'
+  | 'insufficient_data';
+
+export interface LedgerCoverageInfo {
+  symbol: string;
+  coverage_tier: LedgerCoverageTier;
+  in_clean_stocks: boolean;
+  in_ledger_filing_eligible: boolean;
+  vendor_pit_available: boolean;
+  filing_pit_available: boolean;
+  document_count: number;
+  statement_fact_count: number;
+  eligibility_status: string | null;
+  coverage_notes: string[];
+}
 
 export interface FundamentalsTag {
   label: string;
@@ -83,6 +101,18 @@ export interface FundamentalsOwnership {
   institutionalOwnershipPct: number | null;
   insiderOwnershipPct: number | null;
   topInstitutionalHolders: FundamentalsInstitutionalHolder[];
+}
+
+export interface FundamentalsHistoricalStatementRow {
+  period: string | null;
+  periodEnd: string | null;
+  availableAt: string | null;
+  availabilityBasis?: string | null;
+  metrics: Record<string, number | null>;
+}
+
+export interface FundamentalsHistoricalStatements {
+  quarterly: FundamentalsHistoricalStatementRow[];
 }
 
 export interface FundamentalsScores {
@@ -170,5 +200,6 @@ export interface FundamentalsSnapshotV2 extends FundamentalsScores {
   positioning?: FundamentalsPositioning | null;
   marketContext?: FundamentalsMarketContext | null;
   ownership?: FundamentalsOwnership | null;
+  historicalStatements?: FundamentalsHistoricalStatements | null;
   stockdex?: Record<string, unknown> | null;
 }

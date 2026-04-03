@@ -68,5 +68,11 @@
   "min_data_bars": 120,
   "artifact_type": "indicator",
   "composition": "primitive",
-  "indicator_role": "timing_trigger"
+  "indicator_role": "anchor_structure",
+  "library_tier": "research_only",
+  "autonomy_safe": false,
+  "state_compatible": true,
+  "cost_class": "expensive",
+  "search_tags": ["structure", "family", "motif", "atr_pivot", "research"],
+  "source_kind": "custom"
 }

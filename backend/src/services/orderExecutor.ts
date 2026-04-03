@@ -3,6 +3,7 @@ import * as positionManager from './positionManager';
 import * as logger from './executionLogger';
 import { SignalCandidate } from './signalScanner';
 
+
 export interface OrderResult {
   symbol: string;
   success: boolean;
@@ -18,22 +19,48 @@ function roundPrice(value: number): number {
 export async function executeSignals(
   signals: SignalCandidate[],
   state: positionManager.BridgeState,
-  maxConcurrent: number,
+  maxPortfolioHeatPct: number,
+  maxConcurrentCap: number,
   riskPctPerTrade = 0.01,
 ): Promise<OrderResult[]> {
   const results: OrderResult[] = [];
   const sortedSignals = [...signals].sort((a, b) => b.score - a.score);
 
+  let accountEquity = 0;
+  try {
+    const account = await broker.getAccount();
+    accountEquity = account.equity;
+  } catch {
+    // If we can't fetch account equity, fall back to count-based gating
+  }
+
   for (const signal of sortedSignals) {
-    if (!positionManager.canOpenNewPosition(state, maxConcurrent)) {
+    const openCount = state.managed_positions.length;
+    if (openCount >= maxConcurrentCap) {
       logger.log({
         event: 'signal_filtered',
         symbol: signal.symbol,
         strategy_version_id: signal.strategy_version_id,
         details: {
-          reason: 'max_concurrent_reached',
-          current: state.managed_positions.length,
-          max: maxConcurrent,
+          reason: 'max_concurrent_cap_reached',
+          current: openCount,
+          max: maxConcurrentCap,
+        },
+      });
+      continue;
+    }
+
+    if (!positionManager.canOpenNewPosition(state, maxPortfolioHeatPct, riskPctPerTrade, accountEquity)) {
+      const currentHeat = positionManager.computePortfolioHeat(state, accountEquity);
+      logger.log({
+        event: 'signal_filtered',
+        symbol: signal.symbol,
+        strategy_version_id: signal.strategy_version_id,
+        details: {
+          reason: 'max_portfolio_heat_reached',
+          current_heat_pct: Math.round(currentHeat * 10000) / 100,
+          max_heat_pct: Math.round(maxPortfolioHeatPct * 100),
+          risk_pct_per_trade: Math.round(riskPctPerTrade * 100),
         },
       });
       continue;

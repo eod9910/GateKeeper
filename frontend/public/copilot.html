@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page-id="copilot">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trading Desk â€” Pattern Detector</title>
+  <title>Trading Desk Ã¢â‚¬â€ Pattern Detector</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -367,45 +367,48 @@
   <div class="app">
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-header">
-        <a href="copilot.html" class="sidebar-logo" aria-label="Home">
+        <a href="/trading-desk" class="sidebar-logo" aria-label="Home">
           <span class="logo-mark">PD</span>
           <span class="sidebar-label-text">Trading Desk</span>
         </a>
         <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
       </div>
       <nav class="sidebar-nav">
-        <a href="index.html" class="sidebar-nav-item">
+        <a href="/scanner" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Scanner</span>
         </a>
-        <a href="copilot.html" class="sidebar-nav-item active" aria-current="page">
+        <a href="/trading-desk" class="sidebar-nav-item active" aria-current="page">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Trading Desk</span>
         </a>
-        <a href="history.html" class="sidebar-nav-item">
+        <a href="/position-book" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Position Book</span>
         </a>
-        <a href="validator.html" class="sidebar-nav-item">
+        <a href="/validator" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Validator</span>
         </a>
-        <a href="workshop.html" class="sidebar-nav-item">
+        <a href="/indicator-studio" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Indicator Studio</span>
         </a>
-        <a href="research.html" class="sidebar-nav-item">
+        <a href="/research-studio" class="sidebar-nav-item">
           <span class="nav-dot"></span>
-          <span class="sidebar-label-text">Research Agent</span>
+          <span class="sidebar-label-text">Research Studio</span>
         </a>
-        <a href="sweep.html" class="sidebar-nav-item">
+        <a href="/parameter-sweep" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Parameter Sweep</span>
         </a>
-        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
-        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
       </nav>
-    
+
+      <!-- Watch List moved to right drawer -->
+
       <!-- Account & Risk settings moved to global Settings page -->
       <div style="display:none;">
         <input type="number" id="account-size" value="50000">
@@ -452,7 +455,7 @@
           <span id="copilot-status" class="text-muted text-caption" style="margin-left:var(--space-8);"></span>
         </div>
 
-        <!-- Active Symbol â€” moved from sidebar -->
+        <!-- Active Symbol Ã¢â‚¬â€ moved from sidebar -->
         <div style="display:flex;align-items:center;gap:var(--space-8);flex:1;max-width:480px;">
           <div style="position:relative;flex:1;">
             <input type="text" id="copilot-symbol" placeholder="Symbol (e.g. AAPL)" autocomplete="off"
@@ -471,25 +474,13 @@
       </div>
 
       <div class="content" style="padding:var(--space-12) var(--space-24) var(--space-24);height:calc(100vh - 57px);overflow:auto;">
-        <div id="scanner-handoff-panel" class="panel hidden" style="margin-bottom:var(--space-12);">
-          <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-12);">
-            <span class="panel-header-title">Scanner Assessment</span>
-            <span id="scanner-handoff-status" class="text-muted text-caption">Scanner handoff loaded</span>
-          </div>
-          <div class="panel-body" style="display:flex;flex-direction:column;gap:var(--space-12);">
-            <div id="scanner-handoff-summary" style="display:flex;flex-wrap:wrap;gap:var(--space-8);"></div>
-            <div id="scanner-handoff-read" style="font-size:var(--text-small);color:var(--color-text);line-height:1.55;"></div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-12);">
-              <div>
-                <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-6);">Reasons</div>
-                <ul id="scanner-handoff-reasons" style="margin:0;padding-left:18px;color:var(--color-text-subtle);font-size:var(--text-small);display:flex;flex-direction:column;gap:6px;"></ul>
-              </div>
-              <div>
-                <div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:var(--space-6);">Risks</div>
-                <ul id="scanner-handoff-risks" style="margin:0;padding-left:18px;color:var(--color-text-subtle);font-size:var(--text-small);display:flex;flex-direction:column;gap:6px;"></ul>
-              </div>
-            </div>
-          </div>
+        <!-- scanner-handoff-panel removed; stub IDs kept for JS compat -->
+        <div id="scanner-handoff-panel" style="display:none;">
+          <span id="scanner-handoff-status"></span>
+          <div id="scanner-handoff-summary"></div>
+          <div id="scanner-handoff-read"></div>
+          <ul id="scanner-handoff-reasons"></ul>
+          <ul id="scanner-handoff-risks"></ul>
         </div>
         <div id="copilot-main-grid">
           
@@ -546,6 +537,7 @@
                 <div class="panel-header cc-header" style="padding:var(--space-12);border-bottom:1px solid var(--color-border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
                   <button class="cc-toggle-btn" onclick="toggleChat('copilot-chat-panel','copilot-main-grid','chat-collapsed')" title="Collapse panel">&#8250;</button>
                   <span class="cc-title" style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Analysis</span>
+                  <button class="cc-popout-btn" onclick="popoutChatPanel({panelId:'copilot-chat-panel',gridId:'copilot-main-grid',collapsedClass:'chat-collapsed',title:'Trading Desk Analysis',messagesId:'chat-messages',inputId:'chat-input',sendFn:'sendChat',actions:[{label:'Analyze pattern',prefill:'What do you think of this pattern?'},{label:'Good entry?',prefill:'Is this a good entry?'}]})" title="Pop out to separate window">&#8599;</button>
                   <span class="cc-vert-label" onclick="toggleChat('copilot-chat-panel','copilot-main-grid','chat-collapsed')">Analysis</span>
                 </div>
                 
@@ -697,6 +689,31 @@
                         </div>
                         <div id="position-size-warning" class="hidden" style="margin-top:var(--space-4);font-size:var(--text-caption);color:#f59e0b;"></div>
                       </div>
+                      <!-- ── Trade P&L Summary (live, updates when entry/stop/TP change) ── -->
+                      <div id="instrument-pnl-summary" style="display:none;margin-top:var(--space-8);padding-top:var(--space-8);border-top:1px solid var(--color-border);">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6) var(--space-12);">
+                          <div>
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Stop @ Price</div>
+                            <div id="ipnl-stop-price" style="font-size:var(--text-small);font-weight:600;color:#ef4444;">--</div>
+                            <div id="ipnl-stop-dist" style="font-size:10px;color:var(--color-text-subtle);">--</div>
+                          </div>
+                          <div>
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Target @ Price</div>
+                            <div id="ipnl-tp-price" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
+                            <div id="ipnl-gain-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
+                          </div>
+                          <div>
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Loss</div>
+                            <div id="ipnl-loss" style="font-size:var(--text-small);font-weight:600;color:#ef4444;">--</div>
+                            <div id="ipnl-loss-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
+                          </div>
+                          <div>
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Gain</div>
+                            <div id="ipnl-gain" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
+                            <div id="ipnl-rr" style="font-size:10px;font-weight:600;color:var(--color-text-subtle);">--</div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </section>
 
@@ -730,6 +747,58 @@
                   <section class="trade-actions-card trade-actions-card--instrument-settings">
                     <div class="trade-actions-card-title">Instrument Settings</div>
                     <div class="trade-actions-stack">
+                      <!-- ── Stock Risk Config (shown for stock instrument type) ── -->
+                      <div id="stock-settings" class="hidden">
+                        <div class="sidebar-sub-title">Risk Configuration</div>
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="stock-stop-type">Stop Type</label>
+                          <select id="stock-stop-type" class="select select-sm" onchange="applyStockRiskConfig();saveStockRiskConfig()">
+                            <option value="">— manual chart placement —</option>
+                            <option value="atr">ATR Stop</option>
+                            <option value="pct">Fixed % Stop</option>
+                          </select>
+                          <div class="sidebar-field-hint" id="stock-stop-hint" style="display:none;"></div>
+                        </div>
+                        <div id="stock-atr-fields" style="display:none;">
+                          <div class="sidebar-field-row">
+                            <div class="sidebar-field">
+                              <label class="sidebar-field-label" for="stock-atr-length">ATR Period</label>
+                              <input type="number" id="stock-atr-length" value="14" min="5" max="50" step="1" class="input input-sm" oninput="applyStockRiskConfig()" onchange="saveStockRiskConfig()">
+                            </div>
+                            <div class="sidebar-field">
+                              <label class="sidebar-field-label" for="stock-atr-mult">ATR Mult</label>
+                              <input type="number" id="stock-atr-mult" value="2.0" min="0.5" max="10" step="0.5" class="input input-sm" oninput="applyStockRiskConfig()" onchange="saveStockRiskConfig()">
+                            </div>
+                          </div>
+                        </div>
+                        <div id="stock-pct-fields" style="display:none;">
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="stock-stop-pct">Stop Distance (%)</label>
+                            <input type="number" id="stock-stop-pct" value="5" min="0.1" max="50" step="0.1" class="input input-sm" oninput="applyStockRiskConfig()" onchange="saveStockRiskConfig()">
+                          </div>
+                        </div>
+                        <div class="sidebar-field" style="margin-top:var(--space-8);">
+                          <label class="sidebar-field-label" for="stock-tp-type">Take Profit Type</label>
+                          <select id="stock-tp-type" class="select select-sm" onchange="applyStockRiskConfig();saveStockRiskConfig()">
+                            <option value="">— manual chart placement —</option>
+                            <option value="R">Fixed R-Multiple</option>
+                            <option value="pct">Fixed %</option>
+                          </select>
+                        </div>
+                        <div id="stock-tp-R-fields" style="display:none;">
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="stock-tp-R">R Multiple</label>
+                            <input type="number" id="stock-tp-R" value="2" min="0.5" max="20" step="0.5" class="input input-sm" oninput="applyStockRiskConfig()" onchange="saveStockRiskConfig()">
+                          </div>
+                        </div>
+                        <div id="stock-tp-pct-fields" style="display:none;">
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="stock-tp-pct">Target Distance (%)</label>
+                            <input type="number" id="stock-tp-pct" value="10" min="0.1" max="100" step="0.1" class="input input-sm" oninput="applyStockRiskConfig()" onchange="saveStockRiskConfig()">
+                          </div>
+                        </div>
+                      </div>
+
                       <div id="futures-settings" class="hidden">
                         <div class="sidebar-sub-title">Futures Contract</div>
                         <div class="sidebar-field">
@@ -782,6 +851,11 @@
                             <label class="sidebar-field-label" for="contract-multiplier">Multiplier</label>
                             <input type="number" id="contract-multiplier" value="100" step="1" class="input input-sm" onchange="saveSettings()">
                           </div>
+                        </div>
+                        <div class="sidebar-field" style="margin-top:var(--space-8);padding-top:var(--space-8);border-top:1px solid var(--color-border);">
+                          <label class="sidebar-field-label" for="option-tp-R">Min R-Multiple (Take Profit)</label>
+                          <input type="number" id="option-tp-R" value="2" min="0.5" max="20" step="0.5" class="input input-sm" oninput="if(typeof syncInstrumentPnlSummary==='function')syncInstrumentPnlSummary()" onchange="saveSettings()">
+                          <div class="sidebar-field-hint">Target premium = entry × (1 + R). e.g. 2R on $5 → sell at $15.</div>
                         </div>
                         <div id="options-pnl-summary" class="sidebar-pnl-summary hidden">
                           <div class="sidebar-pnl-row"><span>Live P&amp;L:</span><span id="options-live-pnl-display">--</span></div>
@@ -963,14 +1037,292 @@
   <script src="trade-plan-store.js"></script>
   <script src="ai-handoffs.js"></script>
   <script src="trade-intent.js"></script>
+  <script src="watch-list.js"></script>
   <script src="copilot-core.js"></script>
   <script src="copilot-chart.js"></script>
   <script src="copilot-trading.js"></script>
   <script src="copilot-trade-plan-sync.js"></script>
   <script src="copilot-risk-plan.js"></script>
+  <script src="voice-input.js"></script>
   <script src="copilot-chat.js"></script>
   <script src="copilot-trade-actions.js"></script>
   <script src="copilot-execution-route.js"></script>
   <script src="copilot-analysis.js"></script>
+
+  <!-- ── Watch List Right Drawer ─────────────────────────────────────────── -->
+  <style>
+    .app-main.wl-pushed {
+      padding-right: 296px;
+    }
+
+    #wl-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 280px;
+      background: var(--color-surface, #1a1a1a);
+      border-left: 1px solid var(--color-border, #2a2a2a);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 200;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.4);
+    }
+    #wl-drawer.wl-open {
+      transform: translateX(0);
+    }
+    #wl-tab {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 201;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      background: var(--color-surface, #1a1a1a);
+      border: 1px solid var(--color-border, #2a2a2a);
+      border-right: none;
+      border-radius: 6px 0 0 6px;
+      padding: 14px 7px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-text-muted, #888);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s, color 0.15s, right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: -2px 0 8px rgba(0,0,0,0.3);
+      user-select: none;
+    }
+    #wl-tab:hover { color: var(--color-text, #eee); background: var(--color-surface-hover, #222); }
+    #wl-tab.wl-open { right: 280px; }
+    #wl-tab-badge {
+      background: #3b82f6;
+      color: #fff;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      min-width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      writing-mode: horizontal-tb;
+    }
+    #wl-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--color-border, #2a2a2a);
+      flex-shrink: 0;
+    }
+    #wl-drawer-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted, #888);
+    }
+    #wl-drawer-actions { display: flex; gap: 8px; align-items: center; }
+    #wl-drawer-close {
+      background: none; border: none; cursor: pointer;
+      color: var(--color-text-subtle, #555); font-size: 16px; padding: 0 2px; line-height: 1;
+    }
+    #wl-drawer-close:hover { color: var(--color-text, #eee); }
+    #wl-drawer-clear {
+      background: none; border: none; cursor: pointer;
+      font-size: 11px; color: var(--color-text-subtle, #555); padding: 2px 4px;
+      border-radius: 3px;
+    }
+    #wl-drawer-clear:hover { color: #ef4444; }
+    #wl-drawer-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    #wl-drawer-empty {
+      padding: 24px 16px;
+      font-size: 12px;
+      color: var(--color-text-subtle, #555);
+      text-align: center;
+      line-height: 1.5;
+    }
+    .wl-drawer-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s;
+    }
+    .wl-drawer-item:hover { background: var(--color-surface-hover, rgba(255,255,255,0.05)); }
+    .wl-drawer-item-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: #3b82f6;
+    }
+    .wl-drawer-item-body { flex: 1; min-width: 0; }
+    .wl-drawer-item-symbol {
+      font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+      color: var(--color-text, #eee);
+    }
+    .wl-drawer-item-meta {
+      font-size: 10px; color: var(--color-text-subtle, #666); margin-top: 1px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .wl-drawer-item-score {
+      font-size: 12px; font-weight: 600; font-family: 'JetBrains Mono', monospace;
+      color: var(--color-text-muted, #888); flex-shrink: 0;
+    }
+    .wl-drawer-item-remove {
+      background: none; border: none; cursor: pointer;
+      color: var(--color-text-subtle, #555); font-size: 13px; padding: 0 2px;
+      flex-shrink: 0; opacity: 0; transition: opacity 0.1s;
+      line-height: 1;
+    }
+    .wl-drawer-item:hover .wl-drawer-item-remove { opacity: 1; }
+    .wl-drawer-item-remove:hover { color: #ef4444; }
+  </style>
+
+  <!-- Tab trigger -->
+  <button id="wl-tab" onclick="toggleWlDrawer()" title="Watch List" aria-label="Open Watch List">
+    <span id="wl-tab-badge" style="display:none;">0</span>
+    Watch List
+  </button>
+
+  <!-- Drawer panel (position:fixed for viewport-edge rendering) -->
+  <div id="wl-drawer" role="complementary" aria-label="Watch List">
+    <div id="wl-drawer-header">
+      <span id="wl-drawer-title">Watch List</span>
+      <div id="wl-drawer-actions">
+        <button id="wl-drawer-clear" onclick="tdWatchListClearAll()" title="Clear all">Clear all</button>
+        <button id="wl-drawer-close" onclick="toggleWlDrawer()" title="Close">&#x2715;</button>
+      </div>
+    </div>
+    <div id="wl-drawer-list"></div>
+    <div id="wl-drawer-empty">No signals saved yet.<br>Star hits in the Scanner to add them here.</div>
+  </div>
+
+  <script>
+    // ── Watch List Drawer ────────────────────────────────────────────────────
+    let _wlDrawerOpen = false;
+
+    function toggleWlDrawer(forceOpen) {
+      _wlDrawerOpen = forceOpen !== undefined ? forceOpen : !_wlDrawerOpen;
+      document.getElementById('wl-drawer').classList.toggle('wl-open', _wlDrawerOpen);
+      document.getElementById('wl-tab').classList.toggle('wl-open', _wlDrawerOpen);
+      const main = document.getElementById('main-content');
+      if (main) main.classList.toggle('wl-pushed', _wlDrawerOpen);
+      _wlResizeChart();
+    }
+
+    let _wlChartFullW = 0;
+    function _wlResizeChart() {
+      const container = document.getElementById('chart-container');
+      if (!container) return;
+      if (typeof chart !== 'undefined' && chart) {
+        if (!_wlDrawerOpen) {
+          _wlChartFullW = 0;
+          chart.applyOptions({ width: container.clientWidth });
+        } else {
+          if (!_wlChartFullW) _wlChartFullW = container.clientWidth;
+          const newW = _wlChartFullW - 306;
+          if (newW > 100) chart.applyOptions({ width: newW });
+        }
+      }
+      const fire = () => window.dispatchEvent(new Event('resize'));
+      requestAnimationFrame(fire);
+      setTimeout(fire, 150);
+      setTimeout(fire, 350);
+    }
+
+    function _wlRenderDrawer(entries) {
+      const list  = document.getElementById('wl-drawer-list');
+      const empty = document.getElementById('wl-drawer-empty');
+      const badge = document.getElementById('wl-tab-badge');
+      if (!list) return;
+
+      const all = entries || (typeof watchListGetAll === 'function' ? watchListGetAll() : []);
+
+      // Badge
+      if (badge) {
+        if (all.length > 0) {
+          badge.textContent = all.length;
+          badge.style.display = 'flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+
+      if (!all.length) {
+        list.innerHTML = '';
+        if (empty) empty.style.display = '';
+        return;
+      }
+      if (empty) empty.style.display = 'none';
+
+      list.innerHTML = all.map(e => {
+        const sym   = e.symbol || '';
+        const score = e.score != null ? Number(e.score).toFixed(3) : '';
+        const age   = _wlAge(e.addedAt);
+        const price = e.price ? '$' + Number(e.price).toFixed(2) : '';
+        const meta  = [price, e.interval || '', age].filter(Boolean).join(' · ');
+        const dotColor = e.score >= 0.8 ? '#22c55e' : e.score >= 0.6 ? '#f59e0b' : '#3b82f6';
+        const symQ = sym.replace(/'/g, "\\'");
+        return `<button class="wl-drawer-item" onclick='tdWatchListLoad("${symQ}")' title="Load ${sym} on Trading Desk">
+          <span class="wl-drawer-item-dot" style="background:${dotColor}"></span>
+          <span class="wl-drawer-item-body">
+            <div class="wl-drawer-item-symbol">${sym}</div>
+            <div class="wl-drawer-item-meta">${meta}</div>
+          </span>
+          ${score ? `<span class="wl-drawer-item-score">${score}</span>` : ''}
+          <button class="wl-drawer-item-remove" onclick='event.stopPropagation();tdWatchListRemoveOne("${symQ}")' title="Remove">&#x2715;</button>
+        </button>`;
+      }).join('');
+    }
+
+    function _wlAge(isoStr) {
+      if (!isoStr) return '';
+      const diff = Date.now() - new Date(isoStr).getTime();
+      const m = Math.floor(diff / 60000);
+      if (m < 1)  return 'just now';
+      if (m < 60) return m + 'm ago';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + 'h ago';
+      return Math.floor(h / 24) + 'd ago';
+    }
+
+    window.toggleWlDrawer = toggleWlDrawer;
+
+    // Boot: render once DOM + watch-list.js are ready
+    document.addEventListener('DOMContentLoaded', () => {
+      _wlRenderDrawer();
+      if (typeof watchListSubscribe === 'function') {
+        watchListSubscribe(_wlRenderDrawer);
+      }
+      const main = document.getElementById('main-content');
+      if (main) {
+        main.addEventListener('transitionend', (e) => {
+          if (e.propertyName === 'width' || e.propertyName === 'margin-left') {
+            window.dispatchEvent(new Event('resize'));
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>

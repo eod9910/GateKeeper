@@ -37,6 +37,7 @@ backend/data/validation-reports/
 backend/data/validator-snapshots/
 backend/data/_tmp_*
 backend/data/execution-state.json
+backend/data/ai-settings.json
 backend/data/manual-external-positions.json
 backend/data/research-tombstones.json
 backend/data/robinhood-auth-state.json
@@ -46,3 +47,15 @@ backend/data/validator-invalid-symbols.json
 backend/data/validator-run-jobs.json
 backend/data/strategies/sweep_*.json
 backend/services/data/charts/
+backend/data/bench_*.json
+backend/data/bench_*.stderr
+backend/data/*.stderr
+backend/data/*.log
+backend/data/formula-ranking-results/
+backend/data/fundamentals-cache/
+backend/data/option-quote-cache/
+backend/data/pit-backups/
+backend/data/preferences/
+backend/data/quote-cache/
+backend/data/validator-symbol-cache/
+sweep_*.json

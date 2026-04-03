@@ -107,6 +107,16 @@ def load_data_from_csv(filepath: str) -> List[OHLCV]:
     return data
 
 
+_UNIVERSE_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'data', 'universe'))
+
+
+def _get_universe_csv_path(symbol: str) -> Optional[str]:
+    """Return path to pre-downloaded universe CSV for this symbol, or None if not found."""
+    safe = symbol.replace('/', '_').replace('=', '_').replace('-', '_')
+    path = os.path.join(_UNIVERSE_DIR, f"{safe}_1d.csv")
+    return path if os.path.exists(path) else None
+
+
 def get_cache_path(symbol: str, interval: str) -> str:
     """Get the path to cached chart data file."""
     # Normalize symbol for filename (replace special chars)
@@ -132,7 +142,7 @@ def get_refresh_interval_seconds(interval: str) -> int:
         '15m': 300,        # 5 minutes
         '1h': 1800,        # 30 minutes
         '4h': 3600,        # 1 hour
-        '1d': 14400,       # 4 hours  (daily bars only change at market close)
+        '1d': 86400,       # 24 hours (nightly cron handles refresh; no reason to hit Yahoo every 4h)
         '1wk': 86400,      # 24 hours (weekly bars only change Friday close)
         '1mo': 604800,     # 7 days   (monthly bars only change month-end)
     }
@@ -484,6 +494,19 @@ def fetch_data_yfinance(symbol: str, period: str = "10y", interval: str = "1wk",
         aggregated = aggregate_bars(source_1h, 4)
         save_to_cache(symbol, interval, aggregated, source_period=requested_period)
         return aggregated
+
+    # 0. Check universe CSV folder first — pre-downloaded daily bars for ~10K tickers.
+    #    If found, seed the cache from it so Yahoo is never needed for this symbol.
+    if not force_refresh and yahoo_interval == '1d':
+        universe_csv = _get_universe_csv_path(symbol)
+        if universe_csv and not load_cached_data(symbol, interval):
+            try:
+                csv_bars = load_data_from_csv(universe_csv)
+                if csv_bars:
+                    print(f"Seeding cache for {symbol} from universe CSV ({len(csv_bars)} bars)", file=sys.stderr)
+                    save_to_cache(symbol, interval, csv_bars, source_period='10y')
+            except Exception as e:
+                print(f"Universe CSV seed failed for {symbol}: {e}", file=sys.stderr)
 
     # 1. Load existing cache (permanent — never deleted)
     cached_data = load_cached_data(symbol, interval)

@@ -59,6 +59,41 @@ Exit is broken into:
 
 Only a limited subset of these parts may be adjusted during sweeps.
 
+## Testing the engine vs testing the strategy (how quants do it)
+
+The **composite** (location + structure + timing + regime) is the **engine** — it answers “when is there a setup?” The **strategy** is the engine **wrapped in entry/exit criteria** (stop for capital preservation, take profit to lock in gains). So: does the industry test the engine naked, or always with a strategy wrapped around it?
+
+**They do both**, for different reasons.
+
+### 1. Test the engine (signal / composite) first — “naked” or minimally constrained
+
+Serious quants and prop shops routinely evaluate **signal quality** without imposing their actual stop/target. They ask:
+
+- When this signal fired, what was the **forward return** (e.g. 1-bar, 5-bar, N-bar)?
+- What was **MFE/MAE** (max favorable / adverse excursion) after the signal?
+- Did price hit **+1R before -1R** (or hit a target before a stop) in a fixed window?
+
+That’s “composite validation” in our terms: you’re measuring **whether the engine has edge** — does the *idea* predict something useful? No execution rules yet. You’re not confounding “bad signal” with “bad stop” or “bad target.” This is what your research_v1 pipeline does for motifs (motif → outcome, no stop/target). Same idea for any composite: run the composite over history, record bar_index (or timestamp) where it fired, then compute outcome stats (forward return, hit rate to a level, etc.) for those bars. **Test the composite naked to see if it works.**
+
+### 2. Test the full strategy (engine + exit) for tradability
+
+Once the engine shows edge, they **wrap it in a strategy** (stop, take profit, sizing) and run a full backtest. That’s when you get expectancy, drawdown, capacity, and the metrics the validator uses. This answers: “Can we actually trade this? Does it survive realistic execution?” So they **do** always test with a strategy wrapped around the engine — but **after** (or alongside) checking that the engine itself has signal quality.
+
+### How to use this in Pattern Detector
+
+- **Composite-level (engine) validation:** Optional or first step. For a composite (or a single primitive like an SR formula), compute signal-level metrics: when it fires, what’s the distribution of forward return? MFE/MAE? Hit +1R before -1R? No stop/target in this step — just “does this fire at good times?” This can live in Research or as a pre-check before a strategy is submitted to the validator.
+- **Strategy-level (full) validation:** What the validator does today. Composite + stop + take profit → backtest → Tier 1 / 2 / 3. That’s the gate for “does this go live?”
+
+So: **validate composites (naked) to see if they work; then wrap a strategy around the engine and validate the strategy.** The big boys separate “does the signal have edge?” from “does the full system with exits survive?” — and so can we.
+
+**Current state in this app:** The validator **always** runs a composite as part of a strategy (composite + stop + take profit). We **never** run a composite naked in the validator today. Composite-level (signal-only) metrics live in Research (e.g. research_v1 motif outcomes) or similar pipelines, not in the validator.
+
+**Where should “naked composite” validation live?** Keep the validator for **strategies only**. Put **naked composite validation in the Research module.** Research is already where we ask “does this idea work?” — manual primitives/composites in Indicator Studio, Research Agent (strategy discovery), SR (formula discovery), research_v1 (motif outcomes). So: “Run this composite over history and show forward return / MFE/MAE / hit +1R before -1R” is a **Research** feature (e.g. “Composite check” or “Signal report”). You test the engine there; when it looks good, you wrap it in a strategy and send it to the **validator** for strategy-level pass/fail. **Sweep** stays strategy-focused (full backtest, param sweep on a strategy). If we ever add “sweep composite params and see signal-level metrics,” that can be a Research-side option that uses the same naked-composite evaluation, not a second mode inside the validator or the existing Parameter Sweep UI.
+
+**Research → Sweep contract:** Anything created in Research (primitives, composites, SR formulas, Research Agent strategies) must **expose its parameters** so that the Parameter Sweep can tune them. If Research produces something that can’t be parameterized and swept, it can’t be repaired or optimized through the existing pipeline. So: primitives and composites must declare tunable parameters (same contract as today’s pattern JSON); SR formulas that become primitives must expose any tunable inputs (e.g. score threshold, feature weights if applicable); Research Agent–generated strategies already flow through the registry with params. Sweep tunes what’s exposed; Research must expose it.
+
+**Research module — viewing parameters:** In the Research page, when you open a generation’s detail drawer, a **“Parameters (for Sweep)”** section shows the parameters extracted from that generation’s strategy spec (composite stage params, risk_config, and top-level setup params) so you can see at a glance what the sweep can tune. Full strategy spec JSON remains below for reference.
+
 ## Tier Rules
 
 ### Tier 1: Existence

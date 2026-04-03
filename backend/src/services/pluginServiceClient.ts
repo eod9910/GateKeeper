@@ -84,6 +84,7 @@ export async function runValidatorPipelineViaService(
   dateEnd: string,
   universe?: string[],
   tier?: ValidationTier,
+  forceRefresh?: boolean,
   signal?: AbortSignal,
   onProgress?: (evt: { progress: number; stage: string; detail: string; eta_seconds?: number; eta_display?: string }) => void,
 ): Promise<{ report: ValidationReport; trades: TradeInstance[] }> {
@@ -93,6 +94,7 @@ export async function runValidatorPipelineViaService(
     date_end: dateEnd,
     universe: universe && universe.length > 0 ? universe : undefined,
     tier: tier || 'tier3',
+    force_refresh: Boolean(forceRefresh),
   };
 
   const res = await fetch(

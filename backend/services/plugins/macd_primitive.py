@@ -7,6 +7,9 @@ import sys
 from datetime import datetime
 from typing import Any, Dict, List
 
+import numpy as np
+
+from platform_sdk.primitive_adapters import compute_macd_adapter
 from platform_sdk.ohlcv import OHLCV
 
 
@@ -51,8 +54,6 @@ def run_macd_primitive_plugin(
       histogram_min:     float (default 0.0) — min abs histogram value
       lookback_bars:     int   (default 500)
     """
-    import numpy as np
-
     setup = spec.get("setup_config", {}) or {}
     fast_period = int(setup.get("fast_period", 12))
     slow_period = int(setup.get("slow_period", 26))
@@ -66,28 +67,10 @@ def run_macd_primitive_plugin(
         print(f"[MACD] Not enough data: {n} bars", file=sys.stderr)
         return []
 
-    closes = np.array([float(bar.close) for bar in data], dtype=float)
-
-    def calc_ema(arr, period):
-        out = np.full_like(arr, np.nan)
-        mult = 2.0 / (period + 1)
-        out[period - 1] = np.mean(arr[:period])
-        for i in range(period, len(arr)):
-            out[i] = (arr[i] - out[i - 1]) * mult + out[i - 1]
-        return out
-
-    fast_ema = calc_ema(closes, fast_period)
-    slow_ema = calc_ema(closes, slow_period)
-    macd_line = fast_ema - slow_ema
-    signal_line = calc_ema(macd_line[~np.isnan(macd_line)], signal_period)
-
-    # Align signal_line back into full-length array
-    sig_full = np.full_like(macd_line, np.nan)
-    valid_start = int(np.argmax(~np.isnan(macd_line)))
-    if len(signal_line) > 0:
-        sig_full[valid_start:valid_start + len(signal_line)] = signal_line
-
-    histogram = macd_line - sig_full
+    adapted = compute_macd_adapter(data, fast_period, slow_period, signal_period)
+    macd_line = adapted["macd_line"]
+    sig_full = adapted["signal_line"]
+    histogram = adapted["histogram"]
 
     spec_hash = spec.get("spec_hash") or compute_spec_hash(spec)
     spec_hash_short = spec_hash[:12]

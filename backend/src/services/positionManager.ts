@@ -21,6 +21,15 @@ export interface ManagedPosition {
   signal_data: Record<string, any>;
 }
 
+export interface LastSignalEntry {
+  symbol: string;
+  entry_price: number;
+  stop_price: number;
+  take_profit_price: number;
+  score: number;
+  signal_bar_date: string;
+}
+
 export interface BridgeState {
   enabled: boolean;
   mode: 'paper' | 'live';
@@ -29,6 +38,7 @@ export interface BridgeState {
   managed_positions: ManagedPosition[];
   last_scan_time?: string;
   last_scan_signals: number;
+  last_scan_signal_list: LastSignalEntry[];
   total_trades_placed: number;
   total_trades_closed: number;
   session_start?: string;
@@ -40,6 +50,7 @@ const DEFAULT_STATE: BridgeState = {
   kill_switch_active: false,
   managed_positions: [],
   last_scan_signals: 0,
+  last_scan_signal_list: [],
   total_trades_placed: 0,
   total_trades_closed: 0,
 };
@@ -55,6 +66,7 @@ function normalizeState(raw: any): BridgeState {
     managed_positions: Array.isArray(raw.managed_positions) ? raw.managed_positions : [],
     last_scan_time: typeof raw.last_scan_time === 'string' ? raw.last_scan_time : undefined,
     last_scan_signals: Number.isFinite(Number(raw.last_scan_signals)) ? Number(raw.last_scan_signals) : 0,
+    last_scan_signal_list: Array.isArray(raw.last_scan_signal_list) ? raw.last_scan_signal_list : [],
     total_trades_placed: Number.isFinite(Number(raw.total_trades_placed)) ? Number(raw.total_trades_placed) : 0,
     total_trades_closed: Number.isFinite(Number(raw.total_trades_closed)) ? Number(raw.total_trades_closed) : 0,
     session_start: typeof raw.session_start === 'string' ? raw.session_start : undefined,
@@ -85,10 +97,38 @@ export function hasPositionForSymbol(state: BridgeState, symbol: string): boolea
   return state.managed_positions.some((p) => p.symbol.trim().toUpperCase() === needle);
 }
 
-export function canOpenNewPosition(state: BridgeState, maxConcurrent: number): boolean {
+/**
+ * Computes the current portfolio heat as a fraction (0–1) of account equity.
+ * Heat = sum of (entry_price - stop_price) × qty for all managed long positions.
+ * If equity is unknown or zero, returns 0.
+ */
+export function computePortfolioHeat(state: BridgeState, accountEquity: number): number {
+  if (!Number.isFinite(accountEquity) || accountEquity <= 0) return 0;
+  let totalRiskDollars = 0;
+  for (const pos of state.managed_positions) {
+    const stopPrice = pos.manual_exit_override && pos.manual_stop_price != null
+      ? pos.manual_stop_price
+      : pos.stop_price;
+    const riskPerShare = Math.max(0, Number(pos.entry_price) - Number(stopPrice));
+    totalRiskDollars += riskPerShare * Math.max(0, Number(pos.qty));
+  }
+  return totalRiskDollars / accountEquity;
+}
+
+/**
+ * Returns true if a new position can be opened without breaching the max portfolio heat.
+ * newPositionRiskPct is the per-trade risk fraction (e.g. 0.05 = 5%).
+ */
+export function canOpenNewPosition(
+  state: BridgeState,
+  maxPortfolioHeatPct: number,
+  newPositionRiskPct: number,
+  accountEquity: number,
+): boolean {
   if (state.kill_switch_active) return false;
   if (!state.enabled) return false;
-  return state.managed_positions.length < maxConcurrent;
+  const currentHeat = computePortfolioHeat(state, accountEquity);
+  return (currentHeat + newPositionRiskPct) <= maxPortfolioHeatPct;
 }
 
 export async function calculatePositionSize(

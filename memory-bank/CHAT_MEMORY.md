@@ -5,39 +5,109 @@
 
 ## Active Project: Pattern Detector / Trading Co-Pilot
 
-### Recent Working State (2026-03-11)
-- **Stockdex integration**: `fundamentalsService.py` now pulls supplemental data from Finviz and Yahoo Web via `stockdex` package alongside existing yfinance data.
-- Stockdex data includes: insider trades, 12-quarter earnings history with beat %, growth estimates, financial highlights, trading info (52W/MAs/short interest), top institutional holders.
-- Fundamentals panel UI has 5 new sections: Growth Estimates, Price & Momentum, Earnings History table, Insider Trades table, Top Institutional Holders table.
-- AI copilot context now includes `[STOCKDEX_EXTENDED]` block with growth estimates, earnings beat summary, insider activity summary, and top institutions.
-- `FundamentalsSnapshotV2` type extended with `stockdex?: Record<string, unknown> | null`.
-- Service timeout increased from 20s to 30s for the additional network calls.
-- Macrotrends endpoints (long-term historical financials) require Selenium/Chrome driver — not wired yet.
-- Execution bridge config is persisted and auto-resumes after backend restarts.
-- Crypto execution scans are filtered to Alpaca-tradable assets before order attempts.
-- Execution UI exposes strategy identity on status, positions, and log rows, plus unrealized PnL percent.
-- Scanner page includes a fundamentals-aware copilot below the fundamentals snapshot.
-- AI chat composers across pages use the wider embedded-arrow textarea layout.
-- Scanner decision questions yield a direct trader call (`BUY`, `WAIT`, or `PASS`).
+### Recent Working State (2026-03-30)
+- Workstream shifted to the **data foundation required for Ledger** rather than frontend UX.
+- Source-of-truth split now clarified:
+  - **Universe registry** = canonical symbol set definitions
+  - **Scanner** = current-market observation layer
+  - **PIT** = authoritative historical fundamentals layer
+  - **Validator/backtester** = PIT consumer, not PIT owner
+  - **Ledger** = consumer of PIT facts plus raw evidence
+- Stock universe cleanup continued and remaining runtime consumers were moved toward shared registry loaders.
+- PIT hydration was redirected toward full-universe semantics (`clean_stocks` default, explicit `--universe`, correct symbol precedence).
+- PIT schema now retains **historical raw payload lineage** through append-only `raw_source_cache_history`.
+- An isolated SEC filing ingestion experiment now exists under `Financial data/docling_probe`:
+  - fetch filing from SEC
+  - convert with Docling
+  - extract first-pass canonical financial facts
+  - keep all of it outside the main runtime path for now
+- Apple `10-K` probe succeeded end to end and extracted a usable first-pass fact payload.
+- Apple Ledger MVP smoke test then succeeded for:
+  - `5` recent `10-K`s
+  - `8` recent `10-Q`s
+- A real local Ledger/PIT database path now exists:
+  - canonical schema doc: `docs/ledger-canonical-fact-schema.md`
+  - SQLite file: `backend/data/fundamentals-pit.sqlite`
+  - filing metadata table: `pit_documents`
+  - filing-derived fact table: `pit_statement_facts`
+  - query helpers in `backend/services/fundamentals_pit_query.py`
+- Apple filing-derived smoke-test data has been imported into PIT:
+  - `13` documents
+  - `264` filing-derived fact rows
+- Second issuer validation then progressed on Microsoft:
+  - initial smoke test exposed extractor portability gaps
+  - extractor was hardened for year-only headers and Microsoft-style labels
+  - a later continuation pass confirmed the remaining miss was a transient SEC fetch disconnect, not an extractor failure
+  - `fetch_sec_filing.py` now retries SEC requests and reuses cached downloads
+  - current result: `5/5` recent `10-K`s and `8/8` recent `10-Q`s successfully processed
+  - Microsoft import size: `13` documents and `264` filing-derived fact rows
+- New active planning anchor for this work:
+  - `.planning/plans/ACTIVE/ledger-data-foundation-and-pit-ingestion-plan.md`
+- Additional related docs for the next AI:
+  - `.planning/plans/ACTIVE/family-structure-validation-ledger.md`
+  - `.planning/plans/ACTIVE/ledger-data-foundation-todo.md`
+  - `docs/ledger-canonical-fact-schema.md`
+  - `.planning/plans/ACTIVE/primitive-normalization-contract-v0.md`
+  - `.planning/plans/ACTIVE/primitive-normalization-engine-and-autonomous-research.md`
+- Isolated experiment location for continuation:
+  - `Financial data/docling_probe`
+- Next AI should recover this thread by reading:
+  - `memory-bank/LATEST.md`
+  - `memory-bank/CHAT_MEMORY.md`
+  - `.planning/plans/ACTIVE/ledger-data-foundation-and-pit-ingestion-plan.md`
+  - then the related docs above as needed
 
-### Current Open Threads (2026-03-11)
-- Macrotrends data (10+ year historical financials) requires headless Chrome/Selenium setup — blocked on driver availability.
-- User may return to `density_base_detector_v2` for more detector-specific review.
-- Execution behavior should still be watched on the next scheduled or forced scan.
+### Current Open Threads (2026-03-30)
+- Expand the isolated Docling extractor beyond the first minimum set of headline metrics.
+- Harden evidence references beyond markdown-line snippets.
+- Harden scale/unit normalization and fiscal-period handling across issuers/layouts.
+- Validate `available_at` semantics more deeply across more filings/forms.
+- Validate a third issuer now that Apple + Microsoft both run end to end.
 
-### Current State (2026-03-11)
-- Project is in refinement mode, not broad feature expansion mode.
-- Priority is reliability, contract clarity, semantics, docs, and maintainability.
-- `.planning/plans/` was cleaned up into `ACTIVE`, `BACKLOG`, `REFERENCE`, and `ARCHIVE`.
+### Recent Working State (2026-03-25)
+- **Trading Desk discretionary workflow** was the primary workstream this session.
+- Three major features shipped and debugged to working state:
+  1. **Programmatic Stop/TP Config** — ATR or % stop/TP calculated from entry, drawn on chart, persists across reloads
+  2. **Trade P&L Summary Panel** — live Max Loss / Max Gain / R:R / exact stop+target prices, instrument-aware (stock, options, futures, crypto, forex)
+  3. **Watch List Right Drawer** — collapsible 280px drawer with badge count, chart resize on open/close, click-to-load symbol
+- **Three bugs fixed this session** (see LATEST.md for full detail):
+  - `runCopilotAnalysis` not exposed to `window` → drawer click-to-load silently did nothing
+  - `onclick` attribute HTML breakage from `JSON.stringify` inside double-quoted attribute
+  - Chart resize: `margin-right` on flex item doesn't reduce content width; switched to `padding-right` + `requestAnimationFrame`
+- Server is on port **3002** (not 3000)
+
+### Recent Working State (2026-03-18)
+- **Structural motif family research system** is the current primary workstream.
+- Full pipeline built: `bars → ATR pivots → legs → labels → 5-pivot motifs → outcomes → families → inspection → cross-symbol comparison → stability`
+- Two family signature layers: v1 (exact, traceable, too fragmented) and v2 (generalized, 17 families, 8 candidates on SPY)
+- Multi-symbol research completed: SPY, QQQ, IWM, DIA (daily, 10y)
+- Family Explorer UI live: static HTML with LightweightCharts, per-family detail, chart inspector modal
+- Strategy validation policy documented (`docs/strategy-validation-policy.md`): Tier 1 → Tier 2 → Tier 3 → Post-cert optimization, with tombstone/review/pass categories
+- Roadmap locked: Family ranking controls → Baseline comparison → Visual inspection → Signal layer → Execution simulation → Strategy layer → Portfolio layer
+- **Stockdex integration**: `fundamentalsService.py` enriched with Finviz and Yahoo Web data (insider trades, earnings history, growth estimates, institutional holders)
+- Execution bridge config persisted and auto-resumes after backend restarts
+- Scanner copilot with fundamentals-aware AI context live
+
+### Current Open Threads (2026-03-25)
+- **Trading Desk**: core discretionary workflow is now solid (risk config, P&L panel, watch list drawer). No known outstanding bugs.
+- **Family research next step**: manual inspection of top v2 families to decide if buckets are coherent before scaling
+- **Family ranking controls**: first UI feature to build (sort/filter by t-score, count, dispersion, agreement)
+- **Baseline/null-model comparison**: needed to validate families are better than random
+- Macrotrends data (10+ year historical financials) requires headless Chrome/Selenium setup — blocked on driver availability
+- Execution behavior should still be watched on the next scheduled or forced scan
+
+### Current State (2026-03-18)
+- Project is in refinement + research mode.
+- Research layer (structural motif families) is the active focus.
+- `.planning/plans/` organized into `ACTIVE`, `BACKLOG`, `REFERENCE`, and `ARCHIVE`.
 - Current active planning files:
+  - `.planning/plans/ACTIVE/family-discovery-v2-prd-pdr.md` — structural motif family research (primary)
+  - `.planning/plans/ACTIVE/Update.md` — phased roadmap
   - `.planning/plans/ACTIVE/single-user-production-readiness-checklist.md`
-  - `.planning/plans/ACTIVE/legacy-plugin-conversion-plan.md`
   - `.planning/plans/ACTIVE/backtesting-master.md`
-  - `.planning/plans/ACTIVE/python-execution-layer.md`
   - `.planning/plans/ACTIVE/research-to-live-trading.md`
-- Scanner candidates now explicitly distinguish context vs pattern vs signal semantics.
-- Tactical fundamentals snapshot and scanner copilot integration are live.
-- Fundamentals panel now enriched with Stockdex data (insider trades, earnings history, growth estimates, institutional holders).
+- Scanner candidates distinguish context vs pattern vs signal semantics.
+- Tactical fundamentals snapshot (yfinance + Stockdex) and scanner copilot integration are live.
 
 ### What It Does
 - Scans instruments (stocks, futures, crypto) for trading setups
@@ -381,13 +451,72 @@
 - Verified on: ACIC (V-bottom CHoCH), ABSI (multi-event base boxing), ACMR (textbook Wyckoff cycle)
 - Phase 0 of distilled-base-analyst plan encodes this as explicit logic
 
+### Structural Motif Family Research System (2026-03-15)
+- **Goal**: Discover recurring structural price motifs, group them into statistically testable families, validate across symbols
+- **Pipeline**: `bars → normalize_bars (ATR-14) → extract_atr_reversal_pivots → build_leg_records → label_pivots_against_same_side_history → build_five_pivot_motifs → evaluate_motif_outcomes → aggregate_family_stats → inspection/comparison/stability`
+- **Implementation**: `backend/services/research_v1/` — 12 Python modules
+- **Key data structures** (`schema.py`): `BarRecord`, `PivotRecord`, `LegRecord`, `PivotLabelRecord`, `MotifInstanceRecord`, `OutcomeRecord`, `FamilyStatsRecord`
+- **ATR reversal pivots**: causal state machine for alternating HIGH/LOW pivots using `reversal_multiple × ATR` and `min_bars_between_pivots`
+- **5-pivot motifs**: rolling 5-pivot window with deterministic family signature and feature vector
+- **Outcomes**: forward 5/10 bar returns in ATR, MFE/MAE, hit ±1ATR first, next break up/down
+- **Chronological splits**: discovery (60%) / validation (20%) / holdout (20%) — NEVER shuffled
+- **v1 exact signature**: `pivot_type_seq | pivot_label_seq | leg_direction_seq | retrace_bins` — too fragmented (128 families from 155 motifs on SPY)
+- **v2 generalized signature**: `orientation (HTL/LTH) | structural_class (CONTINUATION_UP/DOWN, REVERSAL_UP/DOWN, MIXED_TRANSITION) | break_profile (BOTH_BREAKS, HH_ONLY, LL_ONLY, NO_EXTREME_BREAK) | retrace_profile (DEEP_DOM, DEEP_PRESENT, MID_RETRACE, SHALLOW_ONLY)` — 17 families, 9 in all splits, 8 candidates
+- **Both signatures kept simultaneously** — v1 for traceability, v2 for aggregation
+- **Cross-symbol comparison**: `build_cross_symbol_family_comparison` — family overlap, per-symbol stats, rankings (all_four, same_sign, low_dispersion, min_count_three)
+- **Behavior stability**: `build_family_behavior_stability_report` — trade simulation (1R target/stop), direction agreement, regime sensitivity
+- **Family Explorer UI**: static HTML with LightweightCharts, sidebar family list, detail panel, chart inspector modal with candles/pivots/motif highlight
+- **Baseline dataset**: SPY, QQQ, IWM, DIA — daily, 10 years, 2.0 ATR reversal, min 3 bars between pivots
+- **Artifacts**: `backend/data/research/atr_pivot_v1/` — per-symbol JSON (normalized bars, pivots, legs, labels, motifs, outcomes, family stats v1/v2, fragmentation, inspection), cross-symbol comparison, stability report, explorer HTML, SVG snippets
+- **Runner script**: `backend/scripts/run_atr_pivot_research.py`
+- **Tests**: `test_structure_discovery_families.py`, `test_structure_discovery_inspection.py`
+- **PRD/PDR**: `.planning/plans/ACTIVE/family-discovery-v2-prd-pdr.md`
+- **Key design decisions**:
+  - Fragmentation analysis showed exact pivot label sequence was the biggest uniqueness driver
+  - Do not scale to multi-symbol before family inspection proves coherence
+  - Do not jump to clustering before the checkpoint is resolved
+  - The system is not detecting named chart patterns — it discovers structural motifs from scratch
+- **Top v2 families by occurrence**: `HTL|REVERSAL_UP|BOTH_BREAKS|DEEP_DOM` (26), `HTL|CONTINUATION_UP|HH_ONLY|DEEP_DOM` (21), `LTH|REVERSAL_DOWN|BOTH_BREAKS|DEEP_DOM` (20)
+
+### Strategy Validation Policy (2026-03-15)
+- **Document**: `docs/strategy-validation-policy.md`
+- **Tier 1 (Existence)**: fixed spec, no sweep, no tuning — does the idea have life?
+- **Tier 2 (Repairability)**: bounded sweep (5 attempts/param), failure-targeted, identity-preserving — is it salvageable?
+- **Tier 3 (Certification)**: no sweep, no rescue, pass/fail only — does it survive full validation?
+- **Post-Tier 3**: optimization allowed only after certification, baseline frozen, optimized version = new branch requiring revalidation
+- **Result categories**: Pass, Review (borderline, enters Tier 2 sweep), Hard Fail (tombstone immediately), Tombstone (preserved for lineage, removed from active pipeline)
+- **Identity rule**: tuning adjustments only, not logic changes — if identity breaks, it's a new branch
+- **Philosophy**: the pipeline is designed to kill most strategies — reject weak, rescue borderline, certify robust, optimize only after certification
+
+### Research-to-Trading Roadmap (2026-03-15)
+- **System layers**: Research → Signal → Strategy → Portfolio
+- **UI build priority**: Family ranking controls → Baseline/null-model comparison → Visual motif inspection → Signal layer into backtester → Execution simulation → Strategy layer → Portfolio layer
+- **Reference**: `.planning/plans/ACTIVE/Update.md`
+
 ### Open Threads
 
-**Current Priority: LABELING**
-- Full Russell 2000 scan running (1,721 symbols, weekly, wiggle base)
+**Current Priority: FAMILY RESEARCH**
+- Top v2 families need manual visual inspection to decide if buckets are coherent
+- Two valid outcomes: (A) families look coherent → keep v2, scale to more symbols; (B) families too mixed → tighten structural class definitions, rerun
+- Next UI features: family ranking controls, baseline/null-model comparison
+- Signal layer integration (family → live causal event at pivot-5 confirmation) is the next system layer after research solidifies
+
+**State-machine migration audit (new)**
+- Repo decision: any strategy that depends on inter-bar memory must be migrated to explicit `setup_config.state_machine` semantics.
+- Why: the old stateless engine re-ran each strategy cold on every bar prefix, which breaks any strategy that depends on sequence, anchoring, expiry, invalidation, or single-fire event semantics. That produced false positives, duplicate signals, and phantom trades in backtests.
+- Current family inventory:
+  - `wyckoff_accumulation_rdp` — stateful-required
+  - `lth_continuation_composite` — stateful-required
+  - `macd_divergence_crypto_14R` — stateful-required, current stateful file not present under `backend/data/strategies/`
+  - `pullback_uptrend_entry_composite` — needs review because it may inherit stateful timing from MACD divergence
+  - `sma_50_200_benchmark` — stateless-safe
+- Detailed checklist lives in `.planning/plans/ACTIVE/structural-families-to-execution-prd.md`.
+
+**LABELING (paused)**
+- Full Russell 2000 scan ran (1,721 symbols, weekly, wiggle base)
 - ~851 candidates from ~863 scanned (98.6% pass rate — too high, needs tightening)
 - Target: 300+ hand-reviewed labels with corrections
-- Currently at ~150 labels
+- Was at ~150 labels when focus shifted to family research
 
 **V1 Critical Path (ship first)**:
 - **Fix MACD Divergence Context Problem** — Divergence fires everywhere (uptrend, downtrend, bases). Need a "base position" filter: above base → only long, below base → only short. The regime filter (self-referencing, majority vote) may solve this — needs visual verification on bad-trade symbols before composing with MACD.
@@ -524,3 +653,97 @@
 - `backend/services/plugin_service.py` (ProcessPoolExecutor, ThreadPoolExecutor, timing)
 - `backend/src/services/pluginServiceClient.ts` (dynamic batch timeout)
 - `backend/package.json` (concurrently, cross-env, new scripts)
+
+## Session Update (2026-03-17, Parameter Manifest + Snapshot Recovery)
+### Validation / Sweep Policy Maturity
+- The strategy validation policy was clarified around anatomy and sweep behavior:
+  - `Structure`
+  - `Location`
+  - `Entry Timing`
+  - `Regime Filter`
+  - `Stop Loss`
+  - `Take Profit`
+- A key architecture gap was discovered: the policy defined what sweep is allowed to do, but the app did not have a canonical way to declare which knobs are real, exposed, identity-preserving, and materially binding.
+
+### Parameter Manifest Architecture
+- Added a canonical `parameter_manifest` to `StrategySpec`.
+- Implemented shared manifest resolution in:
+  - `backend/src/services/parameterManifest.ts`
+- Integrated manifest-aware behavior into:
+  - strategy storage/read paths
+  - validator strategy resolution
+  - validator parameter sensitivity selection
+  - sweep parameter discovery
+- Added native manifest adapters for the main strategy families currently in use, including:
+  - density base detector
+  - MA crossover
+  - Wyckoff accumulation RDP
+  - pullback-in-uptrend composite
+  - base box / compression / regime / RDP fib / trend-following families
+- Added audit tooling:
+  - `backend/scripts/auditParameterManifest.ts`
+  - `npm run manifest:audit`
+- Result: validator sensitivity and sweep now have a shared parameter contract instead of separate ad hoc logic.
+
+### Builder / Composer Alignment
+- Blockly composer already inferred tunable params from connected primitive stage params.
+- Pipeline / node editor already inferred tunable params from node params.
+- AI composite builder (`frontend/public/workshop-composite.js`) was the remaining mismatch:
+  - it scaffolded composites with `tunable_params: []`
+  - it relied on backend fallback instead of explicitly carrying real tunable stage params
+- This was fixed by:
+  - loading primitive `default_setup_params`
+  - seeding stage `params` when primitives are added
+  - deriving composite `tunable_params` from those stage params
+  - resyncing tunables on AI JSON import, validation, and registration
+- Result: Blockly, pipeline/node editor, and AI composite builder now follow the same model for exposing meaningful knobs.
+
+### Sweep / Sensitivity Findings
+- A real workflow issue was confirmed:
+  - some sweeps were flat because they targeted non-binding or downstream filter knobs
+  - `min_score` in density-base was mostly a final filter, not a formation-changing structural lever
+- Reading the plugin code directly confirmed which knobs materially change detection:
+  - `swing_lookback`
+  - `swing_lookahead`
+  - `min_drop_pct`
+  - `min_void_bars`
+  - `min_base_bars`
+- This reinforced the need for strategy-native manifest-driven sweep/sensitivity behavior.
+
+### Tier Policy / Sweep Guardrails
+- Fixed a loophole where Sweep could run a Tier 3-style sweep on a non-T3 strategy.
+- Current intended rule:
+  - only true T3 baselines may use Tier 3 holdout sweep mode
+  - T2/T2R strategies may only use Tier 2 repair sweep mode
+- Also clarified verdict language in the UI:
+  - `Pass`
+  - `Review`
+  - `Fail`
+  - `Hard Fail`
+
+### Snapshot / Recovery Strategy
+- Created a local full recovery snapshot:
+  - branch: `snapshot/local-2026-03-17-125952`
+  - tag: `snapshot-local-2026-03-17-125952`
+- Created a full filesystem backup of runtime data:
+  - `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector-backups\snapshot_2026-03-17_125511`
+- Separated code recovery from data recovery:
+  - git for code / intentional assets
+  - filesystem backup for volatile symbol/runtime data
+
+### GateKeeper Remote
+- `GateKeeper` is now the canonical remote identity for the project.
+- A clean, history-free code snapshot was exported and pushed to GitHub:
+  - remote: `https://github.com/eod9910/GateKeeper.git`
+  - branch: `snapshot/clean-gatekeeper-2026-03-17-export`
+  - tag: `snapshot-clean-gatekeeper-2026-03-17`
+- Remote `main` was force-updated to that clean snapshot export.
+- Local working repo remote now points to:
+  - `origin = https://github.com/eod9910/GateKeeper.git`
+
+### GitNexus
+- GitNexus was initially broken because repo registration/index state was inconsistent.
+- Recovered with:
+  - `npx gitnexus analyze --force .`
+- GitNexus impact analysis is now usable again.
+- `gitnexus detect_changes` CLI command is still unavailable in this environment, so direct `git diff/status` remains the fallback scope check before commits.

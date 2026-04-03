@@ -1,48 +1,108 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-disable-global-help="true">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Blockly Composer - Pattern Detector</title>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('embed') === '1') {
+        document.documentElement.classList.add('blockly-embedded');
+        document.documentElement.setAttribute('data-disable-global-help', 'true');
+      }
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260322-chatstretch2">
+  <style>
+    .global-help-btn,
+    .global-help-overlay {
+      display: none !important;
+    }
+
+    html.blockly-embedded,
+    html.blockly-embedded body {
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    html.blockly-embedded body {
+      margin: 0;
+    }
+
+    html.blockly-embedded .app {
+      min-height: 100%;
+    }
+
+    html.blockly-embedded .app-sidebar {
+      display: none !important;
+    }
+
+    html.blockly-embedded .app-main {
+      margin-left: 0 !important;
+      width: 100%;
+      min-width: 0;
+      height: 100%;
+      min-height: 0;
+    }
+
+    html.blockly-embedded .content {
+      overflow: visible;
+    }
+    html.blockly-embedded .blockly-composer-content {
+      overflow: hidden;
+      flex: 1 1 0%;
+      height: 0;
+    }
+
+    html.blockly-embedded .blockly-main-layout {
+      min-height: 760px;
+      flex: 1 1 0%;
+    }
+
+    html.blockly-embedded .blockly-workspace {
+      min-height: 460px;
+    }
+  </style>
   <script src="https://unpkg.com/blockly/blockly.min.js"></script>
 </head>
-<body>
+<body class="blockly-composer-page" data-disable-global-help="true">
   <div class="app">
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-header">
-        <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
           <span class="logo-mark">PD</span>
           <span class="sidebar-label-text">Pattern Detector</span>
         </a>
         <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
       </div>
       <nav class="sidebar-nav">
-        <a href="index.html" class="sidebar-nav-item">
+        <a href="/scanner" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Scanner</span>
         </a>
-        <a href="copilot.html" class="sidebar-nav-item">
+        <a href="/trading-desk" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Trading Desk</span>
         </a>
-        <a href="history.html" class="sidebar-nav-item">
+        <a href="/position-book" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Position Book</span>
         </a>
-        <a href="validator.html" class="sidebar-nav-item">
+        <a href="/validator" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Validator</span>
         </a>
-        <a href="workshop.html" class="sidebar-nav-item active" aria-current="page">
+        <a href="/indicator-studio" class="sidebar-nav-item active" aria-current="page">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Indicator Studio</span>
         </a>
-        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
-        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
       </nav>
     </aside>
 
@@ -58,70 +118,94 @@
         </div>
       </div>
 
-      <div class="content">
-        <div class="workshop-meta-bar">
-          <div class="workshop-meta-field">
-            <label for="blockly-pattern-name">Indicator Name</label>
-            <input type="text" id="blockly-pattern-name" placeholder="e.g. Pullback Entry Composite">
+      <div class="content blockly-composer-content">
+        <section class="blockly-command-bar panel">
+          <div class="blockly-command-bar-row blockly-command-bar-row--primary">
+            <label class="blockly-command-field blockly-command-field--open" for="blockly-load-pattern-id">
+              <span class="blockly-command-label">Open Existing</span>
+              <div class="blockly-open-row">
+                <input type="text" id="blockly-load-pattern-id" placeholder="e.g. pullback_uptrend_entry_composite">
+                <button class="btn btn-sm btn-ghost" id="btn-blockly-load-pattern">Open</button>
+              </div>
+            </label>
+            <label class="blockly-command-field blockly-command-field--name" for="blockly-pattern-name">
+              <span class="blockly-command-label">Pattern Name</span>
+              <input type="text" id="blockly-pattern-name" placeholder="e.g. Pullback Entry Composite">
+            </label>
+            <label class="blockly-command-field blockly-command-field--id" for="blockly-pattern-id">
+              <span class="blockly-command-label">Pattern ID</span>
+              <input type="text" id="blockly-pattern-id" placeholder="auto-generated" readonly>
+            </label>
+            <label class="blockly-command-field blockly-command-field--category" for="blockly-category">
+              <span class="blockly-command-label">Category</span>
+              <input type="text" id="blockly-category" placeholder="indicator_signals" value="indicator_signals">
+            </label>
+            <label class="blockly-command-field blockly-command-field--intent" for="blockly-intent">
+              <span class="blockly-command-label">Intent</span>
+              <select id="blockly-intent" class="select blockly-intent-select">
+                <option value="entry">Entry</option>
+                <option value="exit">Exit</option>
+                <option value="analysis">Analysis</option>
+                <option value="regime">Regime</option>
+              </select>
+            </label>
+            <button type="button" id="btn-blockly-open-pit" class="blockly-inspector-trigger">
+              <span class="blockly-inspector-trigger__title">PIT</span>
+              <span class="blockly-inspector-trigger__summary" id="blockly-pit-summary">inactive</span>
+            </button>
+            <button type="button" id="btn-blockly-open-state" class="blockly-inspector-trigger">
+              <span class="blockly-inspector-trigger__title">State</span>
+              <span class="blockly-inspector-trigger__summary" id="blockly-state-summary">inactive</span>
+            </button>
+            <button class="btn btn-sm btn-ghost" id="btn-blockly-clear" title="Clear all blocks and start fresh">Clear</button>
+            <button class="btn btn-sm" id="btn-blockly-validate">Validate</button>
           </div>
-          <div class="workshop-meta-field">
-            <label for="blockly-pattern-id">Indicator ID</label>
-            <input type="text" id="blockly-pattern-id" placeholder="auto-generated" readonly>
+          <div class="blockly-command-bar-row blockly-command-bar-row--secondary">
+            <button class="btn btn-sm btn-ghost" id="btn-blockly-copy-json">Copy JSON</button>
+            <button class="btn btn-sm btn-primary" id="btn-blockly-register" disabled title="Validate first, then register">Register</button>
+            <button class="btn btn-sm btn-ghost" id="btn-blockly-send-builder">Send to Builder</button>
           </div>
-          <div class="workshop-meta-field">
-            <label for="blockly-category">Category</label>
-            <input type="text" id="blockly-category" placeholder="indicator_signals" value="indicator_signals">
-          </div>
-          <div class="workshop-meta-field">
-            <label>Status</label>
-            <span class="workshop-status-badge" id="blockly-status">experimental</span>
-          </div>
-        </div>
+        </section>
 
-        <div class="blockly-main-layout" id="blockly-main-layout">
+        <div class="blockly-main-layout chat-collapsed" id="blockly-main-layout">
           <div class="blockly-main-left">
             <section class="panel blockly-workspace-panel">
-              <div class="panel-header">
-                <span class="panel-header-title">Blockly Workspace</span>
-                <div class="blockly-header-controls">
-                  <select id="blockly-intent" class="select blockly-intent-select">
-                    <option value="entry">Entry</option>
-                    <option value="exit">Exit</option>
-                    <option value="analysis">Analysis</option>
-                    <option value="regime">Regime</option>
-                  </select>
-                  <span id="blockly-composition-status" class="text-muted text-mono">Loading primitives...</span>
+              <div class="panel-header blockly-workspace-header">
+                <div class="blockly-workspace-header-copy">
+                  <span class="panel-header-title">Blockly Workspace</span>
+                  <span class="blockly-workspace-header-subtitle">Compose on the main canvas. Open PIT or State only when you need advanced runtime semantics.</span>
                 </div>
-              </div>
-              <div class="panel-body" style="padding:0;">
-                <div id="blockly-workspace" class="blockly-workspace"></div>
+                <div class="blockly-workspace-header-actions">
+                  <span class="blockly-workspace-status" id="blockly-composition-status">Loading primitives...</span>
+                  <span class="workshop-status-badge" id="blockly-status">experimental</span>
+                  <button class="btn btn-sm btn-ghost" id="btn-blockly-add-fundamental-filter" title="Add the runtime fundamental quality filter block">Add Fundamental Filter</button>
+                </div>
               </div>
 
-              <div class="blockly-toolbar">
-                <div class="blockly-action-row">
-                  <button class="btn btn-sm btn-ghost" id="btn-blockly-clear" title="Clear all blocks and start fresh">Clear</button>
-                  <button class="btn btn-sm" id="btn-blockly-validate">Validate</button>
-                  <button class="btn btn-sm btn-ghost" id="btn-blockly-copy-json">Copy JSON</button>
-                  <button class="btn btn-sm btn-primary" id="btn-blockly-register" disabled title="Validate first, then register">Register Indicator</button>
-                  <button class="btn btn-sm btn-ghost" id="btn-blockly-send-builder">Send to Builder</button>
-                </div>
+              <div class="panel-body blockly-workspace-body" style="padding:0;">
+                <div id="blockly-workspace" class="blockly-workspace"></div>
               </div>
 
               <div id="blockly-validation-feedback" class="blockly-validation-feedback" style="display:none;"></div>
 
-              <details id="blockly-json-section" class="workshop-json-section">
+              <details id="blockly-json-section" class="workshop-json-section" open>
                 <summary>Composite Definition (JSON)</summary>
                 <pre id="blockly-json-preview" class="blockly-json-preview">Waiting for valid composition...</pre>
               </details>
             </section>
           </div>
 
-          <section id="blockly-chat-panel" class="workshop-chat-panel blockly-chat-panel cc-panel" aria-label="Blockly Assistant chat">
+          <section id="blockly-chat-panel" class="workshop-chat-panel blockly-chat-panel cc-panel collapsed" aria-label="Blockly Assistant chat" data-skip-viewport-clamp="true">
             <div class="workshop-chat-header cc-header">
               <button class="cc-toggle-btn" onclick="toggleChat('blockly-chat-panel','blockly-main-layout','chat-collapsed')" title="Collapse panel">&#8250;</button>
               <span class="cc-title">Blockly Assistant</span>
               <span id="blockly-chat-status" class="cc-status">Ready</span>
+              <button class="cc-popout-btn" onclick="popoutChatPanel({panelId:'blockly-chat-panel',gridId:'blockly-main-layout',collapsedClass:'chat-collapsed',title:'Blockly Assistant',statusId:'blockly-chat-status',messagesId:'blockly-chat-messages',inputId:'blockly-chat-input',sendFn:'sendBlocklyChat',actions:[{label:'Show Primitives',prefill:'What primitives are available and what do they do?'},{label:'Name It',prefill:'Name this composite indicator based on what I have connected.'}]})" title="Pop out to separate window">&#8599;</button>
               <span class="cc-vert-label" onclick="toggleChat('blockly-chat-panel','blockly-main-layout','chat-collapsed')">Blockly Assistant</span>
+            </div>
+            <div class="blockly-chat-intro">
+              <div class="blockly-chat-intro-title">Keep this panel secondary to the canvas.</div>
+              <div class="blockly-chat-intro-copy">Keep the canvas in view, wire the composition, then use the assistant for naming, primitive questions, or validation guidance.</div>
             </div>
             <div id="blockly-chat-messages" class="workshop-chat-messages"></div>
             <div class="workshop-chat-input-row">
@@ -129,11 +213,30 @@
               <button class="workshop-send-btn" type="button" aria-label="Send blockly assistant chat message" onclick="sendBlocklyChat()">&#8593;</button>
             </div>
             <div class="workshop-chat-actions">
-              <button class="btn btn-ghost" onclick="sendBlocklyChat('How do I use this workspace?')">How To Use</button>
               <button class="btn btn-ghost" onclick="sendBlocklyChat('What primitives are available and what do they do?')">Show Primitives</button>
               <button class="btn btn-ghost" onclick="sendBlocklyChat('Name this composite indicator based on what I have connected.')">Name It</button>
             </div>
           </section>
+
+          <aside id="blockly-inspector" class="blockly-inspector" aria-label="Advanced Blockly configuration">
+            <div class="blockly-inspector-header">
+              <div class="blockly-inspector-header-copy">
+                <span id="blockly-inspector-title" class="blockly-inspector-title">State Logic</span>
+                <span id="blockly-inspector-subtitle" class="blockly-inspector-subtitle">Stateful trigger timing and watch-window behavior</span>
+              </div>
+              <button type="button" id="btn-blockly-close-inspector" class="blockly-inspector-close" aria-label="Close inspector">×</button>
+            </div>
+            <div class="blockly-inspector-tabs">
+              <button type="button" id="btn-blockly-inspector-tab-state" class="blockly-inspector-tab active">State Logic</button>
+              <button type="button" id="btn-blockly-inspector-tab-pit" class="blockly-inspector-tab">PIT Layer</button>
+            </div>
+            <div id="blockly-inspector-pane-state" class="blockly-inspector-pane active">
+              <div id="blockly-state-machine-host" class="blockly-inspector-host"></div>
+            </div>
+            <div id="blockly-inspector-pane-pit" class="blockly-inspector-pane">
+              <div id="blockly-fundamental-config-host" class="blockly-inspector-host"></div>
+            </div>
+          </aside>
         </div>
 
         <div id="blockly-primitive-list" style="display:none;"></div>
@@ -143,8 +246,75 @@
 
   <xml id="blockly-toolbox" style="display:none"></xml>
 
+  <!-- SR Formula picker modal -->
+  <div id="formulaPickerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--color-bg-surface,#1a1a2e);border:1px solid var(--color-border,#333);border-radius:12px;width:min(780px,95vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.5);">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--color-border,#333);display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+        <div>
+          <div style="font-weight:700;font-size:1rem;">Select SR Formula</div>
+          <div id="formulaPickerSubtitle" style="font-size:.8rem;color:var(--color-text-muted,#888);margin-top:.2rem;">Sorted by backtest composite score</div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+          <button id="formulaPickerRankBtn" style="background:var(--color-accent,#4f46e5);border:none;border-radius:6px;color:#fff;padding:.35rem .8rem;cursor:pointer;font-size:.8rem;font-weight:600;">Rank All</button>
+          <button id="formulaPickerClose" style="background:none;border:1px solid var(--color-border,#333);border-radius:6px;color:inherit;padding:.3rem .7rem;cursor:pointer;font-size:.9rem;">&#10005;</button>
+        </div>
+      </div>
+      <div id="formulaPickerProgress" style="display:none;padding:.5rem 1.25rem;border-bottom:1px solid var(--color-border,#333);font-size:.8rem;color:var(--color-text-muted,#888);">
+        <span id="formulaPickerProgressText">Ranking formulas...</span>
+        <div style="margin-top:.3rem;height:4px;background:var(--color-bg-input,#111);border-radius:2px;overflow:hidden;">
+          <div id="formulaPickerProgressBar" style="height:100%;background:var(--color-accent,#4f46e5);width:0%;transition:width .3s;"></div>
+        </div>
+      </div>
+      <div style="overflow-x:auto;flex:1;">
+        <table id="formulaPickerTable" style="width:100%;border-collapse:collapse;font-size:.8rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--color-border,#333);position:sticky;top:0;background:var(--color-bg-surface,#1a1a2e);">
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;cursor:pointer;" data-sort="rank">#</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;cursor:pointer;" data-sort="composite_score">Score</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;cursor:pointer;" data-sort="expectancy_R">Exp R</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;cursor:pointer;" data-sort="win_rate">Win%</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;cursor:pointer;" data-sort="profit_factor">PF</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;cursor:pointer;" data-sort="total_trades">Trades</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;cursor:pointer;" data-sort="complexity">Cx</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;">Pass</th>
+              <th style="padding:.5rem .6rem;text-align:left;font-weight:600;">Formula</th>
+            </tr>
+          </thead>
+          <tbody id="formulaPickerBody"></tbody>
+        </table>
+      </div>
+      <div style="padding:.75rem 1.25rem;border-top:1px solid var(--color-border,#333);display:flex;gap:.5rem;justify-content:flex-end;">
+        <button id="formulaPickerClear" style="background:none;border:1px solid var(--color-border,#333);border-radius:6px;color:inherit;padding:.4rem .9rem;cursor:pointer;font-size:.85rem;">Clear (no formula)</button>
+        <button id="formulaPickerConfirm" style="background:var(--color-accent,#4f46e5);border:none;border-radius:6px;color:#fff;padding:.4rem 1rem;cursor:pointer;font-size:.85rem;font-weight:600;">Select</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Family picker modal -->
+  <div id="familyPickerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--color-bg-surface,#1a1a2e);border:1px solid var(--color-border,#333);border-radius:12px;width:min(640px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.5);">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--color-border,#333);display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+        <div>
+          <div style="font-weight:700;font-size:1rem;">Select Family</div>
+          <div style="font-size:.8rem;color:var(--color-text-muted,#888);margin-top:.2rem;">★ = candidate &nbsp;·&nbsp; sorted by |t10|</div>
+        </div>
+        <button id="familyPickerClose" style="background:none;border:1px solid var(--color-border,#333);border-radius:6px;color:inherit;padding:.3rem .7rem;cursor:pointer;font-size:.9rem;">✕</button>
+      </div>
+      <div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--color-border,#333);">
+        <input id="familyPickerSearch" type="search" placeholder="Search signature…" style="width:100%;background:var(--color-bg-input,#111);border:1px solid var(--color-border,#333);border-radius:6px;padding:.5rem .75rem;color:inherit;font:inherit;font-size:.85rem;">
+      </div>
+      <div id="familyPickerList" style="overflow-y:auto;flex:1;padding:.5rem .5rem;display:grid;gap:.35rem;"></div>
+      <div style="padding:.75rem 1.25rem;border-top:1px solid var(--color-border,#333);display:flex;gap:.5rem;justify-content:flex-end;">
+        <button id="familyPickerClear" style="background:none;border:1px solid var(--color-border,#333);border-radius:6px;color:inherit;padding:.4rem .9rem;cursor:pointer;font-size:.85rem;">Clear (all families)</button>
+        <button id="familyPickerConfirm" style="background:var(--color-accent,#4f46e5);border:none;border-radius:6px;color:#fff;padding:.4rem 1rem;cursor:pointer;font-size:.85rem;font-weight:600;">Select</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
+  <script src="fundamental-config-ui.js"></script>
   <script src="blockly-composer.js"></script>
+  <script src="voice-input.js"></script>
 </body>
 </html>
 

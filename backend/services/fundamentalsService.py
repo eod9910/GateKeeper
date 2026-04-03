@@ -14,6 +14,8 @@ import sys
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from sec_financial_resolver import resolve_sec_first_financials
+
 try:
     import yfinance as yf
 except ImportError:
@@ -225,6 +227,172 @@ def _series_value(series: Sequence[Tuple[str, float]], index: int) -> Optional[f
     if index < 0 or index >= len(series):
         return None
     return series[index][1]
+
+
+def _quarter_label_from_iso(iso_date: Optional[str]) -> Optional[str]:
+    if not iso_date:
+        return None
+    try:
+        parsed = datetime.fromisoformat(iso_date[:10]).date()
+    except Exception:
+        return None
+    quarter = ((parsed.month - 1) // 3) + 1
+    return f"{parsed.year}Q{quarter}"
+
+
+def _quarter_period_end(period: Any) -> Optional[str]:
+    text = str(period or "").strip().upper()
+    if len(text) != 6 or text[4] != "Q":
+        return None
+    try:
+        year = int(text[:4])
+        quarter = int(text[5])
+    except Exception:
+        return None
+    mapping = {
+        1: f"{year}-03-31",
+        2: f"{year}-06-30",
+        3: f"{year}-09-30",
+        4: f"{year}-12-31",
+    }
+    return mapping.get(quarter)
+
+
+def _series_to_date_map(series: Sequence[Tuple[str, float]]) -> Dict[str, float]:
+    return {iso: value for iso, value in series if iso}
+
+
+def _series_index_map(series: Sequence[Tuple[str, float]]) -> Dict[str, int]:
+    return {iso: idx for idx, (iso, _) in enumerate(series) if iso}
+
+
+def _series_ttm(series: Sequence[Tuple[str, float]], index_lookup: Dict[str, int], iso_date: str) -> Optional[float]:
+    idx = index_lookup.get(iso_date)
+    if idx is None:
+        return None
+    values: List[float] = []
+    for offset in range(4):
+        if idx + offset >= len(series):
+            return None
+        value = _series_value(series, idx + offset)
+        if value is None:
+            return None
+        values.append(value)
+    return sum(values)
+
+
+def _ratio_pct(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
+    if numerator is None or denominator is None or abs(denominator) < 1e-9:
+        return None
+    return (numerator / denominator) * 100.0
+
+
+def _ratio_value(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
+    if numerator is None or denominator is None or abs(denominator) < 1e-9:
+        return None
+    return numerator / denominator
+
+
+def _build_historical_statements(
+    *,
+    revenue_series: Sequence[Tuple[str, float]],
+    eps_series: Sequence[Tuple[str, float]],
+    operating_income_series: Sequence[Tuple[str, float]],
+    gross_profit_series: Sequence[Tuple[str, float]],
+    net_income_series: Sequence[Tuple[str, float]],
+    operating_cash_flow_series: Sequence[Tuple[str, float]],
+    free_cash_flow_series: Sequence[Tuple[str, float]],
+    share_series: Sequence[Tuple[str, float]],
+    cash_series: Sequence[Tuple[str, float]],
+    debt_series: Sequence[Tuple[str, float]],
+    equity_series: Sequence[Tuple[str, float]],
+    current_assets_series: Sequence[Tuple[str, float]],
+    current_liabilities_series: Sequence[Tuple[str, float]],
+    stockdex_data: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    earnings_history = list(stockdex_data.get("earningsHistory") or [])
+    if not earnings_history:
+        return None
+
+    revenue_by_date = _series_to_date_map(revenue_series)
+    eps_by_date = _series_to_date_map(eps_series)
+    operating_income_by_date = _series_to_date_map(operating_income_series)
+    gross_profit_by_date = _series_to_date_map(gross_profit_series)
+    net_income_by_date = _series_to_date_map(net_income_series)
+    shares_by_date = _series_to_date_map(share_series)
+    cash_by_date = _series_to_date_map(cash_series)
+    debt_by_date = _series_to_date_map(debt_series)
+    equity_by_date = _series_to_date_map(equity_series)
+    current_assets_by_date = _series_to_date_map(current_assets_series)
+    current_liabilities_by_date = _series_to_date_map(current_liabilities_series)
+
+    revenue_index = _series_index_map(revenue_series)
+    eps_index = _series_index_map(eps_series)
+    ocf_index = _series_index_map(operating_cash_flow_series)
+    fcf_index = _series_index_map(free_cash_flow_series)
+
+    quarterly_rows: List[Dict[str, Any]] = []
+    seen_period_ends = set()
+
+    for row in earnings_history:
+        if not isinstance(row, dict):
+            continue
+        period = str(row.get("period") or "").strip().upper()
+        available_at = _to_iso_date(row.get("date"))
+        period_end = _quarter_period_end(period)
+        if not period_end or not available_at or period_end in seen_period_ends:
+            continue
+        seen_period_ends.add(period_end)
+
+        revenue_value = revenue_by_date.get(period_end)
+        eps_value = eps_by_date.get(period_end)
+        revenue_idx = revenue_index.get(period_end)
+        eps_idx = eps_index.get(period_end)
+        metrics = {
+            "revenue": _round(revenue_value, 2),
+            "revenueYoYGrowthPct": _round(
+                _pct_change(revenue_value, _series_value(revenue_series, revenue_idx + 4) if revenue_idx is not None else None, min_abs_prior=1.0),
+                1,
+            ),
+            "revenueQoQGrowthPct": _round(
+                _pct_change(revenue_value, _series_value(revenue_series, revenue_idx + 1) if revenue_idx is not None else None, min_abs_prior=1.0),
+                1,
+            ),
+            "eps": _round(eps_value, 4),
+            "epsYoYGrowthPct": _round(
+                _pct_change(eps_value, _series_value(eps_series, eps_idx + 4) if eps_idx is not None else None, min_abs_prior=0.01),
+                1,
+            ),
+            "epsQoQGrowthPct": _round(
+                _pct_change(eps_value, _series_value(eps_series, eps_idx + 1) if eps_idx is not None else None, min_abs_prior=0.01),
+                1,
+            ),
+            "grossMarginPct": _round(_ratio_pct(gross_profit_by_date.get(period_end), revenue_value), 1),
+            "operatingMarginPct": _round(_ratio_pct(operating_income_by_date.get(period_end), revenue_value), 1),
+            "profitMarginPct": _round(_ratio_pct(net_income_by_date.get(period_end), revenue_value), 1),
+            "totalCash": _round(cash_by_date.get(period_end), 2),
+            "totalDebt": _round(debt_by_date.get(period_end), 2),
+            "debtToEquity": _round(_ratio_pct(debt_by_date.get(period_end), equity_by_date.get(period_end)), 2),
+            "currentRatio": _round(_ratio_value(current_assets_by_date.get(period_end), current_liabilities_by_date.get(period_end)), 2),
+            "sharesOutstanding": _round(shares_by_date.get(period_end), 2),
+            "operatingCashFlowTTM": _round(_series_ttm(operating_cash_flow_series, ocf_index, period_end), 2),
+            "freeCashFlowTTM": _round(_series_ttm(free_cash_flow_series, fcf_index, period_end), 2),
+        }
+        filtered_metrics = {key: value for key, value in metrics.items() if value is not None}
+        if not filtered_metrics:
+            continue
+
+        quarterly_rows.append({
+            "period": period,
+            "periodEnd": period_end,
+            "availableAt": available_at,
+            "availabilityBasis": "matched_earnings_history",
+            "metrics": filtered_metrics,
+        })
+
+    if not quarterly_rows:
+        return None
+    return {"quarterly": quarterly_rows}
 
 
 def _pct_change(current: Optional[float], prior: Optional[float], min_abs_prior: float = 0.0) -> Optional[float]:
@@ -1069,12 +1237,29 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
 
     revenue_series = _extract_row_series(quarterly_income, ["Total Revenue", "Operating Revenue"])
     eps_series = _extract_row_series(quarterly_income, ["Diluted EPS", "Basic EPS"])
+    operating_income_series = _extract_row_series(quarterly_income, ["Operating Income", "Operating Income Or Loss"])
+    gross_profit_series = _extract_row_series(quarterly_income, ["Gross Profit"])
+    net_income_series = _extract_row_series(quarterly_income, ["Net Income", "Net Income Common Stockholders"])
     operating_cash_flow_series = _extract_row_series(
         quarterly_cashflow,
         ["Operating Cash Flow", "Cash Flow From Continuing Operating Activities"],
     )
     free_cash_flow_series = _extract_row_series(quarterly_cashflow, ["Free Cash Flow"])
     share_series = _extract_row_series(quarterly_balance, ["Ordinary Shares Number", "Share Issued"])
+    cash_series = _extract_row_series(
+        quarterly_balance,
+        ["Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents"],
+    )
+    debt_series = _extract_row_series(quarterly_balance, ["Total Debt"])
+    equity_series = _extract_row_series(
+        quarterly_balance,
+        ["Stockholders Equity", "Common Stock Equity", "Total Equity Gross Minority Interest"],
+    )
+    current_assets_series = _extract_row_series(quarterly_balance, ["Current Assets", "Total Current Assets"])
+    current_liabilities_series = _extract_row_series(
+        quarterly_balance,
+        ["Current Liabilities", "Total Current Liabilities"],
+    )
     issuance_series = _extract_row_series(quarterly_cashflow, ["Issuance Of Capital Stock"])
 
     revenue_yoy = _pct_change(_series_value(revenue_series, 0), _series_value(revenue_series, 4), min_abs_prior=1.0)
@@ -1143,6 +1328,7 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
     snapshot: Dict[str, Any] = {
         "symbol": symbol.upper(),
         "companyName": _first_text(info.get("longName"), info.get("shortName")),
+        "businessDescription": _first_text(info.get("longBusinessSummary")),
         "sector": _first_text(info.get("sectorDisp"), info.get("sector")),
         "industry": _first_text(info.get("industryDisp"), info.get("industry")),
         "country": _first_text(info.get("country")),
@@ -1208,6 +1394,14 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
         "atmShelfFlag": None,
     }
 
+    sec_overrides = resolve_sec_first_financials(
+        symbol,
+        market_cap=snapshot.get("marketCap"),
+        enterprise_value=snapshot.get("enterpriseValue"),
+    )
+    for field, value in sec_overrides.items():
+        snapshot[field] = value
+
     snapshot["survivabilityScore"] = _score_survivability(
         snapshot.get("cashRunwayQuarters"),
         snapshot.get("freeCashFlowTTM"),
@@ -1248,6 +1442,7 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
     snapshot["positioning"] = None
     snapshot["marketContext"] = None
     snapshot["ownership"] = None
+    snapshot["historicalStatements"] = None
 
     if HAS_STOCKDEX:
         try:
@@ -1268,6 +1463,22 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
                 snapshot["positioningScore"] = snapshot["positioning"].get("score")
             if snapshot["marketContext"]:
                 snapshot["marketContextScore"] = snapshot["marketContext"].get("score")
+            snapshot["historicalStatements"] = _build_historical_statements(
+                revenue_series=revenue_series,
+                eps_series=eps_series,
+                operating_income_series=operating_income_series,
+                gross_profit_series=gross_profit_series,
+                net_income_series=net_income_series,
+                operating_cash_flow_series=operating_cash_flow_series,
+                free_cash_flow_series=free_cash_flow_series,
+                share_series=share_series,
+                cash_series=cash_series,
+                debt_series=debt_series,
+                equity_series=equity_series,
+                current_assets_series=current_assets_series,
+                current_liabilities_series=current_liabilities_series,
+                stockdex_data=stockdex_data,
+            )
         except Exception:
             snapshot["stockdex"] = None
     else:
@@ -1382,18 +1593,116 @@ def _fetch_stockdex(symbol: str) -> Dict[str, Any]:
     return result
 
 
+# ── StockTwits Social Buzz ────────────────────────────────────────────────────
+
+def get_social_buzz(symbol: str) -> Dict[str, Any]:
+    """Fetch social buzz data from StockTwits public API (no auth required)."""
+    import urllib.request
+    import urllib.error
+
+    url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol.upper()}.json"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "PatternDetector/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as exc:
+        return {"symbol": symbol, "error": str(exc), "available": False}
+
+    if raw.get("response", {}).get("status") != 200:
+        return {"symbol": symbol, "error": "Bad response from StockTwits", "available": False}
+
+    sym_info = raw.get("symbol", {})
+    messages = raw.get("messages", [])
+
+    bullish = 0
+    bearish = 0
+    no_sentiment = 0
+    for msg in messages:
+        s = (msg.get("entities") or {}).get("sentiment", {})
+        basic = (s.get("basic") or "").lower() if isinstance(s, dict) else ""
+        if basic == "bullish":
+            bullish += 1
+        elif basic == "bearish":
+            bearish += 1
+        else:
+            no_sentiment += 1
+
+    total_tagged = bullish + bearish
+    bull_pct = round(bullish / total_tagged * 100, 1) if total_tagged > 0 else None
+    bear_pct = round(bearish / total_tagged * 100, 1) if total_tagged > 0 else None
+
+    if total_tagged >= 3:
+        if bull_pct >= 70:
+            mood = "Very Bullish"
+        elif bull_pct >= 55:
+            mood = "Bullish"
+        elif bear_pct >= 70:
+            mood = "Very Bearish"
+        elif bear_pct >= 55:
+            mood = "Bearish"
+        else:
+            mood = "Mixed"
+    elif total_tagged > 0:
+        mood = "Low Activity"
+    else:
+        mood = "No Data"
+
+    recent_messages = []
+    for msg in messages[:5]:
+        s = (msg.get("entities") or {}).get("sentiment", {})
+        basic = s.get("basic") if isinstance(s, dict) else None
+        body = msg.get("body", "")
+        if "&#39;" in body:
+            body = body.replace("&#39;", "'")
+        if "&amp;" in body:
+            body = body.replace("&amp;", "&")
+        recent_messages.append({
+            "body": body[:280],
+            "sentiment": basic,
+            "created_at": msg.get("created_at"),
+            "user": (msg.get("user") or {}).get("username"),
+        })
+
+    return {
+        "symbol": symbol.upper(),
+        "available": True,
+        "watchlist_count": sym_info.get("watchlist_count"),
+        "title": sym_info.get("title"),
+        "message_count": len(messages),
+        "bullish": bullish,
+        "bearish": bearish,
+        "no_sentiment": no_sentiment,
+        "bull_pct": bull_pct,
+        "bear_pct": bear_pct,
+        "mood": mood,
+        "recent_messages": recent_messages,
+    }
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No symbol provided"}))
         sys.exit(1)
 
-    symbol = str(sys.argv[1] or "").strip().upper()
-    if not symbol:
-        print(json.dumps({"error": "No symbol provided"}))
-        sys.exit(1)
+    cmd = str(sys.argv[1] or "").strip()
 
-    try:
-        print(json.dumps(get_fundamentals(symbol)))
-    except Exception as exc:
-        print(json.dumps({"error": str(exc)}))
-        sys.exit(1)
+    if cmd == "--buzz" and len(sys.argv) >= 3:
+        symbol = str(sys.argv[2] or "").strip().upper()
+        if not symbol:
+            print(json.dumps({"error": "No symbol provided"}))
+            sys.exit(1)
+        try:
+            print(json.dumps(get_social_buzz(symbol)))
+        except Exception as exc:
+            print(json.dumps({"error": str(exc)}))
+            sys.exit(1)
+    else:
+        symbol = cmd.upper()
+        if not symbol:
+            print(json.dumps({"error": "No symbol provided"}))
+            sys.exit(1)
+        try:
+            print(json.dumps(get_fundamentals(symbol)))
+        except Exception as exc:
+            print(json.dumps({"error": str(exc)}))
+            sys.exit(1)

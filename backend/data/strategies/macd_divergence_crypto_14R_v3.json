@@ -1,7 +1,7 @@
 {
   "strategy_id": "macd_divergence_crypto_14R",
-  "name": "MACD Divergence Pullback — Crypto — ATR 2x Stop, 7R TP, Max 3",
-  "description": "Crypto variant: MACD divergence pullback with regime filter. Testing 14R take profit on crypto pairs.",
+  "name": "MACD Divergence Pullback - Crypto v3",
+  "description": "ATR 2x stop, 7R TP, max 3 concurrent. Crypto variant: MACD divergence pullback with regime filter. Testing 14R take profit on crypto pairs.",
   "status": "rejected",
   "asset_class": "crypto",
   "interval": "1d",
@@ -108,96 +108,6 @@
         "neutral",
         "contraction"
       ],
-      "priority": 60,
-      "failure_modes_targeted": [
-        "high_drawdown"
-      ]
-    },
-    {
-      "key": "atr_multiplier",
-      "label": "ATR Multiplier",
-      "path": "risk_config.atr_multiplier",
-      "anatomy": "stop_loss",
-      "type": "float",
-      "identity_preserving": true,
-      "sweep_enabled": true,
-      "sensitivity_enabled": true,
-      "suggested_values": [
-        0.75,
-        1,
-        1.25
-      ],
-      "min": 0.75,
-      "max": 3,
-      "step": 0.25,
-      "priority": 95,
-      "failure_modes_targeted": [
-        "high_drawdown"
-      ]
-    },
-    {
-      "key": "take_profit_R",
-      "label": "Take Profit R",
-      "path": "risk_config.take_profit_R",
-      "anatomy": "take_profit",
-      "type": "float",
-      "identity_preserving": true,
-      "sweep_enabled": true,
-      "sensitivity_enabled": true,
-      "suggested_values": [
-        1.5,
-        2,
-        2.5
-      ],
-      "min": 1.5,
-      "max": 14,
-      "step": 0.5,
-      "priority": 95,
-      "failure_modes_targeted": [
-        "high_drawdown",
-        "high_sensitivity"
-      ]
-    },
-    {
-      "key": "max_hold_bars",
-      "label": "Max Hold Bars",
-      "path": "risk_config.max_hold_bars",
-      "anatomy": "take_profit",
-      "type": "int",
-      "identity_preserving": true,
-      "sweep_enabled": true,
-      "sensitivity_enabled": true,
-      "suggested_values": [
-        13,
-        14,
-        15
-      ],
-      "min": 13,
-      "max": 90,
-      "step": 1,
-      "priority": 85,
-      "failure_modes_targeted": [
-        "high_drawdown",
-        "high_sensitivity"
-      ]
-    },
-    {
-      "key": "max_concurrent_positions",
-      "label": "Max Concurrent Positions",
-      "path": "risk_config.max_concurrent_positions",
-      "anatomy": "risk_controls",
-      "type": "int",
-      "identity_preserving": true,
-      "sweep_enabled": true,
-      "sensitivity_enabled": true,
-      "suggested_values": [
-        1,
-        2,
-        3
-      ],
-      "min": 1,
-      "max": 20,
-      "step": 1,
       "priority": 60,
       "failure_modes_targeted": [
         "high_drawdown"

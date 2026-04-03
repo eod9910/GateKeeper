@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page-id="validator">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Validator â€” Pattern Detector</title>
+  <title>Validator - Pattern Detector</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,15 +13,46 @@
     /* Validator-specific layout */
     .validator-layout {
       display: grid;
-      grid-template-columns: 260px 1fr;
-      gap: var(--space-16);
+      grid-template-columns: 260px 8px 1fr;
+      gap: 0;
+      column-gap: 0;
       height: 100%;
       overflow: hidden;
       align-items: stretch;
-      transition: grid-template-columns 0.2s ease;
+      transition: none;
+    }
+    .validator-layout > .strategy-panel {
+      margin-right: var(--space-8);
+    }
+    .validator-layout > .report-panel {
+      margin-left: var(--space-8);
     }
     .validator-layout.strategy-collapsed {
-      grid-template-columns: 36px 1fr;
+      grid-template-columns: 36px 8px 1fr;
+    }
+    .sidebar-resize-handle {
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      background: transparent;
+      position: relative;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+    .sidebar-resize-handle::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: transparent;
+      transition: background 0.15s;
+      border-radius: 2px;
+    }
+    .sidebar-resize-handle:hover::after,
+    .sidebar-resize-handle.dragging::after {
+      background: var(--color-border);
     }
 
     /* Strategy list panel */
@@ -133,6 +164,34 @@
       letter-spacing: 0.1em;
       font-weight: 600;
     }
+    .strategy-group-toggle {
+      width: 100%;
+      border: none;
+      background: none;
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+    .strategy-group-toggle:hover {
+      color: var(--color-text);
+    }
+    .strategy-bucket.sweep-winner .strategy-group-label {
+      color: var(--color-positive);
+    }
+    .strategy-bucket.sweep-winner .strategy-item {
+      border-left-color: color-mix(in srgb, var(--color-positive) 30%, transparent);
+    }
+    .strategy-group-caret {
+      width: 10px;
+      flex-shrink: 0;
+      font-size: 0.75rem;
+    }
+    .strategy-group-items.collapsed {
+      display: none;
+    }
     .strategy-item {
       padding: var(--space-8) var(--space-16);
       cursor: pointer;
@@ -164,6 +223,26 @@
       font-size: var(--text-caption);
       color: var(--color-text-subtle);
       margin-top: 2px;
+    }
+    .strategy-delete-btn {
+      opacity: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--color-text-subtle);
+      font-size: 11px;
+      padding: 2px 5px;
+      border-radius: var(--radius-sm);
+      line-height: 1;
+      transition: opacity 0.1s, background 0.1s, color 0.1s;
+      flex-shrink: 0;
+    }
+    .strategy-item:hover .strategy-delete-btn {
+      opacity: 1;
+    }
+    .strategy-delete-btn:hover {
+      background: color-mix(in srgb, var(--color-negative) 15%, transparent);
+      color: var(--color-negative);
     }
 
     /* Status badges */
@@ -232,6 +311,19 @@
       color: var(--color-accent);
       background: rgba(93, 122, 146, 0.12);
       border: 1px solid rgba(93, 122, 146, 0.28);
+    }
+    .active-strategy-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      font-family: var(--font-mono);
+      color: var(--color-positive);
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.4);
     }
 
     /* Report panel */
@@ -693,7 +785,7 @@
       gap: var(--space-8);
     }
 
-    /* â”€â”€ Trade Browser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Trade Browser Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
     .trade-browser {
       display: none;
       flex-direction: column;
@@ -1010,40 +1102,41 @@
   <div class="app">
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-header">
-        <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
           <span class="logo-mark">PD</span>
           <span class="sidebar-label-text">Pattern Detector</span>
         </a>
         <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
       </div>
       <nav class="sidebar-nav">
-        <a href="index.html" class="sidebar-nav-item">
+        <a href="/scanner" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Scanner</span>
         </a>
-        <a href="copilot.html" class="sidebar-nav-item">
+        <a href="/trading-desk" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Trading Desk</span>
         </a>
-        <a href="history.html" class="sidebar-nav-item">
+        <a href="/position-book" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Position Book</span>
         </a>
-        <a href="validator.html" class="sidebar-nav-item active" aria-current="page">
+        <a href="/validator" class="sidebar-nav-item active" aria-current="page">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Validator</span>
         </a>
-        <a href="workshop.html" class="sidebar-nav-item">
+        <a href="/indicator-studio" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Indicator Studio</span>
         </a>
-        <a href="research.html" class="sidebar-nav-item">
+        <a href="/research-studio" class="sidebar-nav-item">
           <span class="nav-dot"></span>
-          <span class="sidebar-label-text">Research Agent</span>
+          <span class="sidebar-label-text">Research Studio</span>
         </a>
-        <a href="sweep.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
-        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
-        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+        <a href="/parameter-sweep" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
       </nav>
     </aside>
     
@@ -1098,6 +1191,9 @@
             </div>
           </div>
 
+          <!-- RESIZE HANDLE -->
+          <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
+
           <!-- RIGHT: Reports + Detail -->
           <div class="report-panel">
             <div class="report-body">
@@ -1115,7 +1211,7 @@
                 <!-- Top nav bar -->
                 <div class="tb-top-bar">
                   <button class="tb-nav-btn" id="tb-prev" onclick="tbPrev()" title="Previous trade">&#8592;</button>
-                  <span class="tb-counter" id="tb-counter">â€” / â€”</span>
+                  <span class="tb-counter" id="tb-counter">Ã¢â‚¬â€ / Ã¢â‚¬â€</span>
                   <button class="tb-nav-btn" id="tb-next" onclick="tbNext()" title="Next trade">&#8594;</button>
 
                   <div class="tb-filter-group">
@@ -1125,8 +1221,8 @@
                   </div>
 
                   <div class="tb-trade-badge">
-                    <span class="tb-symbol" id="tb-symbol">â€”</span>
-                    <span class="tb-r-badge" id="tb-r-badge">â€”</span>
+                    <span class="tb-symbol" id="tb-symbol">Ã¢â‚¬â€</span>
+                    <span class="tb-r-badge" id="tb-r-badge">Ã¢â‚¬â€</span>
                     <span class="tb-detail-strip" id="tb-detail-strip"></span>
                   </div>
 
@@ -1154,11 +1250,11 @@
                     </div>
                   </div>
                   <div class="tb-stats-strip" id="tb-stats-strip">
-                    <div class="tb-stat"><div class="tb-stat-label">Entry</div><div class="tb-stat-value" id="tb-stat-entry">â€”</div></div>
-                    <div class="tb-stat"><div class="tb-stat-label">Stop</div><div class="tb-stat-value loss" id="tb-stat-stop">â€”</div></div>
-                    <div class="tb-stat"><div class="tb-stat-label">Exit</div><div class="tb-stat-value" id="tb-stat-exit">â€”</div></div>
-                    <div class="tb-stat"><div class="tb-stat-label">Exit Reason</div><div class="tb-stat-value" id="tb-stat-reason">â€”</div></div>
-                    <div class="tb-stat"><div class="tb-stat-label">P&L (R)</div><div class="tb-stat-value" id="tb-stat-r">â€”</div></div>
+                    <div class="tb-stat"><div class="tb-stat-label">Entry</div><div class="tb-stat-value" id="tb-stat-entry">Ã¢â‚¬â€</div></div>
+                    <div class="tb-stat"><div class="tb-stat-label">Stop</div><div class="tb-stat-value loss" id="tb-stat-stop">Ã¢â‚¬â€</div></div>
+                    <div class="tb-stat"><div class="tb-stat-label">Exit</div><div class="tb-stat-value" id="tb-stat-exit">Ã¢â‚¬â€</div></div>
+                    <div class="tb-stat"><div class="tb-stat-label">Exit Reason</div><div class="tb-stat-value" id="tb-stat-reason">Ã¢â‚¬â€</div></div>
+                    <div class="tb-stat"><div class="tb-stat-label">P&L (R)</div><div class="tb-stat-value" id="tb-stat-r">Ã¢â‚¬â€</div></div>
                   </div>
                 </div>
 
@@ -1178,6 +1274,7 @@
                   <button class="cc-toggle-btn" onclick="toggleChatPanel()" id="chat-toggle-btn" title="Collapse analysis panel">&#8250;</button>
                   <span class="panel-label-row">Analysis</span>
                   <span id="validator-chat-status" class="panel-status-span">Ready</span>
+                  <button class="cc-popout-btn" onclick="popoutChatPanel({panelId:'chat-panel',title:'Validator Analysis',statusId:'validator-chat-status',messagesId:'validator-chat-messages',inputId:'validator-chat-input',sendFn:'sendValidatorChat',actions:[{label:'Why did this fail?',prefill:'Why did this fail?'},{label:'How to improve?',prefill:'How should I improve this?'},{label:'Suggest params',prefill:'Suggest parameter changes'}]})" title="Pop out to separate window">&#8599;</button>
                   <span class="panel-vert-label" onclick="toggleChatPanel()">Analysis</span>
                 </div>
                 <div id="validator-chat-messages" class="validator-chat-messages"></div>
@@ -1243,10 +1340,26 @@
           <div class="modal-section">
             <label class="modal-label">Validation Tier</label>
             <select id="run-validation-tier" class="input-field" onchange="updateRunTierDescription()">
-              <option value="tier1">Tier 1 - Kill Test</option>
-              <option value="tier1b">Tier 1B - Evidence Expansion</option>
-              <option value="tier2">Tier 2 - Core Validation</option>
-              <option value="tier3">Tier 3 - Robustness</option>
+              <optgroup label="Validation Ladder">
+                <option value="tier1">Tier 1 - Kill Test</option>
+                <option value="tier1s">Tier 1S - Kill Test + Sensitivity</option>
+                <option value="tier1b">Tier 1B - Evidence Expansion</option>
+                <option value="tier1bs">Tier 1BS - Evidence Expansion + Sensitivity</option>
+                <option value="tier2">Tier 2 - Core Validation</option>
+                <option value="tier3">Tier 3 - Robustness</option>
+              </optgroup>
+              <optgroup label="Benchmark Universes">
+                <option value="large_cap_known">Large Cap (Known) - 76 Stocks</option>
+                <option value="sp500">S&amp;P 500 — ~406 Large Cap Stocks</option>
+                <option value="sp400">S&amp;P 400 — ~341 Mid Cap Stocks</option>
+                <option value="sp600">S&amp;P 600 — ~474 Small Cap Stocks</option>
+              </optgroup>
+              <optgroup label="Regime Universes (run build_regime_universes.py first)">
+                <option value="regime_expansion">Regime: Expansion (above 200MA, momentum up)</option>
+                <option value="regime_distribution">Regime: Distribution (above 200MA, fading)</option>
+                <option value="regime_accumulation">Regime: Accumulation (below 200MA, recovering)</option>
+                <option value="regime_markdown">Regime: Markdown (below 200MA, declining)</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -1359,5 +1472,62 @@
   <script src="validator.js"></script>
   <script src="chart-indicators.js"></script>
   <script src="validator-trade-browser.js"></script>
+  <script>
+    (function () {
+      const STORAGE_KEY = 'validator_sidebar_width';
+      const MIN_WIDTH = 160;
+      const MAX_WIDTH = 600;
+
+      const layout = document.querySelector('.validator-layout');
+      const handle = document.getElementById('sidebar-resize-handle');
+      if (!layout || !handle) return;
+
+      function getSavedWidth() {
+        const v = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+        return (!isNaN(v) && v >= MIN_WIDTH && v <= MAX_WIDTH) ? v : 260;
+      }
+
+      function applyWidth(w) {
+        const collapsed = layout.classList.contains('strategy-collapsed');
+        if (!collapsed) {
+          layout.style.gridTemplateColumns = `${w}px 8px 1fr`;
+        }
+        localStorage.setItem(STORAGE_KEY, w);
+      }
+
+      applyWidth(getSavedWidth());
+
+      let dragging = false;
+      let startX = 0;
+      let startWidth = 0;
+
+      handle.addEventListener('mousedown', (e) => {
+        if (layout.classList.contains('strategy-collapsed')) return;
+        dragging = true;
+        startX = e.clientX;
+        startWidth = parseInt(layout.style.gridTemplateColumns, 10) || getSavedWidth();
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const delta = e.clientX - startX;
+        const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+        applyWidth(newWidth);
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      });
+    })();
+  </script>
+  <script src="voice-input.js"></script>
 </body>
 </html>

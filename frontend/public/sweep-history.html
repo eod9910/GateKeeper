@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en" data-page-id="sweep-history">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sweep History — Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .history-layout {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+      padding: var(--space-20);
+      overflow-y: auto;
+      height: 100%;
+    }
+    .history-toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+      flex-wrap: wrap;
+    }
+    .history-search {
+      flex: 1;
+      min-width: 180px;
+      max-width: 320px;
+    }
+    .strategy-group {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .strategy-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-10) var(--space-14);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      cursor: pointer;
+      user-select: none;
+      gap: var(--space-8);
+    }
+    .strategy-group-header:hover { background: var(--color-surface-raised); }
+    .strategy-group-name {
+      font-size: var(--text-small);
+      font-weight: 600;
+      color: var(--color-text);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .strategy-group-meta {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+    .strategy-group-body { display: block; }
+    .strategy-group-body.collapsed { display: none; }
+    .sweep-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      gap: var(--space-12);
+      padding: var(--space-10) var(--space-14);
+      border-bottom: 1px solid var(--color-border);
+      font-size: var(--text-caption);
+      transition: background 0.1s;
+    }
+    .sweep-row:last-child { border-bottom: none; }
+    .sweep-row:hover { background: var(--color-surface); }
+    .sweep-row-info {}
+    .sweep-row-param {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+    .sweep-row-winner {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-positive);
+      white-space: nowrap;
+    }
+    .sweep-row-date {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-subtle);
+      white-space: nowrap;
+    }
+    .sweep-row-actions {
+      display: flex;
+      gap: var(--space-6);
+      align-items: center;
+    }
+    .tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 1px 6px;
+      border-radius: 3px;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      background: var(--color-surface);
+    }
+    .tag.completed { border-color: var(--color-positive); color: var(--color-positive); }
+    .tag.running { border-color: var(--color-accent); color: var(--color-accent); }
+    .tag.failed { border-color: var(--color-negative); color: var(--color-negative); }
+    .empty-state {
+      text-align: center;
+      padding: var(--space-48) var(--space-24);
+      color: var(--color-text-muted);
+    }
+    .empty-state-title { font-size: var(--text-h3); font-weight: 600; margin-bottom: var(--space-8); }
+    .empty-state-sub { font-size: var(--text-small); }
+    #loading-indicator {
+      text-align: center;
+      padding: var(--space-32);
+      color: var(--color-text-muted);
+      font-size: var(--text-small);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="/position-book" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="/validator" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="/indicator-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="/research-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Studio</span></a>
+        <a href="/parameter-sweep" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item active" aria-current="page"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+      </nav>
+    </aside>
+
+    <div class="app-main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Sweep History</h1>
+          <p class="page-subtitle">All parameter sweep sessions, grouped by strategy.</p>
+        </div>
+        <div style="display:flex;gap:var(--space-8);">
+          <a href="/parameter-sweep" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+            New Sweep
+          </a>
+        </div>
+      </div>
+
+      <div class="history-layout">
+        <div class="history-toolbar">
+          <input id="search-input" type="text" class="form-input history-search" placeholder="Search strategies or parameters…" oninput="filterHistory()">
+          <select id="status-filter" class="form-select" style="width:auto;" onchange="filterHistory()">
+            <option value="">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="running">Running</option>
+            <option value="failed">Failed</option>
+          </select>
+          <div id="sweep-count" style="font-size:var(--text-caption);color:var(--color-text-muted);margin-left:auto;"></div>
+        </div>
+
+        <div id="loading-indicator">Loading sweep history…</div>
+        <div id="history-content" style="display:none;display:flex;flex-direction:column;gap:var(--space-12);"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+
+    function escHtml(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function fixEncoding(s) {
+      if (typeof s !== 'string') return s;
+      // Detect Windows-1252 misread UTF-8 (e.g. em-dash stored as â€")
+      if (!/[\xC0-\xC3\xE2]/.test(s)) return s;
+      try {
+        const bytes = new Uint8Array(s.length);
+        for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
+        const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        return decoded;
+      } catch { return s; }
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatValues(values) {
+      if (!Array.isArray(values) || values.length === 0) return '—';
+      if (values.length <= 5) return values.join(', ');
+      return `${values.slice(0, 4).join(', ')} +${values.length - 4} more`;
+    }
+
+    let allGroups = [];
+
+    async function loadHistory() {
+      try {
+        // Load all sweeps and all strategies in parallel
+        const [sweepsRes, strategiesRes] = await Promise.all([
+          fetch(`${API}/api/sweep/`),
+          fetch(`${API}/api/validator/strategies`),
+        ]);
+        const sweepsData = await sweepsRes.json();
+        const strategiesData = await strategiesRes.json();
+
+        const strategyMap = new Map();
+        (strategiesData.data || []).forEach(s => {
+          if (s.strategy_version_id) strategyMap.set(s.strategy_version_id, s);
+        });
+
+        const sweeps = (sweepsData.data || []).sort((a, b) =>
+          new Date(b.created_at || 0) - new Date(a.created_at || 0)
+        );
+
+        // Group by base strategy
+        const groupMap = new Map();
+        sweeps.forEach(sweep => {
+          const baseId = sweep.base_strategy_version_id || sweep.promoted_strategy_version_id || 'unknown';
+          if (!groupMap.has(baseId)) groupMap.set(baseId, { baseId, sweeps: [] });
+          groupMap.get(baseId).sweeps.push(sweep);
+        });
+
+        allGroups = Array.from(groupMap.values()).map(g => {
+          const spec = strategyMap.get(g.baseId);
+          const name = fixEncoding(spec?.name || g.baseId);
+          return { ...g, name, spec };
+        }).sort((a, b) => {
+          const aDate = new Date(a.sweeps[0]?.created_at || 0);
+          const bDate = new Date(b.sweeps[0]?.created_at || 0);
+          return bDate - aDate;
+        });
+
+        document.getElementById('loading-indicator').style.display = 'none';
+        document.getElementById('history-content').style.display = 'flex';
+        renderHistory(allGroups);
+      } catch (e) {
+        document.getElementById('loading-indicator').textContent = 'Failed to load sweep history.';
+        console.error(e);
+      }
+    }
+
+    function renderHistory(groups) {
+      const container = document.getElementById('history-content');
+      const totalSweeps = groups.reduce((n, g) => n + g.sweeps.length, 0);
+      document.getElementById('sweep-count').textContent =
+        `${groups.length} strateg${groups.length === 1 ? 'y' : 'ies'} · ${totalSweeps} sweep${totalSweeps === 1 ? '' : 's'}`;
+
+      if (groups.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-title">No sweeps yet</div>
+            <div class="empty-state-sub">Run your first parameter sweep to see results here.</div>
+            <a href="/parameter-sweep" class="btn btn-primary" style="margin-top:var(--space-16);display:inline-flex;align-items:center;gap:6px;">Go to Parameter Sweep</a>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = groups.map((g, gi) => {
+        const rows = g.sweeps.map(sweep => {
+          const param = sweep.sweep_params?.[0] || {};
+          const paramLabel = param.label || param.param_path || '—';
+          const values = formatValues(param.values || []);
+          const winnerVal = sweep.winner?.param_value ?? null;
+          const winnerExp = sweep.winner?.expectancy != null
+            ? `${sweep.winner.expectancy > 0 ? '+' : ''}${Number(sweep.winner.expectancy).toFixed(2)}R`
+            : null;
+          const status = sweep.status || 'unknown';
+          const completedCount = (sweep.variants || []).filter(v => v.status === 'completed').length;
+          const totalCount = (sweep.variants || []).length;
+          const promotedId = sweep.promoted_strategy_version_id;
+
+          return `
+            <div class="sweep-row">
+              <div class="sweep-row-info">
+                <div style="font-size:var(--text-caption);color:var(--color-text);">${escHtml(paramLabel)}</div>
+                <div class="sweep-row-param">Values: ${escHtml(values)}</div>
+                ${winnerVal != null ? `<div class="sweep-row-param" style="color:var(--color-positive);">Winner: ${escHtml(String(winnerVal))}${winnerExp ? ` · ${escHtml(winnerExp)}` : ''}</div>` : ''}
+              </div>
+              <div class="sweep-row-date">${formatDate(sweep.created_at)}<br><span style="color:var(--color-text-subtle);">${escHtml(String(completedCount))}/${escHtml(String(totalCount))} variants</span></div>
+              <div><span class="tag ${escHtml(status)}">${escHtml(status)}</span></div>
+              <div class="sweep-row-actions">
+                <a href="/parameter-sweep?sweep=${encodeURIComponent(sweep.sweep_id)}" class="btn btn-sm" title="Open this sweep in Parameter Sweep">Open</a>
+                ${promotedId ? `<a href="/validator?strategy_version_id=${encodeURIComponent(promotedId)}" class="btn btn-sm" title="Open winner in Validator">Validate</a>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+
+        const interval = g.spec?.interval || '';
+        const meta = [interval, `${g.sweeps.length} sweep${g.sweeps.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+
+        return `
+          <div class="strategy-group" data-group="${gi}">
+            <div class="strategy-group-header" onclick="toggleGroup(${gi})">
+              <div class="strategy-group-name" title="${escHtml(g.name)}">${escHtml(g.name)}</div>
+              <div class="strategy-group-meta">${escHtml(meta)}</div>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;transition:transform 0.15s;transform:rotate(-90deg);" class="group-chevron"><path d="M4 6l4 4 4-4"/></svg>
+            </div>
+            <div class="strategy-group-body collapsed" id="group-body-${gi}">${rows}</div>
+          </div>`;
+      }).join('');
+    }
+
+    function toggleGroup(gi) {
+      const body = document.getElementById(`group-body-${gi}`);
+      const chevron = document.querySelector(`[data-group="${gi}"] .group-chevron`);
+      if (!body) return;
+      const nowCollapsed = body.classList.toggle('collapsed');
+      if (chevron) chevron.style.transform = nowCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+    }
+
+    function filterHistory() {
+      const query = document.getElementById('search-input').value.toLowerCase();
+      const statusFilter = document.getElementById('status-filter').value;
+
+      const filtered = allGroups
+        .map(g => {
+          const nameMatch = g.name.toLowerCase().includes(query);
+          const filteredSweeps = g.sweeps.filter(s => {
+            const paramMatch = (s.sweep_params?.[0]?.label || '').toLowerCase().includes(query);
+            const statusMatch = !statusFilter || s.status === statusFilter;
+            return (nameMatch || paramMatch) && statusMatch;
+          });
+          return filteredSweeps.length > 0 ? { ...g, sweeps: filteredSweeps } : null;
+        })
+        .filter(Boolean);
+
+      renderHistory(filtered);
+    }
+
+    // Sidebar toggle (shared behaviour)
+    document.addEventListener('DOMContentLoaded', () => {
+      const sidebar = document.getElementById('sidebar');
+      const toggle = document.querySelector('.sidebar-toggle');
+      if (toggle && sidebar) {
+        toggle.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
+      }
+      loadHistory();
+    });
+  </script>
+</body>
+</html>

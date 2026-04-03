@@ -1,0 +1,133 @@
+{
+  "strategy_id": "lth_continuation_test",
+  "strategy_version_id": "lth_continuation_test_v1",
+  "version": 1,
+  "name": "LTH Continuation Test v1",
+  "description": "Structure-only diagnostic baseline for the LTH continuation family. This isolates the structural_family_signal stage for LTH|CONTINUATION_UP|HH_ONLY|DEEP_DOM so we can test whether the family itself has standalone edge before adding Fib location or RSI timing filters.",
+  "status": "rejected",
+  "asset_class": "stocks",
+  "interval": "1d",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "setup_config": {
+    "pattern_type": "lth_continuation_test",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "structure",
+          "pattern_id": "structural_family_signal",
+          "params": {
+            "allowed_families": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+            "reversal_multiple_atr": 2,
+            "min_bars_between_pivots": 3,
+            "equal_band_atr": 0.25
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "structure"
+        ]
+      }
+    }
+  },
+  "entry_config": {
+    "entry_type": "market_on_close"
+  },
+  "risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 1.5,
+    "take_profit_R": 1.5,
+    "max_hold_bars": 20,
+    "max_concurrent_positions": 2
+  },
+  "exit_config": {
+    "target_type": "R_multiple",
+    "target_level": 1.5,
+    "time_stop_bars": 20,
+    "trailing": null
+  },
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {
+    "auto_breakeven_r": 1,
+    "production_lock": true
+  },
+  "created_at": "2026-03-20T00:00:00.000Z",
+  "updated_at": "2026-03-20T02:43:00.694Z",
+  "_diagnostic_notes": {
+    "derived_from": "lth_continuation_composite_v1_stateful",
+    "purpose": "Structure-only validation baseline",
+    "what_is_removed": [
+      "fib_location_primitive",
+      "rsi_primitive",
+      "state_machine"
+    ],
+    "expected_use": "Run Tier 1 first. If structure-only has no edge, the family itself is weak. If structure-only is alive, then the issue is in downstream filtering or risk shaping."
+  },
+  "parameter_manifest": [
+    {
+      "key": "structure_reversal_multiple_atr",
+      "label": "ATR Reversal Multiple",
+      "path": "setup_config.composite_spec.stages.0.params.reversal_multiple_atr",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.5,
+        1.5,
+        2,
+        3,
+        4
+      ],
+      "min": 0.5,
+      "max": 5
+    },
+    {
+      "key": "structure_min_bars_between_pivots",
+      "label": "Min Bars Between Pivots",
+      "path": "setup_config.composite_spec.stages.0.params.min_bars_between_pivots",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        1,
+        3,
+        5,
+        8
+      ],
+      "min": 1,
+      "max": 20
+    },
+    {
+      "key": "structure_equal_band_atr",
+      "label": "Equal Band ATR",
+      "path": "setup_config.composite_spec.stages.0.params.equal_band_atr",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.1,
+        0.25,
+        0.5,
+        0.75
+      ],
+      "min": 0.05,
+      "max": 1
+    }
+  ],
+  "spec_hash": "c4a0cc961baee60d67ca0d82864900c62bf9bc82d3677e8a4d81491d965340ba"
+}

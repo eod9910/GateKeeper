@@ -273,10 +273,12 @@ function _setUniverseActionState({ running = false, built = false } = {}) {
   const buildBtn = document.getElementById('btn-build-universe');
   const updateBtn = document.getElementById('btn-update-universe');
   const rebuildBtn = document.getElementById('btn-rebuild-optionable');
+  const regimeBtn = document.getElementById('btn-classify-regimes');
   const cancelBtn = document.getElementById('btn-cancel-universe-job');
   if (buildBtn) buildBtn.disabled = running;
   if (updateBtn) updateBtn.disabled = running || !built;
   if (rebuildBtn) rebuildBtn.disabled = running || !built;
+  if (regimeBtn) regimeBtn.disabled = running;
   if (cancelBtn) {
     cancelBtn.style.display = running ? '' : 'none';
     cancelBtn.disabled = !running;
@@ -470,7 +472,7 @@ async function universeRefreshStatus() {
         ? `<span style="color:var(--color-warning);margin-left:8px;">${String.fromCharCode(9888)} Optionable subset incomplete (${Number(d.optionable_unclassified_count || 0).toLocaleString()} unclassified)</span>`
         : '';
       const activeNote = running
-        ? `<span style="color:var(--color-accent);margin-left:8px;">${d.active_job.type === 'update' ? 'Update' : d.active_job.type === 'rebuild_optionable' ? 'Optionable rebuild' : 'Build'} running</span>`
+        ? `<span style="color:var(--color-accent);margin-left:8px;">${d.active_job.type === 'update' ? 'Update' : d.active_job.type === 'rebuild_optionable' ? 'Optionable rebuild' : d.active_job.type === 'classify_regimes' ? 'Regime classification' : 'Build'} running</span>`
         : '';
       const sourceCount = Number(d.source_symbol_count || d.symbol_count || 0).toLocaleString();
       const downloadedCount = Number(d.downloaded_symbol_count || d.symbol_count || 0).toLocaleString();
@@ -488,8 +490,58 @@ async function universeRefreshStatus() {
       _hideUniverseProgress();
       _universeStopPolling();
     }
+
+    // Refresh regime snapshot card (non-blocking)
+    _loadRegimeSnapshot();
   } catch (err) {
     if (bar) bar.textContent = `Status unavailable: ${err.message}`;
+  }
+}
+
+async function _loadRegimeSnapshot() {
+  const card = document.getElementById('regime-snapshot-card');
+  const barsEl = document.getElementById('regime-snapshot-bars');
+  const ageEl = document.getElementById('regime-snapshot-age');
+  if (!card || !barsEl || !ageEl) return;
+  try {
+    const res = await fetch(`${API_URL}/api/universe/regime-snapshot`);
+    const json = await res.json();
+    if (!json.success || !json.data) { card.style.display = 'none'; return; }
+    const snap = json.data;
+    card.style.display = '';
+
+    // Age label
+    if (snap.generated_at) {
+      const age = Date.now() - new Date(snap.generated_at).getTime();
+      const hours = Math.floor(age / 3600000);
+      const days = Math.floor(hours / 24);
+      ageEl.textContent = days >= 1 ? `${days}d ago` : hours >= 1 ? `${hours}h ago` : 'Just now';
+    }
+
+    // Regime bars
+    const REGIME_COLORS = {
+      expansion:    'var(--color-success, #22c55e)',
+      distribution: 'var(--color-warning, #f59e0b)',
+      accumulation: 'var(--color-accent, #4f8ef7)',
+      markdown:     'var(--color-negative, #ef4444)',
+      unknown:      'var(--color-text-subtle, #666)',
+    };
+    const summary = snap.summary || {};
+    const total = Object.values(summary).reduce((a, b) => a + b, 0) || 1;
+    const order = ['expansion', 'distribution', 'accumulation', 'markdown', 'unknown'];
+    barsEl.innerHTML = order.filter(r => summary[r]).map(regime => {
+      const count = summary[regime] || 0;
+      const pct = ((count / total) * 100).toFixed(1);
+      const color = REGIME_COLORS[regime] || 'var(--color-text-subtle)';
+      return `
+        <div style="flex:1;min-width:80px;background:var(--color-surface);border-radius:var(--radius-sm);padding:8px 10px;border-left:3px solid ${color};">
+          <div style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">${regime}</div>
+          <div style="font-size:var(--text-small);font-weight:600;color:${color};">${count.toLocaleString()}</div>
+          <div style="font-size:10px;color:var(--color-text-subtle);">${pct}%</div>
+        </div>`;
+    }).join('');
+  } catch {
+    if (card) card.style.display = 'none';
   }
 }
 
@@ -611,6 +663,42 @@ async function universeRebuildOptionable() {
   }
 }
 
+async function universeClassifyRegimes() {
+  _setUniverseActionState({ running: true, built: true });
+  _universeShowProgress({
+    type: 'classify_regimes',
+    status: 'running',
+    stage: 'classifying',
+    started_at: new Date().toISOString(),
+    elapsed_seconds: 0,
+    progress: 0,
+    progress_label: 'Classifying stocks by market regime...',
+    source: 'local_csv',
+    source_label: 'Local CSV cache',
+    interval: '1d',
+    workers: 1,
+    metrics: {},
+    log_tail: [],
+  });
+
+  try {
+    const res = await fetch(`${API_URL}/api/universe/classify-regimes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ interval: '1d' }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    if (json.data?.job) _universeShowProgress(json.data.job);
+    _universeStartPolling();
+    // Refresh regime snapshot card when done (polling will call universeRefreshStatus)
+  } catch (err) {
+    alert('Failed to start regime classification: ' + err.message);
+    _setUniverseActionState({ running: false, built: true });
+    universeRefreshStatus();
+  }
+}
+
 async function universeCancelJob() {
   const confirmed = confirm('Cancel the active universe job?');
   if (!confirmed) return;
@@ -692,32 +780,22 @@ function buildSavedScanCandidate(candidate) {
   if (!candidate) return null;
   const key = getSavedScanResultKey(candidate);
   if (!key) return null;
-  return {
-    id: candidate.id || candidate.candidate_id || key,
-    candidate_id: candidate.candidate_id || candidate.id || key,
-    _saved_scan_key: key,
-    __savedScanStub: true,
-    _plugin_id: candidate._plugin_id || candidate.pattern_type || '',
-    symbol: String(candidate.symbol || '').trim().toUpperCase(),
-    pattern_type: candidate.pattern_type || '',
-    timeframe: candidate.timeframe || '',
-    interval: candidate.interval || '',
-    period: candidate.period || '',
-    score: candidate.score ?? null,
-    ml_confidence: candidate.ml_confidence ?? null,
-    entry_ready: candidate.entry_ready ?? null,
-    candidate_role: candidate.candidate_role || null,
-    candidate_role_label: candidate.candidate_role_label || null,
-    candidate_actionability: candidate.candidate_actionability || null,
-    candidate_actionability_label: candidate.candidate_actionability_label || null,
-    candidate_semantic_summary: candidate.candidate_semantic_summary || null,
-    strategy_version_id: candidate.strategy_version_id || null,
-    pattern_end_date: candidate.pattern_end_date || null,
-    created_at: candidate.created_at || null,
-    retracement_pct: candidate.retracement_pct ?? null,
-    swing_structure: candidate.swing_structure || null,
-    scanned_at: new Date().toISOString(),
-  };
+
+  // Save the full candidate so restore doesn't need to re-scan.
+  // Strip only the heavy chart_data/bars arrays to stay within localStorage limits.
+  const saved = {};
+  for (const k of Object.keys(candidate)) {
+    if (k === 'chart_data' || k === 'bars' || k === 'ohlcv') continue;
+    saved[k] = candidate[k];
+  }
+  saved.id = candidate.id || candidate.candidate_id || key;
+  saved.candidate_id = candidate.candidate_id || candidate.id || key;
+  saved._saved_scan_key = key;
+  saved.__savedScanStub = false;
+  saved._plugin_id = candidate._plugin_id || candidate.pattern_type || '';
+  saved.symbol = String(candidate.symbol || '').trim().toUpperCase();
+  saved.scanned_at = candidate.scanned_at || new Date().toISOString();
+  return saved;
 }
 
 function getSavedScanResultsSnapshot() {
@@ -786,7 +864,7 @@ function saveCurrentScanResults(options = {}) {
       const key = getSavedScanResultKey(row) || row?._saved_scan_key;
       if (!key || seen.has(key)) return;
       seen.add(key);
-      merged.push({ ...row, __savedScanStub: true, _saved_scan_key: key });
+      merged.push({ ...row, _saved_scan_key: key });
     });
   }
 
@@ -800,19 +878,49 @@ function saveCurrentScanResults(options = {}) {
   };
 
   try {
-    localStorage.setItem(SAVED_SCAN_RESULTS_STORAGE_KEY, JSON.stringify(payload));
+    const jsonStr = JSON.stringify(payload);
+    localStorage.setItem(SAVED_SCAN_RESULTS_STORAGE_KEY, jsonStr);
     updateSavedScanStatus();
     if (!options.silent) {
       const statusEl = document.getElementById('scan-status');
-      if (statusEl) statusEl.textContent = `Saved ${snapshotRows.length} current result(s). Duplicate symbols were overwritten.`;
+      const sizeMB = (jsonStr.length / (1024 * 1024)).toFixed(1);
+      if (statusEl) statusEl.textContent = `Saved ${snapshotRows.length} result(s) (${sizeMB}MB). Duplicates overwritten.`;
     }
     return true;
   } catch (err) {
-    console.warn('Failed to save scan results:', err);
-    if (!options.silent) {
-      alert(`Failed to save scan results: ${err.message || 'Unknown error'}`);
+    // localStorage quota exceeded — strip heavy fields and retry with stubs
+    console.warn('Full save failed, falling back to lightweight stubs:', err);
+    const _HEAVY_KEYS = new Set([
+      'chart_data', 'bars', 'ohlcv', 'candles', 'raw_bars',
+      'swing_labels', 'swing_points', 'structure_legs', 'pattern_points',
+      'annotations', 'drawing_data', 'aiAssessment', 'rule_checklist',
+    ]);
+    payload.rows = payload.rows.map((row) => {
+      const slim = {};
+      for (const k of Object.keys(row)) {
+        if (_HEAVY_KEYS.has(k)) continue;
+        const v = row[k];
+        if (Array.isArray(v) && v.length > 50) continue;
+        slim[k] = v;
+      }
+      slim.__savedScanStub = true;
+      return slim;
+    });
+    try {
+      localStorage.setItem(SAVED_SCAN_RESULTS_STORAGE_KEY, JSON.stringify(payload));
+      updateSavedScanStatus();
+      if (!options.silent) {
+        const statusEl = document.getElementById('scan-status');
+        if (statusEl) statusEl.textContent = `Saved ${snapshotRows.length} result(s) (lightweight mode — storage was full).`;
+      }
+      return true;
+    } catch (err2) {
+      console.warn('Lightweight save also failed:', err2);
+      if (!options.silent) {
+        alert(`Failed to save scan results: storage quota exceeded.`);
+      }
+      return false;
     }
-    return false;
   }
 }
 
@@ -886,7 +994,6 @@ async function restoreSavedScanResults(options = {}) {
   candidates = snapshot.rows.map((row, index) => ({
     ...row,
     id: row.id || row.candidate_id || row._saved_scan_key || `saved-${index}`,
-    __savedScanStub: true,
     _saved_scan_key: row._saved_scan_key || getSavedScanResultKey(row),
   }));
   const desiredIndex = Math.max(0, Math.min(Number(snapshot.selectedIndex || 0), candidates.length - 1));
@@ -902,13 +1009,13 @@ async function restoreSavedScanResults(options = {}) {
 
   const statusEl = document.getElementById('scan-status');
   if (statusEl) {
-    statusEl.textContent = `Restored ${candidates.length} saved result(s). Loading ${candidates[currentIndex]?.symbol || 'selected symbol'}...`;
+    statusEl.textContent = `Restored ${candidates.length} saved result(s).`;
   }
 
   try {
     await selectCandidate(currentIndex);
   } catch (err) {
-    console.error('Failed to hydrate restored scan candidate:', err);
+    console.error('Failed to load restored scan candidate:', err);
     if (statusEl) {
       statusEl.textContent = `Restored ${candidates.length} saved result(s). Click a row to load details.`;
     }
@@ -923,6 +1030,7 @@ function normalizeScanCandidates(rawCandidates, pluginId) {
     id: cand.id || cand.candidate_id,
     symbol: cand.symbol || 'N/A',
     _plugin_id: pluginId,
+    ...(_lastScanInsiderScreenMap.get(String(cand.symbol || '').trim().toUpperCase()) || {}),
   }));
 }
 
@@ -1107,7 +1215,10 @@ function renderIndicatorOptions() {
 
   const selectedBefore = String(select.value || '').trim();
   const typeFilter = getIndicatorTypeFilter();
-  const filtered = _scannerIndicatorOptions.filter((item) => indicatorMatchesType(item, typeFilter));
+  const curated = _scannerIndicatorOptions.some((item) => item.scanner_favorite === true)
+    ? _scannerIndicatorOptions.filter((item) => item.scanner_favorite === true)
+    : _scannerIndicatorOptions.slice();
+  const filtered = curated.filter((item) => indicatorMatchesType(item, typeFilter));
 
   select.innerHTML = '<option value="">-- Select an indicator --</option>';
 
@@ -1197,6 +1308,7 @@ async function loadIndicators() {
         status: String(item.status || 'unknown').trim() || 'unknown',
         artifact_type: String(item.artifact_type || 'indicator').trim() || 'indicator',
         composition: String(item.composition || 'composite').trim() || 'composite',
+        scanner_favorite: item.scanner_favorite === true,
       }))
       .filter((item) => !!item.pattern_id);
 
@@ -1216,6 +1328,7 @@ async function loadIndicators() {
 
 let _symbolLibrary = null;
 let _universePriceSnapshot = null;
+let _lastScanInsiderScreenMap = new Map();
 
 async function loadSymbolLibrary() {
   if (_symbolLibrary) return _symbolLibrary;
@@ -1262,6 +1375,93 @@ async function loadUniversePriceSnapshot() {
   return _universePriceSnapshot;
 }
 
+function getScanInsiderControls() {
+  const rankEl = document.getElementById('scan-universe-rank');
+  const filterEl = document.getElementById('scan-insider-filter');
+  return {
+    rank: String(rankEl ? rankEl.value : 'default').trim().toLowerCase() || 'default',
+    filter: String(filterEl ? filterEl.value : 'all').trim().toLowerCase() || 'all',
+  };
+}
+
+function normalizeInsiderScreenRows(rows) {
+  const source = Array.isArray(rows) ? rows : [];
+  return source.map((row) => ({
+    ...row,
+    symbol: String(row?.symbol || '').trim().toUpperCase(),
+    insider_buy_score: Number(row?.insider_buy_score || 0),
+    recent_buy_count: Number(row?.recent_buy_count || 0),
+    recent_sell_count: Number(row?.recent_sell_count || 0),
+    recent_buy_value: Number.isFinite(Number(row?.recent_buy_value)) ? Number(row.recent_buy_value) : null,
+    recent_sell_value: Number.isFinite(Number(row?.recent_sell_value)) ? Number(row.recent_sell_value) : null,
+    has_recent_insider_buying: Boolean(row?.has_recent_insider_buying),
+    is_net_insider_buying: Boolean(row?.is_net_insider_buying),
+    insider_buy_signal: String(row?.insider_buy_signal || 'quiet').trim().toLowerCase() || 'quiet',
+  })).filter((row) => !!row.symbol);
+}
+
+async function applyInsiderScreenToSymbols(symbols, statusEl) {
+  const { rank, filter } = getScanInsiderControls();
+  _lastScanInsiderScreenMap = new Map();
+  if ((!rank || rank === 'default') && (!filter || filter === 'all')) {
+    return symbols;
+  }
+  if (!Array.isArray(symbols) || !symbols.length) {
+    return [];
+  }
+  if (symbols.length > 50) {
+    throw new Error('Insider sort/filter is limited to 50 symbols for stability. Reduce Limit Symbols first.');
+  }
+
+  if (statusEl) {
+    statusEl.textContent = `Loading insider activity for ${symbols.length} symbols...`;
+  }
+
+  const res = await fetch(`${API_URL}/api/fundamentals/screen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbols }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json?.success) {
+    throw new Error(json?.error || 'Failed to load insider activity');
+  }
+
+  let rows = normalizeInsiderScreenRows(json?.data?.rows);
+  if (filter === 'recent_buy') {
+    rows = rows.filter((row) => row.has_recent_insider_buying);
+  } else if (filter === 'net_buying') {
+    rows = rows.filter((row) => row.is_net_insider_buying);
+  }
+
+  if (rank === 'insider_buy_score') {
+    rows.sort((a, b) => {
+      const scoreDiff = (Number(b.insider_buy_score) || 0) - (Number(a.insider_buy_score) || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      const buyValueDiff = (Number(b.recent_buy_value) || 0) - (Number(a.recent_buy_value) || 0);
+      if (buyValueDiff !== 0) return buyValueDiff;
+      return (Number(b.recent_buy_count) || 0) - (Number(a.recent_buy_count) || 0);
+    });
+  }
+
+  rows.forEach((row) => {
+    _lastScanInsiderScreenMap.set(row.symbol, row);
+  });
+
+  if (statusEl) {
+    if (filter === 'recent_buy') {
+      statusEl.textContent = `Insider filter kept ${rows.length}/${symbols.length} symbols with recent insider buys.`;
+    } else if (filter === 'net_buying') {
+      statusEl.textContent = `Insider filter kept ${rows.length}/${symbols.length} symbols with net insider buying.`;
+    } else {
+      const buyCount = rows.filter((row) => row.has_recent_insider_buying).length;
+      statusEl.textContent = `Loaded insider activity for ${symbols.length} symbols. ${buyCount} show recent buying.`;
+    }
+  }
+
+  return rows.map((row) => row.symbol);
+}
+
 function populateSymbolSuggestions() {
   const datalist = document.getElementById('symbol-suggestions');
   if (!datalist || !_symbolLibrary) return;
@@ -1306,11 +1506,12 @@ function getScanPriceFilters() {
   };
 }
 
-async function getScanSymbols() {
+async function getScanSymbols(statusEl) {
   // Check for single symbol override
   const singleSymbolEl = document.getElementById('scan-single-symbol');
   const singleSymbol = normalizeSingleSymbol(singleSymbolEl ? String(singleSymbolEl.value || '') : '');
   if (singleSymbol) {
+    _lastScanInsiderScreenMap = new Map();
     return [singleSymbol];
   }
 
@@ -1339,7 +1540,7 @@ async function getScanSymbols() {
     symbols = symbols.slice(0, limit);
   }
 
-  return symbols;
+  return applyInsiderScreenToSymbols(symbols, statusEl);
 }
 
 function getScanTimeframeFromInterval(interval) {
@@ -1385,10 +1586,11 @@ async function runScan() {
     return;
   }
 
+  const statusEl = document.getElementById('scan-status');
   if (!_symbolLibrary) await loadSymbolLibrary();
   let symbols = [];
   try {
-    symbols = await getScanSymbols();
+    symbols = await getScanSymbols(statusEl);
   } catch (err) {
     alert(`Unable to apply scan filters: ${err.message || 'Unknown error'}`);
     return;
@@ -1409,7 +1611,6 @@ async function runScan() {
   if (detailsEl) detailsEl.classList.add('hidden');
   if (typeof updateCandidateNavButtons === 'function') updateCandidateNavButtons();
 
-  const statusEl = document.getElementById('scan-status');
   const btnEl = document.getElementById('btn-scan');
   const progressDiv = document.getElementById('batch-progress');
   const progressBar = document.getElementById('progress-bar');
@@ -1726,10 +1927,10 @@ function renderScanResults(rows) {
 
   panel.classList.remove('hidden');
 
-  const gridCols = 'grid-template-columns:70px 120px 70px 70px 70px 100px 80px 100px 90px;';
+  const gridCols = 'grid-template-columns:70px 120px 70px 70px 80px 90px 100px 80px 100px 90px 32px;';
   const headerHtml = `
     <div style="display:grid;${gridCols}gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-border);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-muted);">
-      <span>Symbol</span><span>Type</span><span>Score</span><span>ML</span><span>Status</span><span>Trend</span><span>Zone</span><span>Date</span><span></span>
+      <span>Symbol</span><span>Type</span><span>Score</span><span>ML</span><span>Status</span><span>Insider</span><span>Trend</span><span>Zone</span><span>Date</span><span></span><span></span>
     </div>`;
 
   const rowsHtml = rows.map((c, i) => {
@@ -1752,6 +1953,22 @@ function renderScanResults(rows) {
     const trendColor = trend === 'ALIGNED' ? 'color:#4ade80;' : trend === 'CONFLICTING' ? 'color:#f87171;' : '';
     const buyZone = swing.in_buy_zone ? 'BUY ZONE' : (swing.status || '\u2014');
     const buyZoneColor = swing.in_buy_zone ? 'color:#4ade80;font-weight:700;' : '';
+    const insiderSignal = String(c.insider_buy_signal || '').toLowerCase();
+    const insiderScore = Number(c.insider_buy_score);
+    const insiderText = insiderSignal === 'buying'
+      ? `BUY ${Number.isFinite(insiderScore) ? insiderScore.toFixed(0) : ''}`.trim()
+      : insiderSignal === 'selling'
+        ? 'SELLING'
+        : insiderSignal === 'mixed'
+          ? 'MIXED'
+          : '\u2014';
+    const insiderColor = insiderSignal === 'buying'
+      ? 'color:#4ade80;font-weight:700;'
+      : insiderSignal === 'selling'
+        ? 'color:#f87171;font-weight:600;'
+        : insiderSignal === 'mixed'
+          ? 'color:#facc15;font-weight:600;'
+          : 'color:var(--color-text-muted);';
     const isSelected = i === currentIndex ? 'background:rgba(59,130,246,0.12);' : '';
     return `
       <div style="display:grid;${gridCols}gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-border);${isSelected}cursor:pointer;" onclick="selectCandidate(${i})" onmouseenter="this.style.background='rgba(255,255,255,0.04)'" onmouseleave="this.style.background='${i === currentIndex ? 'rgba(59,130,246,0.12)' : ''}'">
@@ -1760,10 +1977,15 @@ function renderScanResults(rows) {
         <span class="text-mono" style="font-size:13px;">${score}</span>
         <span class="text-mono" style="font-size:12px;${mlColor}">${mlText}</span>
         <span title="${c.candidate_semantic_summary || ''}" style="font-size:12px;${entryColor}">${entryLabel}</span>
+        <span style="font-size:12px;${insiderColor}">${insiderText}</span>
         <span style="font-size:12px;${trendColor}">${trend}</span>
         <span style="font-size:12px;${buyZoneColor}">${buyZone}</span>
         <span style="font-size:11px;color:var(--color-text-muted);">${endDate}</span>
         <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="event.stopPropagation();sendToTradingDesk(${i})">Trade &rarr;</button>
+        <button type="button" onclick="event.stopPropagation();scannerToggleWatchList(${i})"
+          title="${(typeof watchListHas === 'function' && watchListHas(c.symbol)) ? 'Remove from Watch List' : 'Save to Watch List'}"
+          style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;color:${(typeof watchListHas === 'function' && watchListHas(c.symbol)) ? '#f59e0b' : 'rgba(255,255,255,0.2)'};"
+        >${(typeof watchListHas === 'function' && watchListHas(c.symbol)) ? '★' : '☆'}</button>
       </div>`;
   }).join('');
 
@@ -1789,6 +2011,30 @@ async function selectCandidate(index) {
     const statusEl = document.getElementById('scan-status');
     if (statusEl) statusEl.textContent = `Failed to load ${candidate?.symbol || 'candidate'}: ${err.message || 'Unknown error'}`;
   }
+}
+
+function scannerToggleWatchList(candidateIndex) {
+  if (typeof watchListAdd !== 'function') return;
+  const c = candidates[candidateIndex];
+  if (!c) return;
+  const symbol = String(c.symbol || '').toUpperCase().trim();
+  if (watchListHas(symbol)) {
+    watchListRemove(symbol);
+  } else {
+    const entryPrice = Number(c.close || c.entry_price || c.last_close || 0);
+    const interval = String(c.timeframe || c.interval || '1d');
+    watchListAdd({
+      symbol,
+      score: Number(c.score || c.top_score || 0),
+      composite_id: String(c.composite_id || c.pattern_id || c.method_id || ''),
+      interval,
+      price_box: null,
+      entry_price: entryPrice,
+      note: '',
+    });
+  }
+  // Re-render rows to update star state
+  renderScanResults(candidates);
 }
 
 function sendToTradingDesk(candidateIndex) {
@@ -1820,5 +2066,5 @@ function sendToTradingDesk(candidateIndex) {
     params.set('scannerHandoffId', handoff.id);
   }
 
-  window.location.href = `copilot.html?${params.toString()}`;
+  window.location.href = `/trading-desk?${params.toString()}`;
 }

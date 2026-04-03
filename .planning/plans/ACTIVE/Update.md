@@ -1,5 +1,21 @@
 Here’s the clean order.
 
+## New Active Workstream — Primitive Normalization → Autonomous Strategy Research
+
+Before the app can behave like a true autonomous strategy-design system, it needs a cleaner primitive language.
+
+New active workstream:
+
+1. build a **primitive normalization engine**
+2. import a standard indicator core from external libraries instead of rewriting commodity indicators
+3. normalize imported and custom primitives behind one canonical contract
+4. expose that normalized primitive library to builders, validator, scanner, and research
+5. rebuild `Research Studio` around autonomous strategy discovery over normalized primitives and approved state-machine templates
+
+Source-of-truth plan:
+
+- `ACTIVE/primitive-normalization-engine-and-autonomous-research.md`
+
 You mentioned two different kinds of things:
 
 1. **UI/workbench features**
@@ -21,9 +37,11 @@ Purpose:
 * validate them statistically
 * compare across symbols
 * measure t-scores, expectancy, dispersion
+* **Symbolic Regression (SR):** discover scoring formulas for setups (from indicators, families, or strategies) so the system can rank/filter by quality instead of treating all detections equally
 
 This layer answers:
-**What recurring structures exist, and how do they behave?**
+**What recurring structures exist, and how do they behave?**  
+And: **Which instances (of a pattern, indicator, or strategy) score high vs low?** (SR)
 
 ---
 
@@ -228,19 +246,20 @@ Then this is the order I would actually recommend:
 1. **Family ranking controls**
 2. **Baseline / null-model comparison panel**
 3. **Visual motif inspection improvements**
+4. **Symbolic Regression (SR) — Phase 1** (optional parallel track): formula discovery on Research page; first path = indicator + OHLCV. See `ACTIVE/SR Engine.md`.
 
 ## Then
 
-4. **Signal layer integration into the backtester**
-5. **Execution simulation panel**
+5. **Signal layer integration into the backtester**
+6. **Execution simulation panel**
 
 ## Then
 
-6. **Formal strategy layer for top aligned families**
+7. **Formal strategy layer for top aligned families**
 
 ## Last
 
-7. **Portfolio layer**
+8. **Portfolio layer**
 
 # Why visual inspection is not first in the practical list
 
@@ -276,9 +295,10 @@ So, in order:
 1. Family ranking controls
 2. Baseline / null-model comparison panel
 3. Better visual motif inspection
-4. Signal layer into backtester
-5. Execution simulation panel
-6. Strategy layer
-7. Portfolio layer
+4. (Optional) Symbolic Regression Phase 1 — indicator + OHLCV formula discovery; Research page mode. See `ACTIVE/SR Engine.md`.
+5. Signal layer into backtester
+6. Execution simulation panel
+7. Strategy layer
+8. Portfolio layer
 
 If you want, I can turn that into a **single phased roadmap prompt** for your coding agent.

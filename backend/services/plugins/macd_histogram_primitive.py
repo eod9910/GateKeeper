@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from platform_sdk.ohlcv import OHLCV
+from platform_sdk.primitive_adapters import compute_macd_adapter
 
 
 def compute_spec_hash(spec: Dict[str, Any]) -> str:
@@ -55,7 +56,6 @@ def run_macd_histogram_primitive_plugin(
     **kwargs: Any,
 ) -> List[Dict[str, Any]]:
     import numpy as np
-    from platform_sdk.numba_indicators import macd
 
     setup = spec.get("setup_config", {}) or {}
     fast_period = int(setup.get("fast_period", 12))
@@ -67,8 +67,10 @@ def run_macd_histogram_primitive_plugin(
     if n < max(slow_period, signal_period) + 5:
         return []
 
-    closes = np.array([float(b.close) for b in data], dtype=np.float64)
-    macd_line, signal_line, histogram = macd(closes, fast_period, slow_period, signal_period)
+    adapted = compute_macd_adapter(data, fast_period, slow_period, signal_period)
+    macd_line = adapted["macd_line"]
+    signal_line = adapted["signal_line"]
+    histogram = adapted["histogram"]
 
     def _is_intraday(tf: str) -> bool:
         return tf in ("1m", "5m", "15m", "30m", "1h", "4h")

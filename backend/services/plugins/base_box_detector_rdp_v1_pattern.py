@@ -11,11 +11,54 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Sequence
 
 from platform_sdk.ohlcv import OHLCV, _detect_intraday, _format_chart_time
 from platform_sdk.rdp import detect_swings_rdp
+from universe_registry import load_market_cap_snapshot_billions
+
+# ── Cap-tier gate ─────────────────────────────────────────────────────────────
+_LIQUIDITY_CACHE: dict[str, float | None] = {}
+_CAP_TIERS: dict[str, tuple[float | None, float | None]] = {
+    "all":   (None,  None),
+    "micro": (0.0,   0.3),
+    "small": (0.3,   2.0),
+    "mid":   (2.0,   10.0),
+    "large": (10.0,  200.0),
+    "mega":  (200.0, None),
+}
+
+def _seed_cap_cache() -> None:
+    for sym, cap_b in load_market_cap_snapshot_billions().items():
+        if sym not in _LIQUIDITY_CACHE:
+            _LIQUIDITY_CACHE[sym] = float(cap_b)
+
+_seed_cap_cache()
+
+def _cap_gate_passes(symbol: str, cfg: dict) -> bool:
+    tier = str(cfg.get("market_cap_tier") or "all").strip().lower()
+    min_cap = float(cfg.get("min_market_cap_billions") or 0.0)
+    if tier == "all" and min_cap <= 0:
+        return True
+    if symbol not in _LIQUIDITY_CACHE:
+        try:
+            import yfinance as yf
+            mc = getattr(yf.Ticker(symbol).fast_info, "market_cap", None)
+            _LIQUIDITY_CACHE[symbol] = float(mc) / 1e9 if mc else None
+        except Exception:
+            _LIQUIDITY_CACHE[symbol] = None
+    cap_b = _LIQUIDITY_CACHE.get(symbol)
+    tier_min, tier_max = _CAP_TIERS.get(tier, (None, None))
+    if cap_b is not None:
+        if tier_min is not None and cap_b < tier_min:
+            return False
+        if tier_max is not None and cap_b >= tier_max:
+            return False
+        if min_cap > 0 and cap_b < min_cap:
+            return False
+    return True
 
 
 def _spec_hash(spec: dict) -> str:
@@ -384,6 +427,9 @@ def run_base_box_detector_rdp_v1_pattern_plugin(
 ) -> Any:
     cfg = spec.get("setup_config", spec.get("structure_config", {})) if isinstance(spec, dict) else {}
     struct_cfg = spec.get("structure_config", {}) if isinstance(spec, dict) else {}
+
+    if not _cap_gate_passes(symbol, cfg):
+        return []
 
     lookbacks = _parse_lookbacks(cfg.get("base_lookbacks", "30,45,60,90,120,180"), fallback=60)
     epsilon_pct = float(cfg.get("epsilon_pct", struct_cfg.get("swing_epsilon_pct", 0.05)))

@@ -551,6 +551,64 @@ def _render_html(payload: Dict[str, object]) -> str:
       .summary-grid, .detail-grid, .symbol-grid, .snippet-grid, .chart-meta-grid {{ grid-template-columns: 1fr; }}
       #inspector-chart {{ height: 420px; }}
     }}
+
+    /* ── Tooltip system ─────────────────────────────────────────── */
+    [data-tip] {{
+      position: relative;
+      cursor: help;
+    }}
+    [data-tip]::after {{
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 7px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: 280px;
+      background: #1f2933;
+      color: #f5efe2;
+      font-size: 0.78rem;
+      font-weight: 400;
+      line-height: 1.45;
+      padding: 0.45rem 0.65rem;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(15,23,42,0.35);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 140ms ease;
+      z-index: 9999;
+      white-space: normal;
+      text-align: left;
+    }}
+    [data-tip]::before {{
+      content: "";
+      position: absolute;
+      bottom: calc(100% + 2px);
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #1f2933;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 140ms ease;
+      z-index: 9999;
+    }}
+    [data-tip]:hover::after,
+    [data-tip]:hover::before {{
+      opacity: 1;
+    }}
+    /* Tokens in the signature heading */
+    .token {{ cursor: help; border-bottom: 1px dashed var(--muted); }}
+    /* Chart modal dark-bg tooltip override */
+    .chart-meta-card[data-tip] {{ cursor: help; }}
+    .chart-meta-card[data-tip]::after {{
+      background: #0f172a;
+      border: 1px solid rgba(148,163,184,0.25);
+      color: #e2e8f0;
+    }}
+    .chart-meta-card[data-tip]::before {{
+      border-top-color: #0f172a;
+    }}
   </style>
 </head>
 <body>
@@ -620,6 +678,50 @@ def _render_html(payload: Dict[str, object]) -> str:
     }};
 
     const fmt = (value, digits = 3) => value === null || value === undefined ? "—" : Number(value).toFixed(digits);
+
+    // ── Tooltip dictionaries ───────────────────────────────────────
+    const TOKEN_TIPS = {{
+      "HTL": "Orientation: the 5-pivot zigzag starts on a HIGH pivot (High→Low→High→Low→High). Begins and ends at peaks, with troughs in between.",
+      "LTH": "Orientation: the 5-pivot zigzag starts on a LOW pivot (Low→High→Low→High→Low). Begins and ends at troughs, with peaks in between.",
+      "CONTINUATION_UP": "Structural class: ALL pivot labels are bullish (HH or HL), zero bearish. Pure uptrend — every pivot confirms the upward trend.",
+      "CONTINUATION_DOWN": "Structural class: ALL pivot labels are bearish (LH or LL), zero bullish. Pure downtrend — every pivot confirms the downward trend.",
+      "REVERSAL_UP": "Structural class: had ≥1 LL (prior downtrend), but the most recent directional label is bullish (HH or HL). Structure was falling, just turned up.",
+      "REVERSAL_DOWN": "Structural class: had ≥1 HH (prior uptrend), but the most recent directional label is bearish (LH or LL). Structure was rising, just turned down.",
+      "MIXED_TRANSITION": "Structural class: mixed pivot labels with no clean trend or reversal. No deterministic directional bias — always classified AMBIGUOUS.",
+      "HH_ONLY": "Break profile: the motif contains ≥1 Higher High label (broke to a new high) but no Lower Low. Only tested the upside.",
+      "LL_ONLY": "Break profile: the motif contains ≥1 Lower Low label (broke to a new low) but no Higher High. Only tested the downside.",
+      "BOTH_BREAKS": "Break profile: the motif contains both HH and LL labels — it tested both a new high and a new low within the 5-pivot window.",
+      "NO_EXTREME_BREAK": "Break profile: no HH or LL — no price extremes were broken. All pivots were HL, LH, EH, or EL. Fully contained structure. Direction is always AMBIGUOUS for this profile.",
+      "DEEP_DOM": "Retrace profile: ≥2 legs retrace more than 62% of the prior leg (DEEP or OVERDEEP bins). Strong oscillation / mean-reversion character.",
+      "DEEP_PRESENT": "Retrace profile: exactly 1 leg with deep retracement (62–100%+). One significant correction within the motif.",
+      "MID_RETRACE": "Retrace profile: no deep legs, but ≥1 medium retracement (38–62%). Moderate corrections — trend continuation with meaningful pullbacks.",
+      "SHALLOW_ONLY": "Retrace profile: all legs retrace <38% of the prior leg. Very shallow pullbacks — strong trend continuation character.",
+    }};
+
+    const TAG_TIPS = {{
+      "AGREE": "Empirical agreement: the historical mean 10-bar ATR return has the same sign as the structural direction label across all symbols present. The shape and the outcome data point the same way.",
+      "DISAGREE": "Empirical disagreement: the historical mean 10-bar ATR return has the OPPOSITE sign to the structural direction label in at least one symbol. DO NOT trade the structural direction — check mean10 to see what the data actually says.",
+      "AMBIGUOUS": "No directional verdict: the structural class is MIXED_TRANSITION or break profile is NO_EXTREME_BREAK. No testable directional hypothesis.",
+      "BULLISH": "Structural bias (shape-based only, NOT return-based): the zigzag class is CONTINUATION_UP or REVERSAL_UP. Always check AGREE/DISAGREE — a BULLISH badge with DISAGREE means returns are actually negative.",
+      "BEARISH": "Structural bias (shape-based only, NOT return-based): the zigzag class is CONTINUATION_DOWN or REVERSAL_DOWN. Always check AGREE/DISAGREE — a BEARISH badge with DISAGREE means returns are actually positive.",
+      "candidate": "Candidate family: passes the minimum count threshold in ≥3 symbols (≥5 occurrences and ≥5 valid 10-bar outcomes per symbol) AND is present in all 4 symbols.",
+    }};
+
+    /** Render a signature string as individually-tipped token spans. */
+    function renderSignatureTokens(sig) {{
+      return sig.split("|").map(tok => {{
+        const tip = TOKEN_TIPS[tok];
+        if (tip) return `<span class="token" data-tip="${{tip.replace(/"/g, "&quot;")}}">${{tok}}</span>`;
+        return `<span>${{tok}}</span>`;
+      }}).join('<span style="color:var(--muted);padding:0 2px">|</span>');
+    }}
+
+    /** Render a tag badge with tooltip. */
+    function renderTag(text, cssClass, extraTip) {{
+      const baseTip = TAG_TIPS[text] || extraTip || "";
+      const tip = baseTip ? ` data-tip="${{baseTip.replace(/"/g, "&quot;")}}"` : "";
+      return `<span class="tag ${{cssClass || ""}}"${{tip}}>${{text}}</span>`;
+    }}
     const pct = (value) => value === null || value === undefined ? "—" : `${{(Number(value) * 100).toFixed(1)}}%`;
     const toChartDate = (timestamp) => String(timestamp || "").slice(0, 10);
     const artifactCache = new Map();
@@ -784,16 +886,16 @@ def _render_html(payload: Dict[str, object]) -> str:
         window.addEventListener("resize", inspectorResizeHandler);
 
         metaGrid.innerHTML = [
-          ["Window", `${{windowBars[0]?.timestamp?.slice(0, 10) || "—"}} → ${{windowBars[windowBars.length - 1]?.timestamp?.slice(0, 10) || "—"}}`],
-          ["Motif span", `${{startBarIndex}} → ${{endBarIndex}}`],
-          ["Entry bar", `${{entryBarIndex}}`],
-          ["Forward 10 ATR", `${{fmt(example.forward10ReturnAtr)}}`],
-          ["Exact signature", example.exactSignature || "UNSPECIFIED"],
-          ["Motif pivots", `${{motifPivotSet.size}}`],
-          ["Pivots in window", `${{windowPivots.length}}`],
-          ["Bars in window", `${{windowBars.length}}`],
-        ].map(([label, value]) => `
-          <div class="chart-meta-card">
+          ["Window", `${{windowBars[0]?.timestamp?.slice(0, 10) || "—"}} → ${{windowBars[windowBars.length - 1]?.timestamp?.slice(0, 10) || "—"}}`, "Date range of bars shown in the chart window (20 bars before motif start to 15 bars after motif end or 12 after entry, whichever is larger)."],
+          ["Motif span", `${{startBarIndex}} → ${{endBarIndex}}`, "Bar indices marking the first and last pivot of this 5-pivot motif. The orange line traces between these pivots."],
+          ["Entry bar", `${{entryBarIndex}}`, "Bar index of the hypothetical trade entry — the bar immediately after the final motif pivot. Shown as a yellow ENTRY marker on the chart."],
+          ["Forward 10 (ATR-norm)", `${{fmt(example.forward10ReturnAtr)}}`, "Actual 10-bar forward return for this specific occurrence, ATR-normalized. 1.0 = price moved 1× ATR in the next 10 bars. Positive = bullish, negative = bearish."],
+          ["Exact signature", example.exactSignature || "UNSPECIFIED", "The precise v1 label sequence (e.g. HH|HL|LH|LL). This is more specific than the v2 generalized family signature and will vary across motif instances within the same family."],
+          ["Motif pivots", `${{motifPivotSet.size}}`, "Number of unique pivot timestamps that define this motif instance. Should always be 5 for a valid 5-pivot zigzag."],
+          ["Pivots in window", `${{windowPivots.length}}`, "Total pivots visible in the chart window, including pivots outside the motif. Provides context for the surrounding zigzag structure."],
+          ["Bars in window", `${{windowBars.length}}`, "Total number of bars rendered in the chart window."],
+        ].map(([label, value, tip]) => `
+          <div class="chart-meta-card" ${{tip ? `data-tip="${{tip.replace(/"/g, "&quot;")}}"` : ""}}>
             <div class="chart-meta-label">${{label}}</div>
             <div class="chart-meta-value">${{value}}</div>
           </div>
@@ -841,14 +943,18 @@ def _render_html(payload: Dict[str, object]) -> str:
       const list = document.getElementById("familyList");
       list.innerHTML = families.map((family) => `
         <button class="family-item ${{family.familySignatureV2 === state.selected ? "active" : ""}}" data-signature="${{family.familySignatureV2}}">
-          <div class="family-sig">${{family.familySignatureV2}}</div>
+          <div class="family-sig">${{renderSignatureTokens(family.familySignatureV2)}}</div>
           <div class="tag-row">
-            <span class="tag ${{classForDirection(family.structuralDirection)}}">${{family.structuralDirection}}</span>
-            <span class="tag">${{family.directionComparisonCategory}}</span>
-            ${{family.isCandidateFamily ? '<span class="tag candidate">candidate</span>' : ''}}
+            ${{renderTag(family.directionComparisonCategory, "")}}
+            ${{renderTag(family.structuralDirection + " (structural)", classForDirection(family.structuralDirection), TAG_TIPS[family.structuralDirection])}}
+            ${{family.isCandidateFamily ? renderTag("candidate", "candidate") : ""}}
           </div>
           <div class="snippet-meta">
-            occ=${{family.totalOccurrenceCount}} · symbols=${{family.symbolCount}} · t10=${{fmt(family.crossSymbolMeanTScoreForward10)}} · mean10=${{fmt(family.crossSymbolMeanAvgForward10ReturnAtr)}}
+            <span data-tip="Total motif occurrences across all ${{family.symbolCount}} symbol(s). Hover the parenthetical for the per-symbol average.">occ=${{family.totalOccurrenceCount}}</span>
+            (<span data-tip="Per-symbol average occurrences = total ÷ symbol count. Thin (&lt;5) means limited evidence.">${{family.symbolCount > 0 ? Math.round(family.totalOccurrenceCount / family.symbolCount) : "—"}}/sym</span>)
+            · <span data-tip="Number of symbols this family was found in. More symbols = more universally reliable.">symbols=${{family.symbolCount}}</span>
+            · <span data-tip="Signal-to-noise ratio: cross-symbol mean 10-bar ATR return ÷ standard error (sample stddev, N-1). Values above ±2 suggest a non-random edge. &quot;n/a&quot; = fewer than 2 valid outcomes or zero variance.">t10=${{family.crossSymbolMeanTScoreForward10 == null ? "n/a" : fmt(family.crossSymbolMeanTScoreForward10)}}</span>
+            · <span data-tip="Mean 10-bar forward return, ATR-normalized. 1.0 = price moved exactly 1× ATR over the next 10 bars. NOT percent, NOT R-multiple. Positive = bullish outcome, negative = bearish.">mean10=${{fmt(family.crossSymbolMeanAvgForward10ReturnAtr)}} ATR</span>
           </div>
         </button>
       `).join("") || '<div class="empty">No families match the current filters.</div>';
@@ -878,23 +984,23 @@ def _render_html(payload: Dict[str, object]) -> str:
             <div class="symbol-head">
               <h3>${{symbol}}</h3>
               <div class="tag-row">
-                <span class="tag ${{classForDirection(stats.structuralDirection || family.structuralDirection)}}">${{stats.structuralDirection || family.structuralDirection}}</span>
-                <span class="tag">${{stats.directionAgreement || "UNKNOWN"}}</span>
+                ${{renderTag((stats.directionAgreement || "UNKNOWN"), "")}}
+                ${{renderTag((stats.structuralDirection || family.structuralDirection) + " (structural)", classForDirection(stats.structuralDirection || family.structuralDirection), TAG_TIPS[stats.structuralDirection || family.structuralDirection])}}
               </div>
             </div>
             <div class="kv">
-              <div>Occurrences</div><div>${{stats.occurrenceCount ?? 0}}</div>
-              <div>Split counts</div><div>${{stats.discoveryCount ?? 0}} / ${{stats.validationCount ?? 0}} / ${{stats.holdoutCount ?? 0}}</div>
-            <div>Avg forward 10</div><div>${{fmt(stats.avgForward10ReturnAtr)}}</div>
-            <div>Median forward 10</div><div>${{fmt(stats.medianForward10ReturnAtr)}}</div>
-            <div>Std dev 10</div><div>${{fmt(stats.forward10StdDevAtr)}}</div>
-            <div>Std error 10</div><div>${{fmt(stats.forward10StdErrorAtr)}}</div>
-            <div>T-score 10</div><div>${{fmt(stats.tScoreForward10)}}</div>
-            <div>Sharpe-like 10</div><div>${{fmt(stats.sharpeLikeForward10)}}</div>
-            <div>Hit +1 ATR first</div><div>${{pct(stats.hitPlus1AtrFirstRate)}}</div>
-            <div>Sign consistency</div><div>${{String(stats.signConsistencyAcrossSplits)}}</div>
-            <div>Structural expectancy R</div><div>${{fmt(stats.tradeSimulationStructural?.expectancyR)}}</div>
-            <div>Inferred expectancy R</div><div>${{fmt(stats.tradeSimulationInferred?.expectancyR)}}</div>
+              <div data-tip="Total number of times this 5-pivot motif was detected in this symbol across all data splits.">Occurrences</div><div>${{stats.occurrenceCount ?? 0}}</div>
+              <div data-tip="Occurrences split across discovery / validation / holdout data. Used to check for detection bias.">Split counts</div><div>${{stats.discoveryCount ?? 0}} / ${{stats.validationCount ?? 0}} / ${{stats.holdoutCount ?? 0}}</div>
+              <div data-tip="Mean 10-bar forward return, ATR-normalized. 1.0 = price moved 1× ATR over the next 10 bars. NOT percent, NOT R-multiple.">Avg forward 10 (ATR)</div><div>${{fmt(stats.avgForward10ReturnAtr)}}</div>
+              <div data-tip="Median 10-bar forward return, ATR-normalized. Less sensitive to outliers than the mean.">Median forward 10 (ATR)</div><div>${{fmt(stats.medianForward10ReturnAtr)}}</div>
+              <div data-tip="Sample standard deviation of 10-bar ATR returns (Bessel-corrected, N-1 denominator). Measures spread around the mean.">Std dev 10 (ATR)</div><div>${{fmt(stats.forward10StdDevAtr)}}</div>
+              <div data-tip="Standard error = std dev ÷ √N. Measures uncertainty in the mean estimate. Smaller = more reliable mean.">Std error 10 (ATR)</div><div>${{fmt(stats.forward10StdErrorAtr)}}</div>
+              <div data-tip="Signal-to-noise: mean 10-bar ATR return ÷ standard error. ±2 is a common significance threshold. &quot;n/a&quot; = fewer than 2 valid outcomes or zero variance.">t10 (signal/noise)</div><div>${{stats.tScoreForward10 == null ? "n/a (too few)" : fmt(stats.tScoreForward10)}}</div>
+              <div data-tip="Sharpe-like ratio in ATR units: mean10 ÷ stddev10. Higher = better reward-to-risk consistency. Not annualized.">Sharpe-like 10</div><div>${{fmt(stats.sharpeLikeForward10)}}</div>
+              <div data-tip="Rate at which price hit +1 ATR profit target BEFORE hitting the −1 ATR stop. A rough win-rate proxy at a 1:1 R level.">Hit +1 ATR first</div><div>${{pct(stats.hitPlus1AtrFirstRate)}}</div>
+              <div data-tip="true = mean10 has the same sign (+ or −) in discovery, validation, AND holdout splits. false = outcome flipped across splits — unreliable.">Sign consistency</div><div>${{String(stats.signConsistencyAcrossSplits)}}</div>
+              <div data-tip="Expectancy R from a simulated trade using the structural direction (shape-based) as the trade direction.">Structural expectancy R</div><div>${{fmt(stats.tradeSimulationStructural?.expectancyR)}}</div>
+              <div data-tip="Expectancy R from a simulated trade using the inferred direction (from mean10 sign, i.e., what the data actually says). If DISAGREE, this will be opposite the structural direction.">Inferred expectancy R</div><div>${{fmt(stats.tradeSimulationInferred?.expectancyR)}}</div>
             </div>
             <div class="snippet-meta">
               Exact signatures: ${{exacts.slice(0, 3).map((item) => `${{item.exact_signature}} (${{item.count}})`).join(" · ") || "none in inspection sample"}}
@@ -905,7 +1011,7 @@ def _render_html(payload: Dict[str, object]) -> str:
                   ${{example.chartSnippetPath ? `<img src="${{example.chartSnippetPath}}" alt="${{symbol}} snippet">` : '<div class="empty">No snippet saved</div>'}}
                   <div class="snippet-meta">
                     ${{example.entryTimestamp || "—"}}<br>
-                    fwd10=${{fmt(example.forward10ReturnAtr)}}<br>
+                    fwd10=${{fmt(example.forward10ReturnAtr)}} ATR<br>
                     ${{example.exactSignature || "UNSPECIFIED"}}
                   </div>
                   <div class="snippet-actions">
@@ -922,44 +1028,44 @@ def _render_html(payload: Dict[str, object]) -> str:
       detail.innerHTML = `
         <div class="detail-card">
           <div class="tag-row" style="margin-bottom:0.7rem;">
-            <span class="tag ${{classForDirection(family.structuralDirection)}}">${{family.structuralDirection}}</span>
-            <span class="tag">${{family.directionComparisonCategory}}</span>
-            ${{family.isCandidateFamily ? '<span class="tag candidate">candidate</span>' : ''}}
+            ${{renderTag(family.directionComparisonCategory, "")}}
+            ${{renderTag(family.structuralDirection + " (structural)", classForDirection(family.structuralDirection), TAG_TIPS[family.structuralDirection])}}
+            ${{family.isCandidateFamily ? renderTag("candidate", "candidate") : ""}}
           </div>
-          <h2>${{family.familySignatureV2}}</h2>
+          <h2 style="word-break:break-word;">${{renderSignatureTokens(family.familySignatureV2)}}</h2>
           <p class="lede">${{family.structuralDirectionReason}}</p>
           <div class="detail-grid">
             <div class="card">
-              <div class="metric-label">Cross-symbol mean t-score</div>
-              <div class="metric">${{fmt(family.crossSymbolMeanTScoreForward10)}}</div>
+              <div class="metric-label" data-tip="Signal-to-noise ratio. Computed as: cross-symbol mean 10-bar ATR return ÷ standard error (sample stddev, N-1). A value above ±2 suggests a non-random edge. &quot;n/a&quot; = fewer than 2 valid outcomes or zero variance.">Cross-symbol mean t10</div>
+              <div class="metric">${{family.crossSymbolMeanTScoreForward10 == null ? "n/a" : fmt(family.crossSymbolMeanTScoreForward10)}}</div>
             </div>
             <div class="card">
-              <div class="metric-label">Cross-symbol avg 10-bar</div>
+              <div class="metric-label" data-tip="Average 10-bar forward return, pooled across all symbols. ATR-normalized: 1.0 = price moved 1× ATR over 10 bars. NOT percent, NOT R-multiple. Positive = bullish, negative = bearish.">Cross-symbol mean10 (ATR)</div>
               <div class="metric">${{fmt(family.crossSymbolMeanAvgForward10ReturnAtr)}}</div>
             </div>
             <div class="card">
-              <div class="metric-label">Cross-symbol dispersion</div>
+              <div class="metric-label" data-tip="Standard deviation of per-symbol mean10 values. Low = the family behaves consistently across symbols. High = inconsistent — treat the cross-symbol mean10 with caution.">Cross-symbol dispersion (ATR)</div>
               <div class="metric">${{fmt(family.crossSymbolStddevAvgForward10ReturnAtr)}}</div>
             </div>
             <div class="card">
-              <div class="metric-label">Occurrence total</div>
-              <div class="metric">${{family.totalOccurrenceCount}}</div>
+              <div class="metric-label" data-tip="Total motif occurrences across all symbols / average per symbol. Need ≥5 per symbol to pass the candidate threshold.">Occurrences (total / avg/sym)</div>
+              <div class="metric">${{family.totalOccurrenceCount}} / ${{family.symbolCount > 0 ? Math.round(family.totalOccurrenceCount / family.symbolCount) : "—"}}</div>
             </div>
           </div>
         </div>
         <div class="detail-card">
           <h3 style="margin-bottom:0.75rem;">Structural Components</h3>
           <div class="kv">
-            <div>Orientation</div><div>${{family.structuralDirectionComponents.orientation}}</div>
-            <div>Structural class</div><div>${{family.structuralDirectionComponents.structuralClass}}</div>
-            <div>Break profile</div><div>${{family.structuralDirectionComponents.breakProfile}}</div>
-            <div>Retrace profile</div><div>${{family.structuralDirectionComponents.retraceProfile}}</div>
-            <div>Cross-symbol mean t-score</div><div>${{fmt(family.crossSymbolMeanTScoreForward10)}}</div>
-            <div>Cross-symbol t-score dispersion</div><div>${{fmt(family.crossSymbolStddevTScoreForward10)}}</div>
-            <div>Cross-symbol mean sharpe-like</div><div>${{fmt(family.crossSymbolMeanSharpeLikeForward10)}}</div>
-            <div>Same forward sign across symbols</div><div>${{String(family.sameDirectionalSignAcrossAllSymbols)}}</div>
-            <div>Passes count threshold in 3+ symbols</div><div>${{String(family.passesMinCountThresholdInAtLeastThreeSymbols)}}</div>
-            <div>Symbols passing count threshold</div><div>${{(family.symbolsPassingMinCountThreshold || []).join(", ") || "—"}}</div>
+            <div data-tip="${{(TOKEN_TIPS[family.structuralDirectionComponents.orientation] || "The order of pivots in the 5-pivot zigzag window.").replace(/"/g, "&quot;")}}">Orientation</div><div>${{family.structuralDirectionComponents.orientation}}</div>
+            <div data-tip="${{(TOKEN_TIPS[family.structuralDirectionComponents.structuralClass] || "Pattern of HH/HL/LH/LL pivot labels across all 5 pivots.").replace(/"/g, "&quot;")}}">Structural class</div><div>${{family.structuralDirectionComponents.structuralClass}}</div>
+            <div data-tip="${{(TOKEN_TIPS[family.structuralDirectionComponents.breakProfile] || "Whether the motif broke to a new high (HH), new low (LL), both, or neither.").replace(/"/g, "&quot;")}}">Break profile</div><div>${{family.structuralDirectionComponents.breakProfile}}</div>
+            <div data-tip="${{(TOKEN_TIPS[family.structuralDirectionComponents.retraceProfile] || "Depth of the deepest pullback leg(s) relative to the prior leg. Bins: SHALLOW &lt;38%, MID 38–62%, DEEP 62–100%, OVERDEEP &gt;100%.").replace(/"/g, "&quot;")}}">Retrace profile</div><div>${{family.structuralDirectionComponents.retraceProfile}}</div>
+            <div data-tip="Cross-symbol mean t10. A value above ±2 suggests a non-random edge.">Cross-symbol mean t-score</div><div>${{fmt(family.crossSymbolMeanTScoreForward10)}}</div>
+            <div data-tip="Standard deviation of per-symbol t10 values. Low = consistent signal strength across symbols.">Cross-symbol t-score dispersion</div><div>${{fmt(family.crossSymbolStddevTScoreForward10)}}</div>
+            <div data-tip="Cross-symbol average of (mean10 / stddev10). A Sharpe-like ratio in ATR units. Not annualized.">Cross-symbol mean sharpe-like</div><div>${{fmt(family.crossSymbolMeanSharpeLikeForward10)}}</div>
+            <div data-tip="true = all symbols that have valid 10-bar outcomes show the same directional sign (all positive or all negative mean10). false = mixed outcomes across symbols.">Same forward sign across symbols</div><div>${{String(family.sameDirectionalSignAcrossAllSymbols)}}</div>
+            <div data-tip="true = at least 3 symbols have ≥5 occurrences AND ≥5 valid 10-bar outcomes. Required for candidate status.">Passes count threshold in 3+ symbols</div><div>${{String(family.passesMinCountThresholdInAtLeastThreeSymbols)}}</div>
+            <div data-tip="Specific symbols that individually pass the ≥5 occurrence and ≥5 outcome threshold.">Symbols passing count threshold</div><div>${{(family.symbolsPassingMinCountThreshold || []).join(", ") || "—"}}</div>
             <div>Behavioral stability report</div><div><a href="${{DATA.meta.behaviorReportPath}}" target="_blank" rel="noreferrer">open JSON</a></div>
           </div>
         </div>

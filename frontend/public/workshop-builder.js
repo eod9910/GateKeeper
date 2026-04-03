@@ -123,6 +123,7 @@ function renderWorkshopChat() {
     .join('');
 
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('workshop-builder-chat-panel');
 }
 
 function getChatDisplayText(msg) {
@@ -292,8 +293,8 @@ function extractCodeFromResponse(text) {
 
   if (definitionArtifact && jsonEditor) {
     if (definitionArtifact.definition) {
-      jsonEditor.setValue(JSON.stringify(definitionArtifact.definition, null, 2));
       applyDefinitionToFields(definitionArtifact.definition);
+      jsonEditor.setValue(JSON.stringify(definitionArtifact.definition, null, 2));
       const jsonSection = document.getElementById('workshop-json-section');
       if (jsonSection) jsonSection.open = true;
     } else if (definitionArtifact.definitionRaw) {
@@ -526,8 +527,111 @@ function extractFirstJsonObject(raw) {
   return '';
 }
 
+function inferPrimitiveParamType(value, existingType = '') {
+  const normalized = String(existingType || '').trim().toLowerCase();
+  if (normalized) return normalized === 'boolean' ? 'bool' : normalized;
+  if (typeof value === 'boolean') return 'bool';
+  if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'float';
+  if (typeof value === 'string') return 'string';
+  return 'string';
+}
+
+function inferPrimitiveParamAnatomy(key, path, existingAnatomy = '') {
+  const normalized = String(existingAnatomy || '').trim();
+  if (normalized) return normalized;
+  const text = `${key} ${path}`.toLowerCase();
+  if (text.includes('regime') || text.includes('filter') || text.includes('gate')) return 'regime_filter';
+  if (text.includes('stop')) return 'stop_loss';
+  if (text.includes('take_profit') || text.includes('target') || text.includes('max_hold')) return 'take_profit';
+  if (text.includes('risk') || text.includes('position') || text.includes('concurrent') || text.includes('daily_')) return 'risk_controls';
+  if (text.includes('zone') || text.includes('location') || text.includes('distance') || text.includes('retracement')) return 'location';
+  if (text.includes('trigger') || text.includes('confirm') || text.includes('breakout') || text.includes('cross')) return 'entry_timing';
+  return 'structure';
+}
+
+function buildPrimitiveSuggestedValues(value, type) {
+  if (type === 'bool') return [false, true];
+  if (type === 'int' || type === 'float') {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return undefined;
+    if (type === 'int') {
+      const delta = Math.max(1, Math.round(Math.max(Math.abs(n) * 0.2, 1)));
+      return Array.from(new Set([
+        Math.max(0, n - delta * 2),
+        Math.max(0, n - delta),
+        n,
+        n + delta,
+        n + delta * 2,
+      ]));
+    }
+    const delta = Math.max(Math.abs(n) * 0.2, 0.01);
+    return Array.from(new Set([
+      Number(Math.max(0, n - delta * 2).toFixed(6)),
+      Number(Math.max(0, n - delta).toFixed(6)),
+      Number(n.toFixed(6)),
+      Number((n + delta).toFixed(6)),
+      Number((n + delta * 2).toFixed(6)),
+    ]));
+  }
+  return undefined;
+}
+
+function normalizePrimitiveDefinitionTunableParams(definition) {
+  if (!definition || typeof definition !== 'object') return definition;
+
+  const composition = String(definition.composition || 'primitive').trim().toLowerCase();
+  if (composition !== 'primitive') return definition;
+
+  const setup = definition.default_setup_params && typeof definition.default_setup_params === 'object' && !Array.isArray(definition.default_setup_params)
+    ? definition.default_setup_params
+    : {};
+  const existing = Array.isArray(definition.tunable_params)
+    ? definition.tunable_params.filter((item) => item && typeof item === 'object')
+    : [];
+  const existingByKey = new Map(existing.map((item) => [String(item.key || '').trim(), item]));
+  const excludedKeys = new Set(['pattern_type', 'indicator_role', 'composite_spec']);
+
+  const inferred = [];
+  Object.entries(setup).forEach(([key, value]) => {
+    if (excludedKeys.has(key)) return;
+    if (value == null || Array.isArray(value) || typeof value === 'object') return;
+
+    const current = existingByKey.get(key) || {};
+    const path = String(current.path || `setup_config.${key}`);
+    const type = inferPrimitiveParamType(value, current.type);
+    const suggestedValues = Array.isArray(current.suggested_values) && current.suggested_values.length
+      ? current.suggested_values
+      : buildPrimitiveSuggestedValues(value, type);
+
+    inferred.push({
+      key,
+      label: current.label || key,
+      path,
+      type,
+      default: current.default ?? value,
+      description: current.description,
+      options: Array.isArray(current.options) ? current.options : undefined,
+      anatomy: inferPrimitiveParamAnatomy(key, path, current.anatomy),
+      identity_preserving: current.identity_preserving !== false,
+      sweep_enabled: current.sweep_enabled ?? (type === 'int' || type === 'float' || type === 'bool'),
+      sensitivity_enabled: current.sensitivity_enabled ?? (type === 'int' || type === 'float'),
+      suggested_values: suggestedValues,
+      min: typeof current.min === 'number' ? current.min : undefined,
+      max: typeof current.max === 'number' ? current.max : undefined,
+      step: typeof current.step === 'number' ? current.step : undefined,
+      priority: typeof current.priority === 'number' ? current.priority : undefined,
+      failure_modes_targeted: Array.isArray(current.failure_modes_targeted) ? current.failure_modes_targeted : undefined,
+    });
+  });
+
+  definition.tunable_params = inferred.length ? inferred : existing;
+  return definition;
+}
+
 function applyDefinitionToFields(definition) {
   if (!definition || typeof definition !== 'object') return;
+
+  normalizePrimitiveDefinitionTunableParams(definition);
 
   const normalizedPatternId = normalizePatternIdForDefinition(
     typeof definition.pattern_id === 'string' ? definition.pattern_id : '',
@@ -819,6 +923,7 @@ async function saveDraft() {
     plugin_file: `plugins/${persistPatternId}.py`,
     plugin_function: `run_${persistPatternId}_plugin`,
   };
+  normalizePrimitiveDefinitionTunableParams(normalizedDefinition);
 
   if (jsonEditor) {
     jsonEditor.setValue(JSON.stringify(normalizedDefinition, null, 2));
@@ -903,6 +1008,7 @@ async function registerPlugin() {
       definition.pattern_type = requestedPatternId;
       definition.plugin_file = `plugins/${requestedPatternId}.py`;
       definition.plugin_function = `run_${requestedPatternId}_plugin`;
+      normalizePrimitiveDefinitionTunableParams(definition);
 
       const chartIndCheckbox = document.getElementById('workshop-chart-indicator');
       definition.chart_indicator = chartIndCheckbox ? chartIndCheckbox.checked : true;
@@ -952,8 +1058,9 @@ async function registerPlugin() {
       finalDefinition.pattern_type = finalDefinition.pattern_id;
       finalDefinition.plugin_file = `plugins/${finalDefinition.pattern_id}.py`;
       finalDefinition.plugin_function = `run_${finalDefinition.pattern_id}_plugin`;
-      jsonEditor.setValue(JSON.stringify(finalDefinition, null, 2));
+      normalizePrimitiveDefinitionTunableParams(finalDefinition);
       applyDefinitionToFields(finalDefinition);
+      jsonEditor.setValue(JSON.stringify(finalDefinition, null, 2));
     }
 
     loadedBuilderPatternId = finalId;
@@ -1021,6 +1128,7 @@ function buildArtifactsForRegistration() {
   const composition = String(definition?.composition || 'primitive').toLowerCase();
   definition.plugin_file = `plugins/${pattern_id}.py`;
   definition.plugin_function = `run_${pattern_id}_plugin`;
+  normalizePrimitiveDefinitionTunableParams(definition);
 
   const artifact_type = String(definition?.artifact_type || 'indicator').toLowerCase();
   const isDefaultPlaceholder = pattern_id === 'new_plugin'
@@ -1073,6 +1181,7 @@ function normalizeArtifactForRegistration(artifact) {
 
   definition.plugin_file = `plugins/${pattern_id}.py`;
   definition.plugin_function = `run_${pattern_id}_plugin`;
+  normalizePrimitiveDefinitionTunableParams(definition);
 
   const code = String(artifact.code || '').trim();
   if (!code) return null;

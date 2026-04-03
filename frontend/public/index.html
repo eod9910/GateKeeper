@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page-id="index" data-disable-global-help="true">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -37,6 +37,26 @@
       font-family: var(--font-mono);
       font-weight: 600;
       flex-shrink: 0;
+    }
+    #scanner-analyst-select {
+      margin-left: 8px;
+      max-width: 170px;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--color-surface) 88%, black 12%);
+      color: var(--color-text);
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      appearance: none;
+    }
+    #scanner-analyst-select:focus {
+      outline: 1px solid var(--color-accent);
+      outline-offset: 0;
+    }
+    #scanner-analyst-select option {
+      background: #11161f;
+      color: var(--color-text);
     }
     .scanner-chat-messages {
       flex: 1;
@@ -523,7 +543,7 @@
       line-height: 1.45;
     }
     .scanner-analysis-list li::before {
-      content: '•';
+      content: 'â€¢';
       position: absolute;
       left: 0;
       top: 0;
@@ -658,7 +678,7 @@
   <div class="app">
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-header">
-        <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
           <span class="logo-mark">PD</span>
           <span class="sidebar-label-text">Pattern Detector</span>
         </a>
@@ -670,39 +690,40 @@
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Scanner</span>
         </div>
-        <a href="copilot.html" class="sidebar-nav-item" id="nav-copilot">
+        <a href="/trading-desk" class="sidebar-nav-item" id="nav-copilot">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Trading Desk</span>
         </a>
-        <a href="history.html" class="sidebar-nav-item" id="nav-history">
+        <a href="/position-book" class="sidebar-nav-item" id="nav-history">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Position Book</span>
         </a>
-        <a href="validator.html" class="sidebar-nav-item" id="nav-validator">
+        <a href="/validator" class="sidebar-nav-item" id="nav-validator">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Validator</span>
         </a>
-        <a href="workshop.html" class="sidebar-nav-item" id="nav-workshop">
+        <a href="/indicator-studio" class="sidebar-nav-item" id="nav-workshop">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Indicator Studio</span>
         </a>
-        <a href="auto-labeler.html" class="sidebar-nav-item" id="nav-auto-labeler">
+        <a href="/auto-labeler" class="sidebar-nav-item" id="nav-auto-labeler">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Auto Labeler</span>
         </a>
-        <a href="research.html" class="sidebar-nav-item">
+        <a href="/research-studio" class="sidebar-nav-item">
           <span class="nav-dot"></span>
-          <span class="sidebar-label-text">Research Agent</span>
+          <span class="sidebar-label-text">Research Studio</span>
         </a>
-        <a href="sweep.html" class="sidebar-nav-item">
+        <a href="/parameter-sweep" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Parameter Sweep</span>
         </a>
-        <a href="execution.html" class="sidebar-nav-item">
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item">
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Execution Desk</span>
         </a>
-        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">⚙ Settings</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">âš™ Settings</span></a>
       </nav>
     
     </aside>
@@ -724,7 +745,7 @@
               style="padding:6px 16px;font-size:14px;font-weight:600;border:1px solid var(--color-border);border-radius:6px;min-width:100px;">
               Next &#9654;
             </button>
-            <span style="font-size:12px;color:var(--color-text-muted);margin-left:8px;">or use ← → arrow keys</span>
+            <span style="font-size:12px;color:var(--color-text-muted);margin-left:8px;">or use â† â†’ arrow keys</span>
           </div>
         </div>
         <div class="workshop-header-actions">
@@ -820,6 +841,21 @@
             <div style="min-width:110px;">
               <label class="sidebar-field-label" for="scan-max-price">Max Price</label>
               <input type="number" id="scan-max-price" class="input" style="width:110px;" placeholder="Any" min="0" step="0.01" />
+            </div>
+            <div style="min-width:170px;">
+              <label class="sidebar-field-label" for="scan-universe-rank">Universe Rank</label>
+              <select id="scan-universe-rank" class="select" style="width:170px;">
+                <option value="default" selected>Default</option>
+                <option value="insider_buy_score">Insider Buying</option>
+              </select>
+            </div>
+            <div style="min-width:180px;">
+              <label class="sidebar-field-label" for="scan-insider-filter">Insider Filter</label>
+              <select id="scan-insider-filter" class="select" style="width:180px;">
+                <option value="all" selected>All Symbols</option>
+                <option value="recent_buy">Recent Insider Buys</option>
+                <option value="net_buying">Net Insider Buying</option>
+              </select>
             </div>
           </div>
           <div style="border-top:1px solid var(--color-border);margin-top:var(--space-12);padding-top:var(--space-12);display:flex;gap:var(--space-8);align-items:flex-end;">
@@ -917,7 +953,7 @@
                 <div id="scanner-dt-toolbar" data-dt-for="pattern-chart" class="dt-toolbar dt-toolbar--dock dt-toolbar--grouped"></div>
               </aside>
               <div class="dt-chart-stage">
-                <div id="chart-container" tabindex="0" aria-label="Pattern chart navigation" title="Click chart, then use ←/→ to move instruments" style="position:relative;height:480px;background:#1e1e1e;outline:none;">
+                <div id="chart-container" tabindex="0" aria-label="Pattern chart navigation" title="Click chart, then use â†/â†’ to move instruments" style="position:relative;height:480px;background:#1e1e1e;outline:none;">
                   <div id="pattern-chart" style="position:absolute;inset:0;"></div>
                   <canvas id="drawing-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:10;display:none;"></canvas>
                   <div id="ci-pane-labels-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:50;"></div>
@@ -999,31 +1035,39 @@
                   </div>
                   <div id="fundamentals-panel" style="display:none;border-top:1px solid var(--color-border);padding-top:var(--space-12);margin-bottom:var(--space-8);">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-8);margin-bottom:var(--space-8);flex-wrap:wrap;">
-                      <div style="font-size:var(--text-caption);color:var(--color-text-muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Fundamentals Snapshot</div>
+                      <div style="display:flex;align-items:center;gap:var(--space-8);">
+                        <div style="font-size:var(--text-caption);color:var(--color-text-muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Fundamentals Snapshot</div>
+                        <button id="fundamentals-copy-btn" onclick="copyFundamentalsToClipboard()" style="background:none;border:1px solid var(--color-border);border-radius:6px;color:var(--color-text-muted);padding:2px 8px;cursor:pointer;font-size:11px;font-weight:500;transition:all 120ms ease;" title="Copy all fundamentals to clipboard">Copy</button>
+                      </div>
                       <div id="fundamentals-status" style="font-size:var(--text-caption);color:var(--color-text-muted);">Waiting for symbol...</div>
                     </div>
+                    <div id="fundamentals-description" style="display:none;padding:10px 12px;border:1px solid var(--color-border);border-radius:10px;background:rgba(255,255,255,0.02);margin-bottom:var(--space-12);"></div>
                     <div id="fundamentals-summary" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-8);margin-bottom:var(--space-12);"></div>
                     <div id="fundamentals-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-12);"></div>
+                    <div id="social-buzz-panel" style="display:none;margin-bottom:var(--space-12);padding:12px 14px;border:1px solid var(--color-border);border-radius:10px;background:rgba(255,255,255,0.02);">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div style="font-size:var(--text-caption);color:var(--color-text-muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Social Buzz</div>
+                        <div id="social-buzz-source" style="font-size:11px;color:var(--color-text-muted);">StockTwits</div>
+                      </div>
+                      <div id="social-buzz-summary" style="display:flex;gap:var(--space-12);align-items:center;flex-wrap:wrap;margin-bottom:8px;"></div>
+                      <div id="social-buzz-messages" style="display:none;border-top:1px solid var(--color-border);padding-top:8px;max-height:180px;overflow-y:auto;"></div>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+                      <button id="fundamentals-copy-btn2" onclick="copyFundamentalsToClipboard()" style="background:var(--color-bg-input,#1a1a2e);border:1px solid var(--color-border);border-radius:6px;color:var(--color-text-muted);padding:3px 10px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.03em;transition:all 120ms ease;" title="Copy all fundamentals to clipboard">COPY ALL</button>
+                    </div>
                     <div id="fundamentals-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-12);"></div>
                     <div class="fundamentals-chat-panel">
                       <div class="fundamentals-chat-header">
-                        <span>Fundamentals Copilot</span>
-                        <span id="fundamentals-chat-status">Ready</span>
+                        <span>Scanner Copilot Uses This Too</span>
                       </div>
-                      <div id="fundamentals-chat-messages" class="fundamentals-chat-messages">
-                        <div class="scanner-chat-bubble ai">Ask how these fundamentals change the quality, risk, or timing of the current scanner setup.</div>
-                      </div>
-                      <div id="fundamentals-chat-composer" class="fundamentals-chat-composer">
-                        <textarea id="fundamentals-chat-input" placeholder="Ask about the fundamentals and setup..." oninput="autoResizeScannerChatInput('fundamentals-chat-input')" onkeydown="handleFundamentalsChatKeydown(event)" onpaste="handleFundamentalsChatPaste(event)"></textarea>
-                        <button class="fundamentals-send-btn fundamentals-chart-btn" type="button" title="Send current chart with this message" aria-label="Send fundamentals chat message with current chart screenshot" onclick="sendFundamentalsChatWithChart()">Img</button>
-                        <button class="fundamentals-send-btn" type="button" aria-label="Send fundamentals chat message" onclick="sendFundamentalsChat()">&#8593;</button>
-                        <div id="fundamentals-chat-attachment" class="chat-attachment-tray hidden"></div>
+                      <div style="font-size:var(--text-caption);color:var(--color-text-muted);margin-bottom:var(--space-10);">
+                        Ask the main copilot about the chart, fundamentals, and social buzz together.
                       </div>
                       <div class="scanner-chat-actions" style="padding-left:0;padding-right:0;padding-bottom:0;border-top:none;background:transparent;">
                         <button onclick="askFundamentalsQuality()" class="btn btn-ghost">Explain Quality</button>
                         <button onclick="askFundamentalsRisk()" class="btn btn-ghost">Explain Risk</button>
                         <button onclick="askFundamentalsCatalyst()" class="btn btn-ghost">Explain Catalyst</button>
-                        <button onclick="clearFundamentalsChatSession()" class="btn btn-ghost">Clear</button>
+                        <button onclick="clearFundamentalsChatSession()" class="btn btn-ghost">Clear Copilot</button>
                       </div>
                     </div>
                   </div>
@@ -1120,14 +1164,17 @@
           <div id="ai-panel" class="scanner-chat-panel cc-panel" data-resizable-height="true" data-skip-viewport-clamp="true" data-resize-storage-key="scanner-chat-panel-height" data-resize-default="420" data-resize-min="220" data-resize-max="760" style="display:flex;flex-direction:column;overflow:hidden;min-height:0;width:100%;">
             <div class="scanner-chat-header cc-header">
               <button class="cc-toggle-btn" onclick="toggleChat('ai-panel','scanner-main-grid','chat-collapsed')" title="Collapse panel">&#8250;</button>
-              <span class="cc-title">Scanner Copilot</span>
+              <span class="cc-title">Copilot</span>
+              <select id="scanner-analyst-select" title="Choose which analyst is answering in this chat">
+                <option value="pattern_analyst">Atlas</option>
+                <option value="technical_analyst">Structure</option>
+                <option value="financial_analyst">Ledger</option>
+              </select>
               <span id="ai-status" class="cc-status">Ready</span>
-              <span class="cc-vert-label" onclick="toggleChat('ai-panel','scanner-main-grid','chat-collapsed')">Scanner Copilot</span>
+              <button class="cc-popout-btn" onclick="popoutChatPanel({panelId:'ai-panel',gridId:'scanner-main-grid',collapsedClass:'chat-collapsed',title:'Copilot',statusId:'ai-status',messagesId:'scanner-chat-messages',inputId:'scanner-chat-input',sendFn:'sendScannerChat',actions:[{label:'Analyze Chart',prefill:'Analyze the current chart'},{label:'Explain Setup',prefill:'Explain this setup'},{label:'Explain Fundamentals',prefill:'Explain the quality of this company and how the fundamentals and social buzz affect this setup.'},{label:'Improve Rules',prefill:'How can I improve detection rules?'}]})" title="Pop out to separate window">&#8599;</button>
+              <span class="cc-vert-label" onclick="toggleChat('ai-panel','scanner-main-grid','chat-collapsed')">Copilot</span>
             </div>
             <div id="scanner-chat-messages" class="scanner-chat-messages">
-              <div class="scanner-chat-bubble ai">
-                Welcome. Ask about this setup, or run AI chart analysis.
-              </div>
           <div id="ai-result" class="hidden scanner-chat-bubble ai scanner-analysis-card">
             <div class="scanner-analysis-overview">
               <div class="scanner-analysis-eyebrow">Pattern Read</div>
@@ -1169,7 +1216,7 @@
             
             <!-- ML Vector Scores -->
             <div id="ml-scores" class="hidden mt-3 p-2 bg-gray-900 rounded border border-purple-600">
-              <p class="text-xs font-bold text-purple-400 mb-2">📊 ML Vector (Training Data)</p>
+              <p class="text-xs font-bold text-purple-400 mb-2">ðŸ“Š ML Vector (Training Data)</p>
               <div class="grid grid-cols-5 gap-1 text-xs">
                 <div class="text-center">
                   <div id="ml-pattern" class="text-lg font-bold">-</div>
@@ -1201,21 +1248,21 @@
               <div class="flex gap-2">
                 <button onclick="submitAIFeedback(true)" id="btn-ai-correct"
                         class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-2 rounded">
-                  ✓ Correct
+                  âœ“ Correct
                 </button>
                 <button onclick="submitAIFeedback(false)" id="btn-ai-incorrect"
                         class="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1.5 px-2 rounded">
-                  ✗ Incorrect
+                  âœ— Incorrect
                 </button>
               </div>
-              <p id="ai-feedback-saved" class="hidden text-xs text-green-400 mt-1 text-center">✓ Feedback saved!</p>
+              <p id="ai-feedback-saved" class="hidden text-xs text-green-400 mt-1 text-center">âœ“ Feedback saved!</p>
               
               <!-- Level Adjustment Controls -->
               <div class="mt-3 pt-2 border-t border-gray-600">
                 <p class="text-xs text-gray-400 mb-2">Or adjust the AI's levels:</p>
                 <button onclick="toggleDragMode()" id="btn-drag-levels"
                         class="hidden w-full bg-purple-600 hover:bg-purple-700 text-white text-xs py-1.5 px-2 rounded mb-2">
-                  ✋ Adjust AI Levels
+                  âœ‹ Adjust AI Levels
                 </button>
                 <p id="drag-instruction" class="hidden text-xs text-yellow-400 mb-2">
                   Click and drag any line to adjust. Lines turn gold when adjusted.
@@ -1394,6 +1441,9 @@
               <button id="btn-rebuild-optionable" class="btn btn-ghost btn-sm" onclick="universeRebuildOptionable()">
                 Rebuild Optionable
               </button>
+              <button id="btn-classify-regimes" class="btn btn-ghost btn-sm" onclick="universeClassifyRegimes()" title="Classify all universe stocks by market phase (expansion/distribution/accumulation/markdown)">
+                Classify Regimes
+              </button>
               <button id="btn-cancel-universe-job" class="btn btn-ghost btn-sm" onclick="universeCancelJob()" style="display:none;">
                 Cancel Job
               </button>
@@ -1418,7 +1468,17 @@
             </div>
             <div style="font-size:var(--text-caption);color:var(--color-text-muted);line-height:1.6;">
               <strong>Build Universe</strong> - Downloads a broad US-listed optionable stock library and 5 years of history. Run once. Can take 60-180 min.<br>
-              <strong>Update Now</strong> - Fetches only new bars since last update. Takes 3-8 min. Runs automatically each week.
+              <strong>Update Now</strong> - Fetches only new bars since last update. Takes 3-8 min. Runs automatically each week.<br>
+              <strong>Classify Regimes</strong> - Tags each stock by market phase (expansion/distribution/accumulation/markdown) using 200-MA. Takes ~30 seconds.
+            </div>
+
+            <!-- Regime snapshot status -->
+            <div id="regime-snapshot-card" style="margin-top:var(--space-16);background:var(--color-surface-raised);border-radius:var(--radius);padding:var(--space-12) var(--space-16);display:none;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-8);">
+                <span style="font-size:var(--text-small);font-weight:600;">Regime Universe Snapshot</span>
+                <span id="regime-snapshot-age" style="font-size:var(--text-caption);color:var(--color-text-subtle);"></span>
+              </div>
+              <div id="regime-snapshot-bars" style="display:flex;gap:var(--space-8);flex-wrap:wrap;"></div>
             </div>
 
             <div style="margin-top:var(--space-24);border-top:1px solid var(--color-border);padding-top:var(--space-16);">
@@ -1449,12 +1509,14 @@
   <!-- Modules (order matters: dependencies first) -->
   <script src="app.js"></script>
   <script src="drawing-tools.js"></script>
+  <script src="watch-list.js"></script>
   <script src="trade-plan-store.js"></script>
   <script src="chart.js"></script>
   <script src="chart-indicators.js"></script>
   <script src="drawing.js"></script>
   <script src="correction.js"></script>
   <script src="ai-handoffs.js"></script>
+  <script src="voice-input.js"></script>
   <script src="ai-chat.js"></script>
   <script src="training.js"></script>
   <script src="discount.js"></script>

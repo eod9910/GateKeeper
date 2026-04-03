@@ -157,7 +157,7 @@ async function enrichPositionWithStrategy(
   provider: ImportBrokerProvider,
   position: BrokerPosition,
   strategyVersionId: string,
-  strategyName: string,
+  _strategyName: string,
   interval: string,
   atrMultiplier: number,
   takeProfitR: number,
@@ -171,9 +171,7 @@ async function enrichPositionWithStrategy(
   if (entry <= 0) {
     return {
       instrument_type: instrumentType,
-      strategy_version_id: strategyVersionId,
-      strategy_name: strategyName,
-      import_reason: `Imported from ${provider.toUpperCase()} with ${strategyVersionId}; entry price unavailable for risk template.`,
+      import_reason: `Imported from ${provider.toUpperCase()} using the default bridge risk template (${strategyVersionId}); entry price unavailable for risk sizing.`,
     };
   }
 
@@ -209,8 +207,6 @@ async function enrichPositionWithStrategy(
   if (stopDistance <= 0) {
     const partial: Partial<EnrichedBrokerPosition> = {
       instrument_type: instrumentType,
-      strategy_version_id: strategyVersionId,
-      strategy_name: strategyName,
       suggested_take_profit_r: takeProfitR > 0 ? takeProfitR : null,
       import_reason: `${importReason} Stop distance could not be derived.`,
     };
@@ -225,8 +221,6 @@ async function enrichPositionWithStrategy(
 
   const enriched: Partial<EnrichedBrokerPosition> = {
     instrument_type: instrumentType,
-    strategy_version_id: strategyVersionId,
-    strategy_name: strategyName,
     suggested_stop_price: roundPriceForInstrument(rawStop, instrumentType, symbol),
     suggested_take_profit_price: Number.isFinite(rawTarget)
       ? roundPriceForInstrument(rawTarget, instrumentType, symbol)

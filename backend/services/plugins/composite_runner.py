@@ -23,6 +23,53 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 from platform_sdk.ohlcv import OHLCV
 from fib_energy_primitives import build_chart_data, compute_spec_hash
+from universe_registry import load_market_cap_snapshot_billions
+
+# ── Shared cap-tier gate (same logic as hs_pullback_continuation) ─────────────
+_LIQUIDITY_CACHE: dict[str, tuple[float | None, float | None]] = {}
+_CAP_TIERS: dict[str, tuple[float | None, float | None]] = {
+    "all":   (None,  None),
+    "micro": (0.0,   0.3),
+    "small": (0.3,   2.0),
+    "mid":   (2.0,   10.0),
+    "large": (10.0,  200.0),
+    "mega":  (200.0, None),
+}
+
+def _seed_cap_cache() -> None:
+    for sym, cap_b in load_market_cap_snapshot_billions().items():
+        if sym not in _LIQUIDITY_CACHE:
+            _LIQUIDITY_CACHE[sym] = (float(cap_b), None)
+
+_seed_cap_cache()
+
+def _fetch_cap(symbol: str) -> float | None:
+    if symbol in _LIQUIDITY_CACHE:
+        return _LIQUIDITY_CACHE[symbol][0]
+    try:
+        import yfinance as yf
+        mc = getattr(yf.Ticker(symbol).fast_info, "market_cap", None)
+        result = float(mc) / 1e9 if mc else None
+    except Exception:
+        result = None
+    _LIQUIDITY_CACHE[symbol] = (result, None)
+    return result
+
+def _cap_gate_passes(symbol: str, setup: dict) -> bool:
+    tier = str(setup.get("market_cap_tier") or "all").strip().lower()
+    min_cap = float(setup.get("min_market_cap_billions") or 0.0)
+    if tier == "all" and min_cap <= 0:
+        return True
+    cap_b = _fetch_cap(symbol)
+    tier_min, tier_max = _CAP_TIERS.get(tier, (None, None))
+    if cap_b is not None:
+        if tier_min is not None and cap_b < tier_min:
+            return False
+        if tier_max is not None and cap_b >= tier_max:
+            return False
+        if min_cap > 0 and cap_b < min_cap:
+            return False
+    return True
 
 SERVICES_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 PATTERNS_DIR = os.path.normpath(os.path.join(SERVICES_DIR, "..", "data", "patterns"))
@@ -341,6 +388,7 @@ def _run_pipeline_mode(
 
     stage_trace: Dict[str, Dict[str, Any]] = {}
     stage_candidates: Dict[str, Dict[str, Any]] = {}
+    primitive_results: Dict[str, List[Dict[str, Any]]] = {}
     self_ids = {"composite_runner", pattern_type}
 
     for stage_id in exec_order:
@@ -580,6 +628,7 @@ def _evaluate_condition_tree(
     spec: Dict[str, Any],
     symbol: str,
     timeframe: str,
+    strategy_state: Any = None,
 ) -> bool:
     """
     Recursively evaluate a condition tree from the Blockly Logic blocks.
@@ -757,15 +806,15 @@ def _evaluate_condition_tree(
         op = str(tree.get("op", "AND")).strip().upper()
         if op == "NOT":
             inner = tree.get("condition")
-            return not _evaluate_condition_tree(inner, data, structure, spec, symbol, timeframe)
+            return not _evaluate_condition_tree(inner, data, structure, spec, symbol, timeframe, strategy_state)
         left = tree.get("left")
         right = tree.get("right")
-        left_result = _evaluate_condition_tree(left, data, structure, spec, symbol, timeframe)
+        left_result = _evaluate_condition_tree(left, data, structure, spec, symbol, timeframe, strategy_state)
         if op == "AND" and not left_result:
             return False  # short-circuit
         if op == "OR" and left_result:
             return True   # short-circuit
-        right_result = _evaluate_condition_tree(right, data, structure, spec, symbol, timeframe)
+        right_result = _evaluate_condition_tree(right, data, structure, spec, symbol, timeframe, strategy_state)
         if op == "AND": return left_result and right_result
         if op == "OR":  return left_result or right_result
 
@@ -875,6 +924,7 @@ def run_composite_plugin(
     spec: Dict[str, Any],
     symbol: str,
     timeframe: str,
+    strategy_state: Any = None,
 ) -> List[Dict[str, Any]]:
     """
     Generic composite indicator runner.
@@ -882,8 +932,16 @@ def run_composite_plugin(
     Reads composite_spec from spec['setup_config']['composite_spec'],
     resolves each stage primitive from the registry, runs them,
     and applies the reducer to produce a single GO/NO_GO verdict.
+
+    strategy_state is accepted but deliberately not used here — state
+    transitions are applied by the backtest engine AFTER this function returns,
+    using apply_state_transitions() from execution_state.py.  Individual stage
+    plugins that need raw state access will receive it via _run_one_stage()
+    once they opt in.
     """
     setup = spec.get("setup_config", {}) or {}
+    if not _cap_gate_passes(symbol, setup):
+        return []
     composite_spec = dict(setup.get("composite_spec") or {})
     if not composite_spec:
         return []
@@ -907,6 +965,7 @@ def run_composite_plugin(
 
     stage_trace: Dict[str, Dict[str, Any]] = {}
     stage_candidates: Dict[str, Dict[str, Any]] = {}
+    primitive_results: Dict[str, List[Dict[str, Any]]] = {}
 
     # Block recursive self-references
     self_ids = {"composite_runner", pattern_type}
@@ -942,7 +1001,11 @@ def run_composite_plugin(
             results = stage_fn(data, structure, stage_spec, symbol, timeframe) or []
             candidate = results[0] if results else None
             if candidate:
-                stage_candidates[stage_id] = candidate
+                tagged_candidate = dict(candidate)
+                tagged_candidate["_primitive_id"] = stage_pattern_id
+                tagged_candidate["_stage_id"] = stage_id
+                stage_candidates[stage_id] = tagged_candidate
+                primitive_results.setdefault(stage_pattern_id, []).append(tagged_candidate)
             stage_trace[stage_id] = _node_from_candidate(stage_pattern_id, candidate)
         except Exception as e:
             stage_trace[stage_id] = {
@@ -1042,6 +1105,7 @@ def run_composite_plugin(
         "pattern_type": pattern_type,
         "created_at": datetime.utcnow().isoformat() + "Z",
         "chart_data": _merge_chart_data(data, stage_candidates),
+        "_primitive_results": primitive_results,
         "composite_trace": {
             **stage_trace,
             "reducer": reducer or {"op": "AND", "inputs": list(stage_trace.keys())},

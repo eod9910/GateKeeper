@@ -7,6 +7,8 @@ let pipelinePatternRows = [];
 let pipelineChatMessages = [];
 let pipelineValidationPassed = false;
 let pipelineValidationHash = '';
+let pipelineFundamentalEditor = null;
+const FUNDAMENTAL_FILTER_PRIMITIVE_ID = 'fundamental_quality_filter_primitive';
 
 const PORT_TYPE_COLORS = {
   PriceData: '#ffffff',
@@ -40,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerPrimitiveNodes();
   registerPatternNodes();
   initializePipelineGraph();
+  initializePipelineFundamentalEditor();
   wirePipelineActions();
   initializePipelineChat();
 });
@@ -139,6 +142,66 @@ function setPipelineStatus(text, isError) {
   el.style.color = isError ? '#ef7f7f' : '';
 }
 
+function addPipelineFundamentalFilterNode() {
+  if (!pipelineGraph || typeof LiteGraph === 'undefined') return;
+  const nodeTypeName = `primitives/${FUNDAMENTAL_FILTER_PRIMITIVE_ID}`;
+  const node = LiteGraph.createNode(nodeTypeName);
+  if (!node) {
+    alert('Fundamental Quality Filter node is not available.');
+    return;
+  }
+  node.pos = [350, 120];
+  pipelineGraph.add(node);
+
+  const allNodes = pipelineGraph._nodes || [];
+  const priceNode = allNodes.find((item) => item?.type === 'special/PriceData') || null;
+  const reducerNode = allNodes.find((item) => item?.type === 'special/Reducer') || null;
+  try {
+    if (priceNode) {
+      priceNode.connect(0, node, 0);
+    }
+  } catch {}
+  try {
+    if (reducerNode) {
+      const nextInputIndex = Array.isArray(reducerNode.inputs)
+        ? reducerNode.inputs.findIndex((input) => input && input.link == null)
+        : -1;
+      if (nextInputIndex >= 0) {
+        node.connect(0, reducerNode, nextInputIndex);
+      }
+    }
+  } catch {}
+  setPipelineStatus('Added Fundamental Quality Filter node');
+}
+
+function initializePipelineFundamentalEditor() {
+  if (typeof initFundamentalConfigEditor !== 'function') return;
+  pipelineFundamentalEditor = initFundamentalConfigEditor({
+    hostId: 'pipeline-fundamental-config-host',
+    prefix: 'pipeline-fundamentals',
+    onChange: () => {
+      pipelineValidationPassed = false;
+      pipelineValidationHash = '';
+      updatePipelineRegisterButton();
+      updatePipelinePreview();
+    },
+  });
+}
+
+function applyPipelineFundamentalConfig(definition, errors) {
+  if (!pipelineFundamentalEditor) return;
+  const issues = pipelineFundamentalEditor.getIssues();
+  if (Array.isArray(issues) && issues.length) {
+    errors.push(...issues);
+  }
+  const config = pipelineFundamentalEditor.getValue();
+  if (config) {
+    definition.fundamental_config = config;
+  } else {
+    delete definition.fundamental_config;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Load primitives from API
 // ---------------------------------------------------------------------------
@@ -156,8 +219,13 @@ async function loadPipelinePrimitives() {
         pattern_id: String(r.pattern_id).trim(),
         name: String(r.name || r.pattern_id).trim(),
         indicator_role: String(r.indicator_role || 'unknown').trim(),
+        canonical_role: String(r.canonical_role || r.indicator_role || 'unknown').trim(),
         description: String(r.description || '').trim(),
         category: String(r.category || 'custom').trim(),
+        library_tier: String(r.library_tier || '').trim(),
+        autonomy_safe: r.autonomy_safe === true,
+        state_compatible: r.state_compatible === true,
+        cost_class: String(r.cost_class || '').trim(),
         tunable_params: Array.isArray(r.tunable_params) ? r.tunable_params : [],
         default_setup_params: r.default_setup_params || {},
         port_inputs: r.port_inputs || { data: 'PriceData' },
@@ -313,7 +381,7 @@ function registerPrimitiveNodes() {
       this.title = row.name || patternId;
       this.color = '#333';
 
-      const role = row.indicator_role || '';
+      const role = row.canonical_role || row.indicator_role || '';
       if (role.includes('structure') || role.includes('anchor')) {
         this.bgcolor = '#1a2a3e';
       } else if (role.includes('location')) {
@@ -328,7 +396,7 @@ function registerPrimitiveNodes() {
 
       this.properties = {
         pattern_id: patternId,
-        indicator_role: row.indicator_role,
+        indicator_role: row.canonical_role || row.indicator_role,
       };
     }
 
@@ -904,6 +972,8 @@ function buildPipelineSpec() {
     suggested_timeframes: ['D', 'W'],
     min_data_bars: 220,
   };
+  applyPipelineFundamentalConfig(definition, errors);
+  if (errors.length) return { errors };
   definition.tunable_params = inferPipelineTunableParams(nodes);
 
   return { errors: [], definition };
@@ -1051,11 +1121,16 @@ async function registerPipeline() {
 // ---------------------------------------------------------------------------
 
 function wirePipelineActions() {
+  const addFundamentalFilterBtn = document.getElementById('btn-pipeline-add-fundamental-filter');
   const clearBtn = document.getElementById('btn-pipeline-clear');
   const validateBtn = document.getElementById('btn-pipeline-validate');
   const copyBtn = document.getElementById('btn-pipeline-copy-json');
   const registerBtn = document.getElementById('btn-pipeline-register');
   const sendBtn = document.getElementById('btn-pipeline-send-builder');
+
+  if (addFundamentalFilterBtn) {
+    addFundamentalFilterBtn.addEventListener('click', addPipelineFundamentalFilterNode);
+  }
 
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
@@ -1123,6 +1198,7 @@ function renderPipelineChat() {
     return `<div class="workshop-chat-bubble ${cls}">${escapeHtml(msg.text)}</div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('pipeline-chat-panel');
 }
 
 async function sendPipelineChat(prefill) {
@@ -1147,6 +1223,8 @@ async function sendPipelineChat(prefill) {
         intent: String(document.getElementById('pipeline-intent')?.value || 'entry').trim(),
       },
       currentComposition: built.errors?.length ? { status: 'invalid', errors: built.errors } : { status: 'valid', definition: built.definition },
+      fundamentalConfig: pipelineFundamentalEditor?.getValue() || null,
+      availableFundamentalMetrics: typeof getFundamentalMetricOptions === 'function' ? getFundamentalMetricOptions() : [],
       availablePrimitives: pipelinePrimitiveRows.slice(0, 200),
       chatHistory: pipelineChatMessages.slice(-12).map((m) => ({ sender: m.sender === 'ai' ? 'assistant' : 'user', text: String(m.text || '').slice(0, 1200) })),
     };

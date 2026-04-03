@@ -20,9 +20,9 @@ import statistics
 import sys
 import threading
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 # Thread-local storage so each validator request running in its own thread
@@ -41,7 +41,8 @@ except Exception:
     yf = None
 
 from backtestEngine import run_backtest_on_bars, trades_to_dicts, _entry_signal_indices_from_spec, _safe_float
-from robustnessTests import expectancy, out_of_sample, walk_forward, monte_carlo, parameter_sensitivity
+from robustnessTests import expectancy, out_of_sample, walk_forward, monte_carlo
+from fundamentals_pit_query import run_fundamental_validation
 from platform_sdk.ohlcv import OHLCV
 from platform_sdk.rdp import clear_rdp_cache, clear_rdp_precomputed, rdp_cache_stats, set_backtest_mode as _set_rdp_backtest_mode
 from platform_sdk.swing_structure import set_backtest_mode as _set_swing_backtest_mode
@@ -274,7 +275,10 @@ def _resolve_sensitivity_params(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [
         {"label": "RDP Epsilon %", "path": "structure_config.swing_epsilon_pct", "type": "float", "min": 0.0001},
         {"label": "Stop Value", "path": "risk_config.stop_value", "type": "float", "min": 0.0001},
+        {"label": "ATR Stop Multiplier", "path": "risk_config.atr_multiplier", "type": "float", "min": 0.0001},
         {"label": "Take Profit R", "path": "risk_config.take_profit_R", "type": "float", "min": 0.0001},
+        {"label": "Max Hold Bars", "path": "risk_config.max_hold_bars", "type": "int", "min": 1},
+        {"label": "Max Concurrent Positions", "path": "risk_config.max_concurrent_positions", "type": "int", "min": 1},
     ]
 
 
@@ -424,9 +428,96 @@ def _extend_date_start(date_start: str, warmup_bars: int, interval: str) -> str:
 
 
 _SNAPSHOT_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "validator-snapshots"))
+_SYMBOL_CACHE_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "validator-symbol-cache"))
 _INVALID_SYMBOLS_FILE = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "validator-invalid-symbols.json"))
+_KNOWN_LIVE_UNIVERSE_FILE = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "data", "universe_clean.json"))
 _INVALID_SYMBOL_TTL_SEC = 14 * 24 * 60 * 60
+_SNAPSHOT_TTL_DEFAULT_SEC = 7 * 24 * 60 * 60
 
+_MAX_DOWNLOAD_WORKERS = max(1, min(8, int(os.getenv("VALIDATOR_DOWNLOAD_WORKERS", "6"))))
+_KNOWN_LIVE_SYMBOLS: Optional[set[str]] = None
+
+
+def _snapshot_ttl_sec(interval: str) -> int:
+    key = str(interval or "").strip().lower()
+    if key in ("1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "4h"):
+        return 24 * 60 * 60
+    if key in ("1d", "5d"):
+        return 2 * 24 * 60 * 60
+    if key in ("1wk",):
+        return 7 * 24 * 60 * 60
+    if key in ("1mo", "3mo"):
+        return 30 * 24 * 60 * 60
+    return _SNAPSHOT_TTL_DEFAULT_SEC
+
+
+# ── Per-symbol cache ─────────────────────────────────────────────────────────
+
+def _symbol_cache_path(symbol: str, interval: str, date_start: str, date_end: str) -> str:
+    key_str = f"{symbol}|{interval}|{date_start}|{date_end}"
+    h = hashlib.sha1(key_str.encode("utf-8")).hexdigest()[:12]
+    safe_sym = symbol.replace("/", "_").replace("\\", "_")
+    return os.path.join(_SYMBOL_CACHE_DIR, interval, f"{safe_sym}_{h}.json")
+
+
+def _load_symbol_cache(symbol: str, interval: str, date_start: str, date_end: str,
+                       ttl_sec: int) -> List[Dict[str, Any]] | None:
+    path = _symbol_cache_path(symbol, interval, date_start, date_end)
+    try:
+        if not os.path.exists(path):
+            return None
+        mtime = os.path.getmtime(path)
+        age = time.time() - mtime
+        if age > ttl_sec:
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            return None
+        if not data:
+            return None
+        return data
+    except Exception:
+        return None
+
+
+def _save_symbol_cache(symbol: str, interval: str, date_start: str, date_end: str,
+                       bars: List[Dict[str, Any]]) -> None:
+    path = _symbol_cache_path(symbol, interval, date_start, date_end)
+    if not bars:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(bars, f)
+    except Exception:
+        pass
+
+
+def _load_symbols_from_cache(
+    symbols: List[str], interval: str, date_start: str, date_end: str,
+    ttl_sec: int, force_refresh: bool,
+) -> Tuple[Dict[str, List[Dict[str, Any]]], List[str]]:
+    """Return (cached_data, symbols_needing_download)."""
+    cached: Dict[str, List[Dict[str, Any]]] = {}
+    need_download: List[str] = []
+    if force_refresh:
+        return cached, list(symbols)
+    for sym in symbols:
+        bars = _load_symbol_cache(sym, interval, date_start, date_end, ttl_sec)
+        if bars is not None:
+            cached[sym] = bars
+        else:
+            need_download.append(sym)
+    return cached, need_download
+
+
+# ── Legacy monolithic snapshot (read-only fallback for existing caches) ──────
 
 def _snapshot_meta(symbols: List[str], interval: str, date_start: str, date_end: str) -> Dict[str, Any]:
     return {
@@ -445,16 +536,28 @@ def _snapshot_path(symbols: List[str], interval: str, date_start: str, date_end:
     return os.path.join(_SNAPSHOT_DIR, f"snapshot_{key}.json")
 
 
-def _load_snapshot(path: str) -> Dict[str, List[Dict[str, Any]]] | None:
+def _load_snapshot(path: str, ttl_sec: int | None = None, force_refresh: bool = False) -> Dict[str, List[Dict[str, Any]]] | None:
+    """Legacy loader — tries to read a monolithic snapshot file. Used as
+    fallback when per-symbol cache doesn't cover all symbols."""
     try:
+        if force_refresh:
+            return None
         if not os.path.exists(path):
             return None
         with open(path, "r", encoding="utf-8") as f:
             raw = json.load(f)
+        created_at = raw.get("created_at")
+        if ttl_sec and created_at:
+            try:
+                created_dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+                age_sec = (datetime.utcnow() - created_dt.replace(tzinfo=None)).total_seconds()
+                if age_sec > ttl_sec:
+                    return None
+            except Exception:
+                return None
         data = raw.get("data")
         if not isinstance(data, dict):
             return None
-        # Keep only symbol->list payloads
         return {str(k): (v if isinstance(v, list) else []) for k, v in data.items()}
     except Exception:
         return None
@@ -519,12 +622,27 @@ def _safe_int(x: Any, default: int) -> int:
 _TIER_TRADE_THRESHOLDS: Dict[str, Dict[str, int]] = {
     # Fast kill gate still requires meaningful evidence.
     "tier1": {"min_trades_pass": 300, "min_trades_fail": 200},
+    # Tier 1 + parameter sensitivity analysis.
+    "tier1s": {"min_trades_pass": 300, "min_trades_fail": 200},
     # Evidence expansion keeps the fast runtime but expects a broader sample.
     "tier1b": {"min_trades_pass": 500, "min_trades_fail": 300},
+    # Tier 1B + parameter sensitivity analysis.
+    "tier1bs": {"min_trades_pass": 500, "min_trades_fail": 300},
     # Core validation expands evidence requirements.
     "tier2": {"min_trades_pass": 500, "min_trades_fail": 300},
     # Robustness/stress layer expects deeper sample size.
     "tier3": {"min_trades_pass": 800, "min_trades_fail": 400},
+    # Custom large cap universe — treated like Tier 1, no sensitivity.
+    "large_cap_known": {"min_trades_pass": 300, "min_trades_fail": 150},
+    # Index-based universes — baseline only, no sensitivity, scaled thresholds.
+    "sp500": {"min_trades_pass": 500, "min_trades_fail": 250},
+    "sp400": {"min_trades_pass": 400, "min_trades_fail": 200},
+    "sp600": {"min_trades_pass": 400, "min_trades_fail": 200},
+    # Regime-based universes — exploratory, no sensitivity, minimal trade count.
+    "regime_expansion":    {"min_trades_pass": 150, "min_trades_fail": 50},
+    "regime_distribution": {"min_trades_pass": 150, "min_trades_fail": 50},
+    "regime_accumulation": {"min_trades_pass": 150, "min_trades_fail": 50},
+    "regime_markdown":     {"min_trades_pass": 150, "min_trades_fail": 50},
 }
 
 # Reference universe size for the stock tiers that define the standard thresholds.
@@ -610,9 +728,10 @@ def _load_invalid_symbol_cache() -> Dict[str, Dict[str, Any]]:
             raw = json.load(f)
         if not isinstance(raw, dict):
             return {}
+        live_symbols = _load_known_live_symbols()
         out: Dict[str, Dict[str, Any]] = {}
         for k, v in raw.items():
-            if isinstance(k, str) and isinstance(v, dict):
+            if isinstance(k, str) and isinstance(v, dict) and str(k).strip().upper() not in live_symbols:
                 out[k] = v
         return out
     except Exception:
@@ -646,10 +765,27 @@ def _is_invalid_symbol_diag(diag: str) -> bool:
         "possibly delisted",
         "quote not found",
         "no timezone found",
-        "failed download",
-        "no price data found",
+        "symbol may be delisted",
+        "ticker may be delisted",
     ]
     return any(n in text for n in needles)
+
+
+def _load_known_live_symbols() -> set[str]:
+    global _KNOWN_LIVE_SYMBOLS
+    if _KNOWN_LIVE_SYMBOLS is not None:
+        return _KNOWN_LIVE_SYMBOLS
+    try:
+        payload = json.loads(open(_KNOWN_LIVE_UNIVERSE_FILE, "r", encoding="utf-8").read())
+        stocks = payload.get("stocks") or []
+        _KNOWN_LIVE_SYMBOLS = {
+            str(item.get("ticker", "")).strip().upper()
+            for item in stocks
+            if isinstance(item, dict) and str(item.get("ticker", "")).strip()
+        }
+    except Exception:
+        _KNOWN_LIVE_SYMBOLS = set()
+    return _KNOWN_LIVE_SYMBOLS
 
 
 def _aggregate_bars_dicts(bars: List[Dict[str, Any]], factor: int) -> List[Dict[str, Any]]:
@@ -672,6 +808,9 @@ def _aggregate_bars_dicts(bars: List[Dict[str, Any]], factor: int) -> List[Dict[
     return out
 
 
+_OHLCV_REDIRECT_LOCK = threading.Lock()
+
+
 def load_ohlcv(symbol: str, interval: str, date_start: str, date_end: str) -> tuple[List[Dict[str, Any]], str]:
     if yf is None:
         raise RuntimeError("yfinance is not installed")
@@ -679,13 +818,20 @@ def load_ohlcv(symbol: str, interval: str, date_start: str, date_end: str) -> tu
     needs_aggregation = interval == "4h"
     yahoo_interval = "1h" if needs_aggregation else interval
 
+    # redirect_stderr/redirect_stdout swap the global sys.stderr/stdout which
+    # is not thread-safe. Serialize only the redirect section so the
+    # diagnostic capture doesn't cross-contaminate between threads. The
+    # yfinance HTTP I/O itself still releases the GIL for network wait.
     stderr_buf = io.StringIO()
     stdout_buf = io.StringIO()
-    with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(stdout_buf):
-        df = yf.download(symbol, start=date_start, end=date_end, interval=yahoo_interval, progress=False, auto_adjust=False)
+    with _OHLCV_REDIRECT_LOCK:
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(stdout_buf):
+            df = yf.download(symbol, start=date_start, end=date_end, interval=yahoo_interval, progress=False, auto_adjust=False)
     diag = (stderr_buf.getvalue() + "\n" + stdout_buf.getvalue()).strip()
     if df is None or len(df) == 0:
         if _is_invalid_symbol_diag(diag):
+            if str(symbol or "").strip().upper() in _load_known_live_symbols():
+                return [], "no_data"
             return [], "invalid_symbol"
         return [], "no_data"
 
@@ -982,6 +1128,19 @@ def _worker_init() -> None:
     _sw_bm(True)
 
 
+_SENSITIVITY_SOURCE_CACHE: Dict[str, List[Dict[str, Any]]] = {}
+
+
+def _sensitivity_worker_init(source_cache: Dict[str, List[Dict[str, Any]]]) -> None:
+    """Initialize a sensitivity worker once with the shared source bars.
+
+    This avoids re-sending the same per-symbol OHLCV payload on every nudge task.
+    """
+    global _SENSITIVITY_SOURCE_CACHE
+    _worker_init()
+    _SENSITIVITY_SOURCE_CACHE = source_cache or {}
+
+
 def _backtest_one_symbol(
     sym: str,
     interval: str,
@@ -1027,13 +1186,15 @@ def _backtest_one_symbol(
 def _nudge_one_symbol(
     sym: str,
     interval: str,
-    bars: List[Dict[str, Any]],
     spec2: Dict[str, Any],
     report_id: str,
     strategy_version_id: str,
 ) -> List[Dict[str, Any]]:
     """Run a single nudged backtest for parameter sensitivity. Worker function."""
     try:
+        bars = _SENSITIVITY_SOURCE_CACHE.get(sym) or []
+        if not bars:
+            return []
         t, _ = run_backtest_on_bars(sym, interval, bars, spec2, apply_execution_rules=True)
         return trades_to_dicts(t, report_id, strategy_version_id)
     except Exception:
@@ -1047,6 +1208,7 @@ def run_pipeline(
     universe: List[str] | None = None,
     validation_tier: str = "tier3",
     job_id: str | None = None,
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
     # Clear RDP caches at the start of each run so a fresh run isn't polluted
     # by a prior run's data (different date ranges → different bar arrays).
@@ -1086,11 +1248,15 @@ def run_pipeline(
             fetch_date_start = earliest_str
 
     tier_key = str(validation_tier or "tier3").strip().lower()
-    if tier_key not in ("tier1", "tier1b", "tier2", "tier3"):
+    _REGIME_TIERS = ("regime_expansion", "regime_distribution", "regime_accumulation", "regime_markdown")
+    _VALID_TIERS = ("tier1", "tier1b", "tier1s", "tier1bs", "tier2", "tier3",
+                    "large_cap_known", "sp500", "sp400", "sp600") + _REGIME_TIERS
+    if tier_key not in _VALID_TIERS:
         tier_key = "tier3"
     thresholds = _validator_thresholds(spec, tier_key, universe_size=len(symbols))
-    is_tier1_fast = tier_key in ("tier1", "tier1b")
-    evidence_tier_label = "Tier 1B" if tier_key == "tier1b" else "Tier 1"
+    is_tier1_fast = tier_key in ("tier1", "tier1b", "tier1s", "tier1bs", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS
+    tier1_skip_sensitivity = tier_key in ("tier1", "tier1b", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS
+    evidence_tier_label = "Tier 1S" if tier_key == "tier1s" else "Tier 1BS" if tier_key == "tier1bs" else "Tier 1B" if tier_key == "tier1b" else "Tier 1"
     extra_passes_after_baseline = 0 if is_tier1_fast else 6
     baseline_progress_span = 0.60 if is_tier1_fast else 0.25
 
@@ -1119,79 +1285,107 @@ def run_pipeline(
     tier1_symbols_processed = 0
     snapshot_path = _snapshot_path(symbols, interval, fetch_date_start, date_end)
     snapshot_loaded_from_cache = False
+    ttl_sec = _snapshot_ttl_sec(interval)
 
-    # Stage 1: data materialization (download + save snapshot).
-    _emit_progress(0.05, "loading_data", f"Preparing data snapshot for {n_symbols} symbols (warmup from {fetch_date_start})...")
-    cached_data = _load_snapshot(snapshot_path)
-    if cached_data is not None:
+    # Stage 1: data materialization — per-symbol cache with parallel downloads.
+    _emit_progress(0.05, "loading_data", f"Checking cache for {n_symbols} symbols...")
+
+    # 1a) Try per-symbol cache first (survives universe changes).
+    sym_cached, syms_to_download = _load_symbols_from_cache(
+        symbols, interval, fetch_date_start, date_end, ttl_sec, bool(force_refresh),
+    )
+    for sym, bars in sym_cached.items():
+        data_cache[sym] = bars
+
+    # 1b) For any remaining misses, check the legacy monolithic snapshot.
+    if syms_to_download and not force_refresh:
+        legacy = _load_snapshot(snapshot_path, ttl_sec=ttl_sec, force_refresh=False)
+        if legacy:
+            still_need: List[str] = []
+            for sym in syms_to_download:
+                legacy_bars = legacy.get(sym)
+                if legacy_bars is not None:
+                    data_cache[sym] = legacy_bars
+                    _save_symbol_cache(sym, interval, fetch_date_start, date_end, legacy_bars)
+                else:
+                    still_need.append(sym)
+            syms_to_download = still_need
+
+    n_cached = n_symbols - len(syms_to_download)
+    if n_cached == n_symbols:
         snapshot_loaded_from_cache = True
-        for sym in symbols:
-            data_cache[sym] = cached_data.get(sym, [])
         empty_count = sum(1 for sym in symbols if not data_cache.get(sym))
         suffix = f" - {empty_count} symbols without data" if empty_count > 0 else ""
-        _emit_progress(0.20, "loading_data", f"Loaded cached snapshot {os.path.basename(snapshot_path)}{suffix}")
+        _emit_progress(0.20, "loading_data", f"All {n_symbols} symbols loaded from cache{suffix}")
+    elif n_cached > 0:
+        _emit_progress(0.08, "loading_data",
+                        f"{n_cached}/{n_symbols} symbols from cache, downloading {len(syms_to_download)}...")
     else:
+        _emit_progress(0.06, "loading_data", f"Downloading {len(syms_to_download)} symbols...")
+
+    # 1c) Download cache misses in parallel.
+    if syms_to_download:
         invalid_cache = _load_invalid_symbol_cache()
         now_ts = datetime.utcnow().timestamp()
         invalid_skipped_cached: List[str] = []
         invalid_discovered: List[str] = []
-        _download_times: List[float] = []
-        for idx, sym in enumerate(symbols):
+
+        actually_need_download: List[str] = []
+        for sym in syms_to_download:
             if _is_recent_invalid(invalid_cache.get(sym, {}), now_ts):
                 data_cache[sym] = []
                 invalid_skipped_cached.append(sym)
-                remaining_downloads = n_symbols - (idx + 1)
-                avg_dl = statistics.mean(_download_times) if _download_times else 1.0
-                avg_bt_guess = max(2.0, avg_dl * 0.8)
-                eta = remaining_downloads * avg_dl + (n_symbols + extra_passes_after_baseline * n_symbols) * avg_bt_guess
-                _emit_progress(
-                    0.05 + ((idx + 1) / n_symbols) * 0.15,
-                    "loading_data",
-                    f"Skipped {sym} (known invalid symbol cache) - {_format_eta(eta)}",
-                    eta_seconds=eta,
-                )
-                continue
+            else:
+                actually_need_download.append(sym)
 
-            dl_start = time.monotonic()
+        if invalid_skipped_cached:
+            _emit_progress(0.08, "loading_data",
+                            f"Skipped {len(invalid_skipped_cached)} known-invalid symbols from cache")
+
+        n_to_dl = len(actually_need_download)
+        dl_completed = 0
+
+        def _download_one(sym: str) -> Tuple[str, List[Dict[str, Any]], str, float]:
+            t0 = time.monotonic()
             bars, status = load_ohlcv(sym, interval, fetch_date_start, date_end)
-            data_cache[sym] = bars
-            dl_elapsed = time.monotonic() - dl_start
-            _download_times.append(dl_elapsed)
+            return sym, bars, status, time.monotonic() - t0
 
-            remaining_downloads = n_symbols - (idx + 1)
-            avg_dl = statistics.mean(_download_times) if _download_times else 1.0
-            avg_bt_guess = max(2.0, avg_dl * 0.8)
-            eta = remaining_downloads * avg_dl + (n_symbols + extra_passes_after_baseline * n_symbols) * avg_bt_guess
-            detail = f"Downloaded {sym} ({idx + 1}/{n_symbols})"
-            if not bars:
-                if status == "invalid_symbol":
-                    invalid_cache[sym] = {"last_seen": _now_iso(), "reason": "invalid_symbol"}
-                    invalid_discovered.append(sym)
-                    detail += " - invalid symbol"
-                else:
-                    detail += " - no data"
-            elif sym in invalid_cache:
-                # Symbol recovered or data became available again.
-                invalid_cache.pop(sym, None)
-            _emit_progress(
-                0.05 + ((idx + 1) / n_symbols) * 0.15,
-                "loading_data",
-                f"{detail} - {_format_eta(eta)}",
-                eta_seconds=eta,
-            )
+        if n_to_dl > 0:
+            workers = min(_MAX_DOWNLOAD_WORKERS, n_to_dl)
+            with ThreadPoolExecutor(max_workers=workers) as dl_pool:
+                futures = {dl_pool.submit(_download_one, sym): sym for sym in actually_need_download}
+                for fut in as_completed(futures):
+                    sym, bars, status, elapsed = fut.result()
+                    data_cache[sym] = bars
+                    dl_completed += 1
+
+                    if bars:
+                        _save_symbol_cache(sym, interval, fetch_date_start, date_end, bars)
+                        if sym in invalid_cache:
+                            invalid_cache.pop(sym, None)
+                    else:
+                        if status == "invalid_symbol":
+                            invalid_cache[sym] = {"last_seen": _now_iso(), "reason": "invalid_symbol"}
+                            invalid_discovered.append(sym)
+
+                    total_done = n_cached + len(invalid_skipped_cached) + dl_completed
+                    frac = 0.08 + (total_done / n_symbols) * 0.12
+                    status_txt = "no data" if not bars else f"{len(bars)} bars"
+                    _emit_progress(
+                        frac, "loading_data",
+                        f"Downloaded {sym} ({status_txt}) - {dl_completed}/{n_to_dl} downloads done",
+                    )
 
         _save_invalid_symbol_cache(invalid_cache)
         if invalid_skipped_cached or invalid_discovered:
             total_invalid = len(invalid_skipped_cached) + len(invalid_discovered)
             _emit_progress(
-                0.21,
-                "loading_data",
-                (
-                    f"Invalid symbol summary: {total_invalid} total "
-                    f"({len(invalid_skipped_cached)} cached skips, {len(invalid_discovered)} new)"
-                ),
+                0.21, "loading_data",
+                f"Invalid symbol summary: {total_invalid} total "
+                f"({len(invalid_skipped_cached)} cached skips, {len(invalid_discovered)} new)",
             )
 
+        # Save legacy snapshot for backward compat.
         _emit_progress(0.22, "saving_snapshot", f"Saving snapshot ({n_symbols} symbols)...")
         _save_snapshot(snapshot_path, data_cache, symbols, interval, fetch_date_start, date_end)
         _emit_progress(0.25, "saving_snapshot", f"Snapshot saved: {os.path.basename(snapshot_path)}")
@@ -1216,7 +1410,7 @@ def run_pipeline(
             f"Backtested {sym} ({n_completed}/{n_symbols}) - no data",
         )
 
-    tier1_done = False
+    processed_data_cache: Dict[str, List[Dict[str, Any]]] = {}
     with ProcessPoolExecutor(
         max_workers=_N_BACKTEST_WORKERS,
         initializer=_worker_init,
@@ -1238,15 +1432,12 @@ def run_pipeline(
                 _kill_executor_workers(executor)
                 raise RuntimeError("Validation cancelled by user")
 
-            if tier1_done:
-                # Early stop triggered — drain remaining futures without processing
-                future.cancel()
-                continue
-
             result = future.result()
             n_completed += 1
             sym = result["sym"]
             tier1_symbols_processed = n_completed
+            if data_cache.get(sym):
+                processed_data_cache[sym] = data_cache.get(sym) or []
 
             _backtest_times.append(result["elapsed"])
             avg_bt = statistics.mean(_backtest_times)
@@ -1280,31 +1471,6 @@ def run_pipeline(
             exec_totals["pct_trades_hitting_scale_out_sum"] += float(es.get("pct_trades_hitting_scale_out", 0.0))
             exec_totals["symbols_counted"] += 1
 
-            if is_tier1_fast:
-                partial_ts = _trade_summary(all_trades)
-                if partial_ts["total_trades"] >= thresholds["min_trades_fail"] and partial_ts["expectancy_R"] <= 0:
-                    tier1_early_stop_reason = (
-                        f"{evidence_tier_label} early fail after {partial_ts['total_trades']} trades "
-                        f"(expectancy={partial_ts['expectancy_R']:.3f}R)."
-                    )
-                elif (
-                    partial_ts["total_trades"] >= thresholds["min_trades_pass"]
-                    and partial_ts["expectancy_R"] > 0
-                    and partial_ts["profit_factor"] >= 1.0
-                ):
-                    tier1_early_stop_reason = (
-                        f"{evidence_tier_label} early pass evidence reached after {partial_ts['total_trades']} trades "
-                        f"(expectancy={partial_ts['expectancy_R']:.3f}R, pf={partial_ts['profit_factor']:.3f})."
-                    )
-
-                if tier1_early_stop_reason:
-                    _emit_progress(
-                        0.88,
-                        "running_backtest",
-                        f"{tier1_early_stop_reason} Stopping baseline early ({n_completed}/{n_symbols} symbols).",
-                    )
-                    tier1_done = True
-
     # Portfolio-level filter: max concurrent positions
     max_concurrent = int((spec.get("risk_config") or {}).get("max_concurrent_positions", 0))
     if max_concurrent > 0 and len(all_trades) > 0:
@@ -1317,8 +1483,159 @@ def run_pipeline(
     streak = _streaks(r_vals)
     risk = _risk_metrics(r_vals, r_to_pct=thresholds["r_to_pct"])
 
+    def _compute_parameter_sensitivity(
+        source_cache: Dict[str, List[Dict[str, Any]]],
+        progress_start: float,
+        progress_span: float,
+    ) -> Dict[str, Any]:
+        sensitivity_params = _resolve_sensitivity_params(spec)
+        sensitivity_param_paths = [str(param.get("path") or param.get("label") or "") for param in sensitivity_params]
+        sensitivity_param_map = {
+            str(param.get("path") or param.get("label") or ""): param
+            for param in sensitivity_params
+            if str(param.get("path") or param.get("label") or "")
+        }
+        if not sensitivity_param_paths or not source_cache:
+            return {
+                "params_tested": sensitivity_param_paths,
+                "base_expectancy": ts["expectancy_R"],
+                "nudged_results": [],
+                "sensitivity_score": 0.0,
+            }
+
+        nudge_count = [0]
+        nudge_total = max(1, len(sensitivity_params) * 2)
+        _nudge_times: List[float] = []
+        source_symbols = len(source_cache)
+        source_symbols_list = [sym for sym, bars in source_cache.items() if bars]
+
+        _emit_progress(
+            progress_start,
+            "parameter_sensitivity",
+            f"Running parameter sensitivity ({nudge_total} reruns across {source_symbols} symbols)...",
+        )
+
+        if not source_symbols_list:
+            return {
+                "params_tested": sensitivity_param_paths,
+                "base_expectancy": round(ts["expectancy_R"], 4),
+                "nudged_results": [],
+                "sensitivity_score": 0.0,
+            }
+
+        job_defs: List[Dict[str, Any]] = []
+        for param in sensitivity_params:
+            param_path = str(param.get("path") or param.get("label") or "")
+            if not param_path:
+                continue
+            for direction_label, factor in [("+10%", 1.10), ("-10%", 0.90)]:
+                spec2 = copy.deepcopy(spec)
+                _apply_sensitivity_nudge(spec2, param, factor)
+                job_defs.append({
+                    "param_path": param_path,
+                    "factor": factor,
+                    "direction_label": direction_label,
+                    "direction_word": "up" if factor > 1 else "down",
+                    "descriptor": param,
+                    "spec": spec2,
+                    "submitted": 0,
+                    "completed": 0,
+                    "trades": [],
+                    "started_at": time.monotonic(),
+                })
+
+        if not job_defs:
+            return {
+                "params_tested": sensitivity_param_paths,
+                "base_expectancy": round(ts["expectancy_R"], 4),
+                "nudged_results": [],
+                "sensitivity_score": 0.0,
+            }
+
+        future_to_job_index: Dict[Any, int] = {}
+        completed_job_results: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        sensitivity_exec = ProcessPoolExecutor(
+            max_workers=_N_BACKTEST_WORKERS,
+            initializer=_sensitivity_worker_init,
+            initargs=(source_cache,),
+        )
+        try:
+            for job_index, job in enumerate(job_defs):
+                spec2 = job["spec"]
+                for sym in source_symbols_list:
+                    fut = sensitivity_exec.submit(
+                        _nudge_one_symbol,
+                        sym,
+                        interval,
+                        spec2,
+                        report_id,
+                        strategy_version_id,
+                    )
+                    future_to_job_index[fut] = job_index
+                    job["submitted"] += 1
+
+            for fut in as_completed(future_to_job_index):
+                if _is_cancelled(job_id):
+                    for pending in future_to_job_index:
+                        pending.cancel()
+                    _kill_executor_workers(sensitivity_exec)
+                    raise RuntimeError("Validation cancelled by user")
+
+                job_index = future_to_job_index[fut]
+                job = job_defs[job_index]
+                job["trades"].extend(fut.result())
+                job["completed"] += 1
+
+                if job["completed"] != job["submitted"]:
+                    continue
+
+                nudge_count[0] += 1
+                nudge_elapsed = time.monotonic() - float(job["started_at"])
+                _nudge_times.append(nudge_elapsed)
+                param_path = str(job["param_path"])
+                direction_label = str(job["direction_label"])
+                descriptor = job["descriptor"] or sensitivity_param_map.get(param_path, {"path": param_path, "label": param_path})
+                exp = expectancy(job["trades"])
+                change = ((exp - ts["expectancy_R"]) / abs(ts["expectancy_R"]) * 100.0) if abs(ts["expectancy_R"]) > 1e-9 else (0.0 if abs(exp) < 1e-9 else 100.0)
+                completed_job_results[(param_path, direction_label)] = {
+                    "param": param_path,
+                    "direction": direction_label,
+                    "expectancy": round(exp, 4),
+                    "change_pct": round(change, 1),
+                }
+
+                remaining_nudges = nudge_total - nudge_count[0]
+                avg_nudge = statistics.mean(_nudge_times)
+                nudge_eta = remaining_nudges * avg_nudge
+                _emit_progress(
+                    progress_start + (nudge_count[0] / nudge_total) * progress_span,
+                    "parameter_sensitivity",
+                    f"Nudged {descriptor.get('label', param_path)} {job['direction_word']} ({nudge_count[0]}/{nudge_total}) - {_format_eta(nudge_eta)}",
+                    eta_seconds=nudge_eta,
+                )
+        finally:
+            sensitivity_exec.shutdown(wait=False, cancel_futures=True)
+
+        nudged_results: List[Dict[str, Any]] = []
+        for param in sensitivity_params:
+            param_path = str(param.get("path") or param.get("label") or "")
+            if not param_path:
+                continue
+            for direction_label in ("+10%", "-10%"):
+                result = completed_job_results.get((param_path, direction_label))
+                if result:
+                    nudged_results.append(result)
+
+        score = min(100.0, sum(abs(float(x["change_pct"])) for x in nudged_results) / max(1, len(nudged_results)))
+        return {
+            "params_tested": sensitivity_param_paths,
+            "base_expectancy": round(ts["expectancy_R"], 4),
+            "nudged_results": nudged_results,
+            "sensitivity_score": round(score, 1),
+        }
+
     if is_tier1_fast:
-        _emit_progress(0.90, "finalizing_report", f"{evidence_tier_label} baseline complete. Building evidence report...")
+        _emit_progress(0.49, "parameter_sensitivity", f"{evidence_tier_label} baseline complete.")
         oos = {
             "is_expectancy": ts["expectancy_R"],
             "is_n": ts["total_trades"],
@@ -1340,12 +1657,24 @@ def run_pipeline(
             "median_final_R": sum(r_vals) if r_vals else 0.0,
             "p5_final_R": min(r_vals) if r_vals else 0.0,
         }
-        sens = {
-            "params_tested": [],
-            "base_expectancy": ts["expectancy_R"],
-            "nudged_results": [],
-            "sensitivity_score": 0.0,
-        }
+        if tier1_skip_sensitivity:
+            _emit_progress(0.88, "parameter_sensitivity", f"{evidence_tier_label} — sensitivity skipped (use Tier 1S to include).")
+            sens = {
+                "params_tested": [],
+                "base_expectancy": ts["expectancy_R"],
+                "nudged_results": [],
+                "sensitivity_score": 0.0,
+            }
+        else:
+            _emit_progress(0.50, "parameter_sensitivity", "Computing parameter sensitivity...")
+            sensitivity_source_cache = processed_data_cache or {
+                sym: bars for sym, bars in data_cache.items() if bars
+            }
+            sens = _compute_parameter_sensitivity(
+                sensitivity_source_cache,
+                progress_start=0.50,
+                progress_span=0.38,
+            )
     else:
         avg_bt = statistics.mean(_backtest_times) if _backtest_times else 1.0
         eta_sensitivity = 6 * n_symbols * avg_bt
@@ -1354,61 +1683,26 @@ def run_pipeline(
         wf = walk_forward(all_trades)
         mc = monte_carlo(all_trades, simulations=1000, seed=42, r_to_pct=thresholds["r_to_pct"])
         _emit_progress(0.55, "computing_robustness", "Monte Carlo complete...")
-
-        sensitivity_params = _resolve_sensitivity_params(spec)
-        sensitivity_param_paths = [str(param.get("path") or param.get("label") or "") for param in sensitivity_params]
-        sensitivity_param_map = {
-            str(param.get("path") or param.get("label") or ""): param
-            for param in sensitivity_params
-            if str(param.get("path") or param.get("label") or "")
-        }
-        nudge_count = [0]
-        nudge_total = max(1, len(sensitivity_params) * 2)
-        _nudge_times: List[float] = []
-
-        _emit_progress(
-            0.55,
-            "parameter_sensitivity",
-            f"Running parameter sensitivity ({nudge_total} reruns across {n_symbols} symbols)...",
+        sens = _compute_parameter_sensitivity(
+            {sym: bars for sym, bars in data_cache.items() if bars},
+            progress_start=0.55,
+            progress_span=0.35,
         )
-
-        def rerun_with_nudge(param_path: str, factor: float) -> float:
-            nudge_start = time.monotonic()
-            nudge_count[0] += 1
-            direction = "up" if factor > 1 else "down"
-            spec2 = copy.deepcopy(spec)
-            descriptor = sensitivity_param_map.get(param_path, {"path": param_path, "label": param_path, "type": "float", "min": 0.0001})
-            _apply_sensitivity_nudge(spec2, descriptor, factor)
-
-            ntrades: List[Dict[str, Any]] = []
-            with ProcessPoolExecutor(max_workers=_N_BACKTEST_WORKERS, initializer=_worker_init) as nudge_exec:
-                nudge_futures = [
-                    nudge_exec.submit(_nudge_one_symbol, sym, interval, bars, spec2, report_id, strategy_version_id)
-                    for sym, bars in data_cache.items()
-                    if bars
-                ]
-                for f in as_completed(nudge_futures):
-                    if _is_cancelled(job_id):
-                        for nf in nudge_futures:
-                            nf.cancel()
-                        _kill_executor_workers(nudge_exec)
-                        raise RuntimeError("Validation cancelled by user")
-                    ntrades.extend(f.result())
-
-            nudge_elapsed = time.monotonic() - nudge_start
-            _nudge_times.append(nudge_elapsed)
-            remaining_nudges = nudge_total - nudge_count[0]
-            avg_nudge = statistics.mean(_nudge_times)
-            nudge_eta = remaining_nudges * avg_nudge
-            _emit_progress(
-                0.55 + (nudge_count[0] / nudge_total) * 0.35,
-                "parameter_sensitivity",
-                f"Nudged {descriptor.get('label', param_path)} {direction} ({nudge_count[0]}/{nudge_total}) - {_format_eta(nudge_eta)}",
-                eta_seconds=nudge_eta,
+    fundamental_validation = {"enabled": False, "status": "disabled"}
+    if (spec.get("fundamental_config") or {}).get("enabled") is True:
+        _emit_progress(0.90, "computing_fundamentals", "Running PIT fundamental basket validation...")
+        try:
+            fundamental_validation = run_fundamental_validation(
+                spec,
+                {sym: bars for sym, bars in processed_data_cache.items() if bars},
             )
-            return expectancy(ntrades)
+        except Exception as exc:
+            fundamental_validation = {
+                "enabled": True,
+                "status": "error",
+                "reason": str(exc),
+            }
 
-        sens = parameter_sensitivity(ts["expectancy_R"], rerun_with_nudge, params=sensitivity_param_paths)
     _emit_progress(0.92, "finalizing_report", "Building report...")
 
     symbols_counted = max(1, exec_totals["symbols_counted"])
@@ -1426,6 +1720,10 @@ def run_pipeline(
             "data_snapshot": {
                 "path": snapshot_path,
                 "loaded_from_cache": snapshot_loaded_from_cache,
+                "force_refresh": bool(force_refresh),
+                "ttl_sec": ttl_sec,
+                "symbols_from_cache": n_cached,
+                "symbols_downloaded": n_symbols - n_cached,
             },
             "costs": {
                 "commission_per_trade": float((spec.get("cost_config") or spec.get("costs") or {}).get("commission_per_trade", 1.0)),
@@ -1450,6 +1748,7 @@ def run_pipeline(
             "monte_carlo": mc,
             "parameter_sensitivity": sens,
         },
+        "fundamental_validation": fundamental_validation,
         "execution_stats": {
             "rules_active": bool(spec.get("execution_config")),
             "breakeven_triggers": exec_totals["breakeven_triggers"],
@@ -1495,13 +1794,14 @@ def main() -> None:
     p.add_argument("--date-end", required=True)
     p.add_argument("--universe", default="")
     p.add_argument("--tier", default="tier3")
+    p.add_argument("--force-refresh", action="store_true")
     args = p.parse_args()
 
     with open(args.spec, "r", encoding="utf-8") as f:
         spec = json.load(f)
 
     universe = [s.strip() for s in args.universe.split(",") if s.strip()] if args.universe else None
-    result = run_pipeline(spec, args.date_start, args.date_end, universe, args.tier)
+    result = run_pipeline(spec, args.date_start, args.date_end, universe, args.tier, force_refresh=args.force_refresh)
     print(json.dumps(result))
 
 

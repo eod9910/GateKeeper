@@ -369,8 +369,12 @@
           setEntry(price);
         } else if (markerMode === 'stopLoss') {
           setStopLoss(price);
+          // Manual stop placed — clear programmatic stop type so dropdown reads "manual"
+          if (typeof window._stockRiskClearStop === 'function') window._stockRiskClearStop();
         } else if (markerMode === 'takeProfit') {
           setTakeProfit(price);
+          // Manual TP placed — clear programmatic TP type
+          if (typeof window._stockRiskClearTP === 'function') window._stockRiskClearTP();
         }
         
         // Clear mode after setting
@@ -421,7 +425,9 @@
 
       // Resize handler â€” keep chart filling its container
       window.addEventListener('resize', () => {
-        chart.applyOptions({ width: container.clientWidth, height: container.clientHeight || 500 });
+        const w = container.clientWidth;
+        const h = container.clientHeight || 500;
+        if (w > 100) chart.applyOptions({ width: w, height: h });
         resizeDrawingCanvas();
       });
 
@@ -508,6 +514,7 @@
         const safeData = sanitizeChartData(candidate.chart_data);
         if (safeData.length > 0) {
           try { candleSeries.setData(safeData); } catch(e) { console.warn('Chart setData error:', e.message); }
+          window._copilotChartBars = safeData;
           chart.timeScale().fitContent();
         }
         const lastBar = candidate.chart_data[candidate.chart_data.length - 1];
@@ -617,6 +624,11 @@
       if (typeof window.syncRiskPlanFromDeskLevels === 'function') window.syncRiskPlanFromDeskLevels();
       if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
       if (typeof window.syncTradePlanStoreFromDesk === 'function') window.syncTradePlanStoreFromDesk('entry_set');
+      // If a programmatic stop type is selected, recalculate now that we have an entry
+      if (typeof window.applyStockRiskConfig === 'function') {
+        const stopType = document.getElementById('stock-stop-type')?.value;
+        if (stopType) window.applyStockRiskConfig();
+      }
     }
 
     // Set stop loss level
@@ -1595,6 +1607,9 @@
       if (typeof setTradeDirection === 'function') setTradeDirection(0);
       if (typeof window.syncRiskPlanFromDeskLevels === 'function') window.syncRiskPlanFromDeskLevels({ clearMissing: true });
       if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
+      // Hide P&L summary when levels are cleared
+      const pnlPanel = document.getElementById('instrument-pnl-summary');
+      if (pnlPanel) pnlPanel.style.display = 'none';
     }
 
     // Clear everything â€” full reset to default state
@@ -1714,3 +1729,9 @@
         requestTradeVerdict();
       }
     }
+
+    // Explicit global exports so external modules (copilot-core.js) can call these
+    window.setStopLoss   = setStopLoss;
+    window.setTakeProfit = setTakeProfit;
+    window.setEntry      = setEntry;
+

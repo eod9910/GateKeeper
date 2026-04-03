@@ -16,56 +16,106 @@ let reports = [];
 let selectedReport = null;
 let strategyValidationIndex = {};
 let strategyTierProgressIndex = {};
+/** Strategy version ID currently configured for the execution bridge (active/live strategy). */
+let activeStrategyVersionId = null;
 let activeRunJobId = null;
 let runPollTimer = null;
 let strategyEditorMode = 'new';
 let validatorChatMessages = [];
 const DEFAULT_VALIDATION_TIER = 'tier1';
+const VALIDATOR_BUCKET_COLLAPSE_STORAGE_KEY = 'validator_page_bucket_collapsed';
 let activeTierConfig = null;
+let collapsedStrategyBuckets = loadCollapsedStrategyBuckets();
 const VALIDATION_TIER_LABELS = {
   tier1: 'Tier 1 - Kill Test',
+  tier1s: 'Tier 1S - Kill Test + Sensitivity',
   tier1b: 'Tier 1B - Evidence Expansion',
+  tier1bs: 'Tier 1BS - Evidence Expansion + Sensitivity',
   tier2: 'Tier 2 - Core Validation',
   tier3: 'Tier 3 - Robustness',
 };
 const VALIDATION_TIER_DESCRIPTIONS = {
-  tier1: 'Fast kill test on a fixed Tier 1 universe. Target evidence: 200-300 trades.',
-  tier1b: 'Evidence expansion on a broad optionable universe slice. Use this when Tier 1 quality looks good but sample size is thin.',
-  tier2: 'Core validation on a fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires Tier 1 or Tier 1B PASS.',
-  tier3: 'Robustness validation on a fixed Tier 3 universe. Stress tests for survivors. Requires Tier 2 PASS.',
+  tier1: 'Fast mixed-cap kill test on 52 stocks: 13 large + 13 mid + 13 small + 13 micro.',
+  tier1s: 'Same 52-stock mixed-cap Tier 1 kill test, but with parameter sensitivity analysis.',
+  tier1b: 'Mixed-cap evidence expansion on 100 stocks: 25 large + 25 mid + 25 small + 25 micro.',
+  tier1bs: 'Same 100-stock mixed-cap Tier 1B universe, but with parameter sensitivity analysis.',
+  tier2: 'Core mixed-cap validation on 200 stocks: 50 large + 50 mid + 50 small + 50 micro. Requires Tier 1 or Tier 1B PASS.',
+  tier3: 'Non-overlapping mixed-cap holdout robustness test on 180 stocks: 45 large + 45 mid + 45 small + 45 micro. Requires Tier 2 PASS.',
 };
 const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
+    tier1s: ['ES=F', 'NQ=F', 'CL=F'],
     tier1b: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
+    tier1bs: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
   },
   stocks: {
     tier1: ['SPY', 'QQQ', 'IWM'],
+    tier1s: ['SPY', 'QQQ', 'IWM'],
     tier1b: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
+    tier1bs: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
     tier2: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN'],
     tier3: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
   },
   options: {
     tier1: ['SPY', 'QQQ'],
+    tier1s: ['SPY', 'QQQ'],
     tier1b: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
+    tier1bs: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
   },
   forex: {
     tier1: ['EURUSD=X', 'GBPUSD=X'],
+    tier1s: ['EURUSD=X', 'GBPUSD=X'],
     tier1b: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
+    tier1bs: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
   },
   crypto: {
     tier1: ['BTC-USD', 'ETH-USD'],
+    tier1s: ['BTC-USD', 'ETH-USD'],
     tier1b: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
+    tier1bs: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
   },
 };
+
+function loadCollapsedStrategyBuckets() {
+  try {
+    const raw = localStorage.getItem(VALIDATOR_BUCKET_COLLAPSE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCollapsedStrategyBuckets() {
+  try {
+    localStorage.setItem(VALIDATOR_BUCKET_COLLAPSE_STORAGE_KEY, JSON.stringify(collapsedStrategyBuckets));
+  } catch {}
+}
+
+function isStrategyBucketCollapsed(groupId) {
+  return collapsedStrategyBuckets[groupId] === true;
+}
+
+function toggleStrategyStageBucket(groupId) {
+  if (!groupId) return;
+  if (isStrategyBucketCollapsed(groupId)) {
+    delete collapsedStrategyBuckets[groupId];
+  } else {
+    collapsedStrategyBuckets[groupId] = true;
+  }
+  saveCollapsedStrategyBuckets();
+  renderStrategyList();
+}
 
 // =====================
 // INIT
@@ -96,6 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   updateRunTierDescription();
   initValidatorChat();
+  restoreChatPanelState();
   await reconnectActiveRun(initialJobId, initialStrategy);
 });
 
@@ -155,14 +206,40 @@ async function apiPatchAbsolute(path, body) {
 // STRATEGIES
 // =====================
 
+async function deleteStrategy(strategyVersionId) {
+  if (!confirm(`Hide "${strategyVersionId}" from the validator?\n\nThis marks it as rejected. The file is not permanently deleted.`)) return;
+  try {
+    const res = await fetch(`/api/strategies/${encodeURIComponent(strategyVersionId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'rejected' }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to hide strategy');
+    if (selectedStrategy?.strategy_version_id === strategyVersionId) {
+      selectedStrategy = null;
+      selectedReport = null;
+      reports = [];
+      updateStrategyInfo();
+      renderReportContent();
+    }
+    await loadStrategies();
+    await loadReports();
+  } catch (e) {
+    alert(`Failed to hide strategy: ${e.message}`);
+  }
+}
+
 async function loadStrategies() {
   try {
-    const [loadedStrategies, allReports] = await Promise.all([
+    const [loadedStrategies, allReports, activeId] = await Promise.all([
       apiGet('/strategies'),
       apiGet('/reports').catch(() => []),
+      apiGet('/active-strategy').catch(() => null),
     ]);
     strategies = (Array.isArray(loadedStrategies) ? loadedStrategies : [])
       .filter((strategy) => String(strategy?.status || '').toLowerCase() !== 'draft');
+    activeStrategyVersionId = typeof activeId === 'string' && activeId.trim() ? activeId.trim() : null;
     if (selectedStrategy?.strategy_version_id) {
       selectedStrategy = strategies.find((s) => s.strategy_version_id === selectedStrategy.strategy_version_id) || null;
       if (!selectedStrategy) {
@@ -301,6 +378,22 @@ function getStrategyTierBadges(strategy) {
   });
 }
 
+function getStrategyStageBucket(strategy) {
+  const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
+  const progress = strategyTierProgressIndex?.[strategyVersionId] || {};
+  const passedTiers = new Set(Array.isArray(strategy?.passed_tiers) ? strategy.passed_tiers : []);
+  if (passedTiers.has('tier3') || progress?.tier3) {
+    return { key: 'tier3', label: 'Tier 3', order: 4 };
+  }
+  if (passedTiers.has('tier2') || progress?.tier2) {
+    return { key: 'tier2', label: 'Tier 2 / T2R', order: 3 };
+  }
+  if (passedTiers.has('tier1') || passedTiers.has('tier1b') || progress?.tier1 || progress?.tier1b) {
+    return { key: 'tier1', label: 'Tier 1 / T1B', order: 2 };
+  }
+  return { key: 'untested', label: 'Untested', order: 0 };
+}
+
 function renderStrategyList() {
   const container = document.getElementById('strategy-list');
   const countEl = document.getElementById('strategy-count');
@@ -321,26 +414,34 @@ function renderStrategyList() {
   const registryStrategies = strategies.filter(s => s.source !== 'research');
   const researchStrategies = strategies.filter(s => s.source === 'research');
 
-  const statusLabels = {
-    approved: 'Approved',
-    testing: 'Testing',
-    draft: 'Draft',
-    experimental: 'Experimental',
-    rejected: 'Rejected',
-  };
-
-  function renderGroup(items) {
+  function renderGroup(sectionKey, items) {
     const groups = {};
     for (const s of items) {
-      const key = s.status || 'draft';
-      (groups[key] = groups[key] || []).push(s);
+      const bucket = getStrategyStageBucket(s);
+      const key = bucket.key;
+      if (!groups[key]) groups[key] = { key: bucket.key, label: bucket.label, order: bucket.order, items: [] };
+      groups[key].items.push(s);
     }
 
     let html = '';
-    for (const [status, list] of Object.entries(groups)) {
-      html += `<div class="strategy-group-label">${statusLabels[status] || status} (${list.length})</div>`;
-      for (const s of list) {
+    const orderedGroups = Object.values(groups).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+    for (const group of orderedGroups) {
+      const groupId = `${sectionKey}-${group.key}`;
+      const isCollapsed = isStrategyBucketCollapsed(groupId);
+      const bucketItems = group.items.slice().sort((a, b) =>
+        new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+      );
+      html += `
+        <div class="strategy-bucket ${group.key} ${isCollapsed ? 'collapsed' : ''}">
+          <button class="strategy-group-label strategy-group-toggle" type="button" onclick="toggleStrategyStageBucket('${groupId}')" aria-expanded="${isCollapsed ? 'false' : 'true'}">
+            <span class="strategy-group-caret">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
+            <span>${escHtml(group.label)} (${bucketItems.length})</span>
+          </button>
+          <div class="strategy-group-items ${isCollapsed ? 'collapsed' : ''}">
+      `;
+      for (const s of bucketItems) {
         const isActive = selectedStrategy && selectedStrategy.strategy_version_id === s.strategy_version_id;
+        const isLiveStrategy = activeStrategyVersionId && String(s.strategy_version_id || '').trim() === activeStrategyVersionId;
         const validationBadge = getStrategyValidationBadge(s);
         const tierBadges = getStrategyTierBadges(s);
         html += `
@@ -349,9 +450,13 @@ function renderStrategyList() {
             <div class="strategy-item-head">
               <div style="min-width:0;display:flex;align-items:center;gap:var(--space-6);flex-wrap:wrap;">
                 <div class="strategy-item-name">${escHtml(s.name)}</div>
+                ${isLiveStrategy ? '<span class="active-strategy-badge" title="This strategy is currently active on the Execution Desk">Active</span>' : ''}
                 ${tierBadges.map((badge) => `<span class="tier-badge" title="${escHtml(badge.title)}">${escHtml(badge.label)}</span>`).join('')}
               </div>
-              <span class="validation-badge ${validationBadge.key}" title="${escHtml(validationBadge.title)}">${escHtml(validationBadge.label)}</span>
+              <div style="display:flex;align-items:center;gap:var(--space-6);flex-shrink:0;">
+                <span class="validation-badge ${validationBadge.key}" title="${escHtml(validationBadge.title)}">${escHtml(validationBadge.label)}</span>
+                <button class="strategy-delete-btn" title="Delete strategy" onclick="event.stopPropagation();deleteStrategy('${escHtml(s.strategy_version_id)}')">&#x2715;</button>
+              </div>
             </div>
             <div class="strategy-item-meta">
               <span class="status-badge ${s.status}">${s.status}</span>
@@ -360,6 +465,10 @@ function renderStrategyList() {
           </div>
         `;
       }
+      html += `
+          </div>
+        </div>
+      `;
     }
     return html;
   }
@@ -367,11 +476,11 @@ function renderStrategyList() {
   let html = '';
   if (registryStrategies.length > 0) {
     html += `<div style="padding:var(--space-8) var(--space-12);font-weight:700;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-subtle);border-bottom:1px solid var(--color-border);margin-top:var(--space-4);">Strategies</div>`;
-    html += renderGroup(registryStrategies);
+    html += renderGroup('registry', registryStrategies);
   }
   if (researchStrategies.length > 0) {
     html += `<div style="padding:var(--space-8) var(--space-12);font-weight:700;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-subtle);border-bottom:1px solid var(--color-border);margin-top:var(--space-12);">Research Candidates</div>`;
-    html += renderGroup(researchStrategies);
+    html += renderGroup('research', researchStrategies);
   }
 
   container.innerHTML = html;
@@ -455,7 +564,9 @@ function buildFallbackTierConfig(assetClass) {
     asset_class: key,
     tiers: {
       tier1: { key: 'tier1', label: VALIDATION_TIER_LABELS.tier1, description: VALIDATION_TIER_DESCRIPTIONS.tier1, symbols: byClass.tier1.slice() },
+      tier1s: { key: 'tier1s', label: VALIDATION_TIER_LABELS.tier1s, description: VALIDATION_TIER_DESCRIPTIONS.tier1s, symbols: byClass.tier1s.slice() },
       tier1b: { key: 'tier1b', label: VALIDATION_TIER_LABELS.tier1b, description: VALIDATION_TIER_DESCRIPTIONS.tier1b, symbols: byClass.tier1b.slice() },
+      tier1bs: { key: 'tier1bs', label: VALIDATION_TIER_LABELS.tier1bs, description: VALIDATION_TIER_DESCRIPTIONS.tier1bs, symbols: (byClass.tier1bs || byClass.tier1b).slice() },
       tier2: { key: 'tier2', label: VALIDATION_TIER_LABELS.tier2, description: VALIDATION_TIER_DESCRIPTIONS.tier2, symbols: byClass.tier2.slice() },
       tier3: { key: 'tier3', label: VALIDATION_TIER_LABELS.tier3, description: VALIDATION_TIER_DESCRIPTIONS.tier3, symbols: byClass.tier3.slice() },
     },
@@ -525,7 +636,7 @@ function renderRunTierLibrary(selectedTierKey) {
   const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
   const assetClass = normalizeAssetClassKey(config?.asset_class || selectedStrategy?.asset_class);
   const selectedKey = String(selectedTierKey || '').trim().toLowerCase();
-  const keys = ['tier1', 'tier1b', 'tier2', 'tier3'];
+  const keys = ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3'];
 
   let html = `
     <div class="run-tier-library-header">Symbol Library (${escHtml(assetClass)})</div>
@@ -569,13 +680,14 @@ function isTier1BEligibleReport(report) {
 function updateTierOptionLocks() {
   const select = document.getElementById('run-validation-tier');
   if (!select) return;
-  const hasTier1Pass = strategyHasTierPass('tier1');
-  const hasTier1BPass = strategyHasTierPass('tier1b');
+  const hasTier1Pass = strategyHasTierPass('tier1') || strategyHasTierPass('tier1s');
+  const hasTier1BPass = strategyHasTierPass('tier1b') || strategyHasTierPass('tier1bs');
   const hasTier2Pass = strategyHasTierPass('tier2');
-  const latestTier1 = getLatestTierReport('tier1');
-  const tier1bEligible = isTier1BEligibleReport(latestTier1);
+  const latestTier1 = getLatestTierReport('tier1') || getLatestTierReport('tier1s');
+  // Eligible if: no tier1 report yet (let backend gate enforce), NEEDS_REVIEW, or only failed on trades
+  const tier1bEligible = !latestTier1 || isTier1BEligibleReport(latestTier1);
   for (const opt of Array.from(select.options)) {
-    if (opt.value === 'tier1b') {
+    if (opt.value === 'tier1b' || opt.value === 'tier1bs') {
       opt.disabled = !tier1bEligible;
     } else if (opt.value === 'tier2') {
       opt.disabled = !(hasTier1Pass || hasTier1BPass);
@@ -709,6 +821,15 @@ function renderReportContent() {
   }
   
   container.innerHTML = html;
+
+  // Wire sensitivity copy button after DOM is set
+  container.querySelectorAll('[data-sens-copy-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-sens-copy-id');
+      const ps = (window._sensCopyData || {})[id] || {};
+      copySensitivityTable(btn, ps);
+    });
+  });
 }
 
 function selectReport(reportId) {
@@ -875,29 +996,57 @@ function renderReportDetail(report) {
   html += `</div>`;
   
   // --- ROBUSTNESS: PARAMETER SENSITIVITY ---
-  html += `<div class="section-title">Parameter Sensitivity</div>`;
+  const sensCopyId = `sens-copy-${report.report_id || 'r'}`;
+  // Store ps data on window keyed by id to avoid inline JSON in HTML attributes
+  window._sensCopyData = window._sensCopyData || {};
+  window._sensCopyData[sensCopyId] = ps;
+  html += `<div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+    <span>Parameter Sensitivity</span>
+    <button id="${sensCopyId}" data-sens-copy-id="${sensCopyId}" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text-muted);cursor:pointer;line-height:1.6;">Copy</button>
+  </div>`;
   html += `<div class="metrics-grid cols-2" style="margin-bottom:var(--space-12);">`;
   html += metricCard('Sensitivity Score', num(ps.sensitivity_score).toFixed(1) + '/100', num(ps.sensitivity_score) < maxSens);
   html += metricCard('Base Expectancy', formatR(ps.base_expectancy), true);
   html += `</div>`;
   
   // Sensitivity rows
-  html += `<div class="metric-card">`;
+  html += `<div class="metric-card" style="padding:0;">`;
+  // Header row
+  html += `
+    <div style="display:grid;grid-template-columns:1fr 70px 120px 64px;gap:0;padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);font-size:var(--text-caption);color:var(--color-text-subtle);text-transform:uppercase;letter-spacing:.05em;">
+      <span>Parameter</span>
+      <span style="text-align:right;">Result</span>
+      <span style="text-align:center;">Impact</span>
+      <span style="text-align:right;">Change</span>
+    </div>
+  `;
   for (const n of (ps.nudged_results || [])) {
     const changePct = num(n.change_pct);
-    const pctColor = Math.abs(changePct) > 15 ? 'var(--color-negative)' : 'var(--color-text-muted)';
-    const barWidth = Math.min(Math.abs(changePct), 50);
+    const isLarge = Math.abs(changePct) > 15;
+    const pctColor = isLarge ? 'var(--color-negative)' : changePct > 0 ? 'var(--color-positive)' : 'var(--color-text-muted)';
+    const barWidth = Math.min(Math.abs(changePct) * 2, 100); // scale: 50% change = full bar
     const barColor = changePct < 0 ? 'var(--color-negative)' : 'var(--color-positive)';
-    const barDir = changePct < 0 ? `right:50%;width:${barWidth}%;` : `left:50%;width:${barWidth}%;`;
-    
+    // Bar sits left-of-centre for negatives, right-of-centre for positives
+    const barStyle = changePct < 0
+      ? `margin-left:auto;width:${barWidth}%;`
+      : `margin-right:auto;width:${barWidth}%;`;
+
+    // Shorten param path: drop prefix like "risk_config." / "structure_config."
+    const shortParam = (n.param || '').replace(/^(risk_config|structure_config|setup_config|entry_config|exit_config)\./,'');
+    const dirLabel = n.direction === '+10%' ? '▲10%' : '▼10%';
+
     html += `
-      <div class="sensitivity-row">
-        <span style="color:var(--color-text-muted);">${n.param} ${n.direction}</span>
-        <span style="text-align:right;">${formatR(n.expectancy)}</span>
-        <div class="sensitivity-bar-track">
-          <div class="sensitivity-bar-fill" style="${barDir}background:${barColor};"></div>
+      <div style="display:grid;grid-template-columns:1fr 70px 120px 64px;gap:0;padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);align-items:center;${isLarge ? 'background:rgba(255,80,80,.04);' : ''}">
+        <span style="font-size:var(--text-caption);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(n.param)} ${escHtml(n.direction)}">
+          ${escHtml(shortParam)} <span style="color:var(--color-text-subtle);font-size:10px;">${dirLabel}</span>
+        </span>
+        <span style="text-align:right;font-family:var(--font-mono);font-size:var(--text-caption);color:var(--color-text);">${formatR(n.expectancy)}</span>
+        <div style="display:flex;align-items:center;gap:4px;padding:0 8px;">
+          <div style="flex:1;height:6px;background:var(--color-border);border-radius:3px;overflow:hidden;position:relative;">
+            <div style="position:absolute;top:0;bottom:0;${changePct < 0 ? 'right:0;' : 'left:0;'}width:${barWidth}%;background:${barColor};border-radius:3px;"></div>
+          </div>
         </div>
-        <span style="color:${pctColor};text-align:right;">${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%</span>
+        <span style="text-align:right;font-family:var(--font-mono);font-size:var(--text-caption);color:${pctColor};font-weight:${isLarge ? '600' : '400'};">${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%</span>
       </div>
     `;
   }
@@ -1305,6 +1454,7 @@ function renderValidatorChat() {
     return `<div class="validator-chat-bubble ${m.sender}">${escHtml(m.text)}</div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('chat-panel');
 }
 
 function summarizeValidatorReport(report) {
@@ -1838,10 +1988,23 @@ async function pollRunJob(jobId) {
           selectedReport = reports.find(r => r.report_id === job.report_id) || reports[0] || null;
           syncStrategyValidationFromReports(selectedStrategy?.strategy_version_id, reports);
 
+          activeRunJobId = null;
           setRunStatus('');
           renderReportContent();
           updateStrategyInfo();
           renderStrategyList();
+
+          // Auto-scroll to the report panel so user sees it immediately
+          setTimeout(() => {
+            const el = document.getElementById('report-content');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              el.style.transition = 'box-shadow 0.4s ease';
+              el.style.boxShadow = '0 0 0 2px var(--color-accent, #4f8ef7)';
+              setTimeout(() => { el.style.boxShadow = ''; }, 1800);
+            }
+          }, 200);
+
           resolve(job);
         }
       } catch (err) {
@@ -2300,6 +2463,75 @@ function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function copySensitivityTable(btn, ps) {
+  const rows = Array.isArray(ps?.nudged_results) ? ps.nudged_results : [];
+  const score = ps?.sensitivity_score != null ? Number(ps.sensitivity_score).toFixed(1) : 'N/A';
+  const baseExp = ps?.base_expectancy != null ? Number(ps.base_expectancy).toFixed(4) : 'N/A';
+
+  const colW = [30, 12, 10];
+  const header = [
+    'Parameter + Direction'.padEnd(colW[0]),
+    'Expectancy'.padStart(colW[1]),
+    'Change %'.padStart(colW[2]),
+  ].join('  ');
+  const divider = '-'.repeat(header.length);
+
+  const lines = [
+    `Parameter Sensitivity  (score: ${score}/100  base expectancy: ${baseExp}R)`,
+    divider,
+    header,
+    divider,
+  ];
+
+  if (rows.length === 0) {
+    lines.push('  (no nudge results — run validation to populate)');
+  } else {
+    for (const n of rows) {
+      const param = (n.param || '').replace(/^(risk_config|structure_config|setup_config|entry_config|exit_config)\./, '');
+      const dir = n.direction === '+10%' ? '▲10%' : '▼10%';
+      const label = `${param} ${dir}`;
+      const exp = n.expectancy != null ? Number(n.expectancy).toFixed(4) : 'N/A';
+      const chg = n.change_pct != null ? (Number(n.change_pct) >= 0 ? '+' : '') + Number(n.change_pct).toFixed(1) + '%' : 'N/A';
+      lines.push([
+        label.padEnd(colW[0]),
+        exp.padStart(colW[1]),
+        chg.padStart(colW[2]),
+      ].join('  '));
+    }
+  }
+
+  lines.push(divider);
+  const text = lines.join('\n');
+
+  const orig = btn.textContent;
+  const doFallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:320px;z-index:9999;font-family:monospace;font-size:12px;padding:12px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);resize:none;';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕ Close';
+    closeBtn.style.cssText = 'position:fixed;top:calc(50% - 160px - 36px);left:50%;transform:translateX(-50%);z-index:10000;padding:4px 16px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);cursor:pointer;';
+    const close = () => { ta.remove(); overlay.remove(); closeBtn.remove(); };
+    overlay.onclick = close;
+    closeBtn.onclick = close;
+    document.body.append(overlay, ta, closeBtn);
+    ta.focus();
+    ta.select();
+  };
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied!';
+      btn.style.color = 'var(--color-positive)';
+      setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+    }).catch(() => doFallback());
+  } else {
+    doFallback();
+  }
+}
+
 function num(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -2356,6 +2588,7 @@ window.selectReport = selectReport;
 window.closeModal = closeModal;
 window.toggleStrategyPanel = toggleStrategyPanel;
 window.toggleChatPanel = toggleChatPanel;
+window.toggleStrategyStageBucket = toggleStrategyStageBucket;
 window.deleteReport = deleteReport;
 window.tombstoneSelectedStrategy = tombstoneSelectedStrategy;
 
@@ -2366,6 +2599,13 @@ function toggleStrategyPanel() {
   if (!panel || !layout) return;
   const collapsed = panel.classList.toggle('collapsed');
   layout.classList.toggle('strategy-collapsed', collapsed);
+  if (!collapsed) {
+    const saved = parseInt(localStorage.getItem('validator_sidebar_width'), 10);
+    const w = (!isNaN(saved) && saved >= 160) ? saved : 260;
+    layout.style.gridTemplateColumns = `${w}px 8px 1fr`;
+  } else {
+    layout.style.gridTemplateColumns = '';
+  }
   if (btn) btn.textContent = collapsed ? '›' : '‹';
   if (btn) btn.title = collapsed ? 'Expand strategies panel' : 'Collapse strategies panel';
 }
@@ -2379,4 +2619,18 @@ function toggleChatPanel() {
   body.classList.toggle('chat-collapsed', collapsed);
   if (btn) btn.textContent = collapsed ? '‹' : '›';
   if (btn) btn.title = collapsed ? 'Expand analysis panel' : 'Collapse analysis panel';
+  try { localStorage.setItem('validator_chat_collapsed', collapsed ? '1' : '0'); } catch {}
+}
+
+function restoreChatPanelState() {
+  let collapsed = false;
+  try { collapsed = localStorage.getItem('validator_chat_collapsed') === '1'; } catch {}
+  if (!collapsed) return; // default is open — nothing to do
+  const panel = document.getElementById('chat-panel');
+  const body  = document.querySelector('.report-body');
+  const btn   = document.getElementById('chat-toggle-btn');
+  if (!panel || !body) return;
+  panel.classList.add('collapsed');
+  body.classList.add('chat-collapsed');
+  if (btn) { btn.textContent = '‹'; btn.title = 'Expand analysis panel'; }
 }

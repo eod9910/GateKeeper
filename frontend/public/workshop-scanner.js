@@ -1061,8 +1061,11 @@ async function loadWorkshopScannerOptions() {
     const res = await fetch('/api/plugins/scanner/options');
     const data = await res.json();
     const allOptions = res.ok && data?.success && Array.isArray(data.data) ? data.data : [];
+    const curatedOptions = allOptions.some((option) => option?.scanner_favorite === true)
+      ? allOptions.filter((option) => option?.scanner_favorite === true)
+      : allOptions;
     const baseSet = new Set(WORKSHOP_BASE_METHOD_IDS);
-    const options = allOptions.filter((o) => {
+    const options = curatedOptions.filter((o) => {
       const artifactType = String(o?.artifact_type || '').toLowerCase();
       const patternId = String(o?.pattern_id || '').trim();
       const patternType = String(o?.pattern_type || '').trim();
@@ -2357,6 +2360,11 @@ function renderWorkshopScannerCandidateList() {
     return;
   }
 
+  // Show/hide "Save All" button when there are hits
+  const hits = rows.filter((r) => !r?.no_candidate);
+  const saveAllBtn = document.getElementById('workshop-scanner-save-all-btn');
+  if (saveAllBtn) saveAllBtn.style.display = hits.length > 0 ? '' : 'none';
+
   list.innerHTML = rows.map((c, i) => {
     const isActive = i === workshopScannerState.currentIndex;
     const style = [
@@ -2374,10 +2382,23 @@ function renderWorkshopScannerCandidateList() {
     const statusColor = c?.no_candidate ? '#f59e0b' : (isReviewed ? '#22c55e' : '#6b7280');
     const aiDecision = workshopScannerGetAIDecision(c);
     const aiTag = aiDecision ? ` <span style="font-size:10px;color:rgba(96,165,250,0.7);">[AI:${String(aiDecision.label||'').toUpperCase()} ${((aiDecision.labelConfidence||0)*100).toFixed(0)}%]</span>` : '';
+
+    const isHit = !c?.no_candidate;
+    const onWatchList = isHit && typeof watchListHas === 'function' && watchListHas(c.symbol);
+    const starBtn = isHit ? `
+      <button type="button"
+        title="${onWatchList ? 'Remove from Watch List' : 'Save to Watch List'}"
+        onclick="event.stopPropagation();workshopScannerToggleWatchList(${i})"
+        style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;color:${onWatchList ? '#f59e0b' : 'rgba(255,255,255,0.25)'};flex-shrink:0;"
+      >${onWatchList ? '★' : '☆'}</button>` : '';
+
     return `
       <button type="button" class="btn btn-ghost" style="${style}" onclick="showWorkshopScannerCandidate(${i})">
         <span>#${i + 1} ${escapeHtml(c.symbol || 'N/A')} &middot; ${score}${aiTag}</span>
-        <span style="min-width:76px;text-align:right;font-size:11px;color:${statusColor};">${escapeHtml(statusText)}</span>
+        <span style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+          ${starBtn}
+          <span style="min-width:76px;text-align:right;font-size:11px;color:${statusColor};">${escapeHtml(statusText)}</span>
+        </span>
       </button>
     `;
   }).join('');
@@ -2844,6 +2865,7 @@ function renderWorkshopScannerChat() {
     return `<div class="scanner-chat-bubble ${msg.sender === 'user' ? 'user' : 'ai'}">${escapeHtml(msg.text || '')}</div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('workshop-scanner-chat-panel');
 }
 
 async function sendWorkshopScannerChat(prefill) {
@@ -3217,3 +3239,61 @@ window.workshopScannerLoadLatestAIResults = workshopScannerLoadLatestAIResults;
 window.runWorkshopMethodCompare = runWorkshopMethodCompare;
 window.runWorkshopSingleMethodScan = runWorkshopSingleMethodScan;
 window.workshopScannerHandlePatternChange = workshopScannerHandlePatternChange;
+
+// ── Watch List integration ────────────────────────────────────────────────
+
+function _workshopScannerCandidateToWatchEntry(c) {
+  if (!c || c.no_candidate) return null;
+  const ports = c?.output_ports && typeof c.output_ports === 'object' ? c.output_ports : {};
+  const boxBest = ports?.base_boxes?.best;
+  const priceBox = boxBest
+    ? { top: Number(boxBest.ceiling) || 0, bottom: Number(boxBest.floor) || 0 }
+    : null;
+  const bars = Array.isArray(c.chart_data) ? c.chart_data : [];
+  const lastBar = bars.length ? bars[bars.length - 1] : null;
+  const entryPrice = Number(lastBar?.close) || 0;
+  const compositeId = String(
+    document.getElementById('workshop-scanner-indicator')?.value || ''
+  );
+  const interval = String(
+    document.getElementById('workshop-scanner-interval')?.value || '1d'
+  );
+  return {
+    symbol: c.symbol,
+    score: Number(c.score) || 0,
+    composite_id: compositeId,
+    interval,
+    price_box: priceBox,
+    entry_price: entryPrice,
+    note: '',
+  };
+}
+
+function workshopScannerToggleWatchList(index) {
+  if (typeof watchListAdd !== 'function') return;
+  const c = workshopScannerState.candidates[index];
+  if (!c || c.no_candidate) return;
+  if (watchListHas(c.symbol)) {
+    watchListRemove(c.symbol);
+  } else {
+    const entry = _workshopScannerCandidateToWatchEntry(c);
+    if (entry) watchListAdd(entry);
+  }
+  renderWorkshopScannerCandidateList();
+}
+
+function workshopScannerSaveAllToWatchList() {
+  if (typeof watchListAdd !== 'function') return;
+  const hits = workshopScannerState.candidates.filter((c) => !c?.no_candidate);
+  let count = 0;
+  for (const c of hits) {
+    const entry = _workshopScannerCandidateToWatchEntry(c);
+    if (entry) { watchListAdd(entry); count++; }
+  }
+  renderWorkshopScannerCandidateList();
+  const btn = document.getElementById('workshop-scanner-save-all-btn');
+  if (btn) { btn.textContent = `★ Saved ${count}`; setTimeout(() => { btn.textContent = '★ Save All'; }, 2000); }
+}
+
+window.workshopScannerToggleWatchList = workshopScannerToggleWatchList;
+window.workshopScannerSaveAllToWatchList = workshopScannerSaveAllToWatchList;

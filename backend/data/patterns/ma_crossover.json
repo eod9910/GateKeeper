@@ -147,5 +147,11 @@
   ],
   "artifact_type": "indicator",
   "composition": "primitive",
-  "indicator_role": "timing_trigger"
+  "indicator_role": "timing_trigger",
+  "library_tier": "core_stable",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "cheap",
+  "search_tags": ["moving_average", "ma", "sma", "ema", "crossover", "trend", "timing"],
+  "source_kind": "native"
 }

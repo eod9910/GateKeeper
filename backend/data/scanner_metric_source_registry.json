@@ -1,0 +1,622 @@
+{
+  "version": 1,
+  "updated_at": "2026-04-01",
+  "policy": {
+    "statement_financials": {
+      "rule": "SEC primary-source first, vendor backfill second",
+      "primary_sources": [
+        "sec_companyfacts_bulk",
+        "sec_docling_probe"
+      ],
+      "fallback_sources": [
+        "vendor_pit_hydration",
+        "stockdex"
+      ]
+    },
+    "market_trading_context": {
+      "rule": "Vendor/market data first",
+      "primary_sources": [
+        "vendor_pit_hydration",
+        "stockdex"
+      ]
+    },
+    "heuristics_and_scores": {
+      "rule": "Compute locally from canonical resolved inputs",
+      "primary_sources": [
+        "local_derivation"
+      ]
+    }
+  },
+  "field_types": {
+    "sec_primary": "Value should resolve from SEC/companyfacts or filing extraction first.",
+    "vendor_primary": "Value is primarily a vendor/market data field.",
+    "vendor_composed": "Vendor exposes a composed value built from more primitive facts.",
+    "derived": "Computed locally from underlying canonical fields.",
+    "heuristic": "Interpretive score, label, or summary generated from lower-level metrics."
+  },
+  "sections": {
+    "summary_cards": [
+      {
+        "label": "Tactical",
+        "field_path": "tacticalGrade",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [],
+        "notes": "UI falls back to holdContext if tacticalGrade is absent."
+      },
+      {
+        "label": "Runway",
+        "field_path": "cashRunwayQuarters",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "sec_companyfacts_bulk",
+          "vendor_pit_hydration"
+        ],
+        "formula": "totalCash / quarterlyCashBurn when burn > 0; 99 when burn == 0"
+      },
+      {
+        "label": "Survival",
+        "field_path": "survivabilityScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      },
+      {
+        "label": "Execution",
+        "field_path": "reportedExecutionScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Forward",
+        "field_path": "forwardExpectationsScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Insiders",
+        "field_path": "positioningScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Squeeze",
+        "field_path": "squeezePressureScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      },
+      {
+        "label": "Catalyst",
+        "field_path": "catalystFlag",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration",
+          "stockdex"
+        ]
+      }
+    ],
+    "survivability": [
+      {
+        "label": "Cash",
+        "field_path": "totalCash",
+        "classification": "sec_primary",
+        "primary_source": "sec_companyfacts_bulk",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "composition": [
+          "CashAndCashEquivalentsAtCarryingValue",
+          "MarketableSecuritiesCurrent"
+        ],
+        "notes": "Now SEC-first for filing-eligible symbols."
+      },
+      {
+        "label": "OpCF TTM",
+        "field_path": "operatingCashFlowTTM",
+        "classification": "sec_primary",
+        "primary_source": "sec_companyfacts_bulk",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "composition": [
+          "sum(last 4 usable quarterly NetCashProvidedByUsedInOperatingActivities)",
+          "fallback to latest annual operating cash flow"
+        ]
+      },
+      {
+        "label": "FCF TTM",
+        "field_path": "freeCashFlowTTM",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "formula": "operatingCashFlowTTM - capitalExpendituresTTM",
+        "inputs_preferred_source": "sec_companyfacts_bulk"
+      },
+      {
+        "label": "Burn / Q",
+        "field_path": "quarterlyCashBurn",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "formula": "absolute average of recent negative quarterly FCF, else negative OCF"
+      },
+      {
+        "label": "Runway",
+        "field_path": "cashRunwayQuarters",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [],
+        "formula": "totalCash / quarterlyCashBurn"
+      },
+      {
+        "label": "Cash / MCap",
+        "field_path": "cashPctMarketCap",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [],
+        "formula": "totalCash / marketCap * 100"
+      },
+      {
+        "label": "Current Ratio",
+        "field_path": "currentRatio",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "formula": "currentAssets / currentLiabilities",
+        "inputs_preferred_source": "sec_companyfacts_bulk"
+      },
+      {
+        "label": "Quick Ratio",
+        "field_path": "quickRatio",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "formula": "(cashAndEquivalents + marketableSecuritiesCurrent + receivablesCurrent) / currentLiabilities",
+        "inputs_preferred_source": "sec_companyfacts_bulk"
+      }
+    ],
+    "reported_execution": [
+      {
+        "label": "Rev YoY",
+        "field_path": "revenueYoYGrowthPct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "notes": "Currently computed from vendor quarterly statement series, not yet SEC-first."
+      },
+      {
+        "label": "Rev Q/Q",
+        "field_path": "revenueQoQGrowthPct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "notes": "Currently computed from vendor quarterly statement series, not yet SEC-first."
+      },
+      {
+        "label": "Trend Flag",
+        "field_path": "revenueTrendFlag",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      },
+      {
+        "label": "EPS YoY",
+        "field_path": "epsYoYGrowthPct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "EPS Q/Q",
+        "field_path": "epsQoQGrowthPct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "EPS Surprise",
+        "field_path": "epsSurprisePct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "Avg EPS Beat",
+        "field_path": "reportedExecution.avgEpsSurprisePct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Avg Sales Beat",
+        "field_path": "reportedExecution.avgSalesSurprisePct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Beat Streak",
+        "field_path": "reportedExecution.epsBeatStreak",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Miss Streak",
+        "field_path": "reportedExecution.epsMissStreak",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      }
+    ],
+    "forward_expectations": [
+      {
+        "label": "Current Qtr",
+        "field_path": "forwardExpectations.currentQtrGrowthPct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Next Qtr",
+        "field_path": "forwardExpectations.nextQtrGrowthPct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Current Year",
+        "field_path": "forwardExpectations.currentYearGrowthPct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Next Year",
+        "field_path": "forwardExpectations.nextYearGrowthPct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Signal",
+        "field_path": "forwardExpectations.signal",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Qtr Rev Growth",
+        "field_path": "forwardExpectations.quarterlyRevenueGrowthPct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Qtr Earnings Growth",
+        "field_path": "forwardExpectations.quarterlyEarningsGrowthPct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Forward Score",
+        "field_path": "forwardExpectationsScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      }
+    ],
+    "positioning_event_risk": [
+      {
+        "label": "Insider Signal",
+        "field_path": "positioning.signal",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Recent Buys",
+        "field_path": "positioning.recentBuyCount",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Recent Sales",
+        "field_path": "positioning.recentSellCount",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Buy Value",
+        "field_path": "positioning.recentBuyValue",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Sell Value",
+        "field_path": "positioning.recentSellValue",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": []
+      },
+      {
+        "label": "Next ER",
+        "field_path": "earningsDate",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Days to ER",
+        "field_path": "daysUntilEarnings",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      },
+      {
+        "label": "Catalyst",
+        "field_path": "catalystFlag",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      }
+    ],
+    "squeeze_structure": [
+      {
+        "label": "Float",
+        "field_path": "floatShares",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Avg Volume",
+        "field_path": "averageVolume",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Rel Volume",
+        "field_path": "relativeVolume",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "Short Float",
+        "field_path": "shortFloatPct",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Days to Cover",
+        "field_path": "shortRatio",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Shares YoY",
+        "field_path": "sharesOutstandingYoYChangePct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "Financing",
+        "field_path": "recentFinancingFlag",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      },
+      {
+        "label": "Squeeze Score",
+        "field_path": "squeezePressureScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      }
+    ],
+    "market_context": [
+      {
+        "label": "50-Day MA",
+        "field_path": "marketContext.fiftyDayMovingAverage",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "200-Day MA",
+        "field_path": "marketContext.twoHundredDayMovingAverage",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "Vs 50-Day",
+        "field_path": "marketContext.priceVs50DayPct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Vs 200-Day",
+        "field_path": "marketContext.priceVs200DayPct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "52W Change",
+        "field_path": "marketContext.fiftyTwoWeekChangePct",
+        "classification": "vendor_primary",
+        "primary_source": "stockdex",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ]
+      },
+      {
+        "label": "52W Range",
+        "field_path": "marketContext.priceVs52WeekRangePct",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      },
+      {
+        "label": "Trend State",
+        "field_path": "marketContext.above200Day",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      },
+      {
+        "label": "Market Score",
+        "field_path": "marketContextScore",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      }
+    ],
+    "valuation": [
+      {
+        "label": "Mkt Cap",
+        "field_path": "marketCap",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": []
+      },
+      {
+        "label": "EV",
+        "field_path": "enterpriseValue",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": []
+      },
+      {
+        "label": "EV / Sales",
+        "field_path": "enterpriseToSales",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [
+          "vendor_pit_hydration"
+        ],
+        "inputs_preferred_source": "sec_companyfacts_bulk"
+      },
+      {
+        "label": "Cash - Debt",
+        "field_path": "netCash",
+        "classification": "derived",
+        "primary_source": "local_derivation",
+        "fallback_sources": [],
+        "formula": "totalCash - totalDebt",
+        "inputs_preferred_source": "sec_companyfacts_bulk"
+      },
+      {
+        "label": "Story Flag",
+        "field_path": "lowEnterpriseValueFlag",
+        "classification": "heuristic",
+        "primary_source": "local_derivation",
+        "fallback_sources": []
+      },
+      {
+        "label": "Gross Margin",
+        "field_path": "grossMarginPct",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ],
+        "notes": "Should eventually be derivable from SEC-backed revenue and gross profit when the gross profit mapping is promoted."
+      },
+      {
+        "label": "Op Margin",
+        "field_path": "operatingMarginPct",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ],
+        "notes": "Should eventually be derivable from SEC-backed revenue and operating income when promoted."
+      },
+      {
+        "label": "Last ER",
+        "field_path": "lastEarningsDate",
+        "classification": "vendor_primary",
+        "primary_source": "vendor_pit_hydration",
+        "fallback_sources": [
+          "stockdex"
+        ]
+      }
+    ]
+  }
+}

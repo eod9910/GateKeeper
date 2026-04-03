@@ -167,7 +167,7 @@
           providerKey: entry.provider,
           provider: providerName,
           strategy: bp.strategy_name || bp.strategy_version_id || 'Broker (unmanaged)',
-          strategyVersionId: bp.strategy_version_id || defaultImportStrategyVersionId || '',
+          strategyVersionId: bp.strategy_version_id || '',
           side: bp.side || 'long',
           qty: bp.qty,
           entry: bp.avg_entry_price,

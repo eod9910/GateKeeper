@@ -53,5 +53,11 @@
   "min_data_bars": 220,
   "artifact_type": "indicator",
   "composition": "primitive",
-  "indicator_role": "location"
+  "indicator_role": "location",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["fib", "fibonacci", "retracement", "location", "pullback"],
+  "source_kind": "custom"
 }

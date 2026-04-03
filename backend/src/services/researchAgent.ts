@@ -18,7 +18,8 @@ import {
   reflectOnBacktest,
   ReflectionInput,
 } from './strategyGenService';
-import { getAllValidationReports, getValidationReport, getTradeInstances } from './storageService';
+import { getAllValidationReports, getValidationReport, getTradeInstances, saveStrategy } from './storageService';
+import { StrategySpec } from '../types';
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,24 @@ const GATE_MIN_EXPECTANCY = 0;
 const GATE_MIN_PROFIT_FACTOR = 1.0;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+/** A single feature to include in the SR run. */
+export interface SrFeatureSpec {
+  id: string;
+  period?: number;
+}
+
+/** Config for Symbolic Regression mode (indicator + OHLCV path). */
+export interface SrSessionConfig {
+  symbol: string;
+  interval: string;
+  years?: number;
+  target_bars?: number;
+  population_size?: number;
+  generations?: number;
+  /** Which features to feed into SR. If omitted, defaults to [rsi(14), atr_norm(14), momentum(5)]. */
+  features?: SrFeatureSpec[];
+}
 
 export interface ResearchSessionConfig {
   name: string;
@@ -53,6 +72,10 @@ export interface ResearchSessionConfig {
   continued_from?: string;
   /** User's configured risk rule defaults from Settings */
   risk_defaults?: Record<string, any>;
+  /** Research mode: strategy discovery (default) or symbolic regression */
+  mode?: 'strategy_discovery' | 'symbolic_regression';
+  /** When mode is symbolic_regression, SR run config (symbol, interval, target_bars, etc.). */
+  sr_config?: SrSessionConfig;
 }
 
 export interface ResearchSession {
@@ -402,9 +425,152 @@ async function promoteToTier2(
   } catch {}
 }
 
+async function promoteSrEntryToTier1(
+  session: ResearchSession,
+  entry: GenomeEntry,
+): Promise<boolean> {
+  const strategyVersionId = await ensureSrStrategyForEntry(session, entry);
+  if (!strategyVersionId) return false;
+
+  emit(session.session_id, 'promoted', {
+    generation: entry.generation,
+    strategy_version_id: strategyVersionId,
+    fitness_score: entry.fitness_score,
+    validation_tier: 'tier1',
+  });
+
+  try {
+    await fetch(`${API_BASE}/validator/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        strategy_version_id: strategyVersionId,
+        tier: 'tier1',
+        interval: String(session.config.sr_config?.interval || session.config.target_interval || '1d'),
+      }),
+    });
+  } catch {}
+  return true;
+}
+
+// ─── SR session loop (mode === symbolic_regression) ───────────────────────────
+
+async function runSrSessionLoop(session: ResearchSession): Promise<void> {
+  const { spawn } = await import('child_process');
+  const backendDir = path.join(__dirname, '..', '..');
+  const scriptPath = path.join(backendDir, 'scripts', 'run_sr_research.py');
+  const sr = session.config.sr_config!;
+
+  try {
+    for (let gen = 1; gen <= session.max_generations && session.status === 'running'; gen++) {
+      session.generation = gen;
+      emit(session.session_id, 'generation_start', { generation: gen, max: session.max_generations });
+      session.current_hypothesis = `Running symbolic regression ${gen}/${session.max_generations}...`;
+      await saveState(session);
+      emit(session.session_id, 'status', { message: session.current_hypothesis });
+
+      const args = [
+        scriptPath,
+        '--symbol', sr.symbol,
+        '--interval', sr.interval,
+        '--years', String(sr.years ?? 2),
+        '--target_bars', String(sr.target_bars ?? 5),
+        '--population_size', String(sr.population_size ?? 500),
+        '--generations', String(sr.generations ?? 20),
+      ];
+      if (sr.features && sr.features.length > 0) {
+        args.push('--features', JSON.stringify(sr.features));
+      }
+
+      const result = await new Promise<{ success: boolean; formula_id?: string; formula?: string; formula_readable?: string; complexity?: number; fitness?: number; n_samples?: number; error?: string }>((resolve, reject) => {
+        const proc = spawn('py', args, { cwd: backendDir, stdio: ['ignore', 'pipe', 'pipe'] });
+        let stdout = '';
+        let stderr = '';
+        proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+        proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+        proc.on('error', (err) => reject(err));
+        proc.on('close', (code) => {
+          try {
+            const line = stdout.trim().split('\n').pop() || '';
+            const parsed = JSON.parse(line);
+            resolve(parsed);
+          } catch {
+            resolve({ success: false, error: stderr || stdout || `Script exit ${code}` });
+          }
+        });
+      });
+
+      const verdict = result.success ? 'kept' : 'discarded';
+      const entry: GenomeEntry = {
+        generation: gen,
+        strategy_version_id: `sr_gen_${gen}`,
+        hypothesis: result.success ? (result.formula_readable || result.formula || 'SR formula') : (result.error || 'SR run failed'),
+        spec_summary: result.formula_readable || result.formula || '—',
+        new_plugins_created: [],
+        report_summary: null,
+        fitness_score: result.fitness ?? 0,
+        verdict: verdict as GenomeEntry['verdict'],
+        created_at: new Date().toISOString(),
+        formula_id: result.formula_id,
+        formula: result.formula,
+        formula_readable: result.formula_readable,
+        complexity: result.complexity,
+      };
+
+      if (result.success && result.formula_id) {
+        try {
+          await ensureSrStrategyForEntry(session, entry);
+        } catch (err: any) {
+          console.warn(`[ResearchAgent] Failed to persist SR strategy for gen ${gen}: ${err.message}`);
+        }
+      }
+
+      session.genome.push(entry);
+      await appendGenome(session.session_id, entry);
+      if (!session.best || (result.fitness ?? 0) > (session.best.fitness_score ?? 0)) {
+        session.best = entry;
+      }
+      emit(session.session_id, 'generation_complete', entry);
+      await saveState(session);
+    }
+
+    if (session.status === 'running') {
+      session.status = 'completed';
+    }
+  } catch (err: any) {
+    session.status = 'error';
+    session.error = err.message;
+    emit(session.session_id, 'error', { error: err.message });
+  } finally {
+    session.current_hypothesis = undefined;
+    session.current_job_id = undefined;
+    await saveState(session);
+    emit(session.session_id, 'session_end', { status: session.status });
+
+    if (session.status === 'completed') {
+      try {
+        const { runFormulaRanking } = await import('./formulaRankingEngine');
+        const sr = session.config.sr_config;
+        runFormulaRanking({
+          symbol: sr?.symbol || 'SPY',
+          interval: sr?.interval || '1d',
+          force: false,
+        }).catch((e: any) => console.warn(`[ResearchAgent] Auto-ranking failed: ${e.message}`));
+      } catch (e: any) {
+        console.warn(`[ResearchAgent] Could not start auto-ranking: ${e.message}`);
+      }
+    }
+  }
+}
+
 // ─── Main session loop ────────────────────────────────────────────────────────
 
 async function runSessionLoop(session: ResearchSession): Promise<void> {
+  if (session.config.mode === 'symbolic_regression') {
+    await runSrSessionLoop(session);
+    return;
+  }
+
   try {
     while (
       session.status === 'running' &&
@@ -572,9 +738,8 @@ async function runSessionLoop(session: ResearchSession): Promise<void> {
       const entry = buildGenomeEntry(gen, stratVersionId, hypothesis, createdPlugins, reportSummary, verdict as GenomeEntry['verdict'], fitness);
       if (result?.report_id) entry.report_id = result.report_id;
 
-      // If the strategy failed the gate, delete its file and log a tombstone
+      // If the strategy failed the gate, log a tombstone (keep the strategy file so Research can show spec and params for inspection / sweep)
       if (!gate.pass) {
-        await removeStrategyFile(stratVersionId);
         await logTombstone({
           strategy_version_id: stratVersionId,
           name: (spec as any).name || stratVersionId,
@@ -591,7 +756,7 @@ async function runSessionLoop(session: ResearchSession): Promise<void> {
           expectancy_R: reportSummary?.expectancy_R ?? 0,
           total_trades: reportSummary?.total_trades ?? 0,
         });
-        console.log(`[ResearchAgent] Gen ${gen} GATE FAIL: ${gate.reason} — strategy file deleted`);
+        console.log(`[ResearchAgent] Gen ${gen} GATE FAIL: ${gate.reason} — strategy file kept for Research/Sweep inspection`);
       }
 
       // ── Step 5b: Reflection — AI forensic analysis of backtest ────────────
@@ -692,10 +857,226 @@ async function validatePluginSyntax(pyPath: string, code: string): Promise<boole
   }
 }
 
+function sanitizeIdFragment(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48) || 'sr_formula';
+}
+
+function toFiniteNumber(value: any, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function mapSrRiskDefaults(riskDefaults?: Record<string, any>): StrategySpec['risk_config'] {
+  const stopTypeRaw = String(riskDefaults?.defaultStopType || 'atr_multiple').toLowerCase();
+  const usePercentStop = stopTypeRaw.includes('pct') || stopTypeRaw.includes('percent');
+  const stopValue = toFiniteNumber(riskDefaults?.defaultStopValue, usePercentStop ? 0.08 : 2.0);
+  const riskPercent = toFiniteNumber(riskDefaults?.riskPercent, 1.0);
+  return {
+    stop_type: usePercentStop ? 'percentage' : 'atr',
+    stop_value: usePercentStop ? stopValue : undefined,
+    atr_multiplier: usePercentStop ? undefined : stopValue,
+    take_profit_R: toFiniteNumber(riskDefaults?.defaultTakeProfitR, 2.0),
+    max_hold_bars: Math.max(1, Math.round(toFiniteNumber(riskDefaults?.defaultMaxHold, 20))),
+    risk_per_trade_pct: Math.max(0.001, riskPercent / 100),
+  };
+}
+
+function buildSrStrategySpec(session: ResearchSession, entry: GenomeEntry): StrategySpec | null {
+  const formulaId = String(entry.formula_id || '').trim();
+  if (!formulaId) return null;
+
+  const sr = session.config.sr_config || {};
+  const strategyId = `sr_formula_${sanitizeIdFragment(formulaId)}`;
+  const strategyVersionId = `${strategyId}_v1`;
+  const targetBars = Math.max(1, Math.round(toFiniteNumber(sr.target_bars, 5)));
+  const formulaPreview = String(entry.formula_readable || entry.formula || 'SR formula').slice(0, 240);
+  const interval = String(sr.interval || session.config.target_interval || '1d');
+
+  return {
+    strategy_id: strategyId,
+    version: 1,
+    strategy_version_id: strategyVersionId,
+    status: 'testing',
+    asset_class: (session.config.target_asset_class as StrategySpec['asset_class']) || 'stocks',
+    name: `${session.config.name} Gen ${entry.generation} Formula`,
+    description: `Persisted symbolic-regression formula ${formulaId}. Predicts ${targetBars}-bar ATR-normalized forward return and enters when prediction >= threshold. Formula: ${formulaPreview}`,
+    interval,
+    timeframe: interval,
+    scan_mode: 'strategy',
+    trade_direction: 'long',
+    universe: [],
+    setup_config: {
+      pattern_type: 'sr_score',
+      formula_id: formulaId,
+      score_threshold: 0.0,
+    },
+    risk_config: mapSrRiskDefaults(session.config.risk_defaults),
+    cost_config: {
+      commission_per_trade: 1,
+      slippage_pct: 0.05,
+    },
+    backtest_config: {
+      min_history_bars: 60,
+      signal_source: 'strategy',
+      direction: 'long',
+    },
+    parameter_manifest: [
+      {
+        key: 'score_threshold',
+        label: 'Predicted Return Threshold',
+        path: 'setup_config.score_threshold',
+        anatomy: 'entry_timing',
+        type: 'float',
+        description: 'Minimum predicted ATR-normalized forward return required to emit entry_ready.',
+        identity_preserving: true,
+        sweep_enabled: true,
+        sensitivity_enabled: true,
+        suggested_values: [-0.25, 0, 0.1, 0.25, 0.5],
+        min: -3,
+        max: 3,
+        step: 0.05,
+        priority: 90,
+        failure_modes_targeted: ['negative_expectancy', 'oos_degradation'],
+      },
+      {
+        key: 'atr_multiplier',
+        label: 'ATR Stop Multiplier',
+        path: 'risk_config.atr_multiplier',
+        anatomy: 'stop_loss',
+        type: 'float',
+        identity_preserving: true,
+        sweep_enabled: true,
+        sensitivity_enabled: true,
+        suggested_values: [1.0, 1.5, 2.0, 2.5, 3.0],
+        min: 0.5,
+        max: 5,
+        step: 0.25,
+        priority: 70,
+      },
+      {
+        key: 'take_profit_R',
+        label: 'Take Profit R',
+        path: 'risk_config.take_profit_R',
+        anatomy: 'take_profit',
+        type: 'float',
+        identity_preserving: true,
+        sweep_enabled: true,
+        sensitivity_enabled: true,
+        suggested_values: [1.0, 1.5, 2.0, 2.5, 3.0],
+        min: 0.5,
+        max: 10,
+        step: 0.25,
+        priority: 65,
+      },
+      {
+        key: 'max_hold_bars',
+        label: 'Max Hold Bars',
+        path: 'risk_config.max_hold_bars',
+        anatomy: 'risk_controls',
+        type: 'int',
+        identity_preserving: true,
+        sweep_enabled: true,
+        sensitivity_enabled: true,
+        suggested_values: [5, 10, 15, 20, 30],
+        min: 1,
+        max: 120,
+        step: 1,
+        priority: 50,
+      },
+    ],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    created_by: 'research_agent',
+    notes: `formula_id=${formulaId}`,
+  };
+}
+
+async function ensureSrStrategyForEntry(session: ResearchSession, entry: GenomeEntry): Promise<string | null> {
+  if (!entry.formula_id) return null;
+  if (entry.strategy_version_id && !/^sr_gen_\d+$/i.test(String(entry.strategy_version_id))) {
+    return entry.strategy_version_id;
+  }
+  const spec = buildSrStrategySpec(session, entry);
+  if (!spec) return null;
+  const savedId = await saveStrategy(spec);
+  entry.strategy_version_id = savedId;
+  return savedId;
+}
+
+const LEGACY_CONTINUED_SUFFIX_RE = /(\s*\(continued\))+$/i;
+const SESSION_VERSION_SUFFIX_RE = /\s+V(\d+)$/i;
+
+function stripLegacyContinuedSuffix(name: string): string {
+  return String(name || '').replace(LEGACY_CONTINUED_SUFFIX_RE, '').trim();
+}
+
+function parseSessionDisplayName(name: string): { baseName: string; version: number | null } {
+  const cleaned = stripLegacyContinuedSuffix(name) || 'Untitled session';
+  const match = cleaned.match(SESSION_VERSION_SUFFIX_RE);
+  if (!match || match.index == null) {
+    return { baseName: cleaned, version: null };
+  }
+  const version = Number.parseInt(match[1], 10);
+  return {
+    baseName: cleaned.slice(0, match.index).trim() || 'Untitled session',
+    version: Number.isFinite(version) && version > 0 ? version : null,
+  };
+}
+
+function formatSessionDisplayName(baseName: string, version: number): string {
+  const safeBaseName = stripLegacyContinuedSuffix(baseName) || 'Untitled session';
+  const safeVersion = Number.isFinite(version) && version > 0 ? Math.floor(version) : 1;
+  return `${safeBaseName} V${safeVersion}`;
+}
+
+function getSessionRootId(session: ResearchSession): string {
+  let current: ResearchSession | undefined = session;
+  const seen = new Set<string>();
+  while (current?.config?.continued_from && !seen.has(current.session_id)) {
+    seen.add(current.session_id);
+    const parent = sessions.get(current.config.continued_from);
+    if (!parent) break;
+    current = parent;
+  }
+  return current?.session_id || session.session_id;
+}
+
+function getLineageSessions(rootId: string): ResearchSession[] {
+  return [...sessions.values()]
+    .filter((session) => getSessionRootId(session) === rootId)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+function getCanonicalSessionName(config: ResearchSessionConfig): string {
+  if (config.continued_from) {
+    const source = sessions.get(config.continued_from);
+    if (source) {
+      const rootId = getSessionRootId(source);
+      const root = sessions.get(rootId) || source;
+      const { baseName } = parseSessionDisplayName(root.config?.name || config.name);
+      const lineage = getLineageSessions(rootId);
+      const maxExplicitVersion = lineage.reduce((maxVersion, session) => {
+        const parsed = parseSessionDisplayName(session.config?.name || '');
+        return parsed.version ? Math.max(maxVersion, parsed.version) : maxVersion;
+      }, 0);
+      const nextVersion = Math.max(maxExplicitVersion, lineage.length) + 1;
+      return formatSessionDisplayName(baseName, nextVersion);
+    }
+  }
+
+  const { baseName } = parseSessionDisplayName(config.name);
+  return formatSessionDisplayName(baseName, 1);
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function createSession(config: ResearchSessionConfig): Promise<ResearchSession> {
   await loadAllSessions();
+  const canonicalName = getCanonicalSessionName(config);
 
   const session: ResearchSession = {
     session_id: uuidv4(),
@@ -706,6 +1087,7 @@ export async function createSession(config: ResearchSessionConfig): Promise<Rese
     best: null,
     config: {
       ...config,
+      name: canonicalName,
       promotion_min_fitness: config.promotion_min_fitness ?? 0.6,
       promotion_requires_pass: config.promotion_requires_pass ?? true,
       allow_new_primitives: config.allow_new_primitives ?? false,
@@ -735,13 +1117,19 @@ export async function continueSession(
   // Get the most recent mandated params from the source genome
   const lastWithParams = [...source.genome].reverse().find(e => e.suggested_params);
   const forced_params = lastWithParams?.suggested_params ?? undefined;
+  const nextName = getCanonicalSessionName({
+    ...source.config,
+    ...overrides,
+    name: source.config.name,
+    continued_from: sourceId,
+  } as ResearchSessionConfig);
 
   const config: ResearchSessionConfig = {
     ...source.config,
-    name: `${source.config.name} (continued)`,
+    ...overrides,
+    name: nextName,
     forced_params,
     continued_from: sourceId,
-    ...overrides,
   };
 
   return createSession(config);
@@ -811,6 +1199,15 @@ export async function promoteManually(sessionId: string, generation: number): Pr
 
   entry.verdict = 'promoted';
   await saveState(session);
+
+  if (entry.formula_id || entry.formula || entry.formula_readable) {
+    const promoted = await promoteSrEntryToTier1(session, entry);
+    if (!promoted) {
+      entry.verdict = 'kept';
+      await saveState(session);
+    }
+    return promoted;
+  }
 
   if (entry.report_summary) {
     await promoteToTier2(session, entry);

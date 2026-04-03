@@ -344,6 +344,8 @@
       
       // Set chart data
       try { candleSeries.setData(chartData); } catch(e) { console.warn('Chart setData error:', e.message); return; }
+      // Expose bars globally so the stock risk config can compute ATR
+      window._copilotChartBars = chartData;
       
       if (typeof clearAutomaticChartDecorations === 'function') {
         clearAutomaticChartDecorations();
@@ -791,7 +793,162 @@
         calcAutoPositionSize(entry?.value, stop?.value);
       }
       renderExecutionRouteSummary();
+      syncInstrumentPnlSummary();
     }
+
+    function syncInstrumentPnlSummary() {
+      const panel = document.getElementById('instrument-pnl-summary');
+      if (!panel) return;
+
+      const settings  = typeof getSettings === 'function' ? getSettings() : {};
+      const instrType = settings.instrumentType || 'stock';
+
+      const stopPriceEl = document.getElementById('ipnl-stop-price');
+      const distEl      = document.getElementById('ipnl-stop-dist');
+      const tpPriceEl   = document.getElementById('ipnl-tp-price');
+      const gainPctEl   = document.getElementById('ipnl-gain-pct');
+      const lossEl      = document.getElementById('ipnl-loss');
+      const lossPctEl   = document.getElementById('ipnl-loss-pct');
+      const gainEl      = document.getElementById('ipnl-gain');
+      const rrEl        = document.getElementById('ipnl-rr');
+
+      const fmtPx = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const fmt   = (n) => {
+        const abs = Math.abs(n);
+        return (n < 0 ? '-' : '+') + '$' + abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+      const hide = () => { panel.style.display = 'none'; };
+      const show = () => { panel.style.display = ''; };
+
+      // ── OPTIONS ──────────────────────────────────────────────────────────────
+      if (instrType === 'options') {
+        const premium    = settings.optionPrice || 0;  // entry premium per share
+        const multiplier = settings.contractMultiplier || 100;
+        const tpR        = settings.optionTpR || 2;
+
+        if (!premium || premium <= 0) { hide(); return; }
+
+        // Resolve contracts
+        let contracts = 1;
+        if (typeof getPositionSizingContext === 'function') {
+          try { contracts = getPositionSizingContext(settings, premium, 0)?.effectiveSizing?.units || 1; } catch(e) {}
+        }
+        const manualEl = document.getElementById('manual-position-size');
+        if (manualEl && manualEl.value) contracts = parseFloat(manualEl.value) || contracts;
+        contracts = Math.max(1, Math.round(contracts));
+
+        const maxLossDollars = premium * multiplier * contracts;
+        const tpPremium      = premium * (1 + tpR);   // e.g. 2R: sell at 3× entry premium (entry + 2× entry)
+        const tpGainPerShare = tpPremium - premium;
+        const maxGainDollars = tpGainPerShare * multiplier * contracts;
+        const rr             = tpR;
+
+        if (stopPriceEl) stopPriceEl.textContent = '.00 (full loss)';
+        if (distEl)      distEl.textContent       = 'Max loss = premium paid';
+        if (lossEl)      lossEl.textContent        = fmt(-maxLossDollars);
+        if (lossPctEl)   lossPctEl.textContent     = contracts + ' contract' + (contracts !== 1 ? 's' : '') + ' × $' + (premium * multiplier).toFixed(0);
+        if (tpPriceEl)   tpPriceEl.textContent     = fmtPx(tpPremium) + '/share';
+        if (gainPctEl)   gainPctEl.textContent     = tpR + 'R — sell at ' + tpR + '× profit on premium';
+        if (gainEl)      gainEl.textContent         = fmt(maxGainDollars);
+        if (rrEl) {
+          rrEl.textContent = 'R:R  1 : ' + rr.toFixed(1);
+          rrEl.style.color = rr >= 2 ? '#22c55e' : rr >= 1 ? '#f59e0b' : '#ef4444';
+        }
+        show(); return;
+      }
+
+      // ── FUTURES ──────────────────────────────────────────────────────────────
+      if (instrType === 'futures') {
+        const entryPx  = parseFloat(document.getElementById('entry-price-input')?.value);
+        const stopPx   = parseFloat(document.getElementById('stop-loss-price-input')?.value);
+        const tpPx     = parseFloat(document.getElementById('take-profit-price-input')?.value);
+        const pointVal = settings.futuresPointValue || 50;
+
+        if (!Number.isFinite(entryPx) || !Number.isFinite(stopPx) || entryPx <= 0 || stopPx <= 0) { hide(); return; }
+
+        let contracts = 1;
+        if (typeof getPositionSizingContext === 'function') {
+          try { contracts = getPositionSizingContext(settings, entryPx, stopPx)?.effectiveSizing?.units || 1; } catch(e) {}
+        }
+        const manualEl = document.getElementById('manual-position-size');
+        if (manualEl && manualEl.value) contracts = parseFloat(manualEl.value) || contracts;
+        contracts = Math.max(1, Math.round(contracts));
+
+        const stopDist   = Math.abs(entryPx - stopPx);
+        const maxLoss    = stopDist * pointVal * contracts;
+        const lossPct    = (stopDist / entryPx) * 100;
+
+        if (stopPriceEl) stopPriceEl.textContent = fmtPx(stopPx);
+        if (distEl)      distEl.textContent       = stopDist.toFixed(2) + ' pts (' + lossPct.toFixed(1) + '%) × $' + pointVal + '/pt';
+        if (lossEl)      lossEl.textContent        = fmt(-maxLoss);
+        if (lossPctEl)   lossPctEl.textContent     = contracts + ' contract' + (contracts !== 1 ? 's' : '');
+
+        if (Number.isFinite(tpPx) && tpPx > 0) {
+          const gainDist = Math.abs(tpPx - entryPx);
+          const maxGain  = gainDist * pointVal * contracts;
+          const rr       = gainDist / stopDist;
+          if (tpPriceEl) tpPriceEl.textContent   = fmtPx(tpPx);
+          if (gainPctEl) gainPctEl.textContent    = gainDist.toFixed(2) + ' pts × $' + pointVal + '/pt';
+          if (gainEl)    gainEl.textContent        = fmt(maxGain);
+          if (rrEl) {
+            rrEl.textContent = 'R:R  1 : ' + rr.toFixed(2);
+            rrEl.style.color = rr >= 2 ? '#22c55e' : rr >= 1 ? '#f59e0b' : '#ef4444';
+          }
+        } else {
+          if (tpPriceEl) tpPriceEl.textContent = '--';
+          if (gainPctEl) gainPctEl.textContent  = 'set a target';
+          if (gainEl)    gainEl.textContent      = '--';
+          if (rrEl) { rrEl.textContent = '--'; rrEl.style.color = ''; }
+        }
+        show(); return;
+      }
+
+      // ── STOCK / CRYPTO / FOREX (price × units) ────────────────────────────────
+      const entryPx = parseFloat(document.getElementById('entry-price-input')?.value);
+      const stopPx  = parseFloat(document.getElementById('stop-loss-price-input')?.value);
+      const tpPx    = parseFloat(document.getElementById('take-profit-price-input')?.value);
+
+      if (!Number.isFinite(entryPx) || !Number.isFinite(stopPx) || entryPx <= 0 || stopPx <= 0) { hide(); return; }
+
+      let units = 1;
+      if (typeof getPositionSizingContext === 'function') {
+        try { units = getPositionSizingContext(settings, entryPx, stopPx)?.effectiveSizing?.units || 1; } catch(e) {}
+      }
+      const manualEl = document.getElementById('manual-position-size');
+      if (manualEl && manualEl.value) units = parseFloat(manualEl.value) || units;
+      units = Math.max(1, Math.round(units));
+
+      const unitLabel = instrType === 'crypto' ? 'unit' : instrType === 'forex' ? 'lot' : 'share';
+      const stopDist  = entryPx - stopPx;
+      const lossAmt   = stopDist * units;
+      const lossPct   = (stopDist / entryPx) * 100;
+
+      if (stopPriceEl) stopPriceEl.textContent = fmtPx(stopPx);
+      if (distEl)      distEl.textContent       = '$' + Math.abs(stopDist).toFixed(2) + ' (' + lossPct.toFixed(1) + '%) away';
+      if (lossEl)      lossEl.textContent        = fmt(-Math.abs(lossAmt));
+      if (lossPctEl)   lossPctEl.textContent     = units + ' ' + unitLabel + (units !== 1 ? 's' : '');
+
+      if (Number.isFinite(tpPx) && tpPx > 0) {
+        const gainDist = Math.abs(tpPx - entryPx);
+        const gainAmt  = gainDist * units;
+        const gainPct  = (gainDist / entryPx) * 100;
+        const rr       = Math.abs(gainDist / stopDist);
+        if (tpPriceEl) tpPriceEl.textContent   = fmtPx(tpPx);
+        if (gainPctEl) gainPctEl.textContent    = '$' + gainDist.toFixed(2) + ' (' + gainPct.toFixed(1) + '%) away';
+        if (gainEl)    gainEl.textContent        = fmt(gainAmt);
+        if (rrEl) {
+          rrEl.textContent = 'R:R  1 : ' + rr.toFixed(2);
+          rrEl.style.color = rr >= 2 ? '#22c55e' : rr >= 1 ? '#f59e0b' : '#ef4444';
+        }
+      } else {
+        if (tpPriceEl) tpPriceEl.textContent = '--';
+        if (gainPctEl) gainPctEl.textContent  = 'set a target';
+        if (gainEl)    gainEl.textContent      = '--';
+        if (rrEl) { rrEl.textContent = '--'; rrEl.style.color = ''; }
+      }
+      show();
+    }
+    window.syncInstrumentPnlSummary = syncInstrumentPnlSummary;
 
     // Update the visible Verdict panel from analysis data
     function syncVerdictPanel(analysis) {
@@ -1002,3 +1159,5 @@
     // Hook: update breadcrumb when interval changes
     const intervalEl = document.getElementById('copilot-interval');
     if (intervalEl) intervalEl.addEventListener('change', updateBreadcrumb);
+
+    window.runCopilotAnalysis = runCopilotAnalysis;

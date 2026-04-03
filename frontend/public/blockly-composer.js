@@ -3,13 +3,173 @@ let blocklyPrimitiveRows = [];
 let blocklyChatMessages = [];
 let blocklyValidationPassed = false;
 let blocklyValidationHash = '';
+let isRestoringBlocklyWorkspace = false;
+let blocklyFundamentalEditor = null;
+let blocklyDraftSaveTimer = null;
+let blocklyStateMachineState = {
+  enabled: false,
+  armPrimitive: '',
+  watchPrimitive: '',
+  invalidatePrimitive: '',
+  watchBars: 5,
+  emitOnArmed: true,
+  emitOnWatching: true,
+};
 const BLOCKLY_COMPOSER_EXPORT_KEY = 'blockly-composer-export';
+const BLOCKLY_COMPOSER_DRAFT_KEY = 'blockly-composer-draft-v1';
+const FUNDAMENTAL_FILTER_PRIMITIVE_ID = 'fundamental_quality_filter_primitive';
+const BLOCKLY_INSPECTOR_STORAGE_KEY = 'blockly-composer-inspector-v1';
+
+function readBlocklyInspectorState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BLOCKLY_INSPECTOR_STORAGE_KEY) || 'null');
+    if (!raw || typeof raw !== 'object') return { open: false, active: 'state' };
+    return {
+      open: raw.open === true,
+      active: raw.active === 'pit' ? 'pit' : 'state',
+    };
+  } catch {
+    return { open: false, active: 'state' };
+  }
+}
+
+function writeBlocklyInspectorState(nextState) {
+  try {
+    localStorage.setItem(BLOCKLY_INSPECTOR_STORAGE_KEY, JSON.stringify({
+      open: nextState?.open === true,
+      active: nextState?.active === 'pit' ? 'pit' : 'state',
+    }));
+  } catch {}
+}
+
+function getBlocklyInspectorElements() {
+  return {
+    shell: document.getElementById('blockly-inspector'),
+    title: document.getElementById('blockly-inspector-title'),
+    subtitle: document.getElementById('blockly-inspector-subtitle'),
+    paneState: document.getElementById('blockly-inspector-pane-state'),
+    panePit: document.getElementById('blockly-inspector-pane-pit'),
+    tabState: document.getElementById('btn-blockly-inspector-tab-state'),
+    tabPit: document.getElementById('btn-blockly-inspector-tab-pit'),
+    triggerState: document.getElementById('btn-blockly-open-state'),
+    triggerPit: document.getElementById('btn-blockly-open-pit'),
+  };
+}
+
+function setBlocklyInspectorState(nextState) {
+  const state = {
+    open: nextState?.open === true,
+    active: nextState?.active === 'pit' ? 'pit' : 'state',
+  };
+  const els = getBlocklyInspectorElements();
+  if (!els.shell) return;
+  els.shell.classList.toggle('is-open', state.open);
+  if (els.paneState) els.paneState.classList.toggle('active', state.active === 'state');
+  if (els.panePit) els.panePit.classList.toggle('active', state.active === 'pit');
+  if (els.tabState) els.tabState.classList.toggle('active', state.active === 'state');
+  if (els.tabPit) els.tabPit.classList.toggle('active', state.active === 'pit');
+  if (els.triggerState) els.triggerState.classList.toggle('is-active', state.open && state.active === 'state');
+  if (els.triggerPit) els.triggerPit.classList.toggle('is-active', state.open && state.active === 'pit');
+  if (els.title) els.title.textContent = state.active === 'pit' ? 'PIT Layer' : 'State Logic';
+  if (els.subtitle) {
+    els.subtitle.textContent = state.active === 'pit'
+      ? 'Point-in-time validation filters and rebalance settings'
+      : 'Stateful trigger timing and watch-window behavior';
+  }
+  writeBlocklyInspectorState(state);
+}
+
+function openBlocklyInspector(active) {
+  const current = readBlocklyInspectorState();
+  setBlocklyInspectorState({ open: true, active: active || current.active || 'state' });
+}
+
+function closeBlocklyInspector() {
+  const current = readBlocklyInspectorState();
+  setBlocklyInspectorState({ open: false, active: current.active || 'state' });
+}
+
+function toggleBlocklyInspector(active) {
+  const current = readBlocklyInspectorState();
+  const nextActive = active || current.active || 'state';
+  const shouldOpen = !(current.open && current.active === nextActive);
+  setBlocklyInspectorState({ open: shouldOpen, active: nextActive });
+}
+
+function summarizeBlocklyPit() {
+  const summaryEl = document.getElementById('blockly-pit-summary');
+  const triggerEl = document.getElementById('btn-blockly-open-pit');
+  if (!summaryEl || !triggerEl) return;
+  const config = blocklyFundamentalEditor?.getValue?.() || null;
+  const issues = blocklyFundamentalEditor?.getIssues?.() || [];
+  let summary = 'inactive';
+  if (config && Array.isArray(config.variables) && config.variables.length) {
+    const cadence = config.rebalance_frequency === 'quarterly' ? 'quarterly' : 'monthly';
+    summary = `${config.variables.length} vars, ${cadence}`;
+  }
+  summaryEl.textContent = summary;
+  triggerEl.classList.toggle('is-warning', Array.isArray(issues) && issues.length > 0);
+}
+
+function summarizePrimitiveLabel(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'unset';
+  const compact = raw.replace(/_primitive$/i, '').replace(/_composite$/i, '').replace(/_/g, ' ');
+  return compact.length > 18 ? `${compact.slice(0, 18)}...` : compact;
+}
+
+function summarizeBlocklyStateLogic() {
+  const summaryEl = document.getElementById('blockly-state-summary');
+  const triggerEl = document.getElementById('btn-blockly-open-state');
+  if (!summaryEl || !triggerEl) return;
+  syncBlocklyStateMachineFromDom();
+  let summary = 'inactive';
+  if (blocklyStateMachineState.enabled) {
+    const arm = summarizePrimitiveLabel(blocklyStateMachineState.armPrimitive);
+    summary = `${arm}, ${blocklyStateMachineState.watchBars} bars`;
+  }
+  const availablePrimitives = new Set(listBlocklyPrimitiveOptions().map((row) => row.pattern_id));
+  const hasWarning = blocklyStateMachineState.enabled && (
+    !blocklyStateMachineState.armPrimitive
+    || !availablePrimitives.has(blocklyStateMachineState.armPrimitive)
+    || (!blocklyStateMachineState.emitOnArmed && !blocklyStateMachineState.emitOnWatching)
+  );
+  summaryEl.textContent = summary;
+  triggerEl.classList.toggle('is-warning', hasWarning);
+}
+
+function updateBlocklyInspectorSummaries() {
+  summarizeBlocklyPit();
+  summarizeBlocklyStateLogic();
+}
+
+function getBlocklyStateMachineCollapseKey() {
+  const page = typeof window !== 'undefined' && window.location ? window.location.pathname : 'unknown';
+  return `blockly-state-machine:${page}:open`;
+}
+
+function readBlocklyStateMachineCollapseState() {
+  try {
+    const raw = localStorage.getItem(getBlocklyStateMachineCollapseKey());
+    if (raw == null) return true;
+    return raw !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function writeBlocklyStateMachineCollapseState(isOpen) {
+  try {
+    localStorage.setItem(getBlocklyStateMachineCollapseKey(), isOpen ? 'true' : 'false');
+  } catch {}
+}
 const BLOCKLY_TYPE_MAP = {
   anchor_structure: 'STRUCTURE_RESULT',
   location: 'LOCATION_RESULT',
   location_filter: 'LOCATION_RESULT',
   timing_trigger: 'TRIGGER_RESULT',
   trigger: 'TRIGGER_RESULT',
+  context: 'PATTERN_RESULT',
   state_filter: 'PATTERN_RESULT',
   regime_state: 'PATTERN_RESULT',
   pattern_gate: 'PATTERN_RESULT',
@@ -32,12 +192,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerComparePrimitivesBlock();
   registerSequenceBlock();
   registerRegimeGateBlock();
-  await loadPrimitiveLibrary();
+  registerLiquidityFilterBlock();
+  registerStateMachineBlock();
+  await Promise.all([loadPrimitiveLibrary(), loadKnownFamilies()]);
   initializeBlocklyWorkspace();
   wireActions();
   renderPrimitiveInventory();
   updateCompositionPreview();
   initializeBlocklyChat();
+  initFamilyPickerModal();
+  initFormulaPickerModal();
+  loadSrFormulas(false);
+  injectFamilyPickerButton();
+  initializeBlocklyFundamentalEditor();
+  renderBlocklyStateMachinePanel();
+  setBlocklyInspectorState(readBlocklyInspectorState());
+  updateBlocklyInspectorSummaries();
+  await maybeLoadBlocklyDefinitionFromQuery();
+  maybeRestoreBlocklyDraft();
+  updateBlocklyInspectorSummaries();
 });
 
 function bindMetaFields() {
@@ -76,6 +249,7 @@ function toPatternId(value) {
 }
 
 function registerComposeBlock() {
+  const ANY_PRIMITIVE_TYPES = ['STRUCTURE_RESULT', 'LOCATION_RESULT', 'TRIGGER_RESULT', 'PATTERN_RESULT'];
   Blockly.Blocks.compose_indicator = {
     init() {
       this.appendDummyInput()
@@ -96,6 +270,9 @@ function registerComposeBlock() {
       this.appendValueInput('PATTERN')
         .setCheck('PATTERN_RESULT')
         .appendField('Regime Filter (Optional)');
+      this.appendValueInput('STATE_MACHINE')
+        .setCheck('STATE_MACHINE_RESULT')
+        .appendField('State Logic (Optional)');
 
       this.setColour(245);
       this.setTooltip('Compose one indicator from Structure + Location + Timing (+ optional Regime Filter).');
@@ -157,6 +334,9 @@ function registerComposeConditionalBlock() {
       this.appendValueInput('ELSE_STAGE')
         .setCheck(ANY_PRIMITIVE_TYPES)
         .appendField('ELSE run  (optional)');
+      this.appendValueInput('STATE_MACHINE')
+        .setCheck('STATE_MACHINE_RESULT')
+        .appendField('State Logic (Optional)');
       this.setColour(245);
       this.setTooltip('If the condition is true, run the THEN primitive. Otherwise run the ELSE primitive (optional). Use Check Verdict blocks to build conditions.');
     },
@@ -325,8 +505,73 @@ function registerRegimeGateBlock() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Liquidity / Market Cap Regime Filter — inline block (no external primitive)
+// ---------------------------------------------------------------------------
+function registerLiquidityFilterBlock() {
+  Blockly.Blocks.liquidity_filter = {
+    init() {
+      this.appendDummyInput().appendField('LIQUIDITY FILTER  (Regime)');
+      this.appendDummyInput()
+        .appendField('Min Market Cap')
+        .appendField(new Blockly.FieldNumber(0, 0, 1000, 0.5), 'MIN_MARKET_CAP_B')
+        .appendField('$B  (0 = disabled)');
+      this.appendDummyInput()
+        .appendField('Min Avg Volume')
+        .appendField(new Blockly.FieldNumber(0, 0, 10000, 100), 'MIN_AVG_VOLUME_K')
+        .appendField('K shares  (0 = disabled)');
+      this.setOutput(true, 'PATTERN_RESULT');
+      this.setColour('#8d67c7');
+      this.setTooltip(
+        'Regime gate: filters out thin-float and low-cap stocks that lack institutional follow-through. ' +
+        'Set Min Market Cap to e.g. 2 ($2B+) to exclude micro/small caps. ' +
+        'Connect to the Regime Filter slot of your indicator block.'
+      );
+    },
+  };
+
+  Blockly.JavaScript['liquidity_filter'] = function (block) {
+    const minCap = block.getFieldValue('MIN_MARKET_CAP_B') || 0;
+    const minVol = block.getFieldValue('MIN_AVG_VOLUME_K') || 0;
+    const code = JSON.stringify({ type: 'liquidity_filter', min_market_cap_billions: minCap, min_avg_volume_k: minVol });
+    return [code, Blockly.JavaScript.ORDER_ATOMIC];
+  };
+}
+
+// ---------------------------------------------------------------------------
+// State Machine — block-based stateful authoring for sequence-dependent setups
+// ---------------------------------------------------------------------------
+function registerStateMachineBlock() {
+  const ANY_PRIMITIVE_TYPES = ['STRUCTURE_RESULT', 'LOCATION_RESULT', 'TRIGGER_RESULT', 'PATTERN_RESULT'];
+  Blockly.Blocks.state_machine_flow = {
+    init() {
+      this.appendDummyInput().appendField('STATE MACHINE');
+      this.appendValueInput('ARM_PRIMITIVE')
+        .setCheck(ANY_PRIMITIVE_TYPES)
+        .appendField('Arm on');
+      this.appendValueInput('WATCH_PRIMITIVE')
+        .setCheck(ANY_PRIMITIVE_TYPES)
+        .appendField('Advance to watching on');
+      this.appendValueInput('INVALIDATE_PRIMITIVE')
+        .setCheck(ANY_PRIMITIVE_TYPES)
+        .appendField('Invalidate on  (optional)');
+      this.appendDummyInput()
+        .appendField('Watch bars')
+        .appendField(new Blockly.FieldNumber(5, 1, 100, 1), 'WATCH_BARS');
+      this.appendDummyInput()
+        .appendField('Emit while armed')
+        .appendField(new Blockly.FieldCheckbox('TRUE'), 'EMIT_ARMED')
+        .appendField('  Emit while watching')
+        .appendField(new Blockly.FieldCheckbox('TRUE'), 'EMIT_WATCHING');
+      this.setOutput(true, 'STATE_MACHINE_RESULT');
+      this.setColour('#c87800');
+      this.setTooltip('Block-based state machine for event-driven strategies. Arm on one primitive, optionally move into a watch window on another, invalidate on a third, and emit only during selected phases.');
+    },
+  };
+}
+
 function getSocketTypeForPrimitive(row) {
-  const role = String(row?.indicator_role || '').trim().toLowerCase();
+  const role = String(row?.canonical_role || row?.indicator_role || '').trim().toLowerCase();
   return BLOCKLY_TYPE_MAP[role] || 'PATTERN_RESULT';
 }
 
@@ -363,6 +608,7 @@ function buildBlocklyParamFields(row) {
       min: tp.min,
       max: tp.max,
       options: Array.isArray(tp.options) ? tp.options : undefined,
+      dynamicEndpoint: tp.dynamic_options_endpoint || undefined,
     });
   });
 
@@ -396,7 +642,7 @@ function registerPrimitiveBlock(row) {
 
       this.setOutput(true, socketType);
       this.setColour(color);
-      this.setTooltip(`${patternId} • role: ${String(row.indicator_role || 'unknown')}`);
+      this.setTooltip(`${patternId} • role: ${String(row.canonical_role || row.indicator_role || 'unknown')}`);
       this.setHelpUrl('');
 
       if (!inFlyout) {
@@ -417,6 +663,29 @@ function registerPrimitiveBlock(row) {
               .appendField(`  ${pf.label}`)
               .appendField(new Blockly.FieldDropdown(dropdownOpts), fieldName);
             this.getField(fieldName)?.setValue(String(pf.defaultVal || pf.options[0]));
+          } else if (pf.paramType === 'string' && pf.dynamicEndpoint) {
+            const strVal = String(pf.defaultVal || '');
+            const hiddenField = new Blockly.FieldTextInput(strVal);
+            hiddenField.setVisible(false);
+            input.appendField(hiddenField, fieldName);
+            const displayLabel = new Blockly.FieldLabel(strVal ? getFormulaDisplayLabel(strVal) : '(none — pick formula)');
+            input.appendField(`  ${pf.label}`).appendField(displayLabel, `${fieldName}_DISPLAY`);
+            const pickBtnField = new Blockly.FieldImage(
+              'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="16" viewBox="0 0 20 16"><rect width="20" height="16" rx="3" fill="%234f46e5"/><text x="10" y="12" text-anchor="middle" fill="white" font-size="10" font-family="sans-serif">Pick</text></svg>'),
+              20, 16, 'Pick formula',
+            );
+            input.appendField(pickBtnField);
+            const blockRef = this;
+            const displayRef = displayLabel;
+            pickBtnField.setOnClickHandler(function () {
+              var currentVal = blockRef.getField(fieldName)?.getValue() || '';
+              loadSrFormulas(false);
+              openFormulaPicker(currentVal, function (selectedId) {
+                var field = blockRef.getField(fieldName);
+                if (field) field.setValue(selectedId || '');
+                displayRef.setValue(selectedId ? getFormulaDisplayLabel(selectedId) : '(none — pick formula)');
+              });
+            });
           } else if (pf.paramType === 'string') {
             const strVal = String(pf.defaultVal || '');
             const knownOptions = getKnownStringOptions(pf.key);
@@ -444,7 +713,7 @@ function registerPrimitiveBlock(row) {
 
       this.data = JSON.stringify({
         pattern_id: patternId,
-        indicator_role: String(row.indicator_role || '').trim(),
+        indicator_role: String(row.canonical_role || row.indicator_role || '').trim(),
         param_keys: paramFields.map((pf) => pf.key),
       });
 
@@ -454,6 +723,18 @@ function registerPrimitiveBlock(row) {
   return blockType;
 }
 
+// Populated async from /api/research/families on load
+let _knownFamilyRows = [];
+
+async function loadKnownFamilies() {
+  try {
+    const res = await fetch('/api/research/families');
+    const payload = await res.json();
+    if (!res.ok || !payload?.success || !Array.isArray(payload?.data)) return;
+    _knownFamilyRows = payload.data;
+  } catch (_) {}
+}
+
 function getKnownStringOptions(key) {
   const optionMap = {
     ma_type: [['SMA', 'sma'], ['EMA', 'ema'], ['WMA', 'wma'], ['DEMA', 'dema'], ['TEMA', 'tema']],
@@ -461,6 +742,277 @@ function getKnownStringOptions(key) {
     swing_method: [['RDP', 'rdp'], ['Major', 'major']],
   };
   return optionMap[key] || [];
+}
+
+// ── SR Formula picker modal ────────────────────────────────────────────────────
+var _formulaPickerCache = null;
+var _formulaPickerCallback = null;
+var _formulaPickerSelected = '';
+var _formulaPickerRankingJobId = null;
+
+function loadSrFormulas(force) {
+  if (_formulaPickerCache && !force) return Promise.resolve(_formulaPickerCache);
+  return fetch('/api/research/sr-formulas')
+    .then(function (res) { return res.json(); })
+    .then(function (payload) {
+      if (!payload || !payload.success || !Array.isArray(payload.data)) return [];
+      _formulaPickerCache = payload.data;
+      return payload.data;
+    })
+    .catch(function () { return []; });
+}
+
+function openFormulaPicker(currentValue, onConfirm) {
+  _formulaPickerCallback = onConfirm;
+  _formulaPickerSelected = currentValue || '';
+  var overlay = document.getElementById('formulaPickerOverlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  loadSrFormulas(true).then(function (formulas) {
+    renderFormulaPickerTable(formulas);
+  });
+}
+
+function closeFormulaPicker() {
+  var overlay = document.getElementById('formulaPickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+  _formulaPickerCallback = null;
+}
+
+function renderFormulaPickerTable(formulas) {
+  var body = document.getElementById('formulaPickerBody');
+  if (!body) return;
+
+  var sorted = formulas.slice().sort(function (a, b) {
+    var aScore = a.backtest_ranking ? a.backtest_ranking.composite_score : -1;
+    var bScore = b.backtest_ranking ? b.backtest_ranking.composite_score : -1;
+    if (bScore !== aScore) return bScore - aScore;
+    return (b.fitness || 0) - (a.fitness || 0);
+  });
+
+  if (!sorted.length) {
+    body.innerHTML = '<tr><td colspan="9" style="padding:1.5rem;text-align:center;color:var(--color-text-muted,#888);">No SR formulas found. Run a Symbolic Regression session first.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = sorted.map(function (f, i) {
+    var r = f.backtest_ranking;
+    var rank = r ? r.rank : '—';
+    var score = r ? r.composite_score.toFixed(3) : '—';
+    var exp = r ? r.expectancy_R.toFixed(3) : '—';
+    var wr = r ? (r.win_rate * 100).toFixed(1) + '%' : '—';
+    var pf = r ? r.profit_factor.toFixed(2) : '—';
+    var trades = r ? r.total_trades : '—';
+    var passFail = r ? r.pass_fail : '—';
+    var cx = f.complexity || '—';
+    var readable = (f.formula_readable || f.formula_id || '').slice(0, 55);
+    var isActive = f.formula_id === _formulaPickerSelected;
+    var passBadge = passFail === 'PASS'
+      ? '<span style="color:#22c55e;font-weight:700;">PASS</span>'
+      : passFail === 'NEEDS_REVIEW'
+        ? '<span style="color:#f59e0b;font-weight:600;">REVIEW</span>'
+        : passFail === 'FAIL'
+          ? '<span style="color:#ef4444;">FAIL</span>'
+          : '<span style="color:var(--color-text-muted,#888);">—</span>';
+    return '<tr data-fid="' + f.formula_id + '" style="cursor:pointer;border-bottom:1px solid var(--color-border,#222);'
+      + (isActive ? 'background:rgba(79,70,229,.2);' : '') + '">'
+      + '<td style="padding:.45rem .6rem;">' + rank + '</td>'
+      + '<td style="padding:.45rem .6rem;font-weight:600;">' + score + '</td>'
+      + '<td style="padding:.45rem .6rem;">' + exp + '</td>'
+      + '<td style="padding:.45rem .6rem;">' + wr + '</td>'
+      + '<td style="padding:.45rem .6rem;">' + pf + '</td>'
+      + '<td style="padding:.45rem .6rem;">' + trades + '</td>'
+      + '<td style="padding:.45rem .6rem;">' + cx + '</td>'
+      + '<td style="padding:.45rem .6rem;">' + passBadge + '</td>'
+      + '<td style="padding:.45rem .6rem;font-family:monospace;font-size:.72rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (f.formula_readable || '').replace(/"/g, '&quot;') + '">' + readable + '</td>'
+      + '</tr>';
+  }).join('');
+
+  body.querySelectorAll('tr[data-fid]').forEach(function (row) {
+    row.addEventListener('click', function () {
+      body.querySelectorAll('tr[data-fid]').forEach(function (r) { r.style.background = ''; });
+      row.style.background = 'rgba(79,70,229,.2)';
+      _formulaPickerSelected = row.dataset.fid;
+    });
+  });
+}
+
+function triggerFormulaRanking() {
+  var btn = document.getElementById('formulaPickerRankBtn');
+  var progress = document.getElementById('formulaPickerProgress');
+  var progressText = document.getElementById('formulaPickerProgressText');
+  var progressBar = document.getElementById('formulaPickerProgressBar');
+  if (btn) btn.disabled = true;
+  if (progress) progress.style.display = 'block';
+  if (progressText) progressText.textContent = 'Starting ranking...';
+  if (progressBar) progressBar.style.width = '0%';
+
+  fetch('/api/research/sr-formulas/rank', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force: true }),
+  })
+    .then(function (res) { return res.json(); })
+    .then(function (payload) {
+      if (!payload || !payload.success || !payload.data?.job_id) {
+        if (progressText) progressText.textContent = 'Failed to start ranking: ' + (payload?.error || 'unknown');
+        if (btn) btn.disabled = false;
+        return;
+      }
+      _formulaPickerRankingJobId = payload.data.job_id;
+      pollFormulaRanking(payload.data.job_id);
+    })
+    .catch(function (err) {
+      if (progressText) progressText.textContent = 'Error: ' + err.message;
+      if (btn) btn.disabled = false;
+    });
+}
+
+function pollFormulaRanking(jobId) {
+  var progressText = document.getElementById('formulaPickerProgressText');
+  var progressBar = document.getElementById('formulaPickerProgressBar');
+  var btn = document.getElementById('formulaPickerRankBtn');
+
+  fetch('/api/research/sr-formulas/rank/' + jobId)
+    .then(function (res) { return res.json(); })
+    .then(function (payload) {
+      if (!payload || !payload.success) return;
+      var job = payload.data;
+      var pct = job.progress.total > 0 ? Math.round((job.progress.completed / job.progress.total) * 100) : 0;
+      if (progressText) progressText.textContent = 'Ranking formula ' + job.progress.completed + '/' + job.progress.total + '...';
+      if (progressBar) progressBar.style.width = pct + '%';
+
+      if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+        if (progressText) progressText.textContent = job.status === 'completed'
+          ? 'Ranking complete!'
+          : 'Ranking ' + job.status;
+        if (progressBar) progressBar.style.width = '100%';
+        if (btn) btn.disabled = false;
+        _formulaPickerRankingJobId = null;
+        loadSrFormulas(true).then(function (formulas) {
+          renderFormulaPickerTable(formulas);
+        });
+        setTimeout(function () {
+          var progress = document.getElementById('formulaPickerProgress');
+          if (progress) progress.style.display = 'none';
+        }, 3000);
+        return;
+      }
+
+      setTimeout(function () { pollFormulaRanking(jobId); }, 5000);
+    })
+    .catch(function () {
+      setTimeout(function () { pollFormulaRanking(jobId); }, 10000);
+    });
+}
+
+function initFormulaPickerModal() {
+  var overlay = document.getElementById('formulaPickerOverlay');
+  var closeBtn = document.getElementById('formulaPickerClose');
+  var clearBtn = document.getElementById('formulaPickerClear');
+  var confirmBtn = document.getElementById('formulaPickerConfirm');
+  var rankBtn = document.getElementById('formulaPickerRankBtn');
+  if (!overlay) return;
+
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) closeFormulaPicker(); });
+  if (closeBtn) closeBtn.addEventListener('click', closeFormulaPicker);
+  if (clearBtn) clearBtn.addEventListener('click', function () {
+    if (_formulaPickerCallback) _formulaPickerCallback('');
+    closeFormulaPicker();
+  });
+  if (confirmBtn) confirmBtn.addEventListener('click', function () {
+    if (_formulaPickerCallback) _formulaPickerCallback(_formulaPickerSelected || '');
+    closeFormulaPicker();
+  });
+  if (rankBtn) rankBtn.addEventListener('click', triggerFormulaRanking);
+}
+
+function getFormulaDisplayLabel(formulaId) {
+  if (!formulaId || !_formulaPickerCache) return '(none)';
+  var f = _formulaPickerCache.find(function (x) { return x.formula_id === formulaId; });
+  if (!f) return formulaId.slice(0, 16);
+  var r = f.backtest_ranking;
+  if (r) return '#' + r.rank + ' score=' + r.composite_score.toFixed(2);
+  return 'fit=' + (f.fitness || 0).toFixed(2) + ' cx=' + (f.complexity || '?');
+}
+
+// ── Family picker modal ────────────────────────────────────────────────────────
+let _familyPickerCallback = null;
+
+function openFamilyPicker(currentValue, onConfirm) {
+  _familyPickerCallback = onConfirm;
+  const overlay = document.getElementById('familyPickerOverlay');
+  const searchEl = document.getElementById('familyPickerSearch');
+  if (!overlay) return;
+  searchEl.value = '';
+  renderFamilyPickerList('', currentValue);
+  overlay.style.display = 'flex';
+  setTimeout(() => searchEl.focus(), 80);
+}
+
+function renderFamilyPickerList(query, selectedSig) {
+  const list = document.getElementById('familyPickerList');
+  if (!list) return;
+  const q = query.toLowerCase();
+  const rows = _knownFamilyRows.filter((f) => !q || f.signature.toLowerCase().includes(q));
+  if (!rows.length) {
+    list.innerHTML = '<div style="padding:.75rem;color:var(--color-text-muted,#888);font-size:.85rem;">No families found.</div>';
+    return;
+  }
+  list.innerHTML = rows.map((f) => {
+    const t10 = f.crossSymbolMeanTScoreForward10 != null ? `t10=${Number(f.crossSymbolMeanTScoreForward10).toFixed(2)}` : '';
+    const mean10 = f.crossSymbolMeanAvgForward10ReturnAtr != null ? `mean10=${Number(f.crossSymbolMeanAvgForward10ReturnAtr).toFixed(3)}` : '';
+    const star = f.isCandidateFamily ? '<span style="color:#f59e0b;margin-left:.3rem;">★</span>' : '';
+    const active = f.signature === selectedSig;
+    return `<button
+      data-sig="${f.signature}"
+      style="text-align:left;background:${active ? 'rgba(79,70,229,.25)' : 'var(--color-bg-elevated,#1f1f35)'};border:1px solid ${active ? 'var(--color-accent,#4f46e5)' : 'var(--color-border,#333)'};border-radius:8px;padding:.6rem .85rem;cursor:pointer;color:inherit;font:inherit;width:100%;">
+      <div style="font-size:.82rem;font-weight:600;font-family:monospace;">${f.signature}${star}</div>
+      <div style="font-size:.75rem;color:var(--color-text-muted,#888);margin-top:.2rem;">${[t10, mean10, `${f.symbolCount} sym`, `${f.totalOccurrenceCount} occ`].filter(Boolean).join(' · ')}</div>
+    </button>`;
+  }).join('');
+  list.querySelectorAll('button[data-sig]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      list.querySelectorAll('button[data-sig]').forEach((b) => {
+        b.style.background = 'var(--color-bg-elevated,#1f1f35)';
+        b.style.borderColor = 'var(--color-border,#333)';
+      });
+      btn.style.background = 'rgba(79,70,229,.25)';
+      btn.style.borderColor = 'var(--color-accent,#4f46e5)';
+      btn.dataset.selected = 'true';
+    });
+  });
+}
+
+function closeFamilyPicker() {
+  const overlay = document.getElementById('familyPickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+  _familyPickerCallback = null;
+}
+
+function initFamilyPickerModal() {
+  const overlay = document.getElementById('familyPickerOverlay');
+  const searchEl = document.getElementById('familyPickerSearch');
+  const closeBtn = document.getElementById('familyPickerClose');
+  const clearBtn = document.getElementById('familyPickerClear');
+  const confirmBtn = document.getElementById('familyPickerConfirm');
+  if (!overlay) return;
+
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeFamilyPicker(); });
+  closeBtn?.addEventListener('click', closeFamilyPicker);
+  searchEl?.addEventListener('input', () => {
+    const selected = document.querySelector('#familyPickerList button[data-selected="true"]');
+    renderFamilyPickerList(searchEl.value, selected?.dataset?.sig || '');
+  });
+  clearBtn?.addEventListener('click', () => {
+    if (_familyPickerCallback) _familyPickerCallback('');
+    closeFamilyPicker();
+  });
+  confirmBtn?.addEventListener('click', () => {
+    const selected = document.querySelector('#familyPickerList button[data-selected="true"]');
+    if (_familyPickerCallback) _familyPickerCallback(selected?.dataset?.sig || '');
+    closeFamilyPicker();
+  });
 }
 
 async function loadPrimitiveLibrary() {
@@ -476,8 +1028,13 @@ async function loadPrimitiveLibrary() {
         pattern_id: String(row.pattern_id || '').trim(),
         name: String(row.name || row.pattern_id || '').trim(),
         indicator_role: String(row.indicator_role || 'unknown').trim(),
+        canonical_role: String(row.canonical_role || row.indicator_role || 'unknown').trim(),
         description: String(row.description || '').trim(),
         category: String(row.category || 'custom').trim(),
+        library_tier: String(row.library_tier || '').trim(),
+        autonomy_safe: row.autonomy_safe === true,
+        state_compatible: row.state_compatible === true,
+        cost_class: String(row.cost_class || '').trim(),
         tunable_params: Array.isArray(row.tunable_params) ? row.tunable_params : [],
         default_setup_params: row.default_setup_params && typeof row.default_setup_params === 'object' ? row.default_setup_params : {},
       }))
@@ -514,7 +1071,9 @@ function buildToolboxDefinition() {
     const blockType = registerPrimitiveBlock(row);
     if (!blockType) return;
     const socketType = getSocketTypeForPrimitive(row);
-    const cat = String(row.category || 'custom').trim().toLowerCase();
+    const cat = String(
+      row.pattern_id === FUNDAMENTAL_FILTER_PRIMITIVE_ID ? 'fundamentals' : (row.category || 'custom')
+    ).trim().toLowerCase();
     if (!group[socketType]) group[socketType] = {};
     if (!group[socketType][cat]) group[socketType][cat] = [];
     group[socketType][cat].push({ kind: 'block', type: blockType });
@@ -565,6 +1124,7 @@ function buildToolboxDefinition() {
           { kind: 'block', type: 'compare_primitives' },
           { kind: 'block', type: 'sequence_check' },
           { kind: 'block', type: 'regime_gate' },
+          { kind: 'block', type: 'state_machine_flow' },
         ],
       },
       {
@@ -589,10 +1149,60 @@ function buildToolboxDefinition() {
         kind: 'category',
         name: 'Regime Filter',
         colour: '#8d67c7',
-        contents: buildCategoryContents(group.PATTERN_RESULT, '#8d67c7'),
+        contents: (() => {
+          // Inject the built-in liquidity_filter into the 'fundamentals' sub-group
+          // so it appears alongside Fundamental Quality Filter, not as a separate section.
+          if (!group.PATTERN_RESULT['fundamentals']) group.PATTERN_RESULT['fundamentals'] = [];
+          const alreadyAdded = group.PATTERN_RESULT['fundamentals'].some((b) => b.type === 'liquidity_filter');
+          if (!alreadyAdded) {
+            group.PATTERN_RESULT['fundamentals'].unshift({ kind: 'block', type: 'liquidity_filter' });
+          }
+          return buildCategoryContents(group.PATTERN_RESULT, '#8d67c7');
+        })(),
       },
     ],
   };
+}
+
+function getBlocklyPrimitiveBlockType(patternId) {
+  const safe = String(patternId || '').trim().replace(/[^a-zA-Z0-9_]/g, '_');
+  return safe ? `primitive_${safe}` : '';
+}
+
+function addFundamentalFilterBlocklyBlock() {
+  if (!blocklyWorkspace) return;
+  const row = blocklyPrimitiveRows.find((item) => item.pattern_id === FUNDAMENTAL_FILTER_PRIMITIVE_ID);
+  if (!row) {
+    alert('Fundamental Quality Filter is not available in the primitive library.');
+    return;
+  }
+  const blockType = getBlocklyPrimitiveBlockType(FUNDAMENTAL_FILTER_PRIMITIVE_ID);
+  if (!Blockly.Blocks[blockType]) {
+    registerPrimitiveBlock(row);
+  }
+  const block = blocklyWorkspace.newBlock(blockType);
+  block.initSvg();
+  block.render();
+
+  let connected = false;
+  const composeBlocks = findComposeBlocks();
+  if (composeBlocks.length === 1 && composeBlocks[0].type === 'compose_indicator') {
+    const compose = composeBlocks[0];
+    const patternInput = compose.getInput('PATTERN');
+    const targetConnection = patternInput?.connection;
+    if (targetConnection && !targetConnection.targetBlock()) {
+      const outputConnection = block.outputConnection;
+      if (outputConnection) {
+        targetConnection.connect(outputConnection);
+        connected = true;
+      }
+    }
+  }
+
+  if (!connected) {
+    block.moveBy(160, 140);
+  }
+  setBlocklyStatus(connected ? 'Added Fundamental Quality Filter to the regime/filter slot' : 'Added Fundamental Quality Filter block');
 }
 
 function injectBlocklyDarkStyles() {
@@ -695,11 +1305,13 @@ function initializeBlocklyWorkspace() {
   initialCompose.moveBy(40, 40);
 
   blocklyWorkspace.addChangeListener((event) => {
+    if (isRestoringBlocklyWorkspace) return;
     blocklyValidationPassed = false;
     blocklyValidationHash = '';
     updateBlocklyRegisterButton();
     hideBlocklyValidationFeedback();
     updateCompositionPreview();
+    renderBlocklyStateMachinePanel();
 
     if (event.type === Blockly.Events.BLOCK_CREATE && event.blockId) {
       const block = blocklyWorkspace.getBlockById(event.blockId);
@@ -720,6 +1332,549 @@ function initializeBlocklyWorkspace() {
       }
     }
   });
+}
+
+function listBlocklyPrimitiveOptions() {
+  if (!blocklyWorkspace) return [];
+  const seen = new Set();
+  const rowsById = new Map(blocklyPrimitiveRows.map((row) => [String(row.pattern_id || '').trim(), row]));
+  return blocklyWorkspace
+    .getAllBlocks(false)
+    .map((block) => parsePrimitiveMeta(block))
+    .filter((meta) => meta?.pattern_id)
+    .map((meta) => String(meta.pattern_id).trim())
+    .filter((patternId) => {
+      if (!patternId || seen.has(patternId)) return false;
+      seen.add(patternId);
+      return true;
+    })
+    .map((patternId) => {
+      const row = rowsById.get(patternId);
+      return {
+        pattern_id: patternId,
+        name: String(row?.name || patternId),
+        indicator_role: String(row?.indicator_role || ''),
+      };
+    });
+}
+
+function normalizeBlocklyStateMachineState(nextState) {
+  const base = nextState && typeof nextState === 'object' ? nextState : {};
+  return {
+    enabled: base.enabled === true,
+    armPrimitive: String(base.armPrimitive || '').trim(),
+    watchPrimitive: String(base.watchPrimitive || '').trim(),
+    invalidatePrimitive: String(base.invalidatePrimitive || '').trim(),
+    watchBars: Math.max(1, Math.floor(Number(base.watchBars) || 5)),
+    emitOnArmed: base.emitOnArmed !== false,
+    emitOnWatching: base.emitOnWatching !== false,
+  };
+}
+
+function renderBlocklyStateMachinePanel() {
+  const host = document.getElementById('blockly-state-machine-host');
+  if (!host) return;
+  const isOpen = readBlocklyStateMachineCollapseState();
+
+  const primitiveOptions = listBlocklyPrimitiveOptions();
+  const primitiveOptionsHtml = primitiveOptions
+    .map((row) => `<option value="${escapeHtml(row.pattern_id)}"${row.pattern_id === blocklyStateMachineState.armPrimitive ? ' selected' : ''}>${escapeHtml(row.name)} (${escapeHtml(row.pattern_id)})</option>`)
+    .join('');
+  const watchOptionsHtml = primitiveOptions
+    .map((row) => `<option value="${escapeHtml(row.pattern_id)}"${row.pattern_id === blocklyStateMachineState.watchPrimitive ? ' selected' : ''}>${escapeHtml(row.name)} (${escapeHtml(row.pattern_id)})</option>`)
+    .join('');
+  const invalidateOptionsHtml = primitiveOptions
+    .map((row) => `<option value="${escapeHtml(row.pattern_id)}"${row.pattern_id === blocklyStateMachineState.invalidatePrimitive ? ' selected' : ''}>${escapeHtml(row.name)} (${escapeHtml(row.pattern_id)})</option>`)
+    .join('');
+
+  host.innerHTML = `
+    <details class="panel" style="margin-top:12px;" ${isOpen ? 'open' : ''}>
+      <summary class="panel-header" style="cursor:pointer;list-style:none;">
+        <span class="panel-header-title">State Machine</span>
+        <span class="text-muted text-mono" style="font-size:11px;">Writes \`setup_config.state_machine\`</span>
+      </summary>
+      <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
+        <label class="text-muted" style="display:flex;align-items:center;gap:8px;font-size:12px;">
+          <input type="checkbox" id="blockly-state-machine-enabled" ${blocklyStateMachineState.enabled ? 'checked' : ''}>
+          Enable stateful entry flow for this Blockly strategy
+        </label>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;${blocklyStateMachineState.enabled ? '' : 'opacity:0.55;'}">
+          <label class="workshop-meta-field" style="margin:0;">
+            <span>Arm On Primitive</span>
+            <select class="select" id="blockly-state-machine-arm" ${blocklyStateMachineState.enabled ? '' : 'disabled'}>
+              <option value="">Select primitive...</option>
+              ${primitiveOptionsHtml}
+            </select>
+          </label>
+          <label class="workshop-meta-field" style="margin:0;">
+            <span>Advance To Watching On</span>
+            <select class="select" id="blockly-state-machine-watch" ${blocklyStateMachineState.enabled ? '' : 'disabled'}>
+              <option value="">Same primitive as arm</option>
+              ${watchOptionsHtml}
+            </select>
+          </label>
+          <label class="workshop-meta-field" style="margin:0;">
+            <span>Invalidate On</span>
+            <select class="select" id="blockly-state-machine-invalidate" ${blocklyStateMachineState.enabled ? '' : 'disabled'}>
+              <option value="">None</option>
+              ${invalidateOptionsHtml}
+            </select>
+          </label>
+          <label class="workshop-meta-field" style="margin:0;">
+            <span>Watch Bars</span>
+            <input type="number" id="blockly-state-machine-watch-bars" min="1" step="1" value="${escapeHtml(blocklyStateMachineState.watchBars)}" ${blocklyStateMachineState.enabled ? '' : 'disabled'}>
+          </label>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;${blocklyStateMachineState.enabled ? '' : 'opacity:0.55;'}">
+          <label class="text-muted" style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <input type="checkbox" id="blockly-state-machine-emit-armed" ${blocklyStateMachineState.emitOnArmed ? 'checked' : ''} ${blocklyStateMachineState.enabled ? '' : 'disabled'}>
+            Emit while armed
+          </label>
+          <label class="text-muted" style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <input type="checkbox" id="blockly-state-machine-emit-watching" ${blocklyStateMachineState.emitOnWatching ? 'checked' : ''} ${blocklyStateMachineState.enabled ? '' : 'disabled'}>
+            Emit while watching
+          </label>
+        </div>
+        <div class="text-muted" style="font-size:12px;">
+          Use this for strategies that must arm on one event and emit over a later watch window instead of firing statelessly on every bar.
+        </div>
+      </div>
+    </details>
+  `;
+
+  const onInput = (domEvent) => {
+    syncBlocklyStateMachineFromDom();
+    blocklyValidationPassed = false;
+    blocklyValidationHash = '';
+    updateBlocklyRegisterButton();
+    hideBlocklyValidationFeedback();
+    updateCompositionPreview();
+    if (domEvent?.target?.id === 'blockly-state-machine-enabled') {
+      renderBlocklyStateMachinePanel();
+    }
+  };
+  const detailsEl = host.querySelector('details.panel');
+  if (detailsEl) {
+    detailsEl.addEventListener('toggle', () => {
+      writeBlocklyStateMachineCollapseState(detailsEl.open);
+    });
+  }
+  host.querySelectorAll('input, select').forEach((el) => {
+    el.addEventListener('input', onInput);
+    el.addEventListener('change', onInput);
+  });
+  updateBlocklyInspectorSummaries();
+}
+
+function syncBlocklyStateMachineFromDom() {
+  const enabledEl = document.getElementById('blockly-state-machine-enabled');
+  const armEl = document.getElementById('blockly-state-machine-arm');
+  const watchEl = document.getElementById('blockly-state-machine-watch');
+  const invalidateEl = document.getElementById('blockly-state-machine-invalidate');
+  const watchBarsEl = document.getElementById('blockly-state-machine-watch-bars');
+  const emitArmedEl = document.getElementById('blockly-state-machine-emit-armed');
+  const emitWatchingEl = document.getElementById('blockly-state-machine-emit-watching');
+  blocklyStateMachineState = normalizeBlocklyStateMachineState({
+    enabled: enabledEl?.checked,
+    armPrimitive: armEl?.value,
+    watchPrimitive: watchEl?.value,
+    invalidatePrimitive: invalidateEl?.value,
+    watchBars: watchBarsEl?.value,
+    emitOnArmed: emitArmedEl?.checked,
+    emitOnWatching: emitWatchingEl?.checked,
+  });
+}
+
+function applyBlocklyStateMachine(definition, errors) {
+  syncBlocklyStateMachineFromDom();
+  if (!blocklyStateMachineState.enabled) {
+    if (definition?.default_setup_params && typeof definition.default_setup_params === 'object') {
+      delete definition.default_setup_params.state_machine;
+    }
+    return;
+  }
+
+  const availablePrimitives = new Set(listBlocklyPrimitiveOptions().map((row) => row.pattern_id));
+  if (!blocklyStateMachineState.armPrimitive) {
+    errors.push('State machine is enabled but Arm On Primitive is not set.');
+    return;
+  }
+  if (!availablePrimitives.has(blocklyStateMachineState.armPrimitive)) {
+    errors.push(`State machine arm primitive "${blocklyStateMachineState.armPrimitive}" is not present in the workspace.`);
+    return;
+  }
+  if (blocklyStateMachineState.invalidatePrimitive && !availablePrimitives.has(blocklyStateMachineState.invalidatePrimitive)) {
+    errors.push(`State machine invalidate primitive "${blocklyStateMachineState.invalidatePrimitive}" is not present in the workspace.`);
+    return;
+  }
+  const emitOn = [];
+  if (blocklyStateMachineState.emitOnArmed) emitOn.push('armed');
+  if (blocklyStateMachineState.emitOnWatching) emitOn.push('watching');
+  if (!emitOn.length) {
+    errors.push('State machine is enabled but no emit phase is selected.');
+    return;
+  }
+
+  const watchPrimitive = blocklyStateMachineState.watchPrimitive || blocklyStateMachineState.armPrimitive;
+  const actionFlag = `${blocklyStateMachineState.armPrimitive.replace(/[^a-z0-9_]+/gi, '_')}_confirmed`;
+  definition.default_setup_params.state_machine = {
+    initial_phase: 'idle',
+    watch_bars: blocklyStateMachineState.watchBars,
+    invalidate_on: blocklyStateMachineState.invalidatePrimitive || '',
+    emit_on: emitOn,
+    transitions: [
+      {
+        from: 'idle',
+        on_primitive: blocklyStateMachineState.armPrimitive,
+        to: 'armed',
+        action: {
+          set_watch_bars: blocklyStateMachineState.watchBars,
+          set_flag: actionFlag,
+        },
+      },
+      {
+        from: 'armed',
+        on_primitive: watchPrimitive,
+        to: 'watching',
+      },
+    ],
+  };
+}
+
+function applyBlocklyStateMachineFromDefinition(definition) {
+  const sm = definition?.default_setup_params?.state_machine;
+  if (!sm || typeof sm !== 'object') {
+    blocklyStateMachineState = normalizeBlocklyStateMachineState({ enabled: false });
+    renderBlocklyStateMachinePanel();
+    updateBlocklyInspectorSummaries();
+    return;
+  }
+  const transitions = Array.isArray(sm.transitions) ? sm.transitions : [];
+  const armTransition = transitions.find((row) => String(row?.from || '') === 'idle') || transitions[0] || null;
+  const watchTransition = transitions.find((row) => {
+    const from = row?.from;
+    return from === 'armed' || (Array.isArray(from) && from.includes('armed'));
+  }) || null;
+  const emitOn = Array.isArray(sm.emit_on) ? sm.emit_on.map((row) => String(row)) : [String(sm.emit_on || '')].filter(Boolean);
+  blocklyStateMachineState = normalizeBlocklyStateMachineState({
+    enabled: true,
+    armPrimitive: String(armTransition?.on_primitive || ''),
+    watchPrimitive: String(watchTransition?.on_primitive || ''),
+    invalidatePrimitive: String(sm.invalidate_on || ''),
+    watchBars: Number(sm.watch_bars || armTransition?.action?.set_watch_bars || 5),
+    emitOnArmed: emitOn.includes('armed'),
+    emitOnWatching: emitOn.includes('watching'),
+  });
+  renderBlocklyStateMachinePanel();
+  updateBlocklyInspectorSummaries();
+}
+
+function buildStateMachineConfigFromBlock(stateBlock, errors) {
+  if (!stateBlock) return null;
+  if (stateBlock.type !== 'state_machine_flow') {
+    errors.push('Unsupported state logic block. Use the STATE MACHINE block from the Logic category.');
+    return null;
+  }
+
+  const armBlock = stateBlock.getInputTargetBlock('ARM_PRIMITIVE');
+  const watchBlock = stateBlock.getInputTargetBlock('WATCH_PRIMITIVE');
+  const invalidateBlock = stateBlock.getInputTargetBlock('INVALIDATE_PRIMITIVE');
+
+  const armMeta = parsePrimitiveMeta(armBlock);
+  const watchMeta = parsePrimitiveMeta(watchBlock);
+  const invalidateMeta = parsePrimitiveMeta(invalidateBlock);
+
+  if (!armMeta?.pattern_id) {
+    errors.push('STATE MACHINE block: connect a primitive to Arm on.');
+    return null;
+  }
+
+  const watchPrimitive = watchMeta?.pattern_id || armMeta.pattern_id;
+  const watchBars = Math.max(1, Math.floor(Number(stateBlock.getFieldValue('WATCH_BARS') || 5) || 5));
+  const emitOn = [];
+  if (String(stateBlock.getFieldValue('EMIT_ARMED') || 'TRUE').toUpperCase() === 'TRUE') emitOn.push('armed');
+  if (String(stateBlock.getFieldValue('EMIT_WATCHING') || 'TRUE').toUpperCase() === 'TRUE') emitOn.push('watching');
+  if (!emitOn.length) {
+    errors.push('STATE MACHINE block: select at least one emit phase.');
+    return null;
+  }
+
+  const actionFlag = `${String(armMeta.pattern_id || '').replace(/[^a-z0-9_]+/gi, '_')}_confirmed`;
+  return {
+    initial_phase: 'idle',
+    watch_bars: watchBars,
+    invalidate_on: invalidateMeta?.pattern_id || '',
+    emit_on: emitOn,
+    transitions: [
+      {
+        from: 'idle',
+        on_primitive: armMeta.pattern_id,
+        to: 'armed',
+        action: {
+          set_watch_bars: watchBars,
+          set_flag: actionFlag,
+        },
+      },
+      {
+        from: 'armed',
+        on_primitive: watchPrimitive,
+        to: 'watching',
+      },
+    ],
+  };
+}
+
+function getBlocklyWorkspaceState() {
+  if (!blocklyWorkspace) return null;
+  try {
+    return Blockly.serialization.workspaces.save(blocklyWorkspace);
+  } catch {
+    return null;
+  }
+}
+
+function hasMeaningfulBlocklyWorkspace() {
+  if (!blocklyWorkspace) return false;
+  return blocklyWorkspace.getAllBlocks(false).length > 1;
+}
+
+function hasMeaningfulBlocklyDraftContent() {
+  const nameValue = String(document.getElementById('blockly-pattern-name')?.value || '').trim();
+  const idValue = String(document.getElementById('blockly-pattern-id')?.value || '').trim();
+  const categoryValue = String(document.getElementById('blockly-category')?.value || '').trim();
+  const intentValue = String(document.getElementById('blockly-intent')?.value || 'entry').trim();
+  const hasFundamentalConfig = !!(blocklyFundamentalEditor?.getValue?.());
+  syncBlocklyStateMachineFromDom();
+  return hasMeaningfulBlocklyWorkspace()
+    || !!nameValue
+    || !!idValue
+    || categoryValue !== 'indicator_signals'
+    || intentValue !== 'entry'
+    || hasFundamentalConfig
+    || blocklyStateMachineState.enabled;
+}
+
+function clearBlocklyDraft() {
+  try {
+    localStorage.removeItem(BLOCKLY_COMPOSER_DRAFT_KEY);
+  } catch {}
+}
+
+function buildBlocklyDraftPayload() {
+  const workspaceState = getBlocklyWorkspaceState();
+  if (!workspaceState) return null;
+  syncBlocklyStateMachineFromDom();
+  return {
+    version: 1,
+    saved_at: new Date().toISOString(),
+    meta: {
+      name: String(document.getElementById('blockly-pattern-name')?.value || '').trim(),
+      pattern_id: String(document.getElementById('blockly-pattern-id')?.value || '').trim(),
+      category: String(document.getElementById('blockly-category')?.value || 'indicator_signals').trim() || 'indicator_signals',
+      intent: String(document.getElementById('blockly-intent')?.value || 'entry').trim() || 'entry',
+      status: String(document.getElementById('blockly-status')?.textContent || 'draft').trim() || 'draft',
+      load_pattern_id: String(document.getElementById('blockly-load-pattern-id')?.value || '').trim(),
+    },
+    workspace_state: workspaceState,
+    fundamental_config: blocklyFundamentalEditor?.getValue?.() || null,
+    state_machine_state: normalizeBlocklyStateMachineState(blocklyStateMachineState),
+  };
+}
+
+function persistBlocklyDraftImmediately() {
+  if (blocklyDraftSaveTimer) {
+    clearTimeout(blocklyDraftSaveTimer);
+    blocklyDraftSaveTimer = null;
+  }
+  try {
+    if (!hasMeaningfulBlocklyDraftContent()) {
+      clearBlocklyDraft();
+      return false;
+    }
+    const payload = buildBlocklyDraftPayload();
+    if (!payload) return false;
+    localStorage.setItem(BLOCKLY_COMPOSER_DRAFT_KEY, JSON.stringify(payload));
+    return true;
+  } catch (error) {
+    console.warn('Failed to persist Blockly draft:', error);
+    return false;
+  }
+}
+
+function scheduleBlocklyDraftSave() {
+  if (isRestoringBlocklyWorkspace) return;
+  if (blocklyDraftSaveTimer) clearTimeout(blocklyDraftSaveTimer);
+  blocklyDraftSaveTimer = setTimeout(() => {
+    blocklyDraftSaveTimer = null;
+    persistBlocklyDraftImmediately();
+  }, 300);
+}
+
+function maybeRestoreBlocklyDraft() {
+  try {
+    const url = new URL(window.location.href);
+    if (String(url.searchParams.get('pattern_id') || '').trim()) return false;
+  } catch {}
+
+  let payload = null;
+  try {
+    payload = JSON.parse(localStorage.getItem(BLOCKLY_COMPOSER_DRAFT_KEY) || 'null');
+  } catch {
+    clearBlocklyDraft();
+    return false;
+  }
+  if (!payload || typeof payload !== 'object' || !payload.workspace_state) return false;
+
+  const meta = payload.meta && typeof payload.meta === 'object' ? payload.meta : {};
+  const nameInput = document.getElementById('blockly-pattern-name');
+  const idInput = document.getElementById('blockly-pattern-id');
+  const categoryInput = document.getElementById('blockly-category');
+  const intentSelect = document.getElementById('blockly-intent');
+  const statusBadge = document.getElementById('blockly-status');
+  const loadInput = document.getElementById('blockly-load-pattern-id');
+
+  if (nameInput) nameInput.value = String(meta.name || '').trim();
+  if (idInput) idInput.value = String(meta.pattern_id || '').trim();
+  if (categoryInput) categoryInput.value = String(meta.category || 'indicator_signals').trim() || 'indicator_signals';
+  if (intentSelect) intentSelect.value = String(meta.intent || 'entry').trim() || 'entry';
+  if (statusBadge) statusBadge.textContent = 'draft';
+  if (loadInput) loadInput.value = String(meta.load_pattern_id || '').trim();
+  if (blocklyFundamentalEditor) {
+    blocklyFundamentalEditor.setValue(payload.fundamental_config || null);
+  }
+  blocklyStateMachineState = normalizeBlocklyStateMachineState(payload.state_machine_state || {});
+  renderBlocklyStateMachinePanel();
+
+  const restored = restoreBlocklyWorkspaceState(payload.workspace_state);
+  if (!restored) {
+    clearBlocklyDraft();
+    return false;
+  }
+  setBlocklyStatus(`Restored local draft${payload.saved_at ? ` from ${new Date(payload.saved_at).toLocaleString()}` : ''}`);
+  return true;
+}
+
+function restoreBlocklyWorkspaceState(state) {
+  if (!blocklyWorkspace || !state || typeof state !== 'object') return false;
+  try {
+    isRestoringBlocklyWorkspace = true;
+    blocklyWorkspace.clear();
+    Blockly.serialization.workspaces.load(state, blocklyWorkspace);
+    return true;
+  } catch (error) {
+    console.error('Failed to restore Blockly workspace', error);
+    return false;
+  } finally {
+    isRestoringBlocklyWorkspace = false;
+    updateCompositionPreview();
+  }
+}
+
+function initializeBlocklyFundamentalEditor() {
+  if (typeof initFundamentalConfigEditor !== 'function') return;
+  blocklyFundamentalEditor = initFundamentalConfigEditor({
+    hostId: 'blockly-fundamental-config-host',
+    prefix: 'blockly-fundamentals',
+    onChange: () => {
+      blocklyValidationPassed = false;
+      blocklyValidationHash = '';
+      updateBlocklyRegisterButton();
+      hideBlocklyValidationFeedback();
+      updateCompositionPreview();
+      updateBlocklyInspectorSummaries();
+    },
+  });
+  updateBlocklyInspectorSummaries();
+}
+
+function applyBlocklyFundamentalConfig(definition, errors) {
+  if (!blocklyFundamentalEditor) return;
+  const issues = blocklyFundamentalEditor.getIssues();
+  if (Array.isArray(issues) && issues.length) {
+    errors.push(...issues);
+  }
+  const config = blocklyFundamentalEditor.getValue();
+  if (config) {
+    definition.fundamental_config = config;
+  } else {
+    delete definition.fundamental_config;
+  }
+}
+
+function applyBlocklyAuthoringMeta(authoring) {
+  const blockly = authoring?.blockly || {};
+  const meta = blockly.meta || {};
+  const nameInput = document.getElementById('blockly-pattern-name');
+  const idInput = document.getElementById('blockly-pattern-id');
+  const categoryInput = document.getElementById('blockly-category');
+  const intentSelect = document.getElementById('blockly-intent');
+  const statusBadge = document.getElementById('blockly-status');
+  if (nameInput && typeof meta.name === 'string') nameInput.value = meta.name;
+  if (idInput && typeof meta.pattern_id === 'string') idInput.value = meta.pattern_id;
+  if (categoryInput && typeof meta.category === 'string') categoryInput.value = meta.category;
+  if (intentSelect && typeof meta.intent === 'string') intentSelect.value = meta.intent;
+  if (statusBadge) statusBadge.textContent = 'loaded';
+}
+
+async function loadBlocklyPattern(patternId) {
+  const normalizedId = String(patternId || '').trim();
+  if (!normalizedId) {
+    alert('Enter a pattern ID to open.');
+    return false;
+  }
+  if (hasMeaningfulBlocklyWorkspace()) {
+    const okToReplace = confirm(`Open "${normalizedId}" and replace the current Blockly workspace?`);
+    if (!okToReplace) return false;
+  }
+  setBlocklyStatus(`Loading ${normalizedId}...`);
+  try {
+    const res = await fetch(`/api/plugins/${encodeURIComponent(normalizedId)}`);
+    const payload = await res.json();
+    if (!res.ok || !payload?.success || !payload?.data) {
+      throw new Error(payload?.error || `HTTP ${res.status}`);
+    }
+    const definition = payload.data;
+    const authoring = definition?.authoring;
+    const workspaceState = authoring?.blockly?.workspace_state;
+    if (!workspaceState) {
+      throw new Error('This indicator does not have saved Blockly workspace data yet.');
+    }
+    applyBlocklyAuthoringMeta(authoring);
+    if (blocklyFundamentalEditor) {
+      blocklyFundamentalEditor.setValue(definition?.fundamental_config || null);
+    }
+    applyBlocklyStateMachineFromDefinition(definition);
+    const restored = restoreBlocklyWorkspaceState(workspaceState);
+    if (!restored) {
+      throw new Error('Saved Blockly workspace data could not be restored.');
+    }
+    const loadInput = document.getElementById('blockly-load-pattern-id');
+    if (loadInput) loadInput.value = normalizedId;
+    blocklyValidationPassed = false;
+    blocklyValidationHash = '';
+    updateBlocklyRegisterButton();
+    hideBlocklyValidationFeedback();
+    setBlocklyStatus(`Loaded ${normalizedId}`);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('pattern_id', normalizedId);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+    return true;
+  } catch (error) {
+    setBlocklyStatus(`Load failed: ${error.message || 'Unknown error'}`, true);
+    alert(`Could not open "${normalizedId}" in Blockly.\n\n${error.message || 'Unknown error'}`);
+    return false;
+  }
+}
+
+async function maybeLoadBlocklyDefinitionFromQuery() {
+  try {
+    const url = new URL(window.location.href);
+    const patternId = String(url.searchParams.get('pattern_id') || '').trim();
+    if (!patternId) return;
+    await loadBlocklyPattern(patternId);
+  } catch {}
 }
 
 function parsePrimitiveMeta(block) {
@@ -902,6 +2057,9 @@ function buildConditionalFromBlock(composeBlock, intent, patternId, patternName,
 
   const branch = { condition: conditionTree, then: thenStage };
   if (elseStage) branch.else = elseStage;
+  const errors = [];
+  const stateMachineBlock = composeBlock.getInputTargetBlock('STATE_MACHINE');
+  const blockStateMachine = buildStateMachineConfigFromBlock(stateMachineBlock, errors);
 
   const definition = {
     pattern_id: patternId,
@@ -933,6 +2091,13 @@ function buildConditionalFromBlock(composeBlock, intent, patternId, patternName,
     suggested_timeframes: ['D', 'W'],
     min_data_bars: 220,
   };
+  applyBlocklyFundamentalConfig(definition, errors);
+  if (blockStateMachine) {
+    definition.default_setup_params.state_machine = blockStateMachine;
+  } else {
+    applyBlocklyStateMachine(definition, errors);
+  }
+  if (errors.length) return { errors };
   definition.tunable_params = inferBlocklyTunableParams(definition);
 
   return { errors: [], definition };
@@ -1074,6 +2239,25 @@ function inferBlocklyTunableParams(definition) {
     });
   });
 
+  const stateMachine = definition?.default_setup_params?.state_machine;
+  if (stateMachine && typeof stateMachine === 'object' && Number.isFinite(Number(stateMachine.watch_bars))) {
+    pushUniqueBlocklyTunableParam(tunables, {
+      key: 'watch_bars',
+      label: 'State Machine Watch Bars',
+      path: 'setup_config.state_machine.watch_bars',
+      type: 'int',
+      min: 1,
+      max: 30,
+      step: 1,
+      default: Math.floor(Number(stateMachine.watch_bars)),
+      description: 'Bars to keep the state machine watch window open after arming.',
+      anatomy: 'entry_timing',
+      identity_preserving: true,
+      sweep_enabled: true,
+      sensitivity_enabled: true,
+    });
+  }
+
   return tunables;
 }
 
@@ -1082,6 +2266,21 @@ function extractStage(composeBlock, inputName, stageId, required) {
   if (!connected) {
     return required ? { error: `Missing required stage: ${stageId}` } : null;
   }
+
+  // Built-in inline blocks (e.g. liquidity_filter) don't use the primitive library
+  // so they have no block.data / pattern_id — handle them specially.
+  if (connected.type === 'liquidity_filter') {
+    const minCap = Number(connected.getFieldValue('MIN_MARKET_CAP_B') || 0);
+    const minVol = Number(connected.getFieldValue('MIN_AVG_VOLUME_K') || 0);
+    const stage = {
+      id: stageId,
+      pattern_id: 'liquidity_filter',
+      indicator_role: 'regime_state',
+      params: { min_market_cap_billions: minCap, min_avg_volume_k: minVol },
+    };
+    return stage;
+  }
+
   const meta = parsePrimitiveMeta(connected);
   if (!meta?.pattern_id) {
     return { error: `Invalid block connected at ${stageId}.` };
@@ -1128,11 +2327,12 @@ function buildCompositeFromWorkspace() {
   const stages = [];
   const errors = [];
 
-  const requireAll = intent === 'entry' || intent === 'exit';
-  const structure = extractStage(compose, 'STRUCTURE', 'structure', requireAll);
-  const location = extractStage(compose, 'LOCATION', 'location', requireAll);
-  const timing = extractStage(compose, 'TIMING', 'timing', requireAll);
+  const structure = extractStage(compose, 'STRUCTURE', 'structure', false);
+  const location = extractStage(compose, 'LOCATION', 'location', false);
+  const timing = extractStage(compose, 'TIMING', 'timing', false);
   const pattern = extractStage(compose, 'PATTERN', 'pattern_gate', false);
+  const stateMachineBlock = compose.getInputTargetBlock('STATE_MACHINE');
+  const blockStateMachine = buildStateMachineConfigFromBlock(stateMachineBlock, errors);
 
   [structure, location, timing, pattern].forEach((stage) => {
     if (!stage) return;
@@ -1144,7 +2344,6 @@ function buildCompositeFromWorkspace() {
   });
 
   if (!stages.length) errors.push('Connect at least one primitive block.');
-  if (errors.length) return { errors };
 
   const reducerOp = String(compose.getFieldValue('REDUCER_OP') || 'AND').trim().toUpperCase();
   const reducerN = Number(compose.getFieldValue('REDUCER_N') || 2);
@@ -1194,6 +2393,13 @@ function buildCompositeFromWorkspace() {
     suggested_timeframes: ['D', 'W'],
     min_data_bars: 220,
   };
+  applyBlocklyFundamentalConfig(definition, errors);
+  if (blockStateMachine) {
+    definition.default_setup_params.state_machine = blockStateMachine;
+  } else {
+    applyBlocklyStateMachine(definition, errors);
+  }
+  if (errors.length) return { errors };
   definition.tunable_params = inferBlocklyTunableParams(definition);
 
   return { errors: [], definition };
@@ -1203,6 +2409,7 @@ function updateCompositionPreview() {
   const preview = document.getElementById('blockly-json-preview');
   if (!preview) return;
   const built = buildCompositeFromWorkspace();
+  scheduleBlocklyDraftSave();
   if (built.errors?.length) {
     preview.textContent = `Validation errors:\n- ${built.errors.join('\n- ')}`;
     setBlocklyStatus('Composition incomplete', true);
@@ -1238,15 +2445,99 @@ function clearBlocklyWorkspace() {
   hideBlocklyValidationFeedback();
   updateBlocklyRegisterButton();
   updateCompositionPreview();
+  clearBlocklyDraft();
   setBlocklyStatus('Workspace cleared');
 }
 
+function injectFamilyPickerButton() {
+  // Find the Blockly workspace container and prepend a banner button
+  // that reads/writes the allowed_families field on any structural_family_signal block.
+  const workspaceDiv = document.getElementById('blockly-workspace');
+  if (!workspaceDiv) return;
+  const workspaceEl = workspaceDiv.parentElement;
+  if (!workspaceEl) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'family-picker-banner';
+  banner.style.cssText = 'display:none;padding:.4rem .75rem;background:rgba(79,70,229,.12);border:1px solid rgba(79,70,229,.35);border-radius:8px;margin-bottom:.5rem;align-items:center;gap:.75rem;font-size:.82rem;';
+  banner.innerHTML = `
+    <span style="flex:1;font-family:monospace;" id="family-picker-current-label">No family selected (all families)</span>
+    <button id="family-picker-open-btn" style="background:var(--color-accent,#4f46e5);border:none;border-radius:6px;color:#fff;padding:.3rem .8rem;cursor:pointer;font-size:.8rem;font-weight:600;">Pick Family…</button>
+  `;
+  workspaceEl.insertBefore(banner, workspaceDiv);
+
+  document.getElementById('family-picker-open-btn')?.addEventListener('click', () => {
+    const currentVal = getFamilyFieldValue();
+    openFamilyPicker(currentVal, (sig) => {
+      setFamilyFieldValue(sig);
+      updateFamilyPickerBanner();
+    });
+  });
+
+  // Show banner whenever a structural_family_signal block is in the workspace
+  if (blocklyWorkspace) {
+    blocklyWorkspace.addChangeListener(() => updateFamilyPickerBanner());
+  }
+}
+
+function getFamilyPickerBanner() { return document.getElementById('family-picker-banner'); }
+
+function updateFamilyPickerBanner() {
+  const banner = getFamilyPickerBanner();
+  if (!banner) return;
+  const block = findFamilySignalBlock();
+  if (!block) { banner.style.display = 'none'; return; }
+  banner.style.display = 'flex';
+  const val = getFamilyFieldValue();
+  const label = document.getElementById('family-picker-current-label');
+  if (label) {
+    label.textContent = val ? `Family: ${val}` : 'No family selected (all families)';
+  }
+}
+
+function findFamilySignalBlock() {
+  const ws = blocklyWorkspace;
+  if (!ws) return null;
+  return ws.getAllBlocks(false).find((b) => {
+    try { return JSON.parse(b.data || '{}').pattern_id === 'structural_family_signal'; } catch { return false; }
+  }) || null;
+}
+
+function getFamilyFieldValue() {
+  const block = findFamilySignalBlock();
+  if (!block) return '';
+  const field = block.getField('PARAM_allowed_families');
+  return field ? String(field.getValue() || '') : '';
+}
+
+function setFamilyFieldValue(sig) {
+  const block = findFamilySignalBlock();
+  if (!block) return;
+  const field = block.getField('PARAM_allowed_families');
+  if (field) field.setValue(sig || '');
+}
+
 function wireActions() {
+  const addFundamentalFilterBtn = document.getElementById('btn-blockly-add-fundamental-filter');
   const clearBtn = document.getElementById('btn-blockly-clear');
   const validateBtn = document.getElementById('btn-blockly-validate');
   const copyBtn = document.getElementById('btn-blockly-copy-json');
   const sendBtn = document.getElementById('btn-blockly-send-builder');
   const registerBtn = document.getElementById('btn-blockly-register');
+  const loadBtn = document.getElementById('btn-blockly-load-pattern');
+  const loadInput = document.getElementById('blockly-load-pattern-id');
+  const openPitBtn = document.getElementById('btn-blockly-open-pit');
+  const openStateBtn = document.getElementById('btn-blockly-open-state');
+  const closeInspectorBtn = document.getElementById('btn-blockly-close-inspector');
+  const tabStateBtn = document.getElementById('btn-blockly-inspector-tab-state');
+  const tabPitBtn = document.getElementById('btn-blockly-inspector-tab-pit');
+
+  if (addFundamentalFilterBtn) {
+    addFundamentalFilterBtn.addEventListener('click', () => {
+      addFundamentalFilterBlocklyBlock();
+      openBlocklyInspector('pit');
+    });
+  }
 
   if (clearBtn) {
     clearBtn.addEventListener('click', () => clearBlocklyWorkspace());
@@ -1263,6 +2554,35 @@ function wireActions() {
 
   if (registerBtn) {
     registerBtn.addEventListener('click', () => registerBlocklyComposite());
+  }
+
+  if (loadBtn) {
+    loadBtn.addEventListener('click', async () => {
+      await loadBlocklyPattern(loadInput?.value || '');
+    });
+  }
+  if (loadInput) {
+    loadInput.addEventListener('keydown', async (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      await loadBlocklyPattern(loadInput.value || '');
+    });
+  }
+
+  if (openPitBtn) {
+    openPitBtn.addEventListener('click', () => toggleBlocklyInspector('pit'));
+  }
+  if (openStateBtn) {
+    openStateBtn.addEventListener('click', () => toggleBlocklyInspector('state'));
+  }
+  if (closeInspectorBtn) {
+    closeInspectorBtn.addEventListener('click', () => closeBlocklyInspector());
+  }
+  if (tabStateBtn) {
+    tabStateBtn.addEventListener('click', () => openBlocklyInspector('state'));
+  }
+  if (tabPitBtn) {
+    tabPitBtn.addEventListener('click', () => openBlocklyInspector('pit'));
   }
 
   if (copyBtn) {
@@ -1295,6 +2615,7 @@ function wireActions() {
           definition: built.definition,
         }),
       );
+      persistBlocklyDraftImmediately();
       window.location.href = 'workshop.html?tab=builder';
     });
   }
@@ -1303,6 +2624,13 @@ function wireActions() {
   const idInput = document.getElementById('blockly-pattern-id');
   if (nameInput) nameInput.addEventListener('input', () => { blocklyValidationPassed = false; updateBlocklyRegisterButton(); });
   if (idInput) idInput.addEventListener('input', () => { blocklyValidationPassed = false; updateBlocklyRegisterButton(); });
+  window.addEventListener('beforeunload', persistBlocklyDraftImmediately);
+  window.addEventListener('pagehide', persistBlocklyDraftImmediately);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      persistBlocklyDraftImmediately();
+    }
+  });
 }
 
 function renderPrimitiveInventory() {
@@ -1426,6 +2754,25 @@ async function registerBlocklyComposite() {
 
   const definition = built.definition;
   const patternId = definition.pattern_id;
+  const workspaceState = getBlocklyWorkspaceState();
+  if (!workspaceState) {
+    showBlocklyValidationFeedback(false, ['Unable to serialize Blockly workspace.']);
+    setBlocklyStatus('Workspace serialization failed', true);
+    return;
+  }
+  definition.authoring = {
+    source: 'blockly',
+    blockly: {
+      workspace_state: workspaceState,
+      meta: {
+        name: definition.name,
+        pattern_id: patternId,
+        category: definition.category,
+        intent: String(document.getElementById('blockly-intent')?.value || 'entry'),
+      },
+      saved_at: new Date().toISOString(),
+    },
+  };
 
   const ok = confirm(`Register composite indicator?\n\n${definition.name} (${patternId})\n\nThis will publish it to the indicator library.`);
   if (!ok) return;
@@ -1484,6 +2831,13 @@ async function registerBlocklyComposite() {
 
     const statusBadge = document.getElementById('blockly-status');
     if (statusBadge) statusBadge.textContent = 'registered';
+    const loadInput = document.getElementById('blockly-load-pattern-id');
+    if (loadInput) loadInput.value = assignedId;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('pattern_id', assignedId);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
 
     blocklyChatMessages.push({
       sender: 'ai',
@@ -1581,11 +2935,13 @@ function renderBlocklyChat() {
     })
     .join('');
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('blockly-chat-panel');
 }
 
 function setBlocklyChatStatus(text) {
   const el = document.getElementById('blockly-chat-status');
   if (el) el.textContent = text;
+  if (typeof notifyPopout === 'function') notifyPopout('blockly-chat-panel');
 }
 
 function buildBlocklyContext() {
@@ -1610,8 +2966,38 @@ function buildBlocklyContext() {
       intent: String(document.getElementById('blockly-intent')?.value || 'entry').trim(),
     },
     currentComposition: composition,
+    fundamentalConfig: blocklyFundamentalEditor?.getValue() || null,
+    stateMachineConfig: blocklyStateMachineState.enabled ? definitionStateMachinePreview() : null,
+    availableFundamentalMetrics: typeof getFundamentalMetricOptions === 'function' ? getFundamentalMetricOptions() : [],
     availablePrimitives: blocklyPrimitiveRows.slice(0, 200),
     chatHistory,
+  };
+}
+
+function definitionStateMachinePreview() {
+  syncBlocklyStateMachineFromDom();
+  if (!blocklyStateMachineState.enabled) return null;
+  const emitOn = [];
+  if (blocklyStateMachineState.emitOnArmed) emitOn.push('armed');
+  if (blocklyStateMachineState.emitOnWatching) emitOn.push('watching');
+  const watchPrimitive = blocklyStateMachineState.watchPrimitive || blocklyStateMachineState.armPrimitive;
+  return {
+    initial_phase: 'idle',
+    watch_bars: blocklyStateMachineState.watchBars,
+    invalidate_on: blocklyStateMachineState.invalidatePrimitive || '',
+    emit_on: emitOn,
+    transitions: [
+      {
+        from: 'idle',
+        on_primitive: blocklyStateMachineState.armPrimitive,
+        to: 'armed',
+      },
+      {
+        from: 'armed',
+        on_primitive: watchPrimitive,
+        to: 'watching',
+      },
+    ],
   };
 }
 
@@ -1672,3 +3058,4 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+

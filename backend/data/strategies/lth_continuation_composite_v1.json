@@ -1,0 +1,367 @@
+{
+  "strategy_id": "lth_continuation_composite",
+  "name": "LTH Continuation Composite",
+  "description": "Composite indicator generated from Blockly composition.",
+  "status": "testing",
+  "asset_class": "stocks",
+  "interval": "1d",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "setup_config": {
+    "pattern_type": "lth_continuation_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "structure",
+          "pattern_id": "structural_family_signal",
+          "params": {
+            "allowed_families": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+            "reversal_multiple_atr": 2,
+            "min_bars_between_pivots": 3,
+            "equal_band_atr": 0.25
+          }
+        },
+        {
+          "id": "location",
+          "pattern_id": "fib_location_primitive",
+          "params": {
+            "location_min_retracement_pct": 50,
+            "location_max_retracement_pct": 79,
+            "location_require_near_level": false
+          }
+        },
+        {
+          "id": "timing",
+          "pattern_id": "rsi_primitive",
+          "params": {
+            "rsi_period": 14,
+            "rsi_threshold": 30,
+            "cross_direction": "below",
+            "overbought_level": 70,
+            "oversold_level": 30,
+            "lookback_bars": 500
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "structure",
+          "location",
+          "timing"
+        ]
+      }
+    },
+    "market_cap_tier": "all",
+    "min_market_cap_billions": 0
+  },
+  "entry_config": {
+    "entry_type": "market_on_close"
+  },
+  "risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 1.5,
+    "take_profit_R": 1.5,
+    "max_hold_bars": 20,
+    "max_concurrent_positions": 2
+  },
+  "exit_config": {
+    "target_type": "R_multiple",
+    "target_level": 1.5,
+    "time_stop_bars": 20,
+    "trailing": null
+  },
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {
+    "auto_breakeven_r": 1,
+    "production_lock": true
+  },
+  "updated_at": "2026-03-18T13:44:32.709Z",
+  "parameter_manifest": [
+    {
+      "key": "structure_allowed_families",
+      "label": "structure: Allowed Families",
+      "path": "setup_config.composite_spec.stages.0.params.allowed_families",
+      "anatomy": "entry_timing",
+      "type": "string",
+      "description": "Comma-separated familySignatureV2 values. Blank means all detected families.",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        ""
+      ]
+    },
+    {
+      "key": "structure_reversal_multiple_atr",
+      "label": "structure: ATR Reversal Multiple",
+      "path": "setup_config.composite_spec.stages.0.params.reversal_multiple_atr",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "description": "ATR multiple required to confirm each reversal pivot.",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.5,
+        1.625,
+        2,
+        3.875,
+        5
+      ],
+      "min": 0.5,
+      "max": 5
+    },
+    {
+      "key": "structure_min_bars_between_pivots",
+      "label": "structure: Min Bars Between Pivots",
+      "path": "setup_config.composite_spec.stages.0.params.min_bars_between_pivots",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "description": "Minimum spacing between confirmed pivots.",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        1,
+        5.75,
+        3,
+        15.25,
+        20
+      ],
+      "min": 1,
+      "max": 20
+    },
+    {
+      "key": "structure_equal_band_atr",
+      "label": "structure: Equal Band ATR",
+      "path": "setup_config.composite_spec.stages.0.params.equal_band_atr",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "description": "ATR-normalized band for EH/EL labeling.",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.05,
+        0.2875,
+        0.25,
+        0.7625,
+        1
+      ],
+      "min": 0.05,
+      "max": 1
+    },
+    {
+      "key": "location_location_min_retracement_pct",
+      "label": "location: Min Retracement %",
+      "path": "setup_config.composite_spec.stages.1.params.location_min_retracement_pct",
+      "anatomy": "location",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        30,
+        42.25,
+        50,
+        66.75,
+        79
+      ],
+      "min": 30,
+      "max": 79
+    },
+    {
+      "key": "location_location_max_retracement_pct",
+      "label": "location: Max Retracement %",
+      "path": "setup_config.composite_spec.stages.1.params.location_max_retracement_pct",
+      "anatomy": "location",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        50,
+        61.25,
+        79,
+        83.75,
+        95
+      ],
+      "min": 50,
+      "max": 95
+    },
+    {
+      "key": "location_location_require_near_level",
+      "label": "location: Require Near Fib Level",
+      "path": "setup_config.composite_spec.stages.1.params.location_require_near_level",
+      "anatomy": "location",
+      "type": "bool",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        false,
+        true
+      ]
+    },
+    {
+      "key": "timing_rsi_period",
+      "label": "timing: RSI Period",
+      "path": "setup_config.composite_spec.stages.2.params.rsi_period",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "description": "Number of bars for the RSI calculation (standard is 14)",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        2,
+        26.5,
+        14,
+        75.5,
+        100
+      ],
+      "min": 2,
+      "max": 100
+    },
+    {
+      "key": "timing_rsi_threshold",
+      "label": "timing: Trigger Level",
+      "path": "setup_config.composite_spec.stages.2.params.rsi_threshold",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "description": "RSI level that triggers the signal when crossed",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        5,
+        27.5,
+        30,
+        72.5,
+        95
+      ],
+      "min": 5,
+      "max": 95
+    },
+    {
+      "key": "timing_cross_direction",
+      "label": "timing: Cross Direction",
+      "path": "setup_config.composite_spec.stages.2.params.cross_direction",
+      "anatomy": "entry_timing",
+      "type": "enum",
+      "description": "Below = RSI crosses below threshold (oversold entry). Above = RSI crosses above threshold (overbought exit).",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        "below",
+        "above"
+      ]
+    },
+    {
+      "key": "timing_overbought_level",
+      "label": "timing: Overbought Level",
+      "path": "setup_config.composite_spec.stages.2.params.overbought_level",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "description": "RSI level considered overbought (informational / scoring)",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        50,
+        61.25,
+        70,
+        83.75,
+        95
+      ],
+      "min": 50,
+      "max": 95
+    },
+    {
+      "key": "timing_oversold_level",
+      "label": "timing: Oversold Level",
+      "path": "setup_config.composite_spec.stages.2.params.oversold_level",
+      "anatomy": "entry_timing",
+      "type": "float",
+      "description": "RSI level considered oversold (informational / scoring)",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        5,
+        16.25,
+        30,
+        38.75,
+        50
+      ],
+      "min": 5,
+      "max": 50
+    },
+    {
+      "key": "timing_lookback_bars",
+      "label": "timing: Lookback Window",
+      "path": "setup_config.composite_spec.stages.2.params.lookback_bars",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "description": "Only search for crossovers in the last N bars",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        1,
+        250.75,
+        500,
+        750.25,
+        1000
+      ],
+      "min": 1,
+      "max": 1000
+    },
+    {
+      "key": "min_market_cap_billions",
+      "label": "Min Market Cap (\\)",
+      "path": "setup_config.min_market_cap_billions",
+      "anatomy": "regime_filter",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        1,
+        2,
+        5,
+        10
+      ],
+      "min": 0,
+      "max": 50,
+      "step": 0.5,
+      "priority": 75,
+      "failure_modes_targeted": [
+        "thin_float_noise"
+      ]
+    }
+  ],
+  "composition": "composite",
+  "artifact_type": "indicator",
+  "category": "indicator_signals",
+  "pattern_id": "lth_continuation_composite",
+  "source": "registry",
+  "passed_tiers": [
+    "tier1"
+  ],
+  "execution_eligible": false,
+  "version": 1,
+  "strategy_version_id": "lth_continuation_composite_v1",
+  "created_at": "2026-03-18T13:28:25.726Z",
+  "spec_hash": "50ab2ffcece64e31ae4d35d2a50641dc1112b9fa7fad2f3db9ff09f54cdf27f4"
+}

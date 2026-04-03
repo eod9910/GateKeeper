@@ -1,0 +1,50 @@
+{
+  "pattern_id": "atr_primitive",
+  "name": "ATR (Primitive)",
+  "category": "indicator_signals",
+  "description": "Average True Range context primitive. Exposes current ATR or ATR as a percentage of price for volatility-aware analysis, composite design, and chart inspection.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/atr_primitive.py",
+  "plugin_function": "run_atr_primitive_plugin",
+  "pattern_type": "atr_primitive",
+  "chart_indicator": true,
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "atr_primitive",
+    "atr_period": 14,
+    "normalize_by_price": true
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "atr_period",
+      "label": "ATR Period",
+      "type": "int",
+      "min": 2,
+      "max": 100,
+      "default": 14,
+      "description": "Average True Range lookback period."
+    },
+    {
+      "key": "normalize_by_price",
+      "label": "Normalize By Price",
+      "type": "bool",
+      "default": true,
+      "description": "When enabled, expose ATR as a fraction of price so volatility is comparable across symbols."
+    }
+  ],
+  "suggested_timeframes": ["D", "W", "4H", "1H"],
+  "min_data_bars": 20,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "context",
+  "library_tier": "core_stable",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "cheap",
+  "search_tags": ["atr", "average_true_range", "volatility", "context", "risk"],
+  "source_kind": "imported"
+}

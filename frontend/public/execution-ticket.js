@@ -2,6 +2,8 @@
   function renderPendingExecutionTicket(ctx) {
     const { state, providerLabel, fmtIntentPrice, asIso, getConfiguredFlag, brokerSupportsExecution } = ctx;
     const intent = state.pendingIntent;
+    const section = document.getElementById('trading-desk-ticket-section');
+    if (section) section.style.display = intent ? '' : 'none';
     const summaryEl = document.getElementById('execution-ticket-summary');
     const notesEl = document.getElementById('execution-ticket-notes');
     const executeBtn = document.getElementById('btn-execute-ticket');
@@ -136,10 +138,10 @@
     const intent = state.pendingIntent;
     if (intent?.symbol) {
       const params = new URLSearchParams({ symbol: intent.symbol });
-      global.location.href = `copilot.html?${params.toString()}`;
+      global.location.href = `/trading-desk?${params.toString()}`;
       return;
     }
-    global.location.href = 'copilot.html';
+    global.location.href = '/trading-desk';
   }
 
   function applyTradingDeskExecutionIntent(ctx) {

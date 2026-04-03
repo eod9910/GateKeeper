@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page-id="strategy">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,10 +32,62 @@
     .left-panel { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; }
     .left-header { padding:var(--space-12) var(--space-16); border-bottom:1px solid var(--color-border); display:flex; justify-content:space-between; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.06em; font-size:var(--text-caption); }
     .list { flex:1; overflow-y:auto; padding:var(--space-8) 0; }
-    .item { padding:var(--space-8) var(--space-16); border-left:2px solid transparent; cursor:pointer; }
-    .item:hover { background:var(--color-surface-hover); }
-    .item.active { background:var(--color-accent-soft); border-left-color:var(--color-accent); }
-    .group { padding:var(--space-8) var(--space-16) var(--space-4); font-size:.68rem; color:var(--color-text-subtle); text-transform:uppercase; letter-spacing:.1em; font-weight:600; }
+    .strategy-bucket { display:block; }
+    .strategy-group-label {
+      padding: var(--space-8) var(--space-16) var(--space-4);
+      font-size: 0.6875rem;
+      color: var(--color-text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+    }
+    .strategy-group-toggle {
+      width: 100%;
+      border: none;
+      background: none;
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+    .strategy-group-toggle:hover {
+      color: var(--color-text);
+    }
+    .strategy-group-caret {
+      width: 10px;
+      flex-shrink: 0;
+      font-size: 0.75rem;
+    }
+    .strategy-group-items.collapsed { display:none; }
+    .strategy-item {
+      padding: var(--space-8) var(--space-16);
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: background var(--transition), border-color var(--transition);
+    }
+    .strategy-item:hover { background:var(--color-surface-hover); }
+    .strategy-item.active { background:var(--color-accent-soft); border-left-color:var(--color-accent); }
+    .strategy-item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+    }
+    .strategy-item-name {
+      font-size: var(--text-small);
+      font-weight: 500;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .strategy-item-meta {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      margin-top: 2px;
+    }
     .status-badge { display:inline-block; padding:1px 6px; border-radius:2px; font-size:.62rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
     .status-badge.draft { background:var(--color-surface-alt); color:var(--color-text-muted); }
     .status-badge.testing { background:rgba(93,122,146,.15); color:var(--color-accent); }
@@ -93,6 +145,19 @@
       color:var(--color-accent);
       background:rgba(93,122,146,.12);
       border:1px solid rgba(93,122,146,.28);
+    }
+    .active-strategy-badge {
+      display:inline-flex;
+      align-items:center;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:.65rem;
+      font-weight:700;
+      letter-spacing:.06em;
+      font-family:var(--font-mono);
+      color:var(--color-positive);
+      background:rgba(34,197,94,.15);
+      border:1px solid rgba(34,197,94,.4);
     }
     .details { overflow-y:auto; padding-bottom:var(--space-24); }
     .section-title { font-size:var(--text-caption); color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.08em; margin:var(--space-20) 0 var(--space-10); padding-bottom:var(--space-8); border-bottom:1px solid var(--color-border-subtle); }
@@ -342,20 +407,20 @@
   <div class="app">
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-header">
-        <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
           <span class="logo-mark">PD</span>
           <span class="sidebar-label-text">Pattern Detector</span>
         </a>
         <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
       </div>
       <nav class="sidebar-nav">
-        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
-        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
-        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
-        <a href="validator.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
-        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
-        <a href="execution.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
-        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+        <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="/position-book" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="/validator" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="/indicator-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
       </nav>
     </aside>
 
@@ -366,7 +431,7 @@
           <span class="text-muted" style="font-size:var(--text-caption);">Separate view for strategy config and status</span>
         </div>
         <div style="display:flex;gap:var(--space-12);align-items:center;align-self:flex-start;padding-top:4px;">
-          <a href="validator.html" class="btn btn-ghost btn-sm">← Validator</a>
+          <a href="/validator" class="btn btn-ghost btn-sm">← Validator</a>
           <a href="strategy.html"  class="btn btn-ghost btn-sm" style="color:var(--color-accent);border-color:var(--color-accent);">Strategy Page</a>
           <a href="validator-symbol-library.html" class="btn btn-ghost btn-sm">Symbol Library</a>
         </div>
@@ -395,6 +460,7 @@
               <button class="cc-toggle-btn" onclick="toggleChat('strategy-chat-panel','strategy-layout','chat-collapsed')" title="Collapse panel">&#8250;</button>
               <span class="cc-title">Strategy Reviewer</span>
               <span id="strategy-chat-status" class="cc-status">Ready</span>
+              <button class="cc-popout-btn" onclick="popoutChatPanel({panelId:'strategy-chat-panel',gridId:'strategy-layout',collapsedClass:'chat-collapsed',title:'Strategy Reviewer',statusId:'strategy-chat-status',messagesId:'strategy-chat-messages',inputId:'strategy-chat-input',sendFn:'sendStrategyChat',actions:[{label:'Analyze',prefill:'Analyze this strategy'},{label:'Risk Gaps',prefill:'What are the risk gaps?'},{label:'Test Plan',prefill:'Suggest a test plan'}]})" title="Pop out to separate window">&#8599;</button>
               <span class="cc-vert-label" onclick="toggleChat('strategy-chat-panel','strategy-layout','chat-collapsed')">Strategy Reviewer</span>
             </div>
             <div id="strategy-chat-messages" class="validator-chat-messages"></div>
@@ -415,5 +481,6 @@
 
   <script src="app.js"></script>
   <script src="strategy.js"></script>
+  <script src="voice-input.js"></script>
 </body>
 </html>

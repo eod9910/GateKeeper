@@ -1,3 +1,125 @@
+// App-wide page state: save/restore per-page state so returning to a page restores it.
+// Set data-page-id on <html> (e.g. data-page-id="research") so the key is stable.
+// Usage: AppState.save({ ... });  and  var state = AppState.restore();
+(function () {
+  function getPageId() {
+    var el = document.documentElement;
+    if (el.dataset && el.dataset.pageId) return el.dataset.pageId;
+    var path = (window.location.pathname || '').replace(/^\//, '').replace(/\.html$/, '');
+    return path || 'index';
+  }
+
+  function storageKey() {
+    return 'appPageState_' + getPageId();
+  }
+
+  window.AppState = {
+    getPageId: getPageId,
+    save: function (state) {
+      try {
+        localStorage.setItem(storageKey(), JSON.stringify(state));
+      } catch (e) {}
+    },
+    restore: function () {
+      try {
+        var raw = localStorage.getItem(storageKey());
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+  };
+})();
+
+// App-wide collapsible panel persistence.
+// Any element with class="... collapsible" and data-collapse-key="<key>" gets wired automatically.
+// Collapsed state is saved per page to localStorage and restored on every render.
+// Usage (pages with dynamic HTML):
+//   After injecting new collapsible HTML, call AppCollapse.apply() to attach handlers + restore state.
+// Usage (static HTML):
+//   Just add the attributes — DOMContentLoaded wires everything automatically.
+(function () {
+  var STORAGE_KEY_PREFIX = 'appCollapse_';
+
+  function pageKey() {
+    var el = document.documentElement;
+    var id = (el.dataset && el.dataset.pageId) ? el.dataset.pageId
+      : (window.location.pathname || '').replace(/^\//, '').replace(/\.html$/, '') || 'index';
+    return STORAGE_KEY_PREFIX + id;
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(pageKey());
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  }
+
+  function save(set) {
+    try {
+      localStorage.setItem(pageKey(), JSON.stringify(Array.from(set)));
+    } catch (e) {}
+  }
+
+  // Live in-memory set for this page load
+  var collapsed = load();
+
+  function applyAll() {
+    document.querySelectorAll('[data-collapse-key]').forEach(function (el) {
+      var key = el.getAttribute('data-collapse-key');
+      if (collapsed.has(key)) el.classList.add('collapsed');
+      else el.classList.remove('collapsed');
+    });
+  }
+
+  function wire(container) {
+    var root = container || document;
+    root.querySelectorAll('[data-collapse-key]').forEach(function (el) {
+      if (el._appCollapseWired) return;
+      el._appCollapseWired = true;
+
+      // Find the toggle trigger: panel-header or detail-section-header child
+      var trigger = el.querySelector('.panel-header, .detail-section-header');
+      if (!trigger) return;
+
+      trigger.addEventListener('click', function (e) {
+        if (e.target.closest('button')) return;
+        var key = el.getAttribute('data-collapse-key');
+        var nowCollapsed = el.classList.toggle('collapsed');
+        if (nowCollapsed) collapsed.add(key);
+        else collapsed.delete(key);
+        save(collapsed);
+      });
+    });
+  }
+
+  window.AppCollapse = {
+    /** Call after injecting dynamic HTML to wire new elements and apply saved state. */
+    apply: function (container) {
+      wire(container);
+      applyAll();
+    },
+    /** Reload collapsed set from localStorage (call if another tab may have changed it). */
+    reload: function () {
+      collapsed = load();
+      applyAll();
+    },
+    /** Get current collapsed keys (for pages that also manage their own state). */
+    getKeys: function () { return Array.from(collapsed); },
+    /** Seed the set from an external source (e.g. research.js passes its own set). */
+    setKeys: function (keys) {
+      collapsed = new Set(keys);
+      save(collapsed);
+      applyAll();
+    },
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    wire(document);
+    applyAll();
+  });
+})();
+
 // Sidebar resize handle — drag the right edge to resize
 (function () {
   var STORAGE_KEY = 'sidebar-width';
@@ -426,9 +548,238 @@ function toggleChat(panelId, gridId, collapsedClass) {
 }
 window.toggleChat = toggleChat;
 
+/* ── Generic detachable chat popout ─────────────────────────────────
+ *
+ * Usage from any page:
+ *   popoutChatPanel({
+ *     panelId:       'blockly-chat-panel',
+ *     gridId:        'blockly-main-layout',       // optional – parent grid to collapse
+ *     collapsedClass:'chat-collapsed',             // optional
+ *     title:         'Blockly Assistant',
+ *     statusId:      'blockly-chat-status',        // optional
+ *     messagesId:    'blockly-chat-messages',
+ *     inputId:       'blockly-chat-input',
+ *     sendFn:        'sendBlocklyChat',            // global fn name
+ *     actions: [                                   // optional quick-action buttons
+ *       { label: 'Show Primitives', prefill: 'What primitives are available?' },
+ *     ],
+ *   });
+ */
+(function () {
+  var _popouts = {};
+
+  function buildPopoutHTML(cfg) {
+    var actionBtns = (cfg.actions || []).map(function (a) {
+      var escaped = String(a.prefill || '').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+      return '<button class="pop-action-btn" onclick="popSend(\'' + escaped + '\')">' +
+        (a.label || 'Action') + '</button>';
+    }).join('\n      ');
+
+    return '<!DOCTYPE html>\n' +
+'<html lang="en">\n' +
+'<head>\n' +
+'<meta charset="utf-8">\n' +
+'<title>' + (cfg.title || 'Chat') + '</title>\n' +
+'<style>\n' +
+'  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }\n' +
+'  :root {\n' +
+'    --color-bg: #1c1c1e; --color-surface: #222224; --color-border: #333335;\n' +
+'    --color-text: #e8e8e4; --color-text-muted: #a8a8a4; --color-accent: #5d7a92;\n' +
+'    --font-mono: "JetBrains Mono","Fira Code","SF Mono",monospace;\n' +
+'  }\n' +
+'  html, body { height: 100%; overflow: hidden; background: var(--color-bg); color: var(--color-text);\n' +
+'    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; }\n' +
+'  body { display: flex; flex-direction: column; }\n' +
+'  .pop-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px;\n' +
+'    border-bottom: 1px solid var(--color-border); background: var(--color-surface); flex: 0 0 auto; }\n' +
+'  .pop-header-title { font-weight: 700; font-size: 14px; flex: 1; }\n' +
+'  .pop-status { font-size: 11px; color: var(--color-text-muted); font-family: var(--font-mono); }\n' +
+'  .pop-dock-btn { background: none; border: 1px solid var(--color-border); border-radius: 6px;\n' +
+'    color: var(--color-text-muted); padding: 4px 10px; cursor: pointer; font-size: 12px; }\n' +
+'  .pop-dock-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }\n' +
+'  .pop-messages { flex: 1 1 0%; overflow-y: auto; padding: 12px; display: flex;\n' +
+'    flex-direction: column; gap: 8px; }\n' +
+'  .pop-msg { padding: 10px 14px; border-radius: 10px; font-size: 12.5px;\n' +
+'    line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-width: 92%; }\n' +
+'  .pop-msg.ai, .pop-msg.assistant { background: rgba(255,255,255,0.04); border: 1px solid var(--color-border);\n' +
+'    align-self: flex-start; color: var(--color-text); }\n' +
+'  .pop-msg.user { background: var(--color-accent); color: #fff;\n' +
+'    align-self: flex-end; border: none; }\n' +
+'  .pop-input-row { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--color-border);\n' +
+'    background: var(--color-surface); flex: 0 0 auto; }\n' +
+'  .pop-input-row textarea { flex: 1; resize: none; border: 1px solid var(--color-border);\n' +
+'    border-radius: 8px; background: var(--color-bg); color: var(--color-text); padding: 8px 10px;\n' +
+'    font: inherit; font-size: 12.5px; outline: none; }\n' +
+'  .pop-input-row textarea:focus { border-color: var(--color-accent); }\n' +
+'  .pop-send-btn { width: 36px; height: 36px; border: none; border-radius: 50%;\n' +
+'    background: var(--color-accent); color: #fff; font-size: 16px; cursor: pointer;\n' +
+'    display: flex; align-items: center; justify-content: center; align-self: flex-end; }\n' +
+'  .pop-send-btn:hover { filter: brightness(1.15); }\n' +
+'  .pop-actions { display: flex; gap: 6px; padding: 6px 12px 10px; flex-wrap: wrap; background: var(--color-surface); flex: 0 0 auto; }\n' +
+'  .pop-action-btn { background: none; border: 1px solid var(--color-border); border-radius: 6px;\n' +
+'    color: var(--color-text-muted); padding: 5px 12px; cursor: pointer; font-size: 11.5px; flex: 1; min-width: 0; text-align: center; }\n' +
+'  .pop-action-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }\n' +
+'</style>\n' +
+'</head>\n' +
+'<body>\n' +
+'  <div class="pop-header">\n' +
+'    <span class="pop-header-title">' + (cfg.title || 'Chat') + '</span>\n' +
+'    <span id="popout-status" class="pop-status">Ready</span>\n' +
+'    <button class="pop-dock-btn" onclick="doDock()" title="Dock back into main window">&#8598; Dock</button>\n' +
+'  </div>\n' +
+'  <div id="popout-messages" class="pop-messages"></div>\n' +
+'  <div class="pop-input-row">\n' +
+'    <textarea id="popout-input" rows="2" placeholder="Ask..."\n' +
+'      onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();popSend();}"></textarea>\n' +
+'    <button class="pop-send-btn" onclick="popSend()">&#8593;</button>\n' +
+'  </div>\n' +
+(actionBtns ? '  <div class="pop-actions">\n      ' + actionBtns + '\n  </div>\n' : '') +
+'  <script>\n' +
+'    function popSend(prefill) {\n' +
+'      var input = document.getElementById("popout-input");\n' +
+'      var msg = typeof prefill === "string" ? prefill : (input ? input.value : "");\n' +
+'      if (input && typeof prefill !== "string") input.value = "";\n' +
+'      if (window.opener && window.opener["' + cfg.sendFn + '"]) {\n' +
+'        window.opener["' + cfg.sendFn + '"](msg);\n' +
+'      }\n' +
+'    }\n' +
+'    function doDock() {\n' +
+'      if (window.opener && window.opener.dockChatPanel) {\n' +
+'        window.opener.dockChatPanel("' + cfg.panelId + '");\n' +
+'      }\n' +
+'    }\n' +
+'  </script>\n' +
+'</body>\n' +
+'</html>';
+  }
+
+  function syncPopoutMessages(panelId) {
+    var entry = _popouts[panelId];
+    if (!entry || !entry.win || entry.win.closed) return;
+    var src = document.getElementById(entry.cfg.messagesId);
+    var dst = entry.win.document.getElementById('popout-messages');
+    if (!src || !dst) return;
+    var bubbles = src.querySelectorAll('[class*="chat-bubble"], [class*="chat-message"], .chat-ai, .chat-user');
+    if (bubbles.length === 0) {
+      dst.innerHTML = src.innerHTML;
+    } else {
+      var html = '';
+      bubbles.forEach(function (b) {
+        var sender = /\buser\b/.test(b.className) ? 'user' : 'ai';
+        html += '<div class="pop-msg ' + sender + '">' + b.innerHTML + '</div>';
+      });
+      dst.innerHTML = html;
+    }
+    dst.scrollTop = dst.scrollHeight;
+  }
+
+  function syncPopoutStatus(panelId) {
+    var entry = _popouts[panelId];
+    if (!entry || !entry.win || entry.win.closed || !entry.cfg.statusId) return;
+    var src = document.getElementById(entry.cfg.statusId);
+    var dst = entry.win.document.getElementById('popout-status');
+    if (src && dst) dst.textContent = src.textContent;
+  }
+
+  function popoutChatPanel(cfg) {
+    if (_popouts[cfg.panelId] && _popouts[cfg.panelId].win && !_popouts[cfg.panelId].win.closed) {
+      _popouts[cfg.panelId].win.focus();
+      return;
+    }
+
+    var panel = document.getElementById(cfg.panelId);
+    if (panel) panel.style.display = 'none';
+    if (cfg.gridId) {
+      var grid = document.getElementById(cfg.gridId);
+      if (grid) grid.classList.add('chat-popped-out');
+    }
+
+    var pop = window.open('', 'popout-' + cfg.panelId,
+      'width=420,height=700,resizable=yes,scrollbars=no,menubar=no,toolbar=no,location=no,status=no');
+    if (!pop) {
+      alert('Pop-up blocked. Please allow pop-ups for this site.');
+      if (panel) panel.style.display = '';
+      if (cfg.gridId) {
+        var g = document.getElementById(cfg.gridId);
+        if (g) g.classList.remove('chat-popped-out');
+      }
+      return;
+    }
+
+    _popouts[cfg.panelId] = { win: pop, cfg: cfg };
+
+    var doc = pop.document;
+    doc.open();
+    doc.write(buildPopoutHTML(cfg));
+    doc.close();
+
+    syncPopoutMessages(cfg.panelId);
+    syncPopoutStatus(cfg.panelId);
+
+    pop.addEventListener('beforeunload', function () {
+      dockChatPanel(cfg.panelId);
+    });
+
+    var btn = panel && panel.querySelector('.cc-popout-btn');
+    if (btn) { btn.textContent = '\u2196'; btn.title = 'Dock back'; }
+
+    setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 220);
+  }
+
+  function dockChatPanel(panelId) {
+    var entry = _popouts[panelId];
+    var cfg = entry ? entry.cfg : null;
+
+    var panel = document.getElementById(panelId);
+    if (panel) panel.style.display = '';
+    if (cfg && cfg.gridId) {
+      var grid = document.getElementById(cfg.gridId);
+      if (grid) grid.classList.remove('chat-popped-out');
+    }
+
+    if (entry && entry.win && !entry.win.closed) {
+      try { entry.win.close(); } catch (e) { /* cross-origin guard */ }
+    }
+    delete _popouts[panelId];
+
+    var btn = panel && panel.querySelector('.cc-popout-btn');
+    if (btn) { btn.textContent = '\u2197'; btn.title = 'Pop out to separate window'; }
+
+    setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 220);
+  }
+
+  function notifyPopout(panelId) {
+    syncPopoutMessages(panelId);
+    syncPopoutStatus(panelId);
+  }
+
+  function isPopped(panelId) {
+    var e = _popouts[panelId];
+    return !!(e && e.win && !e.win.closed);
+  }
+
+  window.popoutChatPanel = popoutChatPanel;
+  window.dockChatPanel   = dockChatPanel;
+  window.notifyPopout    = notifyPopout;
+  window.isPopped        = isPopped;
+  window._chatPopouts    = _popouts;
+})();
+
 // Global page help modal powered by the shared app reference.
 (function () {
   var HELP_CACHE = Object.create(null);
+
+  function isGlobalHelpDisabled() {
+    var body = document.body;
+    var html = document.documentElement;
+    var path = String(window.location.pathname || '').toLowerCase();
+    return !!(
+      path.endsWith('/blockly-composer.html') ||
+      path === '/blockly-composer' ||
+      (body && body.dataset && body.dataset.disableGlobalHelp === 'true') ||
+      (html && html.dataset && html.dataset.disableGlobalHelp === 'true')
+    );
+  }
 
   function escapeHtml(value) {
     return String(value == null ? '' : value)
@@ -539,6 +890,13 @@ window.toggleChat = toggleChat;
   }
 
   function ensureHelpUi() {
+    if (isGlobalHelpDisabled()) {
+      var existingBtn = document.getElementById('global-page-help-btn');
+      var existingOverlay = document.getElementById('global-page-help-overlay');
+      if (existingBtn && existingBtn.parentNode) existingBtn.parentNode.removeChild(existingBtn);
+      if (existingOverlay && existingOverlay.parentNode) existingOverlay.parentNode.removeChild(existingOverlay);
+      return;
+    }
     ensureHelpStyles();
     if (document.getElementById('global-page-help-btn')) return;
 

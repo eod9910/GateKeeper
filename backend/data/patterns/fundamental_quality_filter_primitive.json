@@ -1,0 +1,123 @@
+{
+  "pattern_id": "fundamental_quality_filter_primitive",
+  "name": "Fundamental Quality Filter",
+  "category": "indicator_signals",
+  "description": "Regime gate that filters symbols based on fundamental quality. Checks survivability score, revenue growth, profitability, debt levels, and free cash flow. Use this to run A/B experiments: same technical strategy with and without a fundamental gate to measure whether fundamentals improve signal quality.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/fundamental_quality_filter_primitive.py",
+  "plugin_function": "run_fundamental_quality_filter_primitive_plugin",
+  "pattern_type": "fundamental_quality_filter_primitive",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "fundamental_quality_filter_primitive",
+    "min_survivability_score": 40.0,
+    "require_positive_revenue": true,
+    "require_profitable": false,
+    "max_debt_to_equity": 2.0,
+    "min_tactical_score": 0.0,
+    "require_positive_fcf": false
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "min_survivability_score",
+      "label": "Min Survivability Score",
+      "type": "float",
+      "min": 0.0,
+      "max": 100.0,
+      "default": 40.0,
+      "description": "Minimum composite survivability score (0-100). Higher = stricter quality gate. Set to 0 to disable."
+    },
+    {
+      "key": "require_positive_revenue",
+      "label": "Require Positive Revenue Growth",
+      "type": "bool",
+      "default": true,
+      "description": "Revenue (YoY) must be growing. Filters out shrinking businesses."
+    },
+    {
+      "key": "require_profitable",
+      "label": "Require Profitability",
+      "type": "bool",
+      "default": false,
+      "description": "Net profit margin must be > 0. Enable to restrict to profitable companies only."
+    },
+    {
+      "key": "max_debt_to_equity",
+      "label": "Max Debt / Equity",
+      "type": "float",
+      "min": 0.0,
+      "max": 10.0,
+      "default": 2.0,
+      "description": "Maximum debt-to-equity ratio. Set to 0 to disable this check."
+    },
+    {
+      "key": "min_tactical_score",
+      "label": "Min Tactical Score",
+      "type": "float",
+      "min": 0.0,
+      "max": 100.0,
+      "default": 0.0,
+      "description": "Minimum tactical grade score (0-100). Combines momentum, positioning, and catalyst signals. Set to 0 to disable."
+    },
+    {
+      "key": "require_positive_fcf",
+      "label": "Require Positive Free Cash Flow",
+      "type": "bool",
+      "default": false,
+      "description": "Free cash flow (TTM) must be positive. Enable for cash-generative businesses only."
+    }
+  ],
+  "examples": [
+    {
+      "name": "Loose Quality Gate (A/B test baseline)",
+      "setup_config": {
+        "pattern_type": "fundamental_quality_filter_primitive",
+        "min_survivability_score": 40.0,
+        "require_positive_revenue": true,
+        "require_profitable": false,
+        "max_debt_to_equity": 2.0,
+        "min_tactical_score": 0.0,
+        "require_positive_fcf": false
+      }
+    },
+    {
+      "name": "Strict Quality Gate",
+      "setup_config": {
+        "pattern_type": "fundamental_quality_filter_primitive",
+        "min_survivability_score": 60.0,
+        "require_positive_revenue": true,
+        "require_profitable": true,
+        "max_debt_to_equity": 1.0,
+        "min_tactical_score": 50.0,
+        "require_positive_fcf": true
+      }
+    },
+    {
+      "name": "Growth-Only Filter",
+      "setup_config": {
+        "pattern_type": "fundamental_quality_filter_primitive",
+        "min_survivability_score": 50.0,
+        "require_positive_revenue": true,
+        "require_profitable": false,
+        "max_debt_to_equity": 3.0,
+        "min_tactical_score": 0.0,
+        "require_positive_fcf": false
+      }
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 1,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "regime_state",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": false,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["fundamental", "quality", "survivability", "growth", "filter"],
+  "source_kind": "custom"
+}

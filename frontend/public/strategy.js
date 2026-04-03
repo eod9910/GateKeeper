@@ -6,45 +6,84 @@ let strategyChatMessages = [];
 let strategyEditorMode = 'new';
 let strategyValidationIndex = {};
 let strategyTierProgressIndex = {};
+/** Strategy version ID currently configured for the execution bridge (active/live strategy). */
+let activeStrategyVersionId = null;
 const STRATEGY_ASSET_CLASSES = ['futures', 'stocks', 'options', 'forex', 'crypto'];
 const VALIDATION_INTERVAL_OPTIONS = ['1h', '4h', '1d', '1wk', '1mo'];
+const STRATEGY_BUCKET_COLLAPSE_STORAGE_KEY = 'strategy_page_bucket_collapsed';
 const RUN_TIER_HINTS = {
-  tier1: 'Fast kill test on the fixed Tier 1 universe. Target evidence: 200-300 trades.',
-  tier1b: 'Evidence expansion on a broad optionable universe slice. Use this when Tier 1 quality looks good but sample size is thin.',
-  tier2: 'Core validation on fixed Tier 2 universe. Target evidence: 500-1500 trades. Requires prior Tier 1 or Tier 1B PASS.',
-  tier3: 'Robustness validation on fixed Tier 3 universe. Stress tests for survivors. Requires prior Tier 2 PASS.',
+  tier1: 'Fast mixed-cap kill test on 52 stocks: 13 large + 13 mid + 13 small + 13 micro.',
+  tier1s: 'Same 52-stock mixed-cap Tier 1 kill test, but with parameter sensitivity analysis.',
+  tier1b: 'Mixed-cap evidence expansion on 100 stocks: 25 large + 25 mid + 25 small + 25 micro.',
+  tier1bs: 'Same 100-stock mixed-cap Tier 1B universe, but with parameter sensitivity analysis.',
+  tier2: 'Core mixed-cap validation on 200 stocks: 50 large + 50 mid + 50 small + 50 micro. Requires prior Tier 1 or Tier 1B PASS.',
+  tier3: 'Non-overlapping mixed-cap holdout robustness test on 180 stocks: 45 large + 45 mid + 45 small + 45 micro. Requires prior Tier 2 PASS.',
+  large_cap_known: 'Quick large-cap spot check. Use this when you already suspect a large-cap edge and want a fast baseline before running the full S&P 500 universe.',
+  sp500: 'Broad large-cap benchmark. Use this to confirm a strategy truly generalizes across large caps, not just a curated subset.',
+  sp400: 'Mid-cap benchmark. Use this to see whether the edge survives outside large caps or is cap-specific.',
+  sp600: 'Small-cap benchmark. Use this to test whether the strategy prefers smaller, noisier, higher-volatility names.',
+  regime_expansion: 'Environment diagnosis for trend-friendly conditions. Use this for breakouts, momentum, and pullback-continuation ideas.',
+  regime_distribution: 'Environment diagnosis for fading uptrends. Use this to see whether a strategy weakens when momentum rolls over.',
+  regime_accumulation: 'Environment diagnosis for bottoming and recovery conditions. Useful for reversal and early-trend strategies.',
+  regime_markdown: 'Environment diagnosis for downtrends and deterioration. Use this to test whether a long strategy should be avoided there, or whether a short idea belongs there.',
 };
 let runTierConfig = null;
+let collapsedStrategyBuckets = loadCollapsedStrategyBuckets();
 const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
+    tier1s: ['ES=F', 'NQ=F', 'CL=F'],
     tier1b: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
+    tier1bs: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   stocks: {
     tier1: ['SPY', 'QQQ', 'IWM'],
+    tier1s: ['SPY', 'QQQ', 'IWM'],
     tier1b: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
+    tier1bs: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
     tier2: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN'],
     tier3: ['SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'NVDA', 'AMD', 'TSLA', 'META', 'AMZN', 'XLK', 'XLF', 'XLE', 'XLI', 'XLV'],
+    large_cap_known: [
+      'A','ACGL','ADSK','AJG','ALLE','AMT','APD','ARES','AXON','BBY',
+      'BK','BSX','CB','CEG','CIEN','CMI','COO','CRL','CTRA','CVX',
+      'DDOG','DHI','DRI','DXCM','EIX','EPAM','ETN','F','FDX','FISV',
+      'FTV','GEN','GM','GRMN','HCA','HOLX','HST','IBM','INTC','IT',
+      'JKHY','KIM','KVUE','LHX','LNT','LYV','MCO','MKC','MOS','MS',
+      'NCLH','NKE','NVDA','ON','PCG','PH','PODD','PSKY','REG','ROK',
+      'RVTY','SLB','SOLV','STLD','SWKS','TDY','TJX','TRMB','TTD','UHS',
+      'VLO','VST','WBD','WFC','WST','XYL'
+    ],
+    sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   options: {
     tier1: ['SPY', 'QQQ'],
+    tier1s: ['SPY', 'QQQ'],
     tier1b: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
+    tier1bs: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   forex: {
     tier1: ['EURUSD=X', 'GBPUSD=X'],
+    tier1s: ['EURUSD=X', 'GBPUSD=X'],
     tier1b: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
+    tier1bs: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   crypto: {
     tier1: ['BTC-USD', 'ETH-USD'],
+    tier1s: ['BTC-USD', 'ETH-USD'],
     tier1b: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
+    tier1bs: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
 };
 
@@ -56,6 +95,38 @@ function normalizeAssetClass(value, fallback = 'stocks') {
 function normalizeValidationInterval(value, fallback = '1wk') {
   const key = String(value || '').trim().toLowerCase();
   return VALIDATION_INTERVAL_OPTIONS.includes(key) ? key : fallback;
+}
+
+function loadCollapsedStrategyBuckets() {
+  try {
+    const raw = localStorage.getItem(STRATEGY_BUCKET_COLLAPSE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCollapsedStrategyBuckets() {
+  try {
+    localStorage.setItem(STRATEGY_BUCKET_COLLAPSE_STORAGE_KEY, JSON.stringify(collapsedStrategyBuckets));
+  } catch {}
+}
+
+function isStrategyBucketCollapsed(groupId) {
+  return collapsedStrategyBuckets[groupId] === true;
+}
+
+function toggleStrategyStageBucket(groupId) {
+  if (!groupId) return;
+  if (isStrategyBucketCollapsed(groupId)) {
+    delete collapsedStrategyBuckets[groupId];
+  } else {
+    collapsedStrategyBuckets[groupId] = true;
+  }
+  saveCollapsedStrategyBuckets();
+  renderStrategyList();
 }
 
 function runSettingsStorageKey(strategyVersionId) {
@@ -151,13 +222,15 @@ async function apiDeleteAbsolute(path) {
 
 async function loadStrategies() {
   try {
-    const [loadedStrategies, allReports] = await Promise.all([
+    const [loadedStrategies, allReports, activeId] = await Promise.all([
       apiGet('/strategies'),
       apiGet('/reports').catch(() => []),
+      apiGet('/active-strategy').catch(() => null),
     ]);
     strategies = Array.isArray(loadedStrategies) ? loadedStrategies : [];
     strategyValidationIndex = buildStrategyValidationIndex(allReports);
     strategyTierProgressIndex = buildStrategyTierProgressIndex(allReports);
+    activeStrategyVersionId = typeof activeId === 'string' && activeId.trim() ? activeId.trim() : null;
     renderStrategyList();
   } catch (err) {
     console.error('Failed to load strategies:', err);
@@ -252,7 +325,7 @@ function getStrategyTierBadges(strategy) {
   const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
   const progress = strategyTierProgressIndex?.[strategyVersionId] || {};
   const passedTiers = new Set(Array.isArray(strategy?.passed_tiers) ? strategy.passed_tiers : []);
-  return ['tier1', 'tier1b', 'tier2', 'tier3'].flatMap((tier) => {
+  return ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3'].flatMap((tier) => {
     const latestTierResult = progress?.[tier]?.pass_fail || null;
     if (tier === 'tier2' && latestTierResult === 'NEEDS_REVIEW') {
       return [{
@@ -262,12 +335,29 @@ function getStrategyTierBadges(strategy) {
       }];
     }
     if (!passedTiers.has(tier)) return [];
+    const labelMap = { tier1b: 'T1B', tier1s: 'T1S', tier1bs: 'T1BS' };
     return [{
       key: tier,
-      label: tier === 'tier1b' ? 'T1B' : tier.toUpperCase().replace('TIER', 'T'),
+      label: labelMap[tier] || tier.toUpperCase().replace('TIER', 'T'),
       title: `Passed ${tier.toUpperCase()}`,
     }];
   });
+}
+
+function getStrategyStageBucket(strategy) {
+  const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
+  const progress = strategyTierProgressIndex?.[strategyVersionId] || {};
+  const passedTiers = new Set(Array.isArray(strategy?.passed_tiers) ? strategy.passed_tiers : []);
+  if (passedTiers.has('tier3') || progress?.tier3) {
+    return { key: 'tier3', label: 'Tier 3', order: 3 };
+  }
+  if (passedTiers.has('tier2') || progress?.tier2) {
+    return { key: 'tier2', label: 'Tier 2 / T2R', order: 2 };
+  }
+  if (passedTiers.has('tier1') || passedTiers.has('tier1s') || passedTiers.has('tier1b') || passedTiers.has('tier1bs') || progress?.tier1 || progress?.tier1s || progress?.tier1b || progress?.tier1bs) {
+    return { key: 'tier1', label: 'Tier 1 / T1B', order: 1 };
+  }
+  return { key: 'untested', label: 'Untested', order: 0 };
 }
 
 function renderStrategyList() {
@@ -278,44 +368,70 @@ function renderStrategyList() {
   const registryStrategies = strategies.filter(s => s.source !== 'research');
   const researchStrategies = strategies.filter(s => s.source === 'research');
 
-  const labels = { approved: 'Approved', testing: 'Testing', draft: 'Draft', experimental: 'Experimental', rejected: 'Rejected' };
-
-  function renderGroup(items) {
+  function renderGroup(sectionKey, items) {
     const groups = {};
     for (const s of items) {
-      const key = s.status || 'draft';
-      (groups[key] = groups[key] || []).push(s);
+      const bucket = getStrategyStageBucket(s);
+      const key = bucket.key;
+      if (!groups[key]) groups[key] = { key: bucket.key, label: bucket.label, order: bucket.order, items: [] };
+      groups[key].items.push(s);
     }
     let html = '';
-    for (const [status, list] of Object.entries(groups)) {
-      html += `<div class="group">${labels[status] || status} (${list.length})</div>`;
-      for (const s of list) {
+    const orderedGroups = Object.values(groups).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+    for (const group of orderedGroups) {
+      const groupId = `${sectionKey}-${group.key}`;
+      const isCollapsed = isStrategyBucketCollapsed(groupId);
+      const bucketItems = group.items.slice().sort((a, b) =>
+        new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+      );
+      html += `
+        <div class="strategy-bucket ${isCollapsed ? 'collapsed' : ''}">
+          <button class="strategy-group-label strategy-group-toggle" type="button" onclick="toggleStrategyStageBucket('${groupId}')" aria-expanded="${isCollapsed ? 'false' : 'true'}">
+            <span class="strategy-group-caret">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
+            <span>${esc(group.label)} (${bucketItems.length})</span>
+          </button>
+          <div class="strategy-group-items ${isCollapsed ? 'collapsed' : ''}">
+      `;
+      for (const s of bucketItems) {
         const active = selectedStrategy && selectedStrategy.strategy_version_id === s.strategy_version_id;
+        const isLiveStrategy = activeStrategyVersionId && String(s.strategy_version_id || '').trim() === activeStrategyVersionId;
         const tierBadges = getStrategyTierBadges(s);
         const validationBadge = getStrategyValidationBadge(s);
         html += `
-          <div class="item ${active ? 'active' : ''}" onclick="selectStrategy('${s.strategy_version_id}')">
-            <div style="font-size:var(--text-body);font-weight:600;display:flex;align-items:center;gap:var(--space-6);flex-wrap:wrap;">${esc(s.name)}${tierBadges.map((badge) => ` <span class="tier-badge" title="${esc(badge.title)}">${esc(badge.label)}</span>`).join('')}</div>
-            <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;">
-              <span class="validation-badge ${validationBadge.key}" title="${esc(validationBadge.title)}">${esc(validationBadge.label)}</span>
+          <div class="strategy-item ${active ? 'active' : ''}" onclick="selectStrategy('${s.strategy_version_id}')">
+            <div class="strategy-item-head">
+              <div style="min-width:0;display:flex;align-items:center;gap:var(--space-6);flex-wrap:wrap;">
+                <div class="strategy-item-name">${esc(s.name)}</div>
+                ${isLiveStrategy ? '<span class="active-strategy-badge" title="This strategy is currently active on the Execution Desk">Active</span>' : ''}
+                ${tierBadges.map((badge) => `<span class="tier-badge" title="${esc(badge.title)}">${esc(badge.label)}</span>`).join('')}
+              </div>
+              <div style="display:flex;align-items:center;gap:var(--space-6);flex-shrink:0;">
+                <span class="validation-badge ${validationBadge.key}" title="${esc(validationBadge.title)}">${esc(validationBadge.label)}</span>
+              </div>
+            </div>
+            <div class="strategy-item-meta">
               <span class="status-badge ${s.status}">${s.status}</span>
-              <span style="margin-left:var(--space-6);">${esc(s.asset_class || 'N/A')} · ${esc(s.composition || s.scan_mode || '—')} · v${esc(String(s.version || 1))}</span>
+              <span style="margin-left:var(--space-4);">${esc(s.asset_class || 'N/A')} &middot; ${esc(s.interval || '—')} &middot; ${esc((s.setup_config?.market_cap_tier || s.market_cap_tier || 'all') + ' cap')} &middot; ${esc(s.scan_mode || s.composition || '—')} &middot; v${esc(String(s.version || 1))}</span>
             </div>
           </div>
         `;
       }
+      html += `
+          </div>
+        </div>
+      `;
     }
     return html;
   }
 
   let html = '';
   if (registryStrategies.length > 0) {
-    html += `<div class="group" style="font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-subtle);border-bottom:1px solid var(--color-border);">Strategies</div>`;
-    html += renderGroup(registryStrategies);
+    html += `<div style="padding:var(--space-8) var(--space-12);font-weight:700;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-subtle);border-bottom:1px solid var(--color-border);margin-top:var(--space-4);">Strategies</div>`;
+    html += renderGroup('registry', registryStrategies);
   }
   if (researchStrategies.length > 0) {
-    html += `<div class="group" style="font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-subtle);border-bottom:1px solid var(--color-border);margin-top:var(--space-12);">Research Candidates</div>`;
-    html += renderGroup(researchStrategies);
+    html += `<div style="padding:var(--space-8) var(--space-12);font-weight:700;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-subtle);border-bottom:1px solid var(--color-border);margin-top:var(--space-12);">Research Candidates</div>`;
+    html += renderGroup('research', researchStrategies);
   }
 
   list.innerHTML = html;
@@ -388,6 +504,35 @@ function assembleStrategyFromDefaults(strategy) {
   }
 }
 
+function syncStrategyRiskExitAliases(strategy) {
+  const next = strategy && typeof strategy === 'object' ? strategy : {};
+  const risk = (next.risk_config && typeof next.risk_config === 'object') ? next.risk_config : {};
+  const exit = (next.exit_config && typeof next.exit_config === 'object') ? next.exit_config : {};
+  const targetType = String(exit.target_type || '').trim().toLowerCase();
+  const takeProfitR = Number(risk.take_profit_R ?? risk.take_profit_r);
+  const targetLevel = Number(exit.target_level);
+  const maxHoldBars = Number(risk.max_hold_bars);
+  const timeStopBars = Number(exit.time_stop_bars);
+
+  if (targetType === 'r_multiple') {
+    if (Number.isFinite(takeProfitR) && takeProfitR > 0) {
+      exit.target_level = takeProfitR;
+    } else if (Number.isFinite(targetLevel) && targetLevel > 0) {
+      risk.take_profit_R = targetLevel;
+    }
+  }
+
+  if (Number.isFinite(maxHoldBars) && maxHoldBars > 0) {
+    exit.time_stop_bars = Math.round(maxHoldBars);
+  } else if (Number.isFinite(timeStopBars) && timeStopBars > 0) {
+    risk.max_hold_bars = Math.round(timeStopBars);
+  }
+
+  next.risk_config = risk;
+  next.exit_config = exit;
+  return next;
+}
+
 function updateStrategyTopActions() {
   const btnStrategy = document.getElementById('btn-top-strategy');
   if (btnStrategy) btnStrategy.disabled = !selectedStrategy;
@@ -407,7 +552,9 @@ function getFallbackTierConfig(assetClass) {
     asset_class: ac,
     tiers: {
       tier1: { label: 'Tier 1 - Kill Test', description: RUN_TIER_HINTS.tier1, symbols: tiers.tier1.slice() },
+      tier1s: { label: 'Tier 1S - Kill Test + Sensitivity', description: RUN_TIER_HINTS.tier1s, symbols: tiers.tier1s.slice() },
       tier1b: { label: 'Tier 1B - Evidence Expansion', description: RUN_TIER_HINTS.tier1b, symbols: tiers.tier1b.slice() },
+      tier1bs: { label: 'Tier 1BS - Evidence Expansion + Sensitivity', description: RUN_TIER_HINTS.tier1bs, symbols: tiers.tier1bs.slice() },
       tier2: { label: 'Tier 2 - Core Validation', description: RUN_TIER_HINTS.tier2, symbols: tiers.tier2.slice() },
       tier3: { label: 'Tier 3 - Robustness', description: RUN_TIER_HINTS.tier3, symbols: tiers.tier3.slice() },
     }
@@ -479,6 +626,11 @@ function openValidatorSymbolLibraryPage() {
     'stocks',
   );
   window.location.href = `validator-symbol-library.html?asset_class=${encodeURIComponent(currentAssetClass)}`;
+}
+
+function sendStrategyToSweep() {
+  if (!selectedStrategy?.strategy_version_id) return;
+  window.location.href = `sweep.html?strategy_version_id=${encodeURIComponent(selectedStrategy.strategy_version_id)}`;
 }
 
 async function handleEditorRunAssetClassChange() {
@@ -601,23 +753,63 @@ function renderStrategyDetails() {
           `;
         }).join('')
     : `<tr><td colspan="6" class="text-muted">No parameter manifest available yet.</td></tr>`;
+  const isEditable = s.source !== 'registry';
   container.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-12);margin-bottom:var(--space-8);">
-      <div style="display:flex;align-items:center;gap:var(--space-10);">
-        <h2 style="margin:0;font-size:var(--text-h2);">${esc(s.name)}</h2>
+    <div style="margin-bottom:var(--space-16);">
+
+      <!-- Name + badges row -->
+      <div id="strategy-name-display" style="display:flex;align-items:center;gap:var(--space-8);flex-wrap:wrap;margin-bottom:var(--space-10);">
+        <h2 style="margin:0;font-size:var(--text-h2);font-weight:600;line-height:1.2;">${esc(s.name)}</h2>
         <span class="validation-badge ${validationBadge.key}" title="${esc(validationBadge.title)}">${esc(validationBadge.label)}</span>
         <span class="status-badge ${s.status}">${s.status}</span>
         ${tierBadges.map((badge) => `<span class="tier-badge" title="${esc(badge.title)}">${esc(badge.label)}</span>`).join('')}
       </div>
-      <div style="display:flex;gap:var(--space-8);">
+
+      <!-- Inline name/description editor (hidden by default) -->
+      <div id="strategy-name-editor" style="display:none;margin-bottom:var(--space-12);">
+        <div style="display:flex;flex-direction:column;gap:var(--space-8);max-width:560px;">
+          <div>
+            <label style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--font-mono);font-weight:600;display:block;margin-bottom:4px;">Name</label>
+            <input id="strategy-rename-input" type="text" value="${esc(s.name)}" style="width:100%;background:var(--color-void);border:1px solid var(--color-accent);border-radius:var(--radius-sm);color:var(--color-text);padding:6px 10px;font-size:var(--text-small);font-family:inherit;box-sizing:border-box;" />
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--font-mono);font-weight:600;display:block;margin-bottom:4px;">Description</label>
+            <textarea id="strategy-desc-input" rows="3" style="width:100%;background:var(--color-void);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);padding:6px 10px;font-size:var(--text-small);font-family:inherit;box-sizing:border-box;resize:vertical;">${esc(s.description || '')}</textarea>
+          </div>
+          <div style="display:flex;gap:var(--space-8);align-items:center;">
+            <button class="btn btn-primary" style="font-size:var(--text-small);" onclick="saveStrategyRename()">Save</button>
+            <button class="btn btn-ghost" style="font-size:var(--text-small);" onclick="cancelStrategyRename()">Cancel</button>
+            <span id="strategy-rename-status" style="font-size:var(--text-caption);color:var(--color-text-subtle);"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action toolbar -->
+      <div style="display:flex;align-items:center;gap:var(--space-8);flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="openStrategyEditor('edit')" style="display:flex;align-items:center;gap:6px;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polygon points="5,3 13,8 5,13"/></svg>
+          Run Validation
+        </button>
+        <button class="btn btn-ghost" onclick="sendStrategyToSweep()" style="display:flex;align-items:center;gap:5px;color:var(--color-accent);">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M4 12h8"/><path d="M4 8h8"/><path d="M4 4h8"/><path d="M12 2l2 2-2 2"/></svg>
+          Send to Sweep
+        </button>
+        <div style="width:1px;height:20px;background:var(--color-border);margin:0 2px;"></div>
+        ${isEditable ? `
+        <button class="btn btn-ghost" onclick="showStrategyRenameEditor()" style="display:flex;align-items:center;gap:5px;color:var(--color-text-muted);">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M11 2a2.12 2.12 0 0 1 3 3L5 14l-4 1 1-4Z"/></svg>
+          Rename
+        </button>` : ''}
         <button
           class="btn btn-ghost"
-          style="color:var(--color-negative);"
           onclick="deleteSelectedStrategy()"
           ${canDeleteStrategy ? '' : 'disabled'}
-          title="${canDeleteStrategy ? 'Delete this saved strategy and its validator artifacts' : 'Registry-backed strategies and primitives cannot be deleted'}"
-        >Delete Strategy</button>
-        <button class="btn btn-primary" onclick="openStrategyEditor('edit')">Run Validation</button>
+          title="${canDeleteStrategy ? 'Delete this strategy and its validation reports' : 'Registry-backed strategies cannot be deleted'}"
+          style="display:flex;align-items:center;gap:5px;color:${canDeleteStrategy ? 'var(--color-negative)' : 'var(--color-text-subtle)'};"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="3,6 13,6"/><path d="M5 6V4h6v2"/><rect x="3" y="6" width="10" height="9" rx="1"/></svg>
+          Delete
+        </button>
       </div>
     </div>
 
@@ -629,6 +821,7 @@ function renderStrategyDetails() {
         <div><span class="text-muted">Version ID:</span> <span class="text-mono">${esc(s.strategy_version_id || 'N/A')}</span></div>
         <div><span class="text-muted">Asset Class:</span> <span class="text-mono">${esc(s.asset_class || 'N/A')}</span></div>
         <div><span class="text-muted">Interval:</span> <span class="text-mono">${esc(s.interval || 'N/A')}</span></div>
+        <div><span class="text-muted">Market Cap Tier:</span> <span class="text-mono">${esc(s.setup_config?.market_cap_tier || s.market_cap_tier || 'all')}</span></div>
         <div style="grid-column:1 / -1;"><span class="text-muted">Description:</span> ${esc(s.description || 'N/A')}</div>
       </div>
     </div>
@@ -672,6 +865,43 @@ function renderStrategyDetails() {
     <div class="section-title">Costs + Execution + Universe</div>
     <div class="card"><pre>${esc(json({ cost_config: s.cost_config || null, execution_config: s.execution_config || null, universe: s.universe || [] }))}</pre></div>
   `;
+}
+
+function showStrategyRenameEditor() {
+  document.getElementById('strategy-name-display').style.display = 'none';
+  document.getElementById('strategy-name-editor').style.display = '';
+  const input = document.getElementById('strategy-rename-input');
+  if (input) { input.focus(); input.select(); }
+}
+
+function cancelStrategyRename() {
+  document.getElementById('strategy-name-editor').style.display = 'none';
+  document.getElementById('strategy-name-display').style.display = '';
+}
+
+async function saveStrategyRename() {
+  if (!selectedStrategy) return;
+  const nameInput = document.getElementById('strategy-rename-input');
+  const descInput = document.getElementById('strategy-desc-input');
+  const statusEl = document.getElementById('strategy-rename-status');
+  const newName = (nameInput?.value || '').trim();
+  const newDesc = (descInput?.value || '').trim();
+  if (!newName) { if (statusEl) statusEl.textContent = 'Name cannot be empty.'; return; }
+  if (statusEl) statusEl.textContent = 'Saving…';
+  try {
+    await apiPatchAbsolute(`/api/strategies/${encodeURIComponent(selectedStrategy.strategy_version_id)}`, {
+      name: newName,
+      description: newDesc,
+    });
+    selectedStrategy.name = newName;
+    selectedStrategy.description = newDesc;
+    const idx = strategies.findIndex(s => s.strategy_version_id === selectedStrategy.strategy_version_id);
+    if (idx >= 0) { strategies[idx].name = newName; strategies[idx].description = newDesc; }
+    renderStrategyList();
+    renderStrategyDetails();
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+  }
 }
 
 function initStrategyChat() {
@@ -758,6 +988,7 @@ function renderStrategyChat() {
     return `<div class="validator-chat-bubble ${m.sender}">${esc(m.text)}</div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
+  if (typeof notifyPopout === 'function') notifyPopout('strategy-chat-panel');
 }
 
 /** Load strategy JSON from a chat message into the editor form */
@@ -1088,10 +1319,26 @@ function renderInlineStrategyEditor(strategy, mode) {
         <div>
           <label class="strategy-editor-label" for="sb-run-tier">Validation Tier (Run)</label>
           <select id="sb-run-tier" class="strategy-editor-select" onchange="updateEditorRunValidationNote()">
-            <option value="tier1">Tier 1 - Kill Test</option>
-            <option value="tier1b">Tier 1B - Evidence Expansion</option>
-            <option value="tier2">Tier 2 - Core Validation</option>
-            <option value="tier3">Tier 3 - Robustness</option>
+            <optgroup label="Validation Ladder">
+              <option value="tier1">Tier 1 - Kill Test</option>
+              <option value="tier1s">Tier 1S - Kill Test + Sensitivity</option>
+              <option value="tier1b">Tier 1B - Evidence Expansion</option>
+              <option value="tier1bs">Tier 1BS - Evidence Expansion + Sensitivity</option>
+              <option value="tier2">Tier 2 - Core Validation</option>
+              <option value="tier3">Tier 3 - Robustness</option>
+            </optgroup>
+            <optgroup label="Benchmark Universes">
+              <option value="large_cap_known">Large Cap (Known) - 76 Stocks</option>
+              <option value="sp500">S&P 500 — ~406 Large Cap Stocks</option>
+              <option value="sp400">S&P 400 — ~341 Mid Cap Stocks</option>
+              <option value="sp600">S&P 600 — ~474 Small Cap Stocks</option>
+            </optgroup>
+            <optgroup label="Regime Universes">
+              <option value="regime_expansion">Regime: Expansion (above 200MA, up)</option>
+              <option value="regime_distribution">Regime: Distribution (above 200MA, fading)</option>
+              <option value="regime_accumulation">Regime: Accumulation (below 200MA, recovering)</option>
+              <option value="regime_markdown">Regime: Markdown (below 200MA, declining)</option>
+            </optgroup>
           </select>
         </div>
         <div>
@@ -1271,6 +1518,7 @@ function syncFromFormToJson() {
       execution_config: costExecUniverseConfig.execution_config || {},
       universe: normalizeUniverse(costExecUniverseConfig.universe),
     };
+    syncStrategyRiskExitAliases(merged);
 
     document.getElementById('sb-json').value = JSON.stringify(merged, null, 2);
     setStrategyEditorStatus('JSON updated from editor fields. Changes are local until you click save.');
@@ -1327,6 +1575,7 @@ async function saveStrategyDraft() {
   }
   payload.status = normalizeEditableStrategyStatus(payload.status);
   payload.asset_class = normalizeAssetClass(payload.asset_class, '');
+  syncStrategyRiskExitAliases(payload);
   if (!payload.asset_class) {
     delete payload.asset_class;
   }
@@ -1435,12 +1684,14 @@ window.handleStrategyChatKeydown = handleStrategyChatKeydown;
 window.askStrategySummary = askStrategySummary;
 window.askStrategyRisks = askStrategyRisks;
 window.askStrategyTests = askStrategyTests;
+window.sendStrategyToSweep = sendStrategyToSweep;
 window.openRunValidationFromEditor = openRunValidationFromEditor;
 window.runValidationFromEditor = runValidationFromEditor;
 window.updateEditorRunValidationNote = updateEditorRunValidationNote;
 window.handleEditorRunAssetClassChange = handleEditorRunAssetClassChange;
 window.openValidatorSymbolLibraryPage = openValidatorSymbolLibraryPage;
 window.toggleStrategyList = toggleStrategyList;
+window.toggleStrategyStageBucket = toggleStrategyStageBucket;
 
 function toggleStrategyList() {
   const panel  = document.getElementById('strategy-left-panel');

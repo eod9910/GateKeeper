@@ -58,8 +58,8 @@ const PAGE_HELP: Record<string, HelpConfig> = {
     sections: ['Indicator Studio', 'Blockly Composer'],
   },
   'research.html': {
-    title: 'Research Agent Help',
-    intro: 'Research Agent is for idea generation, motif inspection, and hypothesis building. Use it to find promising edges before you formalize them into strategy versions.',
+    title: 'Research Studio Help',
+    intro: 'Research Studio is for idea generation, motif inspection, hypothesis building, and symbolic regression. Use it to find promising edges and discover scoring formulas before you formalize them into strategy versions.',
     sections: ['Backtesting & Validation \u2014 What It Is and How It Works', 'Indicator Studio'],
   },
   'training.html': {
@@ -94,11 +94,18 @@ function normalizePage(value: string): string {
   if (!trimmed) return 'index.html';
   const normalized = trimmed.replace(/\\/g, '/').toLowerCase();
   const leaf = normalized.split('/').filter(Boolean).pop() || 'index.html';
+  if (leaf === 'scanner') return 'index.html';
+  if (leaf === 'trading-desk') return 'copilot.html';
+  if (leaf === 'position-book') return 'history.html';
+  if (leaf === 'indicator-studio') return 'workshop.html';
   if (leaf === 'validator') return 'validator.html';
   if (leaf === 'strategy') return 'strategy.html';
   if (leaf === 'workshop') return 'workshop.html';
+  if (leaf === 'research-studio') return 'research.html';
   if (leaf === 'research') return 'research.html';
+  if (leaf === 'parameter-sweep') return 'sweep.html';
   if (leaf === 'sweep') return 'sweep.html';
+  if (leaf === 'execution-desk') return 'execution.html';
   if (leaf === 'execution') return 'execution.html';
   if (leaf === 'training') return 'training.html';
   if (leaf === 'auto-labeler') return 'auto-labeler.html';

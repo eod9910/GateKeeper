@@ -102,6 +102,7 @@ class ValidatorRunRequest(BaseModel):
     date_end: str = Field(..., description="YYYY-MM-DD")
     universe: Optional[List[str]] = Field(default=None)
     tier: Optional[str] = Field(default="tier3")
+    force_refresh: bool = Field(default=False)
 
 
 class ChartOHLCVRequest(BaseModel):
@@ -152,6 +153,10 @@ async def lifespan(app_: FastAPI):
     warmup_thread.start()
     yield
     # ── Shutdown ─────────────────────────────────────────────────────
+    global _SCAN_POOL
+    if _SCAN_POOL is not None:
+        _SCAN_POOL.shutdown(wait=False)
+        _SCAN_POOL = None
     print("[Service] Shutting down plugin_service", flush=True)
 
 
@@ -295,6 +300,7 @@ def validator_run(req: ValidatorRunRequest) -> StreamingResponse:
                 req.universe,
                 req.tier or "tier3",
                 job_id=job_id or None,
+                force_refresh=bool(req.force_refresh),
             )
             result_holder[0] = result
         except Exception as exc:
@@ -460,8 +466,70 @@ def scanner_run_plugin(req: ScannerRunRequest) -> Dict[str, Any]:
 
 MAX_SCAN_WORKERS = max(1, min(8, int(os.getenv("PLUGIN_SERVICE_SCAN_WORKERS", "4"))))
 
+# Batch size per worker — each worker processes a chunk of symbols in one call
+# to amortize pickle/IPC overhead. Tuned so 5000 symbols ÷ 250 = 20 batches
+# spread across MAX_SCAN_WORKERS processes.
+_SCAN_BATCH_SIZE = max(50, int(os.getenv("PLUGIN_SERVICE_SCAN_BATCH_SIZE", "250")))
+
+# ----------- Persistent process pool for scan computation -----------------
+# Kept warm across requests to avoid process-spawn overhead on every scan.
+_SCAN_POOL: Optional[ProcessPoolExecutor] = None
+_SCAN_POOL_LOCK = threading.Lock()
+
+
+def _get_scan_pool() -> ProcessPoolExecutor:
+    global _SCAN_POOL
+    if _SCAN_POOL is None:
+        with _SCAN_POOL_LOCK:
+            if _SCAN_POOL is None:
+                _SCAN_POOL = ProcessPoolExecutor(
+                    max_workers=MAX_SCAN_WORKERS,
+                    initializer=_scan_worker_init,
+                )
+    return _SCAN_POOL
+
+
+def _scan_worker_init():
+    """Pre-import heavy modules once per worker process at startup."""
+    import strategyRunner  # noqa: F401 — warm the import cache
+    import numpy  # noqa: F401
+
+
 # ----------- Process-pool worker for CPU-bound scan computation -----------
-# Must be a module-level function (picklable).
+
+def _process_worker_run_batch(
+    spec: Dict[str, Any],
+    batch: List[tuple],
+    timeframe: str,
+    mode: str,
+) -> List[Dict[str, Any]]:
+    """Run strategy on a batch of (symbol, bars) pairs in one worker call.
+
+    Processing multiple symbols per call amortizes the IPC/pickle overhead.
+    """
+    from strategyRunner import run_strategy as _run
+    results = []
+    for symbol, bars in batch:
+        try:
+            candidates = _run(spec, bars, symbol, timeframe, mode=mode)
+            safe = _to_json_safe_standalone(candidates)
+            results.append({
+                "symbol": symbol,
+                "count": len(safe),
+                "candidates": safe,
+                "bars": len(bars),
+                "error": None,
+            })
+        except Exception as exc:
+            results.append({
+                "symbol": symbol,
+                "count": 0,
+                "candidates": [],
+                "bars": len(bars) if bars else 0,
+                "error": str(exc),
+            })
+    return results
+
 
 def _process_worker_run_strategy(
     spec: Dict[str, Any],
@@ -470,16 +538,10 @@ def _process_worker_run_strategy(
     mode: str,
     bars: List[Any],
 ) -> Dict[str, Any]:
-    """Run strategy computation in a worker process.
-
-    Called by ProcessPoolExecutor — each worker has its own Python interpreter
-    so the GIL doesn't block parallel CPU work.
-    """
+    """Run strategy computation for a single symbol (used by run-plugin)."""
     try:
-        # run_strategy and _to_json_safe are importable at module level
         from strategyRunner import run_strategy as _run
         candidates = _run(spec, bars, symbol, timeframe, mode=mode)
-        # JSON-safe conversion (numpy types)
         safe = _to_json_safe_standalone(candidates)
         return {
             "symbol": symbol,
@@ -531,9 +593,12 @@ def scanner_scan_universe(req: ScannerUniverseRequest) -> Dict[str, Any]:
         t0 = time.time()
 
         # ── Phase 1: Pre-fetch all data in parallel (I/O-bound → threads) ──
+        # Use more threads than CPU workers since this is I/O-bound (cache
+        # lookups + occasional yfinance HTTP calls).
+        fetch_workers = max(MAX_SCAN_WORKERS, min(16, len(symbols)))
         symbol_bars: Dict[str, List[Any]] = {}
         cache_hits: Dict[str, bool] = {}
-        with ThreadPoolExecutor(max_workers=MAX_SCAN_WORKERS) as pool:
+        with ThreadPoolExecutor(max_workers=fetch_workers) as pool:
             fetch_futures = {
                 pool.submit(DATA_CACHE.fetch_or_cache, sym, interval, period): sym
                 for sym in symbols
@@ -554,43 +619,53 @@ def scanner_scan_universe(req: ScannerUniverseRequest) -> Dict[str, Any]:
         results: List[Dict[str, Any]] = []
         total_candidates = 0
 
-        with ProcessPoolExecutor(max_workers=MAX_SCAN_WORKERS) as proc_pool:
-            compute_futures = {}
-            for sym in symbols:
-                bars = symbol_bars.get(sym, [])
-                if not bars:
-                    results.append({
-                        "symbol": sym,
-                        "count": 0,
-                        "candidates": [],
-                        "bars": 0,
-                        "cache_hit": cache_hits.get(sym, False),
-                        "error": "No data",
-                    })
-                    continue
-                fut = proc_pool.submit(
-                    _process_worker_run_strategy,
-                    req.spec, sym, timeframe, mode, bars,
-                )
-                compute_futures[fut] = sym
+        # Separate symbols with data from those without
+        no_data_results: Dict[str, Dict[str, Any]] = {}
+        syms_with_bars: List[tuple] = []
+        for sym in symbols:
+            bars = symbol_bars.get(sym, [])
+            if not bars:
+                no_data_results[sym] = {
+                    "symbol": sym,
+                    "count": 0,
+                    "candidates": [],
+                    "bars": 0,
+                    "cache_hit": cache_hits.get(sym, False),
+                    "error": "No data",
+                }
+            else:
+                syms_with_bars.append((sym, bars))
 
-            # Gather results (order doesn't matter — we'll sort later)
-            future_results: Dict[str, Dict[str, Any]] = {}
-            for fut in as_completed(compute_futures):
-                sym = compute_futures[fut]
+        # Build batches to reduce IPC overhead
+        batches: List[List[tuple]] = []
+        for i in range(0, len(syms_with_bars), _SCAN_BATCH_SIZE):
+            batches.append(syms_with_bars[i : i + _SCAN_BATCH_SIZE])
+
+        future_results: Dict[str, Dict[str, Any]] = dict(no_data_results)
+
+        if batches:
+            pool = _get_scan_pool()
+            batch_futures = {
+                pool.submit(_process_worker_run_batch, req.spec, batch, timeframe, mode): batch
+                for batch in batches
+            }
+            for fut in as_completed(batch_futures):
                 try:
-                    row = fut.result()
-                    row["cache_hit"] = cache_hits.get(sym, False)
-                    future_results[sym] = row
+                    batch_results = fut.result()
+                    for row in batch_results:
+                        sym = row["symbol"]
+                        row["cache_hit"] = cache_hits.get(sym, False)
+                        future_results[sym] = row
                 except Exception as exc:
-                    future_results[sym] = {
-                        "symbol": sym,
-                        "count": 0,
-                        "candidates": [],
-                        "bars": len(symbol_bars.get(sym, [])),
-                        "cache_hit": cache_hits.get(sym, False),
-                        "error": str(exc),
-                    }
+                    for sym, _ in batch_futures[fut]:
+                        future_results[sym] = {
+                            "symbol": sym,
+                            "count": 0,
+                            "candidates": [],
+                            "bars": len(symbol_bars.get(sym, [])),
+                            "cache_hit": cache_hits.get(sym, False),
+                            "error": str(exc),
+                        }
 
         # Preserve original symbol order
         for sym in symbols:
@@ -614,6 +689,8 @@ def scanner_scan_universe(req: ScannerUniverseRequest) -> Dict[str, Any]:
                 "fetch_ms": fetch_ms,
                 "compute_ms": compute_ms,
                 "workers": MAX_SCAN_WORKERS,
+                "batches": len(batches),
+                "batch_size": _SCAN_BATCH_SIZE,
             },
         }
     except Exception as exc:

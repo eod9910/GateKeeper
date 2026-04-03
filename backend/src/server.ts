@@ -29,6 +29,7 @@ import researchRouter from './routes/research';
 import sweepRouter from './routes/sweep';
 import executionRouter from './routes/execution';
 import aiSettingsRouter from './routes/aiSettings';
+import audioRouter from './routes/audio';
 import mlRouter from './routes/ml';
 import autoLabelRouter from './routes/autoLabel';
 import trainingRouter from './routes/training';
@@ -82,6 +83,7 @@ app.use('/api/research', researchRouter);
 app.use('/api/sweep', sweepRouter);
 app.use('/api/execution', executionRouter);
 app.use('/api/ai', aiSettingsRouter);
+app.use('/api/audio', audioRouter);
 app.use('/api/ml', mlRouter);
 app.use('/api/auto-label', autoLabelRouter);
 app.use('/api/training', trainingRouter);
@@ -97,6 +99,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // Named routes → serve specific HTML pages
+app.get('/scanner', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'index.html'));
+});
+
 app.get('/validator', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'validator.html'));
 });
@@ -105,16 +111,44 @@ app.get('/strategy', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'strategy.html'));
 });
 
+app.get('/trading-desk', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'copilot.html'));
+});
+
+app.get('/position-book', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'history.html'));
+});
+
+app.get('/indicator-studio', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'workshop.html'));
+});
+
 app.get('/workshop', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'workshop.html'));
+});
+
+app.get('/research-studio', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'research.html'));
 });
 
 app.get('/research', (req, res) => {
   res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'research.html'));
 });
 
+app.get('/parameter-sweep', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'sweep.html'));
+});
+
 app.get('/sweep', (req, res) => {
   res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'sweep.html'));
+});
+
+app.get('/sweep-history', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'sweep-history.html'));
+});
+
+app.get('/execution-desk', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'execution.html'));
 });
 
 app.get('/execution', (req, res) => {
@@ -127,6 +161,10 @@ app.get('/training', (req, res) => {
 
 app.get('/auto-labeler', (req, res) => {
   res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'auto-labeler.html'));
+});
+
+app.get('/settings', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'settings.html'));
 });
 
 app.get('/vision-lab', (req, res) => {

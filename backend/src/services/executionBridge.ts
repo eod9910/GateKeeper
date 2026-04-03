@@ -9,7 +9,8 @@ import * as broker from './brokerClient';
 import * as logger from './executionLogger';
 import * as storage from './storageService';
 
-const CONFIG_FILE = path.join(__dirname, '../../data/execution-bridge-config.json');
+const LEGACY_CONFIG_FILE = path.join(__dirname, '../../data/execution-bridge-config.json');
+const LOCAL_CONFIG_FILE = path.join(__dirname, '../../data/preferences/execution-bridge-config.local.json');
 
 let _cronJob: ScheduledTask | null = null;
 let _monitorInterval: ReturnType<typeof setInterval> | null = null;
@@ -17,11 +18,42 @@ let _config: BridgeConfig | null = null;
 let _sessionStartEquity = 0;
 let _scanInProgress = false;
 let _monitorInProgress = false;
+let _bridgeWarning: string | null = null;
+
+export interface ScanProgress {
+  active: boolean;
+  universe_key: string;
+  universe_total: number;
+  started_at: string | null;
+  elapsed_ms: number;
+  signals_found: number;
+  live_signals: Array<{ symbol: string; entry_price: number; stop_price: number; take_profit_price: number; score: number }>;
+}
+
+let _scanProgress: ScanProgress = {
+  active: false,
+  universe_key: 'auto',
+  universe_total: 0,
+  started_at: null,
+  elapsed_ms: 0,
+  signals_found: 0,
+  live_signals: [],
+};
+
+export function getScanProgress(): ScanProgress {
+  if (_scanProgress.active && _scanProgress.started_at) {
+    _scanProgress.elapsed_ms = Date.now() - new Date(_scanProgress.started_at).getTime();
+  }
+  return { ..._scanProgress };
+}
 
 export interface BridgeConfig {
   strategy_version_id: string;
   scan_cron: string;
   timezone?: string;
+  /** Maximum total portfolio heat (sum of per-position risk) as a fraction of equity. e.g. 0.25 = 25% */
+  max_portfolio_heat_pct: number;
+  /** Hard cap on open positions — safety floor regardless of heat budget. */
   max_concurrent: number;
   risk_pct_per_trade: number;
   max_account_dd_pct: number;
@@ -50,22 +82,28 @@ async function assertExecutionEligibility(strategyVersionId: string): Promise<vo
 }
 
 function saveBridgeConfig(config: BridgeConfig): void {
-  const dir = path.dirname(CONFIG_FILE);
+  const dir = path.dirname(LOCAL_CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+  fs.writeFileSync(LOCAL_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
 }
 
 function loadBridgeConfig(): BridgeConfig | null {
-  if (!fs.existsSync(CONFIG_FILE)) return null;
+  const configPath = fs.existsSync(LOCAL_CONFIG_FILE)
+    ? LOCAL_CONFIG_FILE
+    : fs.existsSync(LEGACY_CONFIG_FILE)
+      ? LEGACY_CONFIG_FILE
+      : null;
+  if (!configPath) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     if (!parsed || typeof parsed !== 'object') return null;
     return {
       strategy_version_id: String(parsed.strategy_version_id || '').trim(),
       scan_cron: String(parsed.scan_cron || '').trim(),
       timezone: String(parsed.timezone || 'America/New_York').trim(),
-      max_concurrent: Math.max(1, Number(parsed.max_concurrent) || 1),
-      risk_pct_per_trade: Math.min(0.05, Math.max(0.001, Number(parsed.risk_pct_per_trade) || 0.01)),
+      max_portfolio_heat_pct: Math.min(0.5, Math.max(0.05, Number(parsed.max_portfolio_heat_pct) || 0.25)),
+      max_concurrent: Math.max(1, Number(parsed.max_concurrent) || 20),
+      risk_pct_per_trade: Math.min(0.1, Math.max(0.001, Number(parsed.risk_pct_per_trade) || 0.01)),
       max_account_dd_pct: Math.min(90, Math.max(1, Number(parsed.max_account_dd_pct) || 15)),
       max_daily_loss_pct: Math.min(50, Math.max(0.5, Number(parsed.max_daily_loss_pct) || 3)),
       monitor_interval_ms: Math.max(5000, Number(parsed.monitor_interval_ms) || 60000),
@@ -76,9 +114,19 @@ function loadBridgeConfig(): BridgeConfig | null {
 }
 
 function clearBridgeConfig(): void {
-  if (fs.existsSync(CONFIG_FILE)) {
-    fs.unlinkSync(CONFIG_FILE);
+  if (fs.existsSync(LOCAL_CONFIG_FILE)) {
+    fs.unlinkSync(LOCAL_CONFIG_FILE);
   }
+}
+
+export function getPersistedBridgeConfig(): BridgeConfig | null {
+  return loadBridgeConfig();
+}
+
+export function getPersistedBridgeStrategyVersionId(): string | null {
+  const config = loadBridgeConfig();
+  const value = String(config?.strategy_version_id || '').trim();
+  return value || null;
 }
 
 async function shutdownBridge(clearPersistedConfig: boolean): Promise<void> {
@@ -91,6 +139,7 @@ async function shutdownBridge(clearPersistedConfig: boolean): Promise<void> {
     _monitorInterval = null;
   }
   _config = null;
+  _bridgeWarning = null;
 
   const state = positionManager.loadState();
   state.enabled = false;
@@ -134,7 +183,8 @@ export async function startBridge(config: BridgeConfig): Promise<void> {
     strategy_version_id: config.strategy_version_id,
     details: {
       mode: state.mode,
-      max_concurrent: config.max_concurrent,
+      max_portfolio_heat_pct: config.max_portfolio_heat_pct,
+      max_concurrent_cap: config.max_concurrent,
       risk_pct: config.risk_pct_per_trade,
       scan_cron: config.scan_cron,
       timezone: config.timezone || 'America/New_York',
@@ -174,16 +224,29 @@ export async function resumeBridgeFromDisk(): Promise<boolean> {
 
   try {
     await startBridge(config);
+    _bridgeWarning = null;
     return true;
   } catch (err: any) {
+    const msg = err?.message || String(err);
     logger.log({
       event: 'error',
       strategy_version_id: config.strategy_version_id,
       details: {
         action: 'resume_bridge_from_disk',
-        error: err?.message || String(err),
+        error: msg,
       },
     });
+
+    // If the strategy is ineligible (rejected / not approved), load config in a
+    // "paused" state so the Execution Desk can still display positions and the
+    // warning rather than going fully offline.
+    const isEligibilityError =
+      msg.includes('Execution Desk only') || msg.includes('Tier 3 PASS');
+    if (isEligibilityError) {
+      _config = config;
+      _bridgeWarning = msg;
+    }
+
     return false;
   }
 }
@@ -192,11 +255,19 @@ export function getBridgeStatus(): {
   config: BridgeConfig | null;
   state: positionManager.BridgeState;
   session_start_equity: number;
+  bridge_warning: string | null;
+  portfolio_heat_pct: number;
 } {
+  const state = positionManager.loadState();
+  // Estimate heat using session start equity as denominator (no async call here)
+  const equityEstimate = _sessionStartEquity > 0 ? _sessionStartEquity : 100000;
+  const portfolioHeat = positionManager.computePortfolioHeat(state, equityEstimate);
   return {
     config: _config,
-    state: positionManager.loadState(),
+    state,
     session_start_equity: _sessionStartEquity,
+    bridge_warning: _bridgeWarning,
+    portfolio_heat_pct: Math.round(portfolioHeat * 10000) / 100,
   };
 }
 
@@ -206,8 +277,8 @@ export async function manualKill(reason: string): Promise<void> {
   await stopBridge();
 }
 
-export async function triggerManualScan(): Promise<void> {
-  await _runScanCycle();
+export async function triggerManualScan(universeKey?: scanner.ScanUniverseKey): Promise<void> {
+  await _runScanCycle(universeKey);
 }
 
 function roundBrokerPrice(value: number): number {
@@ -403,29 +474,46 @@ export async function repairManagedPositionExits(symbol?: string): Promise<{
         continue;
       }
 
-      const exitOrder = await broker.submitExitOrder({
-        symbol: pos.symbol,
-        qty,
-        time_in_force: 'day',
-        take_profit: { limit_price: roundBrokerPrice(desiredTakeProfit) },
-        stop_loss: { stop_price: roundBrokerPrice(desiredStop) },
-        client_order_id: `pd_exit_${pos.symbol}_${Date.now()}`,
-      });
-
-      logger.log({
-        event: 'exit_orders_repaired',
-        strategy_version_id: pos.strategy_version_id,
-        symbol: pos.symbol,
-        details: {
-          order_id: exitOrder.id,
+      try {
+        const exitOrder = await broker.submitExitOrder({
+          symbol: pos.symbol,
           qty,
-          entry_price: pos.entry_price,
-          stop_price: pos.stop_price,
-          take_profit_price: pos.take_profit_price,
-          cancelled_orders: existingSellOrders.map((order) => order.id),
-        },
-      });
-      repaired += 1;
+          time_in_force: 'day',
+          take_profit: { limit_price: roundBrokerPrice(desiredTakeProfit) },
+          stop_loss: { stop_price: roundBrokerPrice(desiredStop) },
+          client_order_id: `pd_exit_${pos.symbol}_${Date.now()}`,
+        });
+
+        logger.log({
+          event: 'exit_orders_repaired',
+          strategy_version_id: pos.strategy_version_id,
+          symbol: pos.symbol,
+          details: {
+            order_id: exitOrder.id,
+            qty,
+            entry_price: pos.entry_price,
+            stop_price: pos.stop_price,
+            take_profit_price: pos.take_profit_price,
+            cancelled_orders: existingSellOrders.map((order) => order.id),
+          },
+        });
+        repaired += 1;
+      } catch (exitErr: any) {
+        const errMsg = String(exitErr?.message || exitErr);
+        // 422 = position no longer exists at broker — remove from managed state
+        const isGone = errMsg.includes('422') || errMsg.includes('not found') || errMsg.includes('no position');
+        logger.log({
+          event: isGone ? 'position_expired' : 'exit_repair_failed',
+          strategy_version_id: pos.strategy_version_id,
+          symbol: pos.symbol,
+          details: { error: errMsg, auto_removed: isGone },
+        });
+        if (isGone) {
+          state = positionManager.removePosition(state, pos.symbol);
+          stateChanged = true;
+        }
+        skipped += 1;
+      }
     }
   }
 
@@ -436,7 +524,7 @@ export async function repairManagedPositionExits(symbol?: string): Promise<{
   return { repaired, repriced, skipped };
 }
 
-async function _runScanCycle(): Promise<void> {
+async function _runScanCycle(universeKey?: scanner.ScanUniverseKey): Promise<void> {
   if (!_config) return;
   if (_scanInProgress) {
     logger.log({
@@ -475,9 +563,44 @@ async function _runScanCycle(): Promise<void> {
       return;
     }
 
-    const signals = await scanner.scanForSignals(_config.strategy_version_id);
+    const resolvedKey = universeKey || 'auto';
+    const universeInfo = resolvedKey !== 'auto'
+      ? await scanner.loadUniverseByKey(resolvedKey, (await storage.getStrategyOrComposite(_config.strategy_version_id))?.asset_class)
+      : null;
+
+    _scanProgress = {
+      active: true,
+      universe_key: resolvedKey,
+      universe_total: universeInfo ? universeInfo.symbols.length : 0,
+      started_at: new Date().toISOString(),
+      elapsed_ms: 0,
+      signals_found: 0,
+      live_signals: [],
+    };
+
+    const signals = await scanner.scanForSignals(_config.strategy_version_id, resolvedKey);
+
+    _scanProgress.active = false;
+    _scanProgress.elapsed_ms = Date.now() - new Date(_scanProgress.started_at!).getTime();
+    _scanProgress.signals_found = signals.length;
+    _scanProgress.live_signals = signals.map((s) => ({
+      symbol: s.symbol,
+      entry_price: s.entry_price,
+      stop_price: s.stop_price,
+      take_profit_price: s.take_profit_price,
+      score: s.score,
+    }));
+
     state.last_scan_time = new Date().toISOString();
     state.last_scan_signals = signals.length;
+    state.last_scan_signal_list = signals.map((s) => ({
+      symbol: s.symbol,
+      entry_price: s.entry_price,
+      stop_price: s.stop_price,
+      take_profit_price: s.take_profit_price,
+      score: s.score,
+      signal_bar_date: s.signal_bar_date,
+    }));
     positionManager.saveState(state);
 
     if (signals.length === 0) return;
@@ -485,6 +608,7 @@ async function _runScanCycle(): Promise<void> {
     const results = await executor.executeSignals(
       signals,
       state,
+      _config.max_portfolio_heat_pct,
       _config.max_concurrent,
       _config.risk_pct_per_trade,
     );
@@ -498,6 +622,7 @@ async function _runScanCycle(): Promise<void> {
       details: { signals: signals.length, orders_placed: filled, orders_failed: failed },
     });
   } catch (err: any) {
+    _scanProgress.active = false;
     logger.log({
       event: 'error',
       details: { action: 'scan_cycle', error: err?.message || String(err) },

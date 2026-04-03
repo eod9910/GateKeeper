@@ -55,9 +55,70 @@ export interface StructureConfig {
   causal?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// State Machine — optional stateful execution layer
+// ---------------------------------------------------------------------------
+// When present, the runtime maintains a per-(symbol, timeframe, strategy_id)
+// state dict across bars. Stateless strategies omit this field entirely —
+// they are unaffected by this addition.
+// ---------------------------------------------------------------------------
+
+/** Named phases the strategy can occupy. */
+export type StrategyPhase =
+  | 'idle'        // no setup in progress
+  | 'armed'       // arm condition fired; watching for entry
+  | 'watching'    // in watch window, counting down bars
+  | 'entered'     // trade entry was taken (signal emitted)
+  | 'invalidated' // a later condition cancelled the armed setup
+  | 'expired';    // watch window ran out of bars without entry
+
+/**
+ * A single state-transition rule.
+ * When `from` matches the current phase AND the primitive named by `on_primitive`
+ * has `entry_ready=True` on the current bar, the runtime moves to `to`.
+ *
+ * Optional `action` mutations are applied atomically with the transition:
+ *   set_watch_bars  — reset the watch window counter
+ *   clear_watch     — zero the counter (expire)
+ *   set_flag        — set strategy_state[flag_name] = true
+ *   clear_flag      — set strategy_state[flag_name] = false
+ */
+export interface StateMachineTransition {
+  from: StrategyPhase | StrategyPhase[];
+  on_primitive: string;          // pattern_id of the primitive that triggers this edge
+  to: StrategyPhase;
+  action?: {
+    set_watch_bars?: number;     // open (or reset) a watch window of N bars
+    clear_watch?: boolean;       // immediately expire the watch window
+    set_flag?: string;           // strategy_state flags[flag_name] = true
+    clear_flag?: string;         // strategy_state flags[flag_name] = false
+  };
+}
+
+/**
+ * StateMachineConfig — optional sub-object in SetupConfig.
+ * Presence of this field enables stateful bar-by-bar execution for this strategy.
+ * Absence leaves existing stateless behaviour completely unchanged.
+ *
+ * Minimum viable fields for v1:
+ *   initial_phase   — phase the strategy starts in (default "idle")
+ *   transitions     — ordered list of transition rules evaluated top-to-bottom
+ *   emit_on         — phase(s) that cause entry_ready=True to be emitted
+ *   watch_bars      — convenience: max bars to stay in "watching" before expiring
+ *   invalidate_on   — convenience: primitive whose signal resets to "idle"
+ */
+export interface StateMachineConfig {
+  initial_phase?: StrategyPhase;           // default: "idle"
+  transitions: StateMachineTransition[];
+  emit_on: StrategyPhase | StrategyPhase[]; // which phase(s) emit entry signal
+  watch_bars?: number;                      // max bars in "watching" before → "expired"
+  invalidate_on?: string;                   // shorthand: pattern_id → always → "idle"
+}
+
 /** Pattern-specific setup knobs (extensible per pattern type) */
 export interface SetupConfig {
   pattern_type: string;                 // "wyckoff_accumulation", "quasimodo", etc.
+  state_machine?: StateMachineConfig;   // optional: enables stateful bar-by-bar execution
   // Wyckoff-specific:
   min_prominence?: number;              // find_major_peaks prominence
   peak_lookback?: number;               // find_major_peaks lookback
@@ -265,6 +326,27 @@ export interface StrategyParameterManifestItem {
   failure_modes_targeted?: string[];
 }
 
+export type FundamentalOperator = '>=' | '<=' | '>' | '<' | '==' | '!=';
+
+export interface FundamentalVariableConfig {
+  metric: string;
+  label?: string;
+  operator: FundamentalOperator;
+  threshold: number;
+  missing_policy?: 'fail' | 'pass';
+  sensitivity_enabled?: boolean;
+}
+
+export interface FundamentalConfig {
+  enabled?: boolean;
+  comparison_mode?: 'selected_vs_excluded';
+  rebalance_frequency?: 'monthly' | 'quarterly';
+  forward_bars?: number;
+  min_selected_count?: number;
+  min_excluded_count?: number;
+  variables: FundamentalVariableConfig[];
+}
+
 // ---------------------------------------------------------------------------
 // StrategySpec — the versioned hypothesis object
 // ---------------------------------------------------------------------------
@@ -299,6 +381,7 @@ export interface StrategySpec {
   cost_config?: CostConfig;
   execution_config?: ExecutionConfig;       // harvest + behavioral lock layer
   parameter_manifest?: StrategyParameterManifestItem[];
+  fundamental_config?: FundamentalConfig;   // PIT basket validation layer
 
   // Legacy flat configs (backward compat with validator mock data)
   params?: { [key: string]: any };

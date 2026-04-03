@@ -66,12 +66,13 @@ async function runRobinhoodFlow(action: RobinhoodFlowAction, config: RobinhoodFl
     let stderr = '';
     let finished = false;
 
+    const timeoutMs = action === 'positions' ? 15_000 : 90_000;
     const timeout = setTimeout(() => {
       if (finished) return;
       finished = true;
       child.kill();
-      reject(new Error(`Robinhood ${action} timed out after 90s`));
-    }, 90000);
+      reject(new Error(`Robinhood ${action} timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
 
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString();

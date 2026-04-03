@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Watch List Drawer — Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #161b27;
+    --border:    #1e2535;
+    --muted:     #374151;
+    --text:      #e2e8f0;
+    --subtle:    #64748b;
+    --accent:    #3b82f6;
+    --green:     #22c55e;
+    --amber:     #f59e0b;
+    --red:       #ef4444;
+    --sidebar-w: 180px;
+    --drawer-w:  240px;
+    --tab-w:     28px;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 13px; height: 100vh; display: flex; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0; padding: 16px 0;
+  }
+  .sidebar-logo { padding: 0 16px 20px; font-weight: 700; font-size: 14px; letter-spacing: .06em; color: var(--accent); }
+  .nav-item { padding: 7px 16px; font-size: 12px; color: var(--subtle); cursor: pointer; }
+  .nav-item.active { color: var(--text); font-weight: 600; }
+  .nav-item:hover { color: var(--text); }
+
+  /* ── Main area (header + body) ── */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+
+  /* ── Page header ── */
+  .page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 24px; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex-shrink: 0; gap: 16px;
+  }
+  .page-header h1 { font-size: 16px; font-weight: 700; }
+  .page-header .breadcrumb { font-size: 11px; color: var(--subtle); margin-top: 2px; }
+  .symbol-bar { display: flex; gap: 8px; flex: 1; max-width: 400px; }
+  .symbol-bar input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; font-weight: 500; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .header-actions { display: flex; gap: 8px; }
+
+  /* ── Content area (chart + drawer) ── */
+  .content-wrap { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+  /* ── Chart + panels scroll area ── */
+  .scroll-area { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── Chart panel ── */
+  .chart-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .chart-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .chart-symbol { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px; }
+  .chart-interval { font-size: 12px; color: var(--subtle); }
+  .chart-body { height: 280px; background: #0d1117; position: relative; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
+  .chart-lines { position: absolute; inset: 0; }
+  .line-target { position: absolute; right: 0; left: 0; top: 22%; border-top: 1px dashed #22c55e; display: flex; align-items: center; }
+  .line-entry  { position: absolute; right: 0; left: 0; top: 72%; border-top: 1px dashed #3b82f6; }
+  .line-stop   { position: absolute; right: 0; left: 0; top: 84%; border-top: 1px dashed #ef4444; }
+  .line-label  { background: var(--green); color: #000; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: 8px; font-family: 'JetBrains Mono', monospace; }
+  .chart-candles { position: absolute; bottom: 30px; left: 20px; right: 20px; display: flex; align-items: flex-end; gap: 3px; }
+  .candle { width: 8px; border-radius: 1px; }
+
+  /* ── Key levels panel ── */
+  .kl-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+  .kl-label { font-size: 10px; color: var(--subtle); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; font-weight: 600; }
+  .kl-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .kl-item .kl-name { font-size: 10px; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; }
+  .kl-item .kl-val  { font-size: 16px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  .kl-item .kl-val.red { color: var(--red); }
+  .kl-item .kl-val.green { color: var(--green); }
+  .kl-item .kl-val.amber { color: var(--amber); }
+
+  /* ── Trade actions stub ── */
+  .ta-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+  .section-label { font-size: 10px; color: var(--subtle); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-bottom: 10px; }
+  .ta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ta-field .ta-name { font-size: 10px; color: var(--subtle); margin-bottom: 4px; }
+  .ta-field .ta-val  { font-size: 13px; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .badge-long { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+  .send-btn { margin-top: 12px; width: 100%; padding: 8px; background: var(--accent); border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; }
+
+  /* ══ WATCH LIST DRAWER ══════════════════════════════════════════════ */
+
+  /* Tab handle — always visible on right edge */
+  .wl-tab {
+    position: fixed; right: var(--drawer-w); top: 50%;
+    transform: translateY(-50%);
+    width: var(--tab-w); padding: 32px 0;
+    background: var(--surface); border: 1px solid var(--border);
+    border-right: none; border-radius: 8px 0 0 8px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    z-index: 200; transition: right .25s ease;
+    box-shadow: -4px 0 12px rgba(0,0,0,.3);
+  }
+  .wl-tab.closed { right: 0; border-radius: 8px 0 0 8px; }
+  .wl-tab-label {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--subtle); user-select: none;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .wl-badge {
+    background: var(--accent); color: #fff; border-radius: 999px;
+    font-size: 10px; font-weight: 700; width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    writing-mode: horizontal-tb; transform: none; margin-bottom: 4px;
+  }
+  .wl-arrow { font-size: 10px; color: var(--subtle); }
+
+  /* Drawer panel */
+  .wl-drawer {
+    position: fixed; right: 0; top: 0; bottom: 0;
+    width: var(--drawer-w);
+    background: var(--surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 199; transition: transform .25s ease;
+    box-shadow: -8px 0 24px rgba(0,0,0,.4);
+  }
+  .wl-drawer.closed { transform: translateX(100%); }
+
+  .wl-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .wl-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text); }
+  .wl-actions { display: flex; gap: 6px; align-items: center; }
+  .wl-clear { background: none; border: none; cursor: pointer; color: var(--subtle); font-size: 12px; padding: 2px 4px; }
+  .wl-clear:hover { color: var(--red); }
+
+  .wl-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+
+  .wl-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; cursor: pointer; border-bottom: 1px solid rgba(30,37,53,.6);
+    transition: background .12s;
+  }
+  .wl-item:hover { background: rgba(59,130,246,.08); }
+  .wl-item.active { background: rgba(59,130,246,.14); border-left: 2px solid var(--accent); padding-left: 12px; }
+
+  .wl-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 2px; }
+  .wl-dot.high { background: var(--amber); }
+  .wl-dot.med  { background: var(--green); }
+
+  .wl-info { flex: 1; min-width: 0; }
+  .wl-sym  { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13px; }
+  .wl-meta { font-size: 10px; color: var(--subtle); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .wl-score { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; color: var(--amber); flex-shrink: 0; }
+
+  .wl-remove { background: none; border: none; cursor: pointer; color: transparent; font-size: 12px; padding: 0 2px; flex-shrink: 0; }
+  .wl-item:hover .wl-remove { color: var(--subtle); }
+  .wl-remove:hover { color: var(--red) !important; }
+
+  .wl-footer {
+    padding: 10px 14px; border-top: 1px solid var(--border); flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .wl-go-btn {
+    width: 100%; padding: 7px; background: var(--accent); border: none;
+    border-radius: 6px; color: #fff; font-weight: 600; font-size: 12px;
+    cursor: pointer; font-family: 'Inter', sans-serif;
+  }
+  .wl-hint { font-size: 10px; color: var(--subtle); text-align: center; }
+
+  /* label annotations */
+  .annotation {
+    position: absolute; background: rgba(59,130,246,.18); border: 1px dashed rgba(59,130,246,.5);
+    border-radius: 6px; padding: 4px 8px; font-size: 10px; color: #93c5fd;
+    font-weight: 600; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">PD · TRADING DESK</div>
+  <div class="nav-item">Scanner</div>
+  <div class="nav-item active">Trading Desk</div>
+  <div class="nav-item">Position Book</div>
+  <div class="nav-item">Validator</div>
+  <div class="nav-item">Indicator Studio</div>
+  <div class="nav-item">Execution Desk</div>
+  <div class="nav-item" style="margin-top:auto;">Settings</div>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h1>Trading Desk</h1>
+      <div class="breadcrumb">CAVA · Weekly · Analysis complete</div>
+    </div>
+    <div class="symbol-bar">
+      <input type="text" value="CAVA" />
+      <button class="btn btn-primary">Go</button>
+    </div>
+    <div class="header-actions">
+      <button class="btn">New</button>
+      <button class="btn">Export</button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content-wrap">
+    <div class="scroll-area" id="scroll-area">
+
+      <!-- Chart -->
+      <div class="chart-panel">
+        <div class="chart-toolbar">
+          <span class="chart-symbol">CAVA</span>
+          <span class="chart-interval">Weekly</span>
+          <span style="margin-left:auto;font-size:11px;color:#22c55e;font-weight:600;">Analysis complete</span>
+        </div>
+        <div class="chart-body">
+          <div class="chart-lines">
+            <div class="line-target"><span class="line-label" style="background:var(--green);">TARGET $94.20</span></div>
+            <div class="line-entry"></div>
+            <div class="line-stop"></div>
+          </div>
+          <div class="chart-candles">
+            <!-- fake candles -->
+            <div class="candle" style="height:30px;background:#ef4444;"></div>
+            <div class="candle" style="height:45px;background:#22c55e;"></div>
+            <div class="candle" style="height:38px;background:#ef4444;"></div>
+            <div class="candle" style="height:60px;background:#22c55e;"></div>
+            <div class="candle" style="height:52px;background:#22c55e;"></div>
+            <div class="candle" style="height:48px;background:#ef4444;"></div>
+            <div class="candle" style="height:70px;background:#22c55e;"></div>
+            <div class="candle" style="height:80px;background:#22c55e;"></div>
+            <div class="candle" style="height:68px;background:#ef4444;"></div>
+            <div class="candle" style="height:75px;background:#22c55e;"></div>
+            <div class="candle" style="height:90px;background:#22c55e;"></div>
+            <div class="candle" style="height:82px;background:#ef4444;"></div>
+            <div class="candle" style="height:95px;background:#22c55e;"></div>
+            <div class="candle" style="height:88px;background:#22c55e;"></div>
+            <div class="candle" style="height:100px;background:#22c55e;"></div>
+            <div class="candle" style="height:92px;background:#ef4444;"></div>
+            <div class="candle" style="height:110px;background:#22c55e;"></div>
+            <div class="candle" style="height:96px;background:#ef4444;"></div>
+            <div class="candle" style="height:108px;background:#22c55e;"></div>
+            <div class="candle" style="height:115px;background:#22c55e;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Key Levels -->
+      <div class="kl-panel">
+        <div class="kl-label">Key Levels</div>
+        <div class="kl-grid">
+          <div class="kl-item"><div class="kl-name">Entry</div><div class="kl-val">$72.40</div></div>
+          <div class="kl-item"><div class="kl-name">Stop</div><div class="kl-val red">$65.80</div></div>
+          <div class="kl-item"><div class="kl-name">T1</div><div class="kl-val green">$94.20</div></div>
+          <div class="kl-item"><div class="kl-name">R/R</div><div class="kl-val amber">3.3×</div></div>
+          <div class="kl-item"><div class="kl-name">Size</div><div class="kl-val">68 shares</div></div>
+          <div class="kl-item"><div class="kl-name">Risk $</div><div class="kl-val red">$449</div></div>
+        </div>
+      </div>
+
+      <!-- Trade Actions -->
+      <div class="ta-panel">
+        <div class="section-label">Trade Actions</div>
+        <div class="ta-grid">
+          <div class="ta-field"><div class="ta-name">Route</div><div class="ta-val">Stock</div></div>
+          <div class="ta-field"><div class="ta-name">Side</div><div class="ta-val"><span class="badge badge-long">LONG</span></div></div>
+          <div class="ta-field"><div class="ta-name">Broker</div><div class="ta-val">Alpaca</div></div>
+          <div class="ta-field"><div class="ta-name">Type</div><div class="ta-val">Market</div></div>
+        </div>
+        <button class="send-btn">Send to Execution Desk</button>
+      </div>
+
+    </div><!-- /scroll-area -->
+
+    <!-- ══ WATCH LIST DRAWER ══ -->
+
+    <!-- Tab handle -->
+    <div class="wl-tab" id="wl-tab" onclick="toggleDrawer()">
+      <div class="wl-tab-label">
+        <span class="wl-badge">4</span>
+        Watch List
+        <span class="wl-arrow" id="wl-arrow">◂</span>
+      </div>
+    </div>
+
+    <!-- Drawer -->
+    <div class="wl-drawer" id="wl-drawer">
+      <div class="wl-header">
+        <span class="wl-title">Watch List <span style="color:var(--subtle);font-weight:400;">4</span></span>
+        <div class="wl-actions">
+          <button class="wl-clear" title="Clear all">Clear all</button>
+        </div>
+      </div>
+
+      <div class="wl-list">
+
+        <div class="wl-item active">
+          <div class="wl-dot high"></div>
+          <div class="wl-info">
+            <div class="wl-sym">CAVA</div>
+            <div class="wl-meta">$72.40 · 1d · 2m ago</div>
+          </div>
+          <div class="wl-score">0.863</div>
+          <button class="wl-remove">✕</button>
+        </div>
+
+        <div class="wl-item">
+          <div class="wl-dot med"></div>
+          <div class="wl-info">
+            <div class="wl-sym">NVDA</div>
+            <div class="wl-meta">$118.20 · 1d · 14m ago</div>
+          </div>
+          <div class="wl-score">0.791</div>
+          <button class="wl-remove">✕</button>
+        </div>
+
+        <div class="wl-item">
+          <div class="wl-dot med"></div>
+          <div class="wl-info">
+            <div class="wl-sym">META</div>
+            <div class="wl-meta">$552.10 · 1d · 1h ago</div>
+          </div>
+          <div class="wl-score">0.744</div>
+          <button class="wl-remove">✕</button>
+        </div>
+
+        <div class="wl-item">
+          <div class="wl-dot" style="background:var(--subtle);"></div>
+          <div class="wl-info">
+            <div class="wl-sym">AAPL</div>
+            <div class="wl-meta">$209.40 · 1wk · 3h ago</div>
+          </div>
+          <div class="wl-score">0.612</div>
+          <button class="wl-remove">✕</button>
+        </div>
+
+      </div>
+
+      <div class="wl-footer">
+        <div class="wl-hint">Click any symbol to load it</div>
+      </div>
+    </div>
+
+  </div><!-- /content-wrap -->
+</main>
+
+<script>
+  let open = true;
+
+  function toggleDrawer() {
+    open = !open;
+    const drawer = document.getElementById('wl-drawer');
+    const tab    = document.getElementById('wl-tab');
+    const arrow  = document.getElementById('wl-arrow');
+    if (open) {
+      drawer.classList.remove('closed');
+      tab.classList.remove('closed');
+      tab.style.right = 'var(--drawer-w)';
+      arrow.textContent = '◂';
+    } else {
+      drawer.classList.add('closed');
+      tab.classList.add('closed');
+      tab.style.right = '0';
+      arrow.textContent = '▸';
+    }
+  }
+
+  // Click items
+  document.querySelectorAll('.wl-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.classList.contains('wl-remove')) return;
+      document.querySelectorAll('.wl-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      const sym = item.querySelector('.wl-sym').textContent;
+      document.querySelector('.chart-symbol').textContent = sym;
+      document.querySelector('input[type=text]').value = sym;
+      document.querySelector('.breadcrumb').textContent = sym + ' · Weekly · Analysis complete';
+    });
+  });
+
+  // Remove buttons
+  document.querySelectorAll('.wl-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      btn.closest('.wl-item').remove();
+      const count = document.querySelectorAll('.wl-item').length;
+      document.querySelector('.wl-badge').textContent = count;
+      document.querySelector('.wl-title').innerHTML = `Watch List <span style="color:var(--subtle);font-weight:400;">${count}</span>`;
+    });
+  });
+</script>
+</body>
+</html>

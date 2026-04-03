@@ -1,28 +1,13 @@
 import Alpaca from '@alpacahq/alpaca-trade-api';
 import fetch from 'node-fetch';
-import * as fs from 'fs';
-import * as path from 'path';
+import { loadExecutionSettings, type ExecutionSettings as SavedExecutionSettings } from './executionSettings';
 
-const SETTINGS_PATH = path.join(__dirname, '..', '..', 'data', 'execution-settings.json');
 const OANDA_PRACTICE_BASE_URL = 'https://api-fxpractice.oanda.com';
 const OANDA_LIVE_BASE_URL = 'https://api-fxtrade.oanda.com';
 
 export type BrokerProvider = 'alpaca' | 'oanda';
 type AlpacaMode = 'paper' | 'live';
 type OandaEnvironment = 'practice' | 'live';
-
-interface SavedExecutionSettings {
-  execution_broker_provider?: BrokerProvider;
-  broker_provider?: BrokerProvider;
-  alpaca_api_key?: string;
-  alpaca_secret_key?: string;
-  alpaca_base_url?: string;
-  alpaca_mode?: AlpacaMode;
-  oanda_api_token?: string;
-  oanda_account_id?: string;
-  oanda_environment?: OandaEnvironment;
-  oanda_base_url?: string;
-}
 
 interface AlpacaConfig {
   key: string;
@@ -142,15 +127,7 @@ const _assetCache = new Map<string, BrokerAsset | null>();
 let _resolvedOandaAccountId: string | null = null;
 
 function readSavedSettings(): SavedExecutionSettings | null {
-  try {
-    if (fs.existsSync(SETTINGS_PATH)) {
-      const parsed = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
+  return loadExecutionSettings();
 }
 
 function normalizeProvider(raw: string | undefined | null): BrokerProvider | null {
@@ -928,6 +905,21 @@ export async function submitOrder(order: BracketOrderRequest): Promise<BrokerOrd
     throw new Error(`Broker asset not tradable: ${brokerSymbol} (status: ${asset.status || 'unknown'})`);
   }
 
+  // Alpaca crypto does not support bracket orders — submit a simple market order.
+  // Stop/TP are tracked internally by the bridge position manager.
+  const isCrypto = String(asset.class || '').toLowerCase() === 'crypto';
+  if (isCrypto) {
+    const result = await getAlpacaClient().createOrder({
+      symbol: brokerSymbol,
+      qty: order.qty,
+      side: order.side,
+      type: 'market',
+      time_in_force: 'gtc',
+      client_order_id: order.client_order_id,
+    });
+    return mapOrder(result);
+  }
+
   const result = await getAlpacaClient().createOrder({
     symbol: brokerSymbol,
     qty: order.qty,
@@ -981,6 +973,21 @@ export async function submitExitOrder(order: ExitOrderRequest): Promise<BrokerOr
   }
   if (asset.tradable === false || asset.status !== 'active') {
     throw new Error(`Broker asset not tradable: ${brokerSymbol} (status: ${asset.status || 'unknown'})`);
+  }
+
+  // Alpaca crypto does not support OCO orders — submit a simple market sell.
+  // Stop/TP are managed internally by the bridge monitor.
+  const isCrypto = String(asset.class || '').toLowerCase() === 'crypto';
+  if (isCrypto) {
+    const result = await getAlpacaClient().createOrder({
+      symbol: brokerSymbol,
+      qty: order.qty,
+      side: 'sell',
+      type: 'market',
+      time_in_force: 'gtc',
+      client_order_id: order.client_order_id,
+    });
+    return mapOrder(result);
   }
 
   const result = await getAlpacaClient().createOrder({

@@ -62,8 +62,14 @@ Verdict: **Serious research platform; not yet single-user production-ready for a
   - Evidence: `backend/services/validatorPipeline.py:740`
 - [x] Invalid-symbol cache exists to avoid repeated failing downloads.
   - Evidence: `backend/services/validatorPipeline.py:35`, `backend/services/validatorPipeline.py:213`
-- [~] No explicit snapshot TTL/expiry policy yet (cache freshness policy incomplete).
-  - Evidence: snapshot mechanism exists but no expiry gate in `backend/services/validatorPipeline.py`
+- [x] Validator snapshot cache now has an explicit TTL/expiry policy plus manual refresh override.
+  - Evidence: `backend/services/validatorPipeline.py`
+- [x] Universe price snapshots and fundamentals/insider data now use stale-check caching.
+  - Evidence: `backend/src/routes/universe.ts`, `backend/src/routes/fundamentals.ts`
+- [x] Quotes and option quotes now use short-lived file-backed + in-memory caches.
+  - Evidence: `backend/src/routes/quotes.ts`
+- [x] Shared TypeScript cache helper now standardizes cache envelopes and freshness metadata.
+  - Evidence: `backend/src/services/cacheService.ts`
 
 ### C. Determinism & Testing
 
@@ -120,13 +126,12 @@ Verdict: **Serious research platform; not yet single-user production-ready for a
    - Keep system explicitly "research-only" (no live order path), or
    - Implement broker adapter + reconciliation + fail-closed kill switch path before any automation.
 
-4. **Cache freshness policy**
-   - Add snapshot TTL and "force refresh" switch for validator runs.
+4. **Cache freshness policy standardization**
+   - Extend the shared helper pattern to Python-side cache paths and remaining routes.
 
 ## 6) Near-Term Upgrade Plan (Recommended)
 
 ### Phase 1 (1-2 weeks)
-- Add snapshot TTL + refresh flag in validator run config.
 - Add structured run logs (run_id, strategy_version_id, tier, asset_class, symbol_count, elapsed, verdict).
 - Add `npm test` script + Python test command wiring.
 

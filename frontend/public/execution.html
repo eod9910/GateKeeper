@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page-id="execution">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -210,22 +210,23 @@
   <div class="app">
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-header">
-        <a href="index.html" class="sidebar-logo" aria-label="Home">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
           <span class="logo-mark">PD</span>
           <span class="sidebar-label-text">Pattern Detector</span>
         </a>
         <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
       </div>
       <nav class="sidebar-nav">
-        <a href="index.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
-        <a href="copilot.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
-        <a href="history.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
-        <a href="validator.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
-        <a href="workshop.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
-        <a href="research.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Agent</span></a>
-        <a href="sweep.html" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
-        <a href="execution.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
-        <a href="settings.html" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+        <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="/position-book" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="/validator" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="/indicator-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="/research-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Studio</span></a>
+        <a href="/parameter-sweep" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
       </nav>
     </aside>
 
@@ -302,6 +303,31 @@
                   <div id="strategy-version-hint" class="position-modal-note" style="margin-top:6px;">Execution requires an approved strategy with a T3 badge.</div>
                 </div>
                 <div class="field">
+                  <label for="bridge-quick-broker">Execution Broker</label>
+                  <select id="bridge-quick-broker" class="select">
+                    <option value="alpaca">Alpaca</option>
+                    <option value="oanda">OANDA</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="bridge-quick-mode">Mode</label>
+                  <select id="bridge-quick-mode" class="select">
+                    <option value="paper">Paper Trading</option>
+                    <option value="live">Live Trading</option>
+                  </select>
+                </div>
+                <div class="field" style="grid-column: span 2;">
+                  <label for="scan-universe-key">Scan Universe</label>
+                  <select id="scan-universe-key" class="select">
+                    <option value="auto">Auto (strategy default)</option>
+                    <option value="full">Full Stocks — 300 sampled from 10K (~2-3 min)</option>
+                    <option value="optionable">Optionable — 250 sampled from 5K (~1-2 min)</option>
+                    <option value="largecap">Large Cap / ETFs — 291 symbols (~30 sec)</option>
+                    <option value="crypto">Crypto — 16 pairs (~10 sec)</option>
+                  </select>
+                  <div class="position-modal-note" style="margin-top:4px;font-size:11px;">Overrides the universe for Manual Scan only. Large universes are deterministically sampled to keep scan time manageable. Cron scans always use the strategy's built-in universe.</div>
+                </div>
+                <div class="field">
                   <label for="scan-cron">Scan Cron</label>
                   <input id="scan-cron" value="0 21 * * 1-5">
                 </div>
@@ -310,7 +336,7 @@
                   <input id="scan-timezone" value="America/New_York">
                 </div>
               </div>
-              <div class="position-modal-note">Concurrency, risk per trade, drawdown kill, and daily loss kill are sourced from <a href="settings.html">Settings</a>. Execution Desk shows them here but does not own them.</div>
+              <div class="position-modal-note">Concurrency, risk per trade, drawdown kill, and daily loss kill are sourced from <a href="/settings">Settings</a>. Broker credentials are configured in the Broker Settings panel.</div>
               <div class="position-summary-grid" style="margin-top:var(--space-12);">
                 <div class="position-summary-item"><div class="label">Max Concurrent</div><div id="bridge-rule-max-concurrent" class="value">--</div></div>
                 <div class="position-summary-item"><div class="label">Risk / Trade</div><div id="bridge-rule-risk" class="value">--</div></div>
@@ -326,20 +352,48 @@
               </div>
               <div id="bridge-action-message" class="muted mono" style="margin-top:8px;font-size:var(--text-caption);display:none;"></div>
               <div class="muted mono" style="margin-top:10px;font-size:var(--text-caption);">
-                Start arms the bridge. Orders are only evaluated on the next cron run or when you click Manual Scan.
+                Start arms the bridge. Orders are evaluated on the next cron run or when you click Manual Scan. Bridge-generated signals are executed automatically — they do not flow through the Trading Desk Ticket.
               </div>
             </div>
           </section>
 
           <section class="panel card-half">
-            <div class="panel-header"><span class="panel-header-title">Bridge Status</span></div>
+            <div class="panel-header">
+              <span class="panel-header-title">Watch List</span>
+              <span id="watchlist-scan-badge" class="mono muted" style="font-size:var(--text-caption);margin-left:8px;display:none;">
+                <span id="watchlist-scan-label">Scanning…</span>
+              </span>
+            </div>
             <div class="panel-body">
+
+              <!-- Scan progress bar (hidden when idle) -->
+              <div id="scan-progress-panel" style="display:none;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                  <span id="scan-progress-label" class="mono" style="font-size:12px;color:var(--text-muted,#888);">Scanning…</span>
+                  <span id="scan-progress-timer" class="mono" style="font-size:12px;color:var(--text-muted,#888);">0s</span>
+                </div>
+                <div style="height:4px;background:var(--color-border,#2a2a2a);border-radius:2px;overflow:hidden;">
+                  <div id="scan-progress-bar" style="height:100%;width:0%;background:var(--color-accent,#3b82f6);border-radius:2px;transition:width 1s linear;"></div>
+                </div>
+                <div style="margin-top:6px;font-size:11px;color:var(--text-muted,#888);">
+                  <span id="scan-progress-signals">0 signals found so far</span>
+                </div>
+              </div>
+
               <div class="kpi-grid">
-                <div class="kpi"><div class="label">Enabled</div><div id="status-enabled" class="value">false</div></div>
+                <div class="kpi"><div class="label">Bridge Active</div><div id="status-enabled" class="value">false</div></div>
                 <div class="kpi"><div class="label">Kill Switch</div><div id="status-kill" class="value">false</div></div>
-                <div class="kpi"><div class="label">Managed Positions</div><div id="status-managed" class="value">0</div></div>
+                <div class="kpi"><div class="label">Open Positions</div><div id="status-managed" class="value">0</div></div>
                 <div class="kpi"><div class="label">Last Scan Signals</div><div id="status-signals" class="value">0</div></div>
                 <div class="kpi"><div class="label">Session Start Equity</div><div id="status-session-equity" class="value">--</div></div>
+                <div class="kpi">
+                  <div class="label">Portfolio Heat</div>
+                  <div id="status-portfolio-heat" class="value">0%</div>
+                  <div style="height:4px;background:#222;border-radius:2px;margin-top:4px;">
+                    <div id="status-heat-bar" style="height:100%;width:0%;background:#2ecc71;border-radius:2px;transition:width 0.4s,background 0.4s;"></div>
+                  </div>
+                  <div class="mono muted" style="font-size:10px;margin-top:2px;">max <span id="status-heat-max">25%</span></div>
+                </div>
               </div>
               <div style="margin-top:10px;" class="mono muted">
                 <div>Execution Broker: <span id="status-execution-broker">--</span></div>
@@ -347,13 +401,35 @@
                 <div>Last Scan Time: <span id="status-last-scan">--</span></div>
                 <div>Kill Reason: <span id="status-kill-reason">--</span></div>
               </div>
+
+              <!-- Signal watch list — populated after scan -->
+              <div id="signal-list-panel" style="display:none;margin-top:14px;">
+                <div style="font-size:12px;font-weight:600;letter-spacing:0.05em;color:var(--text-muted,#888);margin-bottom:6px;">SIGNALS</div>
+                <table id="signal-list-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+                  <thead>
+                    <tr style="color:var(--text-muted,#888);text-align:left;">
+                      <th style="padding:3px 8px 3px 0;">Symbol</th>
+                      <th style="padding:3px 8px 3px 0;">Entry</th>
+                      <th style="padding:3px 8px 3px 0;">Stop</th>
+                      <th style="padding:3px 8px 3px 0;">Target</th>
+                      <th style="padding:3px 8px 3px 0;">Score</th>
+                      <th style="padding:3px 0 3px 8px;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="signal-list-body"></tbody>
+                </table>
+              </div>
+
             </div>
           </section>
 
-          <section class="panel card-half">
-            <div class="panel-header"><span class="panel-header-title">Trading Desk Ticket</span></div>
+          <section class="panel card-half" id="trading-desk-ticket-section" style="display:none;">
+            <div class="panel-header">
+              <span class="panel-header-title">Trading Desk Ticket</span>
+              <span class="mono muted" style="font-size:var(--text-caption);margin-left:8px;">Manual handoff only — bridge signals execute automatically</span>
+            </div>
             <div class="panel-body">
-              <div id="execution-ticket-summary" class="position-modal-note">Trading Desk owns order planning. Send a trade from Trading Desk to stage an execution ticket here.</div>
+              <div id="execution-ticket-summary" class="position-modal-note">Trading Desk owns order planning. Send a trade from Trading Desk to stage an execution ticket here. Bridge-generated signals bypass this ticket and execute directly.</div>
               <div class="position-summary-grid" style="margin-top:var(--space-12);">
                 <div class="position-summary-item"><div class="label">Broker</div><div id="ticket-broker" class="value">--</div></div>
                 <div class="position-summary-item"><div class="label">Symbol</div><div id="ticket-symbol" class="value">--</div></div>
@@ -1208,6 +1284,7 @@
       return window.ExecutionDeskStatus.manualScan({
         api,
         asIso,
+        clearPendingExecutionTicket,
         loadLogs,
         refreshStatus,
         showBridgeActionMessage,

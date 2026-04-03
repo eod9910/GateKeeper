@@ -8,7 +8,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { getAllStrategies, getStrategyOrComposite, saveStrategy } from './storageService';
+import { getAllStrategies, getStrategyOrComposite, saveStrategy, getValidationReport, saveValidationReport, getTradeInstances, saveTradeInstances } from './storageService';
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const SWEEPS_DIR = path.join(DATA_DIR, 'sweep-results');
@@ -23,12 +23,19 @@ export interface SweepParamDef {
   values: any[];
 }
 
+export interface SweepVariantParamValue {
+  label: string;
+  param_path: string;
+  value: any;
+}
+
 export interface SweepVariant {
   variant_id: string;
   strategy_version_id: string;
   param_label: string;
   param_path: string;
   param_value: any;
+  param_values?: SweepVariantParamValue[];
   job_id: string | null;
   status: 'pending' | 'running' | 'completed' | 'failed';
   report_id: string | null;
@@ -144,6 +151,82 @@ function setNestedValue(obj: any, dotPath: string, value: any): any {
   }
   cur[parts[parts.length - 1]] = value;
   return clone;
+}
+
+function toFiniteNumber(value: any): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function syncRiskExitAliases(spec: any): any {
+  const next = spec && typeof spec === 'object' ? spec : {};
+  const risk = (next.risk_config && typeof next.risk_config === 'object') ? next.risk_config : {};
+  const exit = (next.exit_config && typeof next.exit_config === 'object') ? next.exit_config : {};
+  const targetType = String(exit.target_type || '').trim().toLowerCase();
+  const takeProfitR = toFiniteNumber(risk.take_profit_R ?? risk.take_profit_r);
+  const targetLevel = toFiniteNumber(exit.target_level);
+  const maxHoldBars = toFiniteNumber(risk.max_hold_bars);
+  const timeStopBars = toFiniteNumber(exit.time_stop_bars);
+
+  if (targetType === 'r_multiple') {
+    if (takeProfitR != null && takeProfitR > 0) {
+      exit.target_level = takeProfitR;
+    } else if (targetLevel != null && targetLevel > 0) {
+      risk.take_profit_R = targetLevel;
+    }
+  }
+
+  if (maxHoldBars != null && maxHoldBars > 0) {
+    exit.time_stop_bars = Math.round(maxHoldBars);
+  } else if (timeStopBars != null && timeStopBars > 0) {
+    risk.max_hold_bars = Math.round(timeStopBars);
+  }
+
+  next.risk_config = risk;
+  next.exit_config = exit;
+  return next;
+}
+
+function upsertOperatingProfileNote(spec: any): any {
+  const next = spec && typeof spec === 'object' ? spec : {};
+  const interval = String(next.interval || '').trim();
+  const marketCapTier = String(next.setup_config?.market_cap_tier || next.market_cap_tier || '').trim().toLowerCase();
+  const parts: string[] = [];
+  if (interval) parts.push(`interval=${interval}`);
+  if (marketCapTier) parts.push(`market_cap_tier=${marketCapTier}`);
+  if (!parts.length) return next;
+
+  const cleaned = String(next.description || '')
+    .replace(/\n*Operating profile:[^\n]*/gi, '')
+    .trim();
+  next.description = [cleaned, `Operating profile: ${parts.join('; ')}.`].filter(Boolean).join('\n\n');
+  return next;
+}
+
+export function computeVariantCount(params: SweepParamDef[]): number {
+  if (!params.length) return 0;
+  return params.reduce((product, p) => product * (p.values?.length || 0), 1);
+}
+
+function cartesianProduct(sweepParams: SweepParamDef[]): SweepVariantParamValue[][] {
+  if (sweepParams.length === 0) return [];
+  if (sweepParams.length === 1) {
+    return sweepParams[0].values.map(v => [{ label: sweepParams[0].label, param_path: sweepParams[0].param_path, value: v }]);
+  }
+  const [first, ...rest] = sweepParams;
+  const restCombos = cartesianProduct(rest);
+  const result: SweepVariantParamValue[][] = [];
+  for (const val of first.values) {
+    const entry: SweepVariantParamValue = { label: first.label, param_path: first.param_path, value: val };
+    for (const combo of restCombos) {
+      result.push([entry, ...combo]);
+    }
+  }
+  return result;
+}
+
+function variantIdSuffix(paramValues: SweepVariantParamValue[]): string {
+  return paramValues.map(pv => String(pv.value).replace(/[^a-zA-Z0-9]/g, '_')).join('_');
 }
 
 async function registerTempStrategy(spec: any, variantId: string): Promise<string> {
@@ -286,29 +369,40 @@ export async function runSweep(
   const baseStrategy = await getStrategyOrComposite(baseStrategyVersionId);
   if (!baseStrategy) throw new Error(`Strategy not found: ${baseStrategyVersionId}`);
 
-  // Use first sweep param for label; future: support cartesian product
   const primaryParam = sweepParams[0];
   if (!primaryParam || primaryParam.values.length === 0) {
     throw new Error('At least one sweep parameter with values is required');
   }
-  if (primaryParam.values.length > 20) {
-    throw new Error('Maximum 20 variants per sweep');
+  const totalVariants = computeVariantCount(sweepParams);
+  if (totalVariants > 20) {
+    throw new Error(`Grid produces ${totalVariants} variants — maximum is 20. Reduce the number of values.`);
   }
 
-  const sweepId = `sweep_${uuidv4().slice(0, 10)}`;
+  const isGrid = sweepParams.length > 1;
+
+  // Date-time based ID: sweep_YYYYMMDD_HHmmss_<4-char-uniquifier>
+  const now = new Date();
+  const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const timePart = now.toTimeString().slice(0, 8).replace(/:/g, '');
+  const sweepId = `sweep_${datePart}_${timePart}_${uuidv4().slice(0, 4)}`;
   const effectiveInterval = interval || (baseStrategy as any).interval || '1wk';
 
-  const variants: SweepVariant[] = primaryParam.values.map((value) => ({
-    variant_id: `${sweepId}_${String(value).replace(/[^a-zA-Z0-9]/g, '_')}`,
-    strategy_version_id: `${sweepId}_${String(value).replace(/[^a-zA-Z0-9]/g, '_')}`,
-    param_label: primaryParam.label,
-    param_path: primaryParam.param_path,
-    param_value: value,
-    job_id: null,
-    status: 'pending',
-    report_id: null,
-    metrics: null,
-  }));
+  const combos = cartesianProduct(sweepParams);
+  const variants: SweepVariant[] = combos.map((combo) => {
+    const suffix = variantIdSuffix(combo);
+    return {
+      variant_id: `${sweepId}_${suffix}`,
+      strategy_version_id: `${sweepId}_${suffix}`,
+      param_label: isGrid ? combo.map(c => c.label).join(' × ') : primaryParam.label,
+      param_path: isGrid ? combo.map(c => c.param_path).join(' × ') : primaryParam.param_path,
+      param_value: isGrid ? combo.map(c => c.value).join(' × ') : combo[0].value,
+      param_values: combo,
+      job_id: null,
+      status: 'pending' as const,
+      report_id: null,
+      metrics: null,
+    };
+  });
 
   const sweep: SweepReport = {
     sweep_id: sweepId,
@@ -327,7 +421,7 @@ export async function runSweep(
   await persistSweep(sweep);
 
   // Run variants sequentially in background
-  setImmediate(() => executeSweep(sweep, baseStrategy, primaryParam, effectiveInterval, tier));
+  setImmediate(() => executeSweep(sweep, baseStrategy, effectiveInterval, tier));
 
   return sweepId;
 }
@@ -335,36 +429,36 @@ export async function runSweep(
 async function executeSweep(
   sweep: SweepReport,
   baseStrategy: any,
-  param: SweepParamDef,
   interval: string,
   tier: string,
 ): Promise<void> {
   for (const variant of sweep.variants) {
     if (sweep.status !== 'running') break;
 
-    // Determine per-variant interval: if sweeping 'interval', use the variant value
-    const isTimeframeSweep = param.param_path === 'interval';
-    const variantInterval = isTimeframeSweep ? String(variant.param_value) : interval;
+    // Build variant spec — apply all param_values from the Cartesian combo
+    const pvs = variant.param_values || [];
+    const isTimeframeSweep = pvs.some(pv => pv.param_path === 'interval');
+    let variantInterval = interval;
+    // validation_tier is identity-preserving: overrides which universe is tested
+    let variantTier = tier;
 
-    // Build variant spec — apply primary param, then any linked secondary params
-    let variantSpec = isTimeframeSweep
-      ? JSON.parse(JSON.stringify(baseStrategy))
-      : setNestedValue(baseStrategy, param.param_path, variant.param_value);
-    if (isTimeframeSweep) {
-      variantSpec.interval = variantInterval;
+    let variantSpec = JSON.parse(JSON.stringify(baseStrategy));
+    for (const pv of pvs) {
+      if (pv.param_path === 'interval') {
+        variantSpec.interval = String(pv.value);
+        variantInterval = String(pv.value);
+      } else if (pv.param_path === 'validation_tier') {
+        variantTier = String(pv.value);
+      } else {
+        variantSpec = setNestedValue(variantSpec, pv.param_path, pv.value);
+      }
     }
-    const valueIndex = param.values.indexOf(variant.param_value);
-    for (let pi = 1; pi < sweep.sweep_params.length; pi++) {
-      const sp = sweep.sweep_params[pi];
-      const spValue = valueIndex >= 0 && valueIndex < sp.values.length
-        ? sp.values[valueIndex]
-        : variant.param_value;
-      variantSpec = setNestedValue(variantSpec, sp.param_path, spValue);
-    }
+    variantSpec = upsertOperatingProfileNote(syncRiskExitAliases(variantSpec));
     variantSpec.strategy_version_id = variant.variant_id;
     variantSpec.strategy_id = variant.variant_id;
     variantSpec.status = 'draft';
-    variantSpec.name = `${baseStrategy.name || baseStrategy.strategy_version_id} [${param.label}=${variant.param_value}]`;
+    const nameLabel = pvs.map(pv => `${pv.label}=${pv.value}`).join(', ');
+    variantSpec.name = `${baseStrategy.name || baseStrategy.strategy_version_id} [${nameLabel}]`;
 
     // Register temp strategy
     await registerTempStrategy(variantSpec, variant.variant_id);
@@ -377,7 +471,7 @@ async function executeSweep(
       let jobId: string | null = null;
       for (let attempt = 0; attempt < 6; attempt++) {
         try {
-          jobId = await startValidatorJob(variant.variant_id, tier, variantInterval);
+          jobId = await startValidatorJob(variant.variant_id, variantTier, variantInterval);
           break;
         } catch (err: any) {
           if (err.message?.includes('429') || err.message?.includes('Too many')) {
@@ -406,6 +500,10 @@ async function executeSweep(
       variant.status = 'failed';
       variant.error = err.message;
     }
+
+    // Remove the temp strategy file — it was only needed during the validation run.
+    // The promoted winner gets a permanent file written by promoteWinner().
+    await cleanupTempStrategy(variant.variant_id);
 
     await persistSweep(sweep);
     // Brief pause between variants
@@ -458,6 +556,47 @@ export async function cancelSweep(sweepId: string): Promise<void> {
   await persistSweep(sweep);
 }
 
+export async function deleteSweepVariant(sweepId: string, variantId: string): Promise<void> {
+  const sweep = activeSweeps.get(sweepId);
+  if (!sweep) throw new Error('Sweep not found');
+  if (!variantId) throw new Error('Variant id is required');
+
+  const variant = sweep.variants.find(v => v.variant_id === variantId);
+  if (!variant) throw new Error('Variant not found');
+  if (variant.status === 'running') {
+    throw new Error('Cannot delete a running variant');
+  }
+
+  sweep.variants = sweep.variants.filter(v => v.variant_id !== variantId);
+
+  if (sweep.winner?.variant_id === variantId) {
+    sweep.winner = selectSweepWinner(sweep.variants);
+  }
+  if (sweep.promoted_variant_id === variantId) {
+    sweep.promoted_variant_id = null;
+    sweep.promoted_strategy_version_id = null;
+    sweep.promoted_at = null;
+  }
+
+  await persistSweep(sweep);
+}
+
+// ─── Copy report to promoted strategy ────────────────────────────────────────
+
+async function copyReportToPromotedId(variantReportId: string, newStrategyVersionId: string): Promise<void> {
+  try {
+    const report = await getValidationReport(variantReportId);
+    if (!report) return;
+    const newReportId = `${newStrategyVersionId}_promoted`;
+    const cloned = { ...report, report_id: newReportId, strategy_version_id: newStrategyVersionId };
+    await saveValidationReport(cloned);
+    const trades = await getTradeInstances(variantReportId);
+    if (trades.length > 0) await saveTradeInstances(newReportId, trades);
+  } catch {
+    // Non-fatal — if the variant report was already cleaned up, skip silently
+  }
+}
+
 // ─── Promote winner ───────────────────────────────────────────────────────────
 
 export async function promoteWinner(sweepId: string, baseStrategyVersionId: string, variantId?: string): Promise<string> {
@@ -470,9 +609,48 @@ export async function promoteWinner(sweepId: string, baseStrategyVersionId: stri
   if (!variant) throw new Error('No sweep variant selected to promote');
   if (variant.status !== 'completed') throw new Error('Only completed variants can be promoted');
 
+  // Try to read persisted variant file first; if cleaned up already, reconstruct from base + params.
+  let spec: any;
   const winnerFile = path.join(STRATEGIES_DIR, `${variant.variant_id}.json`);
-  const raw = await fs.readFile(winnerFile, 'utf-8');
-  const spec = JSON.parse(raw);
+  try {
+    const raw = await fs.readFile(winnerFile, 'utf-8');
+    spec = JSON.parse(raw);
+    spec = syncRiskExitAliases(spec);
+  } catch {
+    // Temp file was cleaned up after validation — reconstruct from the sweep's base strategy.
+    const base = await getStrategyOrComposite(baseStrategyVersionId)
+      || await getStrategyOrComposite(sweep.base_strategy_version_id);
+    if (!base) throw new Error(`Cannot reconstruct variant spec: base strategy ${baseStrategyVersionId} not found`);
+    spec = JSON.parse(JSON.stringify(base));
+    // Apply all param values for this variant
+    const pvs = variant.param_values || [];
+    if (pvs.length > 0) {
+      for (const pv of pvs) {
+        if (pv.param_path === 'interval') {
+          spec.interval = String(pv.value);
+        } else if (pv.param_path === 'validation_tier') {
+          // validation_tier is not a strategy field — skip writing it to spec
+        } else {
+          spec = setNestedValue(spec, pv.param_path, pv.value);
+        }
+      }
+      spec = syncRiskExitAliases(spec);
+    } else {
+      // Legacy fallback for old single-param sweeps without param_values
+      const primaryParam = sweep.sweep_params[0];
+      if (primaryParam) {
+        spec = setNestedValue(spec, primaryParam.param_path, variant.param_value);
+      }
+      spec = syncRiskExitAliases(spec);
+    }
+    spec.strategy_version_id = variant.variant_id;
+    spec.strategy_id = variant.variant_id;
+    spec.status = 'draft';
+    const nameLabel = pvs.length > 0
+      ? pvs.map(pv => `${pv.label}=${pv.value}`).join(', ')
+      : `${sweep.sweep_params[0]?.label || 'param'}=${variant.param_value}`;
+    spec.name = `${base.name || base.strategy_version_id} [${nameLabel}]`;
+  }
   const allStrategies = await getAllStrategies();
   const strategyId = String(spec.strategy_id || baseStrategyVersionId.replace(/_v\d+$/, '')).trim();
   const siblings = allStrategies.filter(s => String(s.strategy_id || '').trim() === strategyId);
@@ -490,39 +668,68 @@ export async function promoteWinner(sweepId: string, baseStrategyVersionId: stri
   const valueLabel = formatValue(paramValue);
   const rewritePromotedName = (currentName: string): string => {
     let nextName = String(currentName || '').trim() || newId;
-    if (paramLabel === 'Take Profit R') {
-      if (/\b\d+(\.\d+)?R TP\b/i.test(nextName)) {
-        nextName = nextName.replace(/\b\d+(\.\d+)?R TP\b/i, `${valueLabel}R TP`);
-      } else {
-        nextName = `${nextName} — ${valueLabel}R TP`;
-      }
-    } else if (paramLabel === 'ATR Multiplier') {
-      if (/\bATR\s+\d+(\.\d+)?x\b/i.test(nextName)) {
-        nextName = nextName.replace(/\bATR\s+\d+(\.\d+)?x\b/i, `ATR ${valueLabel}x`);
-      } else {
-        nextName = `${nextName} — ATR ${valueLabel}x`;
-      }
-    } else {
-      nextName = `${nextName} [${paramLabel}=${valueLabel}]`;
-    }
-    nextName = nextName.replace(/\s+\[Sweep Winner\]$/i, '').trim();
+    // Strip all accumulated decorators back to the bare strategy name:
+    // [v\d+] version tags, [Sweep Winner], [param=value] blocks, and — suffix chains
+    nextName = nextName.replace(/\s*\[v\d+\]/gi, '').trim();
+    nextName = nextName.replace(/\s*\[Sweep Winner\]/gi, '').trim();
+    nextName = nextName.replace(/\s*\[[^\]]+=[^\]]+\]/g, '').trim();
+    nextName = nextName.replace(/\s*—.*$/, '').trim();
+    // Name is now just the base strategy name — append version only
     return `${nextName} [v${nextVersion}]`;
   };
 
   spec.strategy_version_id = newId;
   spec.strategy_id = strategyId;
   spec.version = nextVersion;
-  spec.status = 'draft';
+  spec.status = 'rejected'; // Hidden until user explicitly clicks "Send to Validator"
   spec.name = rewritePromotedName(spec.name);
   spec.created_at = new Date().toISOString();
   spec.updated_at = new Date().toISOString();
-  spec.description = `${String(spec.description || '').trim()}\n\nPromoted from sweep ${sweepId} via ${paramLabel || 'parameter'}=${valueLabel}.`.trim();
+  spec = upsertOperatingProfileNote(syncRiskExitAliases(spec));
+  const pvs2 = variant.param_values || [];
+  const promoLabel = pvs2.length > 0
+    ? pvs2.map(pv => `${pv.label}=${pv.value}`).join(', ')
+    : `${paramLabel || 'parameter'}=${valueLabel}`;
+  spec.description = `${String(spec.description || '').trim()}\n\nPromoted from sweep ${sweepId} via ${promoLabel}.`.trim();
+
+  // Preserve the base pattern id so downstream tools (smart plan, sweep engine) can always
+  // resolve the pattern definition JSON for tunable params / suggested_values / manifest.
+  if (!spec.base_pattern_id) {
+    const basePatternId = (sweep.base_strategy_version_id || baseStrategyVersionId)
+      .replace(/_v\d+$/, '')
+      .replace(/^sweep_[a-f0-9]+-\d+_\d+_\d+_/, '');
+    spec.base_pattern_id = basePatternId;
+  }
 
   await saveStrategy(spec);
+  // Copy the variant's validation report to the promoted ID so the tier gate
+  // sees a Tier 1 PASS for the new strategy version without re-running.
+  if (variant.report_id) {
+    await copyReportToPromotedId(variant.report_id, newId);
+  }
   sweep.promoted_strategy_version_id = newId;
   sweep.promoted_variant_id = variant.variant_id;
   sweep.promoted_at = new Date().toISOString();
   await persistSweep(sweep);
+
+  // Reject all non-winner temp variant files from this sweep so they don't pile up.
+  // Never reject a file that has already been promoted (status "testing" or higher).
+  const loserVariants = sweep.variants.filter(v => v.variant_id !== variant.variant_id);
+  await Promise.allSettled(loserVariants.map(async loser => {
+    const loserFile = path.join(STRATEGIES_DIR, `${loser.variant_id}.json`);
+    try {
+      const loserRaw = await fs.readFile(loserFile, 'utf-8');
+      const loserSpec = JSON.parse(loserRaw);
+      // Skip if already promoted — don't clobber a prior sweep winner's status
+      const loserStatus = String(loserSpec.status || '').toLowerCase();
+      if (loserStatus === 'testing' || loserStatus === 'approved' || loserStatus === 'active') return;
+      loserSpec.status = 'rejected';
+      loserSpec.updated_at = new Date().toISOString();
+      await fs.writeFile(loserFile, JSON.stringify(loserSpec, null, 2), 'utf-8');
+    } catch {
+      // File may not exist if variant never completed — skip silently
+    }
+  }));
 
   return newId;
 }

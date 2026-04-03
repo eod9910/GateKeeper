@@ -1,0 +1,60 @@
+{
+  "pattern_id": "ma_base_detector_primitive",
+  "name": "MA Base Detector (Primitive)",
+  "category": "indicator_signals",
+  "description": "Primitive LOCATION indicator. Detects whether price is basing — contained inside the upper and lower deviation bands of a moving average for at least N consecutive bars. Uses an 89-period SMA by default with a ±10% channel.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/ma_base_detector_primitive.py",
+  "plugin_function": "run_ma_base_detector_primitive_plugin",
+  "pattern_type": "ma_base_detector_primitive",
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "ma_base_detector_primitive",
+    "ma_period": 89,
+    "ma_type": "SMA",
+    "dev_threshold_pct": 10.0,
+    "min_bars_in_base": 5
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "ma_period",
+      "label": "MA Period",
+      "type": "int",
+      "min": 10,
+      "max": 200,
+      "default": 89
+    },
+    {
+      "key": "ma_type",
+      "label": "MA Type",
+      "type": "string",
+      "options": ["SMA", "EMA"],
+      "default": "SMA"
+    },
+    {
+      "key": "dev_threshold_pct",
+      "label": "Channel Width (%)",
+      "type": "float",
+      "min": 2.0,
+      "max": 30.0,
+      "default": 10.0
+    },
+    {
+      "key": "min_bars_in_base",
+      "label": "Min Bars in Base",
+      "type": "int",
+      "min": 1,
+      "max": 60,
+      "default": 5
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 100,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "location"
+}

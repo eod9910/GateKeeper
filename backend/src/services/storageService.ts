@@ -23,6 +23,33 @@ import {
 import { applyParameterManifest } from './parameterManifest';
 
 // ---------------------------------------------------------------------------
+// Pattern definition loader — used to enrich manifests at read-time
+// ---------------------------------------------------------------------------
+
+const _patternDefCache = new Map<string, Record<string, any> | null>();
+
+async function loadPatternDef(patternId: string): Promise<Record<string, any> | null> {
+  if (_patternDefCache.has(patternId)) return _patternDefCache.get(patternId) ?? null;
+  try {
+    const patternsDir = path.join(__dirname, '../../data/patterns');
+    const defPath = path.join(patternsDir, `${patternId}.json`);
+    const content = await fs.readFile(defPath, 'utf-8');
+    const def = JSON.parse(content);
+    _patternDefCache.set(patternId, def);
+    return def;
+  } catch {
+    _patternDefCache.set(patternId, null);
+    return null;
+  }
+}
+
+async function applyParameterManifestWithPattern(strategy: StrategySpec): Promise<StrategySpec> {
+  const basePatternId = String(strategy.base_pattern_id || '').trim();
+  const familyDef = basePatternId ? await loadPatternDef(basePatternId) : null;
+  return applyParameterManifest(strategy, familyDef ?? undefined);
+}
+
+// ---------------------------------------------------------------------------
 // Spec Hash — integrity fingerprint for a strategy's trading logic
 // ---------------------------------------------------------------------------
 
@@ -68,6 +95,7 @@ const SAVED_CHARTS_DIR = path.join(DATA_DIR, 'saved-charts');
 const TRADE_HISTORY_DIR = path.join(DATA_DIR, 'trade-history');
 const DISCOUNT_CANDIDATES_DIR = path.join(DATA_DIR, 'discount-candidates');
 const STRATEGIES_DIR = path.join(DATA_DIR, 'strategies');
+const STRATEGIES_ARCHIVE_DIR = path.join(DATA_DIR, 'strategies', 'archive');
 const VALIDATION_REPORTS_DIR = path.join(DATA_DIR, 'validation-reports');
 const TRADE_INSTANCES_DIR = path.join(DATA_DIR, 'trade-instances');
 
@@ -152,6 +180,7 @@ async function ensureDirectories(): Promise<void> {
   await fs.mkdir(TRADE_HISTORY_DIR, { recursive: true });
   await fs.mkdir(DISCOUNT_CANDIDATES_DIR, { recursive: true });
   await fs.mkdir(STRATEGIES_DIR, { recursive: true });
+  await fs.mkdir(STRATEGIES_ARCHIVE_DIR, { recursive: true });
   await fs.mkdir(VALIDATION_REPORTS_DIR, { recursive: true });
   await fs.mkdir(TRADE_INSTANCES_DIR, { recursive: true });
 }
@@ -817,7 +846,7 @@ export async function clearDiscountCandidates(): Promise<void> {
 export async function saveStrategy(strategy: StrategySpec, force: boolean = false): Promise<string> {
   await ensureDirectories();
 
-  const normalizedStrategy = applyParameterManifest(strategy);
+  const normalizedStrategy = await applyParameterManifestWithPattern(strategy);
   
   const id = normalizedStrategy.strategy_version_id;
   const filepath = path.join(STRATEGIES_DIR, `${id}.json`);
@@ -872,27 +901,47 @@ export async function getAllStrategies(): Promise<StrategySpec[]> {
   const strategies: StrategySpec[] = [];
   
   for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(STRATEGIES_DIR, file);
-      const content = await fs.readFile(filepath, 'utf-8');
-      const parsed = JSON.parse(content) as Partial<StrategySpec>;
-      // Ignore non-strategy JSON files (e.g. execution rule templates).
-      if (
-        !parsed ||
-        typeof parsed !== 'object' ||
-        typeof parsed.strategy_id !== 'string' ||
-        typeof parsed.strategy_version_id !== 'string' ||
-        typeof parsed.name !== 'string'
-      ) {
-        continue;
-      }
-      strategies.push(applyParameterManifest(parsed as StrategySpec));
+    // Skip subdirectories (e.g. archive/)
+    if (!file.endsWith('.json')) continue;
+    const filepath = path.join(STRATEGIES_DIR, file);
+    const content = await fs.readFile(filepath, 'utf-8');
+    const parsed = JSON.parse(content) as Partial<StrategySpec>;
+    // Ignore non-strategy JSON files (e.g. execution rule templates).
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof parsed.strategy_id !== 'string' ||
+      typeof parsed.strategy_version_id !== 'string' ||
+      typeof parsed.name !== 'string'
+    ) {
+      continue;
     }
+    strategies.push(await applyParameterManifestWithPattern(parsed as StrategySpec));
   }
   
   return strategies.sort((a, b) => 
     new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   );
+}
+
+export async function archiveRejectedStrategies(): Promise<number> {
+  // Soft archive: rejected strategies stay in place (status=rejected is sufficient).
+  // Count how many are rejected for the response.
+  await ensureDirectories();
+  const files = await fs.readdir(STRATEGIES_DIR);
+  let count = 0;
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+    const filepath = path.join(STRATEGIES_DIR, file);
+    try {
+      const content = await fs.readFile(filepath, 'utf-8');
+      const parsed = JSON.parse(content) as Partial<StrategySpec>;
+      if (String(parsed?.status || '').toLowerCase() === 'rejected') {
+        count++;
+      }
+    } catch { /* skip unreadable files */ }
+  }
+  return count;
 }
 
 /**
@@ -903,7 +952,7 @@ export async function getStrategy(strategyVersionId: string): Promise<StrategySp
   
   try {
     const content = await fs.readFile(filepath, 'utf-8');
-    return applyParameterManifest(JSON.parse(content) as StrategySpec);
+    return await applyParameterManifestWithPattern(JSON.parse(content) as StrategySpec);
   } catch (err: any) {
     if (err.code === 'ENOENT') {
       // Backward compatibility: some legacy files were named by strategy_id
@@ -920,7 +969,7 @@ export async function getStrategy(strategyVersionId: string): Promise<StrategySp
             typeof parsed.strategy_version_id === 'string' &&
             parsed.strategy_version_id.trim() === strategyVersionId
           ) {
-            return applyParameterManifest(parsed as StrategySpec);
+            return await applyParameterManifestWithPattern(parsed as StrategySpec);
           }
         } catch {
           // Ignore malformed strategy files and continue scanning.
@@ -997,10 +1046,13 @@ export async function resolveCompositeStrategy(strategyVersionId: string): Promi
       structure_config: def.default_structure_config || {},
       setup_config: { pattern_type: def.pattern_type || entry.pattern_id, ...def.default_setup_params },
       entry_config: def.default_entry || {},
-      risk_config: (def.default_risk_config || { stop_type: 'structural' }) as any,
+      validator_config: def.default_validator_config || undefined,
+      risk_config: (def.default_risk_config || { stop_type: 'atr', atr_length: 14, atr_multiplier: 2.0, take_profit_R: 2.0, max_hold_bars: 30 }) as any,
       exit_config: {},
       cost_config: { commission_per_trade: 0, slippage_pct: 0.001 },
       execution_config: {},
+      backtest_config: def.backtest_config || undefined,
+      fundamental_config: def.fundamental_config || undefined,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     } as unknown as StrategySpec;

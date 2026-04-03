@@ -21,7 +21,6 @@
 
     var kind = String(instrumentType || '').trim().toLowerCase();
     if (kind === 'forex') return 'oanda';
-    if (kind === 'stock' || kind === 'options' || kind === 'futures' || kind === 'crypto') return 'robinhood';
     return 'alpaca';
   }
 

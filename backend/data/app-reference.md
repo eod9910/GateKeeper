@@ -675,6 +675,55 @@ Collapsible dropdown below the workspace that shows a live preview of the JSON d
 ### Blockly Composer: Blockly Assistant
 AI chat panel on the right side of the Composer page. Ask questions about how to use the Blockly workspace, what primitives are available, what each socket type means, or get suggestions for indicator compositions. The assistant knows about all registered primitives and can guide you through building effective composites.
 
+### Blockly Composer: Symbolic Regression Strategies
+You do **not** create the symbolic-regression formula inside Blockly first. The SR workflow starts in **Research Studio**, then the result can be used in strategy/composition workflows.
+
+The correct SR workflow is:
+1. Open **Research Studio**
+2. Set **Mode** to `Symbolic Regression`
+3. Fill in:
+   - **Session Name**
+   - **Generations** = how many SR formula attempts to run
+   - **Symbol** = start with something liquid like `SPY`
+   - **Interval** = usually `1d`
+   - **Years of data** = start with `2`
+   - **Target bars** = start with `5`
+   - **Population size** = start with `500`
+   - **GP generations** = start with `20`
+4. Choose features. Best first run:
+   - `RSI(14)`
+   - `ATR normalized(14)`
+   - `Momentum(5)`
+   Then optionally add:
+   - `SMA Distance(20)`
+   - `RSI Slope(14)`
+   - `Range %`
+5. Click **Start Session**
+6. Review the discovered formulas in the leaderboard
+7. Pick a formula with believable `R²` and manageable `complexity`
+8. Click **Promote to Tier-1**
+
+What promotion does:
+- The discovered SR formula is persisted with a `formula_id`
+- The system wraps that formula into a validator-ready strategy using the `sr_score` path
+- That promoted SR strategy is then run through **Tier 1**
+
+Important distinction:
+- **SR formula** = a discovered scoring expression
+- **SR primitive/signal** = the formula evaluated through `sr_score`
+- **SR strategy** = that score wrapped with threshold + risk rules + validation context
+
+What to look for:
+- `R²` around `0.02` to `0.08` is often more believable than an extremely high value
+- Lower complexity is usually better
+- Very high `R²` plus high complexity often means overfitting
+- A constant formula means the chosen features did not explain the target well
+
+How Blockly relates to SR:
+- Blockly is where you compose existing primitives and composites
+- SR discovery happens in **Research Studio**
+- After SR discovery, the resulting SR signal can be used downstream as `sr_score` or as part of a broader strategy/composite workflow
+
 ---
 
 ## Strategy Details Page

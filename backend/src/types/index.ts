@@ -297,6 +297,56 @@ export interface ValidationReport {
     };
   };
 
+  fundamental_validation?: {
+    enabled: boolean;
+    status: 'disabled' | 'completed' | 'skipped' | 'error';
+    reason?: string;
+    config?: {
+      rebalance_frequency: 'monthly' | 'quarterly';
+      forward_bars: number;
+      comparison_mode: 'selected_vs_excluded';
+      variables: Array<{
+        metric: string;
+        label: string;
+        operator: '>=' | '<=' | '>' | '<' | '==' | '!=';
+        threshold: number | null;
+      }>;
+    };
+    selected?: {
+      periods: number;
+      avg_forward_return_pct: number;
+      median_forward_return_pct: number;
+      win_rate: number;
+      max_drawdown_pct: number;
+    };
+    excluded?: {
+      periods: number;
+      avg_forward_return_pct: number;
+      median_forward_return_pct: number;
+      win_rate: number;
+      max_drawdown_pct: number;
+    };
+    spread?: {
+      periods: number;
+      avg_return_spread_pct: number;
+      median_return_spread_pct: number;
+      hit_rate: number;
+      t_stat: number;
+    };
+    sensitivity?: {
+      params_tested: string[];
+      base_expectancy: number;
+      nudged_results: Array<{
+        param: string;
+        direction: '+10%' | '-10%';
+        expectancy: number;
+        change_pct: number;
+      }>;
+      sensitivity_score: number;
+    };
+    rebalance_dates?: string[];
+  };
+
   // Execution rule impact (how harvest/lock rules affected results)
   execution_stats?: {
     rules_active: boolean;                  // were execution rules applied in this backtest?

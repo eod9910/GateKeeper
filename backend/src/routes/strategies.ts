@@ -45,6 +45,40 @@ async function writePatternRegistry(registry: any): Promise<void> {
   await fs.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf-8');
 }
 
+function toFiniteNumber(value: any): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeStrategyRiskExitAliases(spec: StrategySpec): StrategySpec {
+  const next = spec as any;
+  const risk = (next.risk_config && typeof next.risk_config === 'object') ? next.risk_config : {};
+  const exit = (next.exit_config && typeof next.exit_config === 'object') ? next.exit_config : {};
+  const targetType = String(exit.target_type || '').trim().toLowerCase();
+  const takeProfitR = toFiniteNumber(risk.take_profit_R ?? risk.take_profit_r);
+  const targetLevel = toFiniteNumber(exit.target_level);
+  const maxHoldBars = toFiniteNumber(risk.max_hold_bars);
+  const timeStopBars = toFiniteNumber(exit.time_stop_bars);
+
+  if (targetType === 'r_multiple') {
+    if (takeProfitR != null && takeProfitR > 0) {
+      exit.target_level = takeProfitR;
+    } else if (targetLevel != null && targetLevel > 0) {
+      risk.take_profit_R = targetLevel;
+    }
+  }
+
+  if (maxHoldBars != null && maxHoldBars > 0) {
+    exit.time_stop_bars = Math.round(maxHoldBars);
+  } else if (timeStopBars != null && timeStopBars > 0) {
+    risk.max_hold_bars = Math.round(timeStopBars);
+  }
+
+  next.risk_config = risk;
+  next.exit_config = exit;
+  return next as StrategySpec;
+}
+
 function buildRegistryStrategy(entry: any, def: any, updatedAt: string): StrategySpec {
   return applyParameterManifest({
     strategy_id: entry.pattern_id,
@@ -63,9 +97,40 @@ function buildRegistryStrategy(entry: any, def: any, updatedAt: string): Strateg
     exit_config: {},
     cost_config: { commission_per_trade: 0, slippage_pct: 0.001 },
     execution_config: {},
+    backtest_config: def.backtest_config || undefined,
+    fundamental_config: def.fundamental_config || undefined,
     created_at: updatedAt,
     updated_at: updatedAt,
   } as unknown as StrategySpec, def);
+}
+
+function isTemporarySweepArtifact(strategy: StrategySpec): boolean {
+  const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
+  const name = String(strategy?.name || '').trim();
+  const status = String((strategy as any)?.status || '').trim();
+  if (!strategyVersionId) return false;
+  // Promoted sweep winners have status "testing" and a real version number — keep them visible.
+  // Only filter out temporary draft variants (status "draft") used during sweep execution.
+  if (strategyVersionId.startsWith('sweep_') && status !== 'draft') return false;
+  return (
+    strategyVersionId.startsWith('sweep_') ||
+    strategyVersionId.includes('_sweep_winner_') ||
+    /\[Sweep Winner\]/i.test(name)
+  );
+}
+
+async function getTier3PassStrategyIds(): Promise<Set<string>> {
+  const reports = await storage.getAllValidationReports();
+  const protectedIds = new Set<string>();
+  reports.forEach((report) => {
+    const strategyVersionId = String(report?.strategy_version_id || '').trim();
+    const validationTier = String(report?.config?.validation_tier || '').trim().toLowerCase();
+    const verdict = String(report?.pass_fail || '').trim().toUpperCase();
+    if (strategyVersionId && validationTier === 'tier3' && verdict === 'PASS') {
+      protectedIds.add(strategyVersionId);
+    }
+  });
+  return protectedIds;
 }
 
 async function getRegistryStrategies(statusFilter?: string): Promise<StrategySpec[]> {
@@ -283,6 +348,14 @@ function buildDraftFromPrompt(prompt: string): Partial<StrategySpec> {
 router.get('/', async (req: Request, res: Response) => {
   try {
     let strategies = await storage.getAllStrategies();
+    const includeArtifacts = String(req.query.include_artifacts || '').trim().toLowerCase() === 'true';
+    if (!includeArtifacts) {
+      const protectedIds = await getTier3PassStrategyIds();
+      strategies = strategies.filter((strategy) =>
+        protectedIds.has(String(strategy?.strategy_version_id || '').trim()) ||
+        !isTemporarySweepArtifact(strategy)
+      );
+    }
 
     // Filter by status
     const statusFilter = req.query.status as string | undefined;
@@ -449,7 +522,7 @@ router.post('/', async (req: Request, res: Response) => {
     spec.status = spec.status || 'draft';
     spec.created_at = spec.created_at || new Date().toISOString();
     spec.updated_at = new Date().toISOString();
-    Object.assign(spec, applyParameterManifest(spec));
+    Object.assign(spec, applyParameterManifest(normalizeStrategyRiskExitAliases(spec)));
 
     const id = await storage.saveStrategy(spec);
 
@@ -511,17 +584,13 @@ router.patch('/:id', async (req: Request, res: Response) => {
       merged.universe = parseUniverse(merged.universe) || [];
     }
     merged.asset_class = parseAssetClass(merged.asset_class) || undefined;
-    Object.assign(merged, applyParameterManifest(merged));
+    Object.assign(merged, applyParameterManifest(normalizeStrategyRiskExitAliases(merged)));
 
     await storage.saveStrategy(merged, true);
 
     res.json({
       success: true,
-      data: {
-        strategy_version_id: merged.strategy_version_id,
-        version: merged.version,
-        status: merged.status
-      }
+      data: merged
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
@@ -745,6 +814,19 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     res.json({ success: true, data: updated });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
+  }
+});
+
+/**
+ * POST /api/strategies/archive-rejected
+ * Move all rejected strategy files to the archive subfolder.
+ */
+router.post('/archive-rejected', async (_req: Request, res: Response) => {
+  try {
+    const count = await storage.archiveRejectedStrategies();
+    return res.json({ success: true, data: { archived: count } });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

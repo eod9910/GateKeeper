@@ -290,6 +290,8 @@ function renderFundamentalsSnapshot(data) {
     tags.innerHTML = '';
     grid.innerHTML = '';
     status.textContent = 'Waiting for symbol...';
+    const descEl2 = document.getElementById('fundamentals-description');
+    if (descEl2) { descEl2.innerHTML = ''; descEl2.style.display = 'none'; }
     return;
   }
 
@@ -317,6 +319,21 @@ function renderFundamentalsSnapshot(data) {
   const institutionalHolders = ownership && Array.isArray(ownership.topInstitutionalHolders) && ownership.topInstitutionalHolders.length
     ? ownership.topInstitutionalHolders
     : (sdx && Array.isArray(sdx.topInstitutionalHolders) ? sdx.topInstitutionalHolders : []);
+
+  // ── Company description header ───────────────────────────────────────────
+  const descEl = document.getElementById('fundamentals-description');
+  if (descEl) {
+    const name = data.companyName || '';
+    const sector = [data.sector, data.industry].filter(Boolean).join(' · ');
+    const desc = data.businessDescription || '';
+    // Truncate description to ~200 chars with ellipsis
+    const descShort = desc.length > 220 ? desc.substring(0, 217) + '…' : desc;
+    descEl.innerHTML =
+      (name ? '<div style="font-size:13px;font-weight:700;color:var(--color-text);margin-bottom:2px;">' + escapeHtml(name) + '</div>' : '') +
+      (sector ? '<div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;letter-spacing:0.02em;">' + escapeHtml(sector) + '</div>' : '') +
+      (descShort ? '<div style="font-size:11px;color:var(--color-text-muted);line-height:1.5;font-style:italic;">' + escapeHtml(descShort) + '</div>' : '');
+    descEl.style.display = name || descShort ? 'block' : 'none';
+  }
 
   summary.innerHTML = [
     summaryCard('Tactical', data.tacticalGrade || data.holdContext || 'N/A', data.quality || 'N/A'),
@@ -422,22 +439,111 @@ function renderFundamentalsSnapshot(data) {
   ];
 
   if (earningsHistory.length > 0) {
-    sections.push(buildEarningsHistoryCard(earningsHistory.slice(0, 6)));
-  }
-  if (insiderTrades.length > 0) {
-    sections.push(buildInsiderTradesCard(insiderTrades));
-  }
-  if (institutionalHolders.length > 0) {
+    const beatStreak = execution ? (execution.epsBeatStreak || 0) : 0;
+    const summary = beatStreak > 0 ? beatStreak + 'Q beat streak' : 'Last ' + Math.min(earningsHistory.length, 6) + ' quarters';
     sections.push(
       collapsibleSectionCard(
-        'Ownership Detail',
-        buildInstitutionalHoldersCard(institutionalHolders),
-        'Research only'
+        'Earnings History',
+        buildEarningsHistoryCard(earningsHistory.slice(0, 6)),
+        summary
       )
     );
   }
 
   grid.innerHTML = sections.join('');
+}
+
+function copyFundamentalsToClipboard() {
+  var sym = candidates[currentIndex]?.symbol || '';
+  if (!sym || !fundamentalsCache.has(sym)) return;
+  var d = fundamentalsCache.get(sym);
+  var btn = document.getElementById('fundamentals-copy-btn');
+
+  var execution = d.reportedExecution || null;
+  var forward = d.forwardExpectations || null;
+  var positioning = d.positioning || null;
+  var mc = d.marketContext || null;
+
+  function pct(v) { return v != null ? Number(v).toFixed(1) + '%' : 'N/A'; }
+  function money(v) {
+    if (v == null) return 'N/A';
+    var abs = Math.abs(v);
+    if (abs >= 1e9) return (v < 0 ? '-' : '') + '$' + (abs / 1e9).toFixed(2) + 'B';
+    if (abs >= 1e6) return (v < 0 ? '-' : '') + '$' + (abs / 1e6).toFixed(1) + 'M';
+    return '$' + Number(v).toLocaleString();
+  }
+  function val(v, suffix) { return v != null ? String(v) + (suffix || '') : 'N/A'; }
+
+  var lines = [
+    '═══ FUNDAMENTALS: ' + sym + ' ═══',
+    d.companyName ? d.companyName + ' | ' + [d.sector, d.industry].filter(Boolean).join(' · ') : '',
+    '',
+    '── Scores ──',
+    'Tactical: ' + (d.tacticalGrade || d.holdContext || 'N/A') + ' | Quality: ' + (d.quality || 'N/A'),
+    'Forward: ' + val(d.forwardExpectationsScore, '/100') + ' | Execution: ' + val(d.reportedExecutionScore, '/100'),
+    'Insiders: ' + val(d.positioningScore, '/100') + ' | Squeeze: ' + val(d.squeezePressureScore, '/100'),
+    'Market Context: ' + val(d.marketContextScore, '/100'),
+    '',
+    '── Tags ──',
+    (Array.isArray(d.tags) ? d.tags.map(function(t) { return t.label; }).join(', ') : 'None'),
+    '',
+    '── Survivability ──',
+    'Cash: ' + money(d.totalCash) + ' | FCF TTM: ' + money(d.freeCashFlowTTM),
+    'OpCF TTM: ' + money(d.operatingCashFlowTTM) + ' | Burn/Q: ' + money(d.quarterlyCashBurn),
+    'Runway: ' + (d.cashRunwayQuarters != null ? d.cashRunwayQuarters + ' quarters' : 'N/A'),
+    'Current Ratio: ' + val(d.currentRatio) + ' | Quick Ratio: ' + val(d.quickRatio),
+    '',
+    '── Reported Execution ──',
+    'Rev YoY: ' + pct(d.revenueYoYGrowthPct) + ' | Rev Q/Q: ' + pct(d.revenueQoQGrowthPct),
+    'EPS YoY: ' + pct(d.epsYoYGrowthPct) + ' | EPS Q/Q: ' + pct(d.epsQoQGrowthPct),
+    'EPS Surprise: ' + pct(d.epsSurprisePct) + ' | Trend: ' + (d.revenueTrendFlag || 'N/A'),
+    execution ? 'Beat Streak: ' + (execution.epsBeatStreak || 0) + 'Q | Avg EPS Beat: ' + pct(execution.avgEpsSurprisePct) : '',
+    '',
+    '── Forward Expectations ──',
+    forward ? 'Cur Qtr: ' + pct(forward.currentQtrGrowthPct) + ' | Next Qtr: ' + pct(forward.nextQtrGrowthPct) : 'N/A',
+    forward ? 'Cur Year: ' + pct(forward.currentYearGrowthPct) + ' | Next Year: ' + pct(forward.nextYearGrowthPct) : '',
+    forward ? 'Signal: ' + (forward.signal || 'N/A') : '',
+    '',
+    '── Positioning / Insiders ──',
+    positioning ? 'Signal: ' + (positioning.signal || 'N/A') + ' | Buys: ' + val(positioning.recentBuyCount) + ' | Sales: ' + val(positioning.recentSellCount) : 'N/A',
+    positioning ? 'Buy Value: ' + money(positioning.recentBuyValue) + ' | Sell Value: ' + money(positioning.recentSellValue) : '',
+    'Next ER: ' + (d.earningsDate || 'N/A') + ' | Days: ' + (d.daysUntilEarnings != null ? d.daysUntilEarnings : 'N/A'),
+    '',
+    '── Squeeze / Structure ──',
+    'Float: ' + (d.floatShares ? (d.floatShares / 1e6).toFixed(1) + 'M' : 'N/A') + ' | Avg Vol: ' + (d.averageVolume ? (d.averageVolume / 1e6).toFixed(2) + 'M' : 'N/A'),
+    'Short Float: ' + pct(d.shortFloatPct) + ' | Days to Cover: ' + val(d.shortRatio, 'd'),
+    'Rel Volume: ' + (d.relativeVolume != null ? d.relativeVolume.toFixed(2) + 'x' : 'N/A'),
+    '',
+    '── Market Context ──',
+    mc ? '50D MA: ' + money(mc.fiftyDayMovingAverage) + ' | 200D MA: ' + money(mc.twoHundredDayMovingAverage) : 'N/A',
+    mc ? 'Vs 50D: ' + pct(mc.priceVs50DayPct) + ' | Vs 200D: ' + pct(mc.priceVs200DayPct) : '',
+    mc ? '52W Change: ' + pct(mc.fiftyTwoWeekChangePct) + ' | 52W Range: ' + pct(mc.priceVs52WeekRangePct) : '',
+    mc ? 'Trend: ' + (mc.above200Day ? 'Above 200D' : 'Below 200D') : '',
+    '',
+    '── Valuation ──',
+    'Mkt Cap: ' + money(d.marketCap) + ' | EV: ' + money(d.enterpriseValue),
+    'EV/Sales: ' + val(d.enterpriseToSales) + ' | Cash-Debt: ' + money(d.netCash),
+    'Gross Margin: ' + pct(d.grossMarginPct) + ' | Op Margin: ' + pct(d.operatingMarginPct),
+  ].filter(Boolean).join('\n');
+
+  var btn2 = document.getElementById('fundamentals-copy-btn2');
+  var allBtns = [btn, btn2].filter(Boolean);
+
+  navigator.clipboard.writeText(lines).then(function() {
+    allBtns.forEach(function(b) {
+      var orig = b.textContent;
+      b.textContent = 'Copied!';
+      b.style.color = '#22c55e';
+      b.style.borderColor = '#22c55e';
+      setTimeout(function() {
+        b.textContent = orig;
+        b.style.color = '';
+        b.style.borderColor = '';
+      }, 2000);
+    });
+  }).catch(function() {
+    allBtns.forEach(function(b) { b.textContent = 'Failed'; });
+  });
 }
 
 async function loadCandidateFundamentals(symbol) {
@@ -455,6 +561,8 @@ async function loadCandidateFundamentals(symbol) {
   tags.innerHTML = '';
   grid.innerHTML = '';
   status.textContent = 'Loading fundamentals...';
+
+  loadSocialBuzz(symbol);
 
   if (fundamentalsCache.has(symbol)) {
     renderFundamentalsSnapshot(fundamentalsCache.get(symbol));
@@ -475,6 +583,111 @@ async function loadCandidateFundamentals(symbol) {
   } catch (err) {
     status.textContent = 'Failed to load fundamentals';
     console.error('Failed to load fundamentals:', err);
+  }
+}
+
+// ── Social Buzz (StockTwits) ────────────────────────────────────────────────
+var _buzzCache = {};
+
+async function loadSocialBuzz(symbol) {
+  var panel = document.getElementById('social-buzz-panel');
+  var summaryEl = document.getElementById('social-buzz-summary');
+  var msgsEl = document.getElementById('social-buzz-messages');
+  if (!panel || !summaryEl || !symbol) return;
+
+  if (_buzzCache[symbol]) {
+    renderSocialBuzz(_buzzCache[symbol]);
+    return;
+  }
+
+  panel.style.display = 'none';
+  try {
+    var res = await fetch(API_URL + '/api/fundamentals/' + encodeURIComponent(symbol) + '/buzz');
+    var json = await res.json();
+    if (!json.success || !json.data || !json.data.available) return;
+    _buzzCache[symbol] = json.data;
+    renderSocialBuzz(json.data);
+  } catch (err) {
+    console.warn('Social buzz fetch failed:', err);
+  }
+}
+
+function renderSocialBuzz(buzz) {
+  var panel = document.getElementById('social-buzz-panel');
+  var summaryEl = document.getElementById('social-buzz-summary');
+  var msgsEl = document.getElementById('social-buzz-messages');
+  if (!panel || !summaryEl) return;
+
+  panel.style.display = 'block';
+
+  var moodColors = {
+    'Very Bullish': '#22c55e',
+    'Bullish': '#4ade80',
+    'Mixed': '#f59e0b',
+    'Bearish': '#f87171',
+    'Very Bearish': '#ef4444',
+    'Low Activity': '#6b7280',
+    'No Data': '#6b7280',
+  };
+  var moodColor = moodColors[buzz.mood] || '#6b7280';
+
+  var watchlistStr = buzz.watchlist_count ? buzz.watchlist_count.toLocaleString() : '—';
+
+  var barHtml = '';
+  if (buzz.bull_pct != null && buzz.bear_pct != null) {
+    barHtml = '<div style="display:flex;height:6px;border-radius:3px;overflow:hidden;width:80px;background:var(--color-bg-input,#222);">' +
+      '<div style="width:' + buzz.bull_pct + '%;background:#22c55e;"></div>' +
+      '<div style="width:' + buzz.bear_pct + '%;background:#ef4444;"></div>' +
+      '</div>';
+  }
+
+  summaryEl.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:700;color:' + moodColor + ';">' + buzz.mood + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">Mood</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:600;">' + watchlistStr + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">Watchers</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:600;">' + buzz.bullish + ' / ' + buzz.bearish + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">Bull / Bear</div>' +
+      barHtml +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:600;">' + buzz.message_count + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">Messages</div>' +
+    '</div>';
+
+  if (msgsEl && buzz.recent_messages && buzz.recent_messages.length > 0) {
+    msgsEl.style.display = 'block';
+    var html = '';
+    for (var i = 0; i < buzz.recent_messages.length; i++) {
+      var m = buzz.recent_messages[i];
+      var sentBadge = '';
+      if (m.sentiment === 'Bullish') sentBadge = '<span style="color:#22c55e;font-weight:600;font-size:10px;margin-right:4px;">BULL</span>';
+      else if (m.sentiment === 'Bearish') sentBadge = '<span style="color:#ef4444;font-weight:600;font-size:10px;margin-right:4px;">BEAR</span>';
+      var timeStr = '';
+      if (m.created_at) {
+        try {
+          var d = new Date(m.created_at);
+          var now = new Date();
+          var diffMin = Math.round((now - d) / 60000);
+          if (diffMin < 60) timeStr = diffMin + 'm ago';
+          else if (diffMin < 1440) timeStr = Math.round(diffMin / 60) + 'h ago';
+          else timeStr = Math.round(diffMin / 1440) + 'd ago';
+        } catch(e) {}
+      }
+      html += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;line-height:1.4;">' +
+        sentBadge +
+        '<span style="color:var(--color-text-muted);font-size:10px;">' + (m.user || '') + (timeStr ? ' · ' + timeStr : '') + '</span>' +
+        '<div style="margin-top:2px;color:var(--color-text);opacity:0.85;">' + (m.body || '') + '</div>' +
+      '</div>';
+    }
+    msgsEl.innerHTML = html;
+  } else if (msgsEl) {
+    msgsEl.style.display = 'none';
   }
 }
 
@@ -525,7 +738,8 @@ function showCandidate(index) {
 
   const candidate = candidates[index];
   const lastSymbol = document.getElementById('ai-panel')?.dataset?.loadedSymbol;
-  if (candidate?.symbol && candidate.symbol !== lastSymbol) {
+  const isNewSymbol = candidate?.symbol && candidate.symbol !== lastSymbol;
+  if (isNewSymbol) {
     clearScannerChatSession(candidate.symbol, candidate.timeframe || 'N/A');
   }
 
@@ -600,6 +814,10 @@ function showCandidate(index) {
   document.getElementById('info-score').textContent = candidate.score?.toFixed(2) || 'N/A';
   document.getElementById('info-retracement').parentElement.style.display = 'none';
   loadCandidateFundamentals(candidate.symbol);
+
+  // Do not auto-send analyst prompts on symbol load.
+  // With multiple workspace-backed analysts, auto-analysis creates ambiguous
+  // behavior and makes it look like the wrong analyst is speaking.
 
   // Hide the Wyckoff phases grid — scanner only needs chart + annotations
   const phasesEl = document.getElementById('wyckoff-phases');
@@ -798,7 +1016,7 @@ async function sendTradingDesk() {
     params.set('scannerHandoffId', handoff.id);
   }
 
-  const targetUrl = `copilot.html?${params.toString()}`;
+  const targetUrl = `/trading-desk?${params.toString()}`;
   if (tradingDeskWindow) {
     tradingDeskWindow.location = targetUrl;
   } else {

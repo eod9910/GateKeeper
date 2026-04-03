@@ -23,6 +23,10 @@ import sys
 from datetime import datetime
 from typing import Any, Dict, List, Set, Union
 
+import numpy as np
+
+from platform_sdk.primitive_adapters import compute_rsi_adapter
+
 
 def compute_spec_hash(spec: Dict[str, Any]) -> str:
     payload = {
@@ -209,12 +213,16 @@ def _generate_signal_indices(
     if n < rsi_period + 5:
         return set()
 
-    prices = [_get_close(bar) for bar in data]
-    rsi_values = _calculate_rsi(prices, rsi_period)
+    adapted = compute_rsi_adapter(data, rsi_period)
+    rsi_series = adapted["values"]
+    readiness = adapted["readiness"]
+    rsi_offset = readiness.get("first_valid_index")
+    if rsi_offset is None:
+        return set()
+    rsi_values = [float(v) for v in rsi_series[rsi_offset:] if not np.isnan(v)]
     if not rsi_values:
         return set()
 
-    rsi_offset = n - len(rsi_values)
     signals: Set[int] = set()
 
     for i in range(1, len(rsi_values)):
@@ -271,8 +279,13 @@ def run_rsi_primitive_plugin(
         print(f"[RSI] Not enough data: {n} bars, need {rsi_period + 5}", file=sys.stderr)
         return []
 
-    prices = [_get_close(bar) for bar in data]
-    rsi_values = _calculate_rsi(prices, rsi_period)
+    adapted = compute_rsi_adapter(data, rsi_period)
+    rsi_series = adapted["values"]
+    readiness = adapted["readiness"]
+    rsi_offset = readiness.get("first_valid_index")
+    if rsi_offset is None:
+        return []
+    rsi_values = [float(v) for v in rsi_series[rsi_offset:] if not np.isnan(v)]
     if not rsi_values:
         return []
 
@@ -283,7 +296,6 @@ def run_rsi_primitive_plugin(
         f"{spec.get('strategy_id', 'rsi_primitive')}_v{spec.get('version', '1')}",
     )
 
-    rsi_offset = n - len(rsi_values)
     search_start = max(1, len(rsi_values) - lookback_bars) if lookback_bars > 0 else 1
 
     # Pre-build chart_data and overlay_series (shared across candidates)

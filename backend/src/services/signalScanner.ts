@@ -5,6 +5,7 @@ import * as storage from './storageService';
 import * as pluginClient from './pluginServiceClient';
 import * as broker from './brokerClient';
 import * as logger from './executionLogger';
+import { loadUniverseSymbols } from './universeRegistry';
 
 export interface SignalCandidate {
   symbol: string;
@@ -100,16 +101,58 @@ export function resolveTakeProfitR(spec: StrategySpec): number {
   return toNum(riskConfig.take_profit_R ?? riskConfig.take_profit_r, 2);
 }
 
-export async function scanForSignals(strategyVersionId: string): Promise<SignalCandidate[]> {
+export type ScanUniverseKey = 'auto' | 'full' | 'optionable' | 'largecap' | 'crypto' | 'symbols_json';
+
+export async function loadUniverseByKey(key: ScanUniverseKey, assetClass?: string): Promise<{ symbols: string[]; skipBrokerFilter: boolean }> {
+  const symbolsPath = path.join(__dirname, '../../data/symbols.json');
+
+  if (key === 'full') {
+    return { symbols: await loadUniverseSymbols('clean_stocks'), skipBrokerFilter: true };
+  }
+
+  if (key === 'optionable') {
+    return { symbols: await loadUniverseSymbols('optionable_stocks'), skipBrokerFilter: true };
+  }
+
+  if (key === 'largecap') {
+    return { symbols: await loadUniverseSymbols('sp500'), skipBrokerFilter: false };
+  }
+
+  if (key === 'crypto') {
+    try {
+      const raw = JSON.parse(await fs.readFile(symbolsPath, 'utf8'));
+      return { symbols: normalizeSymbols((raw as any)?.crypto || []), skipBrokerFilter: false };
+    } catch { return { symbols: [], skipBrokerFilter: false }; }
+  }
+
+  if (key === 'symbols_json') {
+    return { symbols: await loadDefaultUniverseForAssetClass(assetClass), skipBrokerFilter: false };
+  }
+
+  // 'auto' — use strategy spec universe or default for asset class
+  return { symbols: [], skipBrokerFilter: false };
+}
+
+export async function scanForSignals(strategyVersionId: string, universeKey: ScanUniverseKey = 'auto'): Promise<SignalCandidate[]> {
   const spec = await storage.getStrategyOrComposite(strategyVersionId);
   if (!spec) {
     throw new Error(`Strategy ${strategyVersionId} not found`);
   }
 
-  const baseUniverse = spec.universe && spec.universe.length > 0
-    ? spec.universe
-    : await loadDefaultUniverseForAssetClass(spec.asset_class);
-  const universe = await filterUniverseForBroker(spec, baseUniverse);
+  let skipBrokerFilter = false;
+  let baseUniverse: string[];
+
+  if (universeKey !== 'auto') {
+    const resolved = await loadUniverseByKey(universeKey, spec.asset_class);
+    baseUniverse = resolved.symbols;
+    skipBrokerFilter = resolved.skipBrokerFilter;
+  } else {
+    baseUniverse = spec.universe && spec.universe.length > 0
+      ? spec.universe
+      : await loadDefaultUniverseForAssetClass(spec.asset_class);
+  }
+
+  const universe = skipBrokerFilter ? baseUniverse : await filterUniverseForBroker(spec, baseUniverse);
   if (universe.length === 0) {
     logger.log({
       event: 'scan_completed',
@@ -260,6 +303,11 @@ function normalizeSymbols(symbols: unknown): string[] {
 }
 
 export async function loadDefaultUniverseForAssetClass(assetClass?: string): Promise<string[]> {
+  if (!assetClass || assetClass === 'stocks' || assetClass === 'options') {
+    const cleanStocks = await loadUniverseSymbols('clean_stocks');
+    if (cleanStocks.length > 0) return cleanStocks;
+  }
+
   const symbolsPath = path.join(__dirname, '../../data/symbols.json');
   try {
     const raw = await fs.readFile(symbolsPath, 'utf8');

@@ -134,6 +134,17 @@
       "default": 0.55
     }
   ],
+  "default_risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_length": 14,
+    "atr_multiplier": 2.0,
+    "take_profit_R": 3.0,
+    "max_hold_bars": 60,
+    "max_concurrent_positions": 3
+  },
+  "backtest_config": {
+    "direction": "short"
+  },
   "suggested_timeframes": [
     "D",
     "W"

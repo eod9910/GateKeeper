@@ -12,6 +12,14 @@ import path from 'path';
 import { searchAppReference } from './searchService';
 import { applyRolePromptOverride, getConfiguredOpenAIKey } from './aiSettings';
 import { summarizeComparisonDiagnosticsForPrompt } from './validatorComparisonService';
+import {
+  buildCopilotToolPromptAppendix,
+  buildCopilotToolPromptAppendixForAnalyst,
+  executeCopilotToolCall,
+  getCopilotToolsForAnalyst,
+  getCopilotToolsForRole,
+  type WorkspaceAnalystId,
+} from './copilotTools';
 
 // Configuration
 const VISION_PROVIDER = process.env.VISION_PROVIDER || 'openai';
@@ -968,7 +976,7 @@ export async function checkOllamaStatus(): Promise<{
 /**
  * Trading Desk Chat Interface
  */
-interface TradingContext {
+export interface TradingContext {
   symbol?: string;
   patternType?: string;
   entryPrice?: number;
@@ -994,7 +1002,59 @@ interface TradingContext {
 // ---------------------------------------------------------------------------
 // AI Role types — each page has its own personality and boundaries
 // ---------------------------------------------------------------------------
-export type AIRole = 'copilot' | 'hypothesis_author' | 'statistical_interpreter' | 'compliance_officer' | 'forensic_auditor' | 'plugin_engineer' | 'blockly_composer' | 'composite_architect' | 'pattern_analyst' | 'contextual_ranker' | 'literal_chart_reader';
+export type AIRole =
+  | 'copilot'
+  | 'hypothesis_author'
+  | 'statistical_interpreter'
+  | 'compliance_officer'
+  | 'forensic_auditor'
+  | 'plugin_engineer'
+  | 'blockly_composer'
+  | 'composite_architect'
+  | 'pattern_analyst'
+  | 'contextual_ranker'
+  | 'literal_chart_reader'
+  | 'technical_analyst'
+  | 'financial_analyst';
+
+const WORKSPACE_ANALYST_IDS: WorkspaceAnalystId[] = [
+  'scanner_copilot',
+  'pattern_analyst',
+  'technical_analyst',
+  'financial_analyst',
+];
+
+export function listWorkspaceAnalysts(): Array<{
+  id: WorkspaceAnalystId;
+  label: string;
+  workspaceName: string;
+  description: string;
+}> {
+  return [
+    {
+      id: 'pattern_analyst',
+      label: 'Atlas',
+      workspaceName: 'Pattern Analyst Workspace',
+      description: 'Focuses on pattern completion, confirmation quality, and structural failure conditions.',
+    },
+    {
+      id: 'technical_analyst',
+      label: 'Structure',
+      workspaceName: 'Technical Analyst Workspace',
+      description: 'Focuses on regime, trend structure, invalidation, and trade location.',
+    },
+    {
+      id: 'financial_analyst',
+      label: 'Ledger',
+      workspaceName: 'Financial Analyst Workspace',
+      description: 'Focuses on filing-backed business quality, cash flow, balance sheet risk, and value.',
+    },
+  ];
+}
+
+function isWorkspaceAnalystId(value: string | null | undefined): value is WorkspaceAnalystId {
+  return !!value && WORKSPACE_ANALYST_IDS.includes(value as WorkspaceAnalystId);
+}
 
 function summarizeOpenAIChatContent(content: any): string {
   if (typeof content === 'string') {
@@ -1017,10 +1077,13 @@ function summarizeOpenAIChatContent(content: any): string {
 }
 
 export async function chatWithCopilot(message: string, context: TradingContext, chartImage?: string, role?: string, chatModelOverride?: string, pluginEngineerModelOverride?: string): Promise<string> {
-  console.log('chatWithCopilot called, role:', role || 'copilot', 'chartImage:', chartImage ? `present (${chartImage.length} chars)` : 'not provided');
+  console.log('chatWithCopilot called, analystOrRole:', role || 'copilot', 'chartImage:', chartImage ? `present (${chartImage.length} chars)` : 'not provided');
   console.log('Context has copilotAnalysis:', !!context?.copilotAnalysis, 'symbol:', context?.symbol);
-  
-  const aiRole = (role as AIRole) || 'copilot';
+
+  const workspaceAnalyst = isWorkspaceAnalystId(role) ? role : null;
+  const aiRole = workspaceAnalyst
+    ? (workspaceAnalyst === 'scanner_copilot' ? 'contextual_ranker' : workspaceAnalyst)
+    : ((role as AIRole) || 'copilot');
   
   const openaiApiKey = getConfiguredOpenAIKey();
   if (VISION_PROVIDER !== 'openai' || !openaiApiKey) {
@@ -1029,8 +1092,8 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
     return generateLocalResponseForRole(aiRole, message, context);
   }
 
-  const systemPrompt = buildSystemPromptForRole(aiRole, context, !!chartImage, message);
-  console.log('Using role:', aiRole, 'vision mode:', !!chartImage);
+  const systemPrompt = buildSystemPromptForRole(workspaceAnalyst || aiRole, context, !!chartImage, message);
+  console.log('Using role:', aiRole, 'workspaceAnalyst:', workspaceAnalyst || 'none', 'vision mode:', !!chartImage);
 
   try {
     // Build user content - text only or with image
@@ -1064,7 +1127,9 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
       ? 1200
       : (aiRole === 'plugin_engineer' || aiRole === 'composite_architect')
         ? 10000
-        : 800;
+        : (aiRole === 'pattern_analyst' || aiRole === 'contextual_ranker' || aiRole === 'literal_chart_reader' || aiRole === 'technical_analyst' || aiRole === 'financial_analyst')
+          ? 1600
+          : 800;
     const temperature = aiRole === 'statistical_interpreter'
       ? 0.35
       : (aiRole === 'plugin_engineer' || aiRole === 'composite_architect')
@@ -1089,68 +1154,126 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
 
     const requiresUserRoleForInstructions = /^o[13]/.test(model);
     const usesMaxCompletionTokens = requiresUserRoleForInstructions || /^gpt-5/i.test(model);
+    const tools = workspaceAnalyst
+      ? getCopilotToolsForAnalyst(workspaceAnalyst)
+      : getCopilotToolsForRole(aiRole);
+    const messages: Array<Record<string, any>> = [
+      { role: requiresUserRoleForInstructions ? 'user' : 'system', content: systemPrompt },
+      { role: 'user', content: userContent }
+    ];
 
-    const body: Record<string, any> = {
+    const baseBody: Record<string, any> = {
       model,
-      messages: [
-        { role: requiresUserRoleForInstructions ? 'user' : 'system', content: systemPrompt },
-        { role: 'user', content: userContent }
-      ],
+      temperature,
     };
-
-    body.temperature = temperature;
     if (usesMaxCompletionTokens) {
-      body.max_completion_tokens = maxTokens;
+      baseBody.max_completion_tokens = maxTokens;
     } else {
-      body.max_tokens = maxTokens;
+      baseBody.max_tokens = maxTokens;
     }
+    if (tools.length > 0) {
+      baseBody.tools = tools;
+      baseBody.tool_choice = 'auto';
+    }
+
+    for (let round = 0; round < 3; round += 1) {
+      const body: Record<string, any> = {
+        ...baseBody,
+        messages,
+      };
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body)
-    });
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body)
+      });
 
-    console.log('[VisionChat] response status:', response.status, response.statusText, 'model:', model, 'hasImage:', !!chartImage);
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('[VisionChat] OpenAI chat error:', error.slice(0, 2000));
+      console.log('[VisionChat] response status:', response.status, response.statusText, 'model:', model, 'hasImage:', !!chartImage, 'round:', round + 1);
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('[VisionChat] OpenAI chat error:', error.slice(0, 2000));
+        return generateLocalResponseForRole(aiRole, message, context);
+      }
+
+      const data = await response.json() as any;
+      const choice = data?.choices?.[0] || {};
+      const finishReason = choice?.finish_reason;
+      const assistantMessage = choice?.message || {};
+      const content = assistantMessage?.content;
+      const toolCalls = Array.isArray(assistantMessage?.tool_calls) ? assistantMessage.tool_calls : [];
+      console.log('[VisionChat] response shape:', JSON.stringify({
+        finishReason,
+        contentSummary: summarizeOpenAIChatContent(content),
+        toolCalls: toolCalls.map((call: any) => call?.function?.name).filter(Boolean),
+        usage: data?.usage || null,
+      }));
+
+      if (toolCalls.length > 0 && tools.length > 0) {
+        messages.push({
+          role: 'assistant',
+          content: content || '',
+          tool_calls: toolCalls,
+        });
+
+        for (const call of toolCalls) {
+          const name = String(call?.function?.name || '').trim();
+          let args: Record<string, unknown> = {};
+          try {
+            const rawArgs = String(call?.function?.arguments || '').trim();
+            args = rawArgs ? JSON.parse(rawArgs) : {};
+          } catch (error) {
+            args = {};
+          }
+          console.log('[VisionChat] executing tool call:', JSON.stringify({
+            name,
+            args,
+          }));
+          const result = await executeCopilotToolCall(name, args, context);
+          console.log('[VisionChat] tool result summary:', JSON.stringify({
+            name,
+            ok: result?.ok ?? false,
+            hasData: !!result?.data,
+            error: result?.error || null,
+            dataKeys: result?.data && typeof result.data === 'object' ? Object.keys(result.data as Record<string, unknown>).slice(0, 12) : [],
+          }));
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify(result),
+          });
+        }
+        continue;
+      }
+
+      if (typeof content === 'string' && content.trim()) {
+        return content;
+      }
+      if (Array.isArray(content)) {
+        const text = content
+          .map((part: any) => {
+            if (!part) return '';
+            if (typeof part === 'string') return part;
+            if (typeof part?.text === 'string') return part.text;
+            if (part?.type === 'output_text' && typeof part?.text === 'string') return part.text;
+            return '';
+          })
+          .filter(Boolean)
+          .join('\n')
+          .trim();
+        if (text) return text;
+      }
+      console.warn('[VisionChat] empty content after parse:', JSON.stringify({
+        finishReason,
+        contentSummary: summarizeOpenAIChatContent(content),
+        rawKeys: data && typeof data === 'object' ? Object.keys(data).slice(0, 12) : [],
+      }));
       return generateLocalResponseForRole(aiRole, message, context);
     }
 
-    const data = await response.json() as any;
-    const finishReason = data?.choices?.[0]?.finish_reason;
-    const content = data?.choices?.[0]?.message?.content;
-    console.log('[VisionChat] response shape:', JSON.stringify({
-      finishReason,
-      contentSummary: summarizeOpenAIChatContent(content),
-      usage: data?.usage || null,
-    }));
-    if (typeof content === 'string' && content.trim()) {
-      return content;
-    }
-    if (Array.isArray(content)) {
-      const text = content
-        .map((part: any) => {
-          if (!part) return '';
-          if (typeof part === 'string') return part;
-          if (typeof part?.text === 'string') return part.text;
-          if (part?.type === 'output_text' && typeof part?.text === 'string') return part.text;
-          return '';
-        })
-        .filter(Boolean)
-        .join('\n')
-        .trim();
-      if (text) return text;
-    }
-    console.warn('[VisionChat] empty content after parse:', JSON.stringify({
-      finishReason,
-      contentSummary: summarizeOpenAIChatContent(content),
-      rawKeys: data && typeof data === 'object' ? Object.keys(data).slice(0, 12) : [],
-    }));
+    console.warn('[VisionChat] tool rounds exhausted without final answer');
     return generateLocalResponseForRole(aiRole, message, context);
   } catch (error) {
     console.error('[VisionChat] Chat error:', error);
@@ -1163,11 +1286,15 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
 // ---------------------------------------------------------------------------
 
 function shouldInjectHelpContext(userMessage: string): boolean {
-  const msg = String(userMessage || '').trim();
+  const msg = extractPrimaryUserMessage(String(userMessage || '').trim());
   if (!msg) return false;
-  const helpPatterns = /what (does|is|are)|explain|how (does|do|to)|tell me about|help with|what('s| is) the|describe|meaning of|where is|which button|which setting/i;
-  if (helpPatterns.test(msg)) return true;
-  return /\b(button|setting|dropdown|field|tab|panel|page|pattern id|save draft|register plugin|validation tier|asset class|profit factor|expectancy|drawdown|win rate|sharpe|monte carlo|walk.forward|out.of.sample|oos|tier|robustness|r.multiple|risk.reward|slippage|commission|signal|backtest|validator|pass.fail)\b/i.test(msg);
+  const uiHelpPatterns = /\b(where is|which button|which setting|how do i|how to|help with)\b/i;
+  const uiHelpTerms = /\b(button|setting|dropdown|field|tab|panel|page|screen|pattern id|save draft|register plugin)\b/i;
+  if (uiHelpPatterns.test(msg) && uiHelpTerms.test(msg)) return true;
+
+  const definitionalLead = /\b(what (does|is|are)|what('s| is) the|explain|define|describe|meaning of|tell me about|how does)\b/i;
+  const glossaryTerms = /\b(margin per contract|selling pressure|peak selling pressure|retracement|wyckoff|trend analysis|trend alignment|p&l|pnl|profit factor|expectancy|drawdown|win rate|sharpe|sharpe ratio|monte carlo|walk[- ]?forward|out[- ]of[- ]sample|oos|validation tier|asset class|robustness|r-?multiple|risk reward|slippage|commission|backtest|validator|pass.fail|trade direction|timeframes?|discount zone scanner)\b/i;
+  return definitionalLead.test(msg) && glossaryTerms.test(msg);
 }
 
 function buildSharedHelpAppendix(userMessage: string): string {
@@ -1220,48 +1347,67 @@ function extractPrimaryUserMessage(message: string): string {
   return text.slice(0, cut).trim() || text.trim();
 }
 
-function buildSystemPromptForRole(role: AIRole, context: TradingContext, hasImage: boolean, userMessage: string): string {
+function buildSystemPromptForRole(role: AIRole | WorkspaceAnalystId, context: TradingContext, hasImage: boolean, userMessage: string): string {
   let prompt: string;
   let overrideRole: 'copilot' | 'plugin_engineer' | 'validator_analyst' | null = null;
+  const isScannerAnalysisRole =
+    role === 'pattern_analyst'
+    || role === 'contextual_ranker'
+    || role === 'literal_chart_reader'
+    || role === 'technical_analyst'
+    || role === 'financial_analyst'
+    || role === 'scanner_copilot';
   switch (role) {
+    case 'scanner_copilot':
+      prompt = buildContextualRankerPrompt(context, userMessage, hasImage);
+      overrideRole = null;
+      break;
     case 'hypothesis_author':
-      prompt = buildHypothesisAuthorPrompt(context, userMessage);
+      prompt = buildHypothesisAuthorWorkspacePrompt(context, userMessage);
       break;
     case 'statistical_interpreter':
-      prompt = buildStatisticalInterpreterPrompt(context, userMessage);
+      prompt = buildStatisticalInterpreterWorkspacePrompt(context, userMessage);
       overrideRole = 'validator_analyst';
       break;
     case 'compliance_officer':
-      prompt = buildComplianceOfficerPrompt(context, hasImage, userMessage);
+      prompt = buildComplianceOfficerWorkspacePrompt(context, userMessage, hasImage);
       break;
     case 'forensic_auditor':
-      prompt = buildForensicAuditorPrompt(context, userMessage);
+      prompt = buildForensicAuditorWorkspacePrompt(context, userMessage);
       break;
     case 'plugin_engineer':
-      prompt = buildPluginEngineerPrompt(context, userMessage);
+      prompt = buildPluginEngineerWorkspacePrompt(context, userMessage);
       overrideRole = 'plugin_engineer';
       break;
     case 'blockly_composer':
-      prompt = buildBlocklyComposerPrompt(context, userMessage);
+      prompt = buildBlocklyComposerWorkspacePrompt(context, userMessage);
       break;
     case 'composite_architect':
-      prompt = buildCompositeArchitectPrompt(context, userMessage);
+      prompt = buildCompositeArchitectWorkspacePrompt(context, userMessage);
       break;
     case 'pattern_analyst':
-      prompt = buildCopilotSystemPrompt(context, hasImage, userMessage);
-      overrideRole = 'copilot';
+      prompt = buildPatternAnalystPrompt(context, userMessage, hasImage);
+      overrideRole = null;
+      break;
+    case 'technical_analyst':
+      prompt = buildTechnicalAnalystPrompt(context, userMessage, hasImage);
+      overrideRole = null;
+      break;
+    case 'financial_analyst':
+      prompt = buildFinancialAnalystPrompt(context, userMessage, hasImage);
+      overrideRole = null;
       break;
     case 'contextual_ranker':
       prompt = buildContextualRankerPrompt(context, userMessage, hasImage);
       overrideRole = 'copilot';
       break;
     case 'literal_chart_reader':
-      prompt = buildLiteralChartReaderPrompt(context, userMessage, hasImage);
+      prompt = buildLiteralChartReaderWorkspacePrompt(context, userMessage, hasImage);
       overrideRole = 'copilot';
       break;
     case 'copilot':
     default:
-      prompt = buildCopilotSystemPrompt(context, hasImage, userMessage);
+      prompt = buildCopilotWorkspacePrompt(context, userMessage, hasImage);
       overrideRole = 'copilot';
       break;
   }
@@ -1271,8 +1417,8 @@ function buildSystemPromptForRole(role: AIRole, context: TradingContext, hasImag
     if (shouldInjectStatisticalInterpreterHelp(context, userMessage)) {
       prompt += buildSharedHelpAppendix(userMessage);
     }
-  } else if (role !== 'copilot') {
-    prompt += buildSharedHelpAppendix(role === 'contextual_ranker' ? extractPrimaryUserMessage(userMessage) : userMessage);
+  } else if (role !== 'copilot' && !isScannerAnalysisRole) {
+    prompt += buildSharedHelpAppendix(userMessage);
   }
   return overrideRole ? applyRolePromptOverride(overrideRole, prompt) : prompt;
 }
@@ -1355,9 +1501,223 @@ ${rawUserMessage}
   return prompt;
 }
 
-function buildContextualRankerPrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
-  const rawUserMessage = extractPrimaryUserMessage(userMessage);
-  const wantsDecision = isTradeDecisionQuestion(rawUserMessage);
+type WorkspaceSkillId = string;
+
+interface ScannerPromptSkillContext {
+  context: TradingContext;
+  rawUserMessage: string;
+  hasImage: boolean;
+  wantsDecision: boolean;
+  scanner: any;
+  candidate: any;
+  detector: any;
+  aiAnalysis: any;
+  review: any;
+  levels: any;
+  fundamentals: any;
+  socialBuzz: any;
+}
+
+const WORKSPACE_ROOT = path.resolve(__dirname, '..', '..', '..', 'workspace');
+const WORKSPACE_DOC_ORDER = [
+  'BOOTSTRAP.md',
+  'IDENTITY.md',
+  'SOUL.md',
+  'AGENTS.md',
+  'TOOLS.md',
+  'USER.md',
+  'MEMORY.md',
+  'HEARTBEAT.md',
+  'DATA_CONTRACT.md',
+] as const;
+
+type WorkspaceDocName = typeof WORKSPACE_DOC_ORDER[number];
+
+function readWorkspaceMarkdown(workspaceName: string, relativePath: string): string {
+  const filePath = path.join(WORKSPACE_ROOT, workspaceName, ...relativePath.split('/'));
+  if (!fs.existsSync(filePath)) return '';
+  try {
+    return fs.readFileSync(filePath, 'utf8').trim();
+  } catch (error) {
+    console.warn('[VisionChat] failed to read workspace file:', filePath, error);
+    return '';
+  }
+}
+
+function getLoadedWorkspaceDocEntries(workspaceName: string): Array<{ fileName: string; content: string }> {
+  return WORKSPACE_DOC_ORDER
+    .map((fileName: WorkspaceDocName) => ({
+      fileName,
+      content: readWorkspaceMarkdown(workspaceName, fileName),
+    }))
+    .filter((entry) => entry.content);
+}
+
+function buildWorkspaceDocumentSections(workspaceName: string): string {
+  return getLoadedWorkspaceDocEntries(workspaceName)
+    .map(({ fileName, content }) => `WORKSPACE FILE: ${fileName}\n${content}`)
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function getLoadedWorkspaceSkillEntries(workspaceName: string, skillIds: WorkspaceSkillId[]): Array<{ skillId: WorkspaceSkillId; content: string }> {
+  return skillIds
+    .map((skillId) => ({
+      skillId,
+      content: readWorkspaceMarkdown(workspaceName, `skills/${skillId}/SKILL.md`),
+    }))
+    .filter((entry) => entry.content);
+}
+
+function buildWorkspaceSkillSections(workspaceName: string, skillIds: WorkspaceSkillId[]): string {
+  return getLoadedWorkspaceSkillEntries(workspaceName, skillIds)
+    .map(({ skillId, content }) => `SKILL FILE: skills/${skillId}/SKILL.md\n${content}`)
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function buildWorkspacePrompt(options: {
+  workspaceName: string;
+  roleLabel: string;
+  rawUserMessage: string;
+  skillIds: WorkspaceSkillId[];
+  liveInstructions: string[];
+  toolRole: AIRole | WorkspaceAnalystId;
+  dynamicContext?: string;
+}): string {
+  const workspaceDocEntries = getLoadedWorkspaceDocEntries(options.workspaceName);
+  const workspaceSkillEntries = getLoadedWorkspaceSkillEntries(options.workspaceName, options.skillIds);
+  const workspaceDocs = workspaceDocEntries
+    .map(({ fileName, content }) => `WORKSPACE FILE: ${fileName}\n${content}`)
+    .join('\n\n');
+  const workspaceSkills = workspaceSkillEntries
+    .map(({ skillId, content }) => `SKILL FILE: skills/${skillId}/SKILL.md\n${content}`)
+    .join('\n\n');
+  const toolAppendix = isWorkspaceAnalystId(options.toolRole)
+    ? buildCopilotToolPromptAppendixForAnalyst(options.toolRole)
+    : buildCopilotToolPromptAppendix(options.toolRole);
+  console.log('[VisionChat] workspace prompt load', JSON.stringify({
+    workspace: options.workspaceName,
+    roleLabel: options.roleLabel,
+    docs: workspaceDocEntries.map((entry) => entry.fileName),
+    skills: workspaceSkillEntries.map((entry) => entry.skillId),
+  }));
+  const sections = [
+    `You are the ${options.roleLabel}.`,
+    `You are operating from the workspace "${options.workspaceName}".`,
+    workspaceDocs ? `WORKSPACE DOCUMENTS:\n${workspaceDocs}` : '',
+    options.skillIds.length
+      ? `ACTIVE SKILLS:\n${options.skillIds.map((skillId, index) => `${index + 1}. ${skillId}`).join('\n')}`
+      : '',
+    workspaceSkills ? `SKILL CONTENT:\n${workspaceSkills}` : '',
+    options.liveInstructions.length
+      ? `LIVE INSTRUCTIONS:\n${options.liveInstructions.map((line) => `- ${line}`).join('\n')}`
+      : '',
+    `IDENTITY BEHAVIOR:\n- If the user asks who you are, whether this is ${options.roleLabel}, or which analyst is speaking, answer directly and plainly that you are the ${options.roleLabel} operating from the ${options.workspaceName}.`,
+    `USER QUESTION:\n${options.rawUserMessage || '(no explicit question supplied)'}`,
+    toolAppendix,
+    options.dynamicContext || '',
+  ].filter(Boolean);
+  return sections.join('\n\n');
+}
+
+function stringifyWorkspaceContextSection(title: string, value: unknown, maxChars: number = 12000): string {
+  if (value == null) return '';
+  try {
+    const raw = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    const text = raw.length > maxChars ? `${raw.slice(0, maxChars)}\n... [truncated]` : raw;
+    return `${title}:\n${text}`;
+  } catch {
+    return '';
+  }
+}
+
+function summarizePrimitiveInventory(primitives: any[], limit: number = 30): any[] {
+  return primitives.slice(0, limit).map((p: any) => ({
+    pattern_id: p?.pattern_id ?? null,
+    name: p?.name ?? null,
+    indicator_role: p?.indicator_role ?? null,
+    description: p?.description ?? null,
+    tunable_params: Array.isArray(p?.tunable_params)
+      ? p.tunable_params.slice(0, 8).map((tp: any) => ({
+          key: tp?.key ?? null,
+          type: tp?.type ?? null,
+          default: tp?.default ?? null,
+        }))
+      : [],
+  }));
+}
+
+function summarizeChatHistory(chatHistory: any[], limit: number = 10): Array<{ sender: string; text: string }> {
+  return chatHistory.slice(-limit).map((entry: any) => ({
+    sender: String(entry?.sender || 'user'),
+    text: String(entry?.text || '').slice(0, 1200),
+  }));
+}
+
+function resolveContextualRankerWorkspaceSkills(skillContext: ScannerPromptSkillContext): WorkspaceSkillId[] {
+  const skills: WorkspaceSkillId[] = [
+    'chart-structure',
+    'setup-critique',
+    'risk-framing',
+    'response-contract',
+  ];
+  if (skillContext.fundamentals) {
+    skills.splice(2, 0, 'fundamentals-context');
+  }
+  if (skillContext.socialBuzz?.available) {
+    const fundamentalsIndex = skills.indexOf('fundamentals-context');
+    const insertAt = fundamentalsIndex >= 0 ? fundamentalsIndex + 1 : 2;
+    skills.splice(insertAt, 0, 'sentiment-context');
+  }
+  if (skillContext.wantsDecision) {
+    skills.push('trade-decision');
+  }
+  return skills;
+}
+
+function resolvePatternAnalystWorkspaceSkills(skillContext: ScannerPromptSkillContext): WorkspaceSkillId[] {
+  const skills: WorkspaceSkillId[] = [
+    'chart-structure',
+    'pattern-interpretation',
+    'risk-framing',
+    'response-contract',
+  ];
+  if (skillContext.fundamentals) {
+    skills.splice(2, 0, 'fundamentals-context');
+  }
+  if (skillContext.socialBuzz?.available) {
+    const fundamentalsIndex = skills.indexOf('fundamentals-context');
+    const insertAt = fundamentalsIndex >= 0 ? fundamentalsIndex + 1 : 2;
+    skills.splice(insertAt, 0, 'sentiment-context');
+  }
+  if (skillContext.wantsDecision) {
+    skills.push('trade-decision');
+  }
+  return skills;
+}
+
+function resolveTechnicalAnalystWorkspaceSkills(skillContext: ScannerPromptSkillContext): WorkspaceSkillId[] {
+  const skills: WorkspaceSkillId[] = ['technical-analysis'];
+  if (skillContext.wantsDecision) {
+    skills.push('risk-framing', 'trade-decision');
+  }
+  return skills;
+}
+
+function resolveFinancialAnalystWorkspaceSkills(skillContext: ScannerPromptSkillContext): WorkspaceSkillId[] {
+  const skills: WorkspaceSkillId[] = ['financial-analysis'];
+  const question = skillContext.rawUserMessage.toLowerCase();
+  if (/\b(valuation|intrinsic value|fair value|dcf|discount rate|terminal value|multiple)\b/i.test(question)) {
+    skills.push('dcf-valuation');
+  }
+  if (/\b(earnings|cash flow|cash conversion|accrual|margin|quality of earnings|distortion|balance sheet|dilution|liquidity|debt|notes|covenant)\b/i.test(question)) {
+    skills.push('earnings-quality');
+  }
+  return skills;
+}
+
+function buildScannerWorkspaceContextBlock(context: TradingContext): string {
   const scanner = context.copilotAnalysis || {};
   const candidate = scanner?.candidate || null;
   const detector = scanner?.detector || candidate?.detector || null;
@@ -1365,52 +1725,10 @@ function buildContextualRankerPrompt(context: TradingContext, userMessage: strin
   const review = aiAnalysis?.review || null;
   const levels = aiAnalysis?.levels || null;
   const fundamentals = scanner?.fundamentals || null;
+  const socialBuzz = fundamentals?.socialBuzz || null;
 
-  let prompt = `You are the Scanner Copilot. Your job is to interpret the current scanner candidate like a trader and pattern analyst, not like the Trading Desk compliance engine.
-
-IMPORTANT OPERATING RULES:
-- The user message may contain machine-appended context blocks after markers like SCANNER_CANDIDATE, DETECTOR_CONTEXT, FUNDAMENTALS_SNAPSHOT, or DECISION_REQUEST.
-- Treat those blocks as metadata, not as the user's wording.
-- The actual user question is:
-${rawUserMessage || '(no explicit question supplied)'}
-
-WHAT YOU SHOULD DO:
-- Explain what structure the setup appears to be forming right now.
-- If the user references a pattern idea like neckline break, OTE retrace, head and shoulders, quasimodo, distribution, range reclaim, or broadening top, address that directly.
-- If the user asks what a visible label, swing-point marker, number, or drawn line says, answer that literal visual question first before giving any broader interpretation.
-- In this app, RDP marker labels like H53 or H $53 mean a confirmed swing high near 53, and L11 or L $11 mean a confirmed swing low near 11.
-- Distinguish between:
-  1. what the chart/setup appears to be,
-  2. what trigger would confirm it,
-  3. what you would do with real money now.
-- If the setup is bearish, say that plainly. If suggested levels describe a short trigger, say so plainly.
-- Do NOT force a bullish interpretation just because the scanner originated from a bullish detector.
-- Do NOT use Trading Desk GO / NO-GO wording unless the user is explicitly asking for a trade decision.
-- Do NOT output placeholder verdicts like undefined, unknown object dumps, or generic app instructions.
-
-RESPONSE STYLE:
-- Be direct.
-- Use short paragraphs or flat bullets.
-- If the current evidence is mixed, say what is visible and what still needs confirmation.
-`;
-
-  if (hasImage) {
-    prompt += `
-
-CHART IMAGE MODE:
-- You can see the current scanner chart image.
-- The user may have drawn lines, arrows, labels, neckline marks, OTE zones, or other annotations on the chart.
-- Treat visible annotations as intentional user context and address them directly.
-- If the image and the machine metadata disagree, say so explicitly instead of ignoring either one.
-- If the user asks whether a specific label or marker is visible, answer yes or no first, then explain what it means.
-- Do NOT replace a direct label-reading question with generic pattern commentary.
-`;
-  }
-
-  if (candidate || detector || review || levels || fundamentals) {
-    prompt += `
-
-CURRENT SCANNER CONTEXT:
+  if (!(candidate || detector || review || levels || fundamentals)) return '';
+  return `CURRENT SCANNER CONTEXT:
 - Symbol: ${candidate?.symbol || context.symbol || 'N/A'}
 - Pattern Type: ${candidate?.pattern_type || context.patternType || 'N/A'}
 - Candidate Role: ${candidate?.candidate_role_label || candidate?.candidate_role || 'N/A'}
@@ -1433,32 +1751,358 @@ CURRENT SCANNER CONTEXT:
 - Fundamentals Risk Note: ${fundamentals?.riskNote || 'N/A'}
 - Catalyst Flag: ${fundamentals?.catalystFlag || 'N/A'}
 - Dilution Flag: ${fundamentals?.dilutionFlag ?? 'N/A'}
-`;
-  }
+- Social Buzz Mood: ${socialBuzz?.available ? socialBuzz?.mood || 'N/A' : 'N/A'}
+- Social Buzz Watchers: ${socialBuzz?.available ? socialBuzz?.watchlist_count ?? 'N/A' : 'N/A'}
+- Social Buzz Message Count: ${socialBuzz?.available ? socialBuzz?.message_count ?? 'N/A' : 'N/A'}
+- Social Buzz Bull / Bear %: ${socialBuzz?.available ? `${socialBuzz?.bull_pct ?? 'N/A'} / ${socialBuzz?.bear_pct ?? 'N/A'}` : 'N/A'}`;
+}
 
-  if (wantsDecision) {
-    prompt += `
+function buildScannerWorkspaceSkillContext(context: TradingContext, userMessage: string, hasImage: boolean): ScannerPromptSkillContext {
+  const rawUserMessage = extractPrimaryUserMessage(userMessage);
+  const wantsDecision = isTradeDecisionQuestion(rawUserMessage);
+  const scanner = context.copilotAnalysis || {};
+  const candidate = scanner?.candidate || null;
+  const detector = scanner?.detector || candidate?.detector || null;
+  const aiAnalysis = scanner?.aiAnalysis || null;
+  const review = aiAnalysis?.review || null;
+  const levels = aiAnalysis?.levels || null;
+  const fundamentals = scanner?.fundamentals || null;
+  const socialBuzz = fundamentals?.socialBuzz || null;
 
-DECISION MODE:
-- The user wants your actual trader opinion.
-- Start the first line with exactly one of:
-  - My call: BUY
-  - My call: WAIT
-  - My call: PASS
-- Then explain why in plain English.
-- If this is a bearish setup, treat BUY as "buy the short thesis / buy puts / take the short" only if that is clearly what the user is asking; otherwise prefer WAIT or PASS rather than being ambiguous.
-`;
-  }
+  const skillContext: ScannerPromptSkillContext = {
+    context,
+    rawUserMessage,
+    hasImage,
+    wantsDecision,
+    scanner,
+    candidate,
+    detector,
+    aiAnalysis,
+    review,
+    levels,
+    fundamentals,
+    socialBuzz,
+  };
+  return skillContext;
+}
 
-  prompt += `
+function buildContextualRankerPrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
+  const skillContext = buildScannerWorkspaceSkillContext(context, userMessage, hasImage);
+  return buildWorkspacePrompt({
+    workspaceName: 'Scanner Copilot Workspace',
+    roleLabel: 'Scanner Copilot',
+    rawUserMessage: skillContext.rawUserMessage,
+    skillIds: resolveContextualRankerWorkspaceSkills(skillContext),
+    liveInstructions: [
+      'Combine chart structure, scanner state, fundamentals, and social buzz into one judgment.',
+      skillContext.hasImage
+        ? 'Use the attached chart image as primary evidence. If image and machine context disagree, call out the conflict explicitly.'
+        : 'No image is attached. Use machine context honestly and say what you cannot visually confirm.',
+      skillContext.wantsDecision
+        ? 'The user is asking for an actual trading stance, so load the trade-decision skill and make a clear call.'
+        : 'Do not force a trade decision unless the user is explicitly asking for one.',
+      'Do not behave like the Trading Desk compliance engine.',
+      'Do not output placeholder verdicts, object dumps, or glossary filler.',
+    ],
+    toolRole: 'contextual_ranker',
+    dynamicContext: buildScannerWorkspaceContextBlock(context),
+  });
+}
 
-When talking about levels:
-- If target < entry and stop > entry, call it a short setup or short trigger.
-- If target > entry and stop < entry, call it a long setup or long trigger.
-- If the setup is still forming, use words like "trigger", "confirmation", or "breakdown level" instead of pretending the trade is already active.
-`;
+function buildPatternAnalystPrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
+  const skillContext = buildScannerWorkspaceSkillContext(context, userMessage, hasImage);
+  return buildWorkspacePrompt({
+    workspaceName: 'Pattern Analyst Workspace',
+    roleLabel: 'Pattern Analyst',
+    rawUserMessage: skillContext.rawUserMessage,
+    skillIds: resolvePatternAnalystWorkspaceSkills(skillContext),
+    liveInstructions: [
+      'Start with structure, then pattern completion, then follow-through, then failure conditions.',
+      skillContext.hasImage
+        ? 'Use the attached chart image as primary evidence. If image and machine context disagree, call out the conflict explicitly.'
+        : 'No image is attached. Use machine context honestly and say what you cannot visually confirm.',
+      skillContext.wantsDecision
+        ? 'The user is asking for an actual trading stance, so load the trade-decision skill and make a clear call.'
+        : 'Do not force a trade decision unless the user is explicitly asking for one.',
+      'Do not treat a bearish-looking shape inside an intact uptrend as automatic regime change.',
+      'Do not answer setup-analysis questions with glossary filler.',
+    ],
+    toolRole: 'pattern_analyst',
+    dynamicContext: buildScannerWorkspaceContextBlock(context),
+  });
+}
 
-  return prompt;
+function buildTechnicalAnalystPrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
+  const skillContext = buildScannerWorkspaceSkillContext(context, userMessage, hasImage);
+  return buildWorkspacePrompt({
+    workspaceName: 'Technical Analyst Workspace',
+    roleLabel: 'Technical Analyst',
+    rawUserMessage: skillContext.rawUserMessage,
+    skillIds: resolveTechnicalAnalystWorkspaceSkills(skillContext),
+    liveInstructions: [
+      skillContext.hasImage
+        ? 'Use the attached chart image as primary evidence. If image and machine context disagree, call out the conflict explicitly.'
+        : 'No image is attached. Use machine context honestly and say what you cannot visually confirm.',
+      'Follow the Technical Analyst workspace files and technical-analysis skill as the primary operating guide.',
+    ],
+    toolRole: 'technical_analyst',
+    dynamicContext: buildScannerWorkspaceContextBlock(context),
+  });
+}
+
+function buildFinancialAnalystPrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
+  const skillContext = buildScannerWorkspaceSkillContext(context, userMessage, hasImage);
+  return buildWorkspacePrompt({
+    workspaceName: 'Financial Analyst Workspace',
+    roleLabel: 'Financial Analyst',
+    rawUserMessage: skillContext.rawUserMessage,
+    skillIds: resolveFinancialAnalystWorkspaceSkills(skillContext),
+    liveInstructions: [
+      'Use filing-backed Ledger context as the primary financial truth layer whenever available.',
+      'Call get_ledger_context before making specific claims about business quality, balance sheet risk, dilution, liquidity, or note-level issues.',
+      skillContext.hasImage
+        ? 'If a chart image is attached, treat it as secondary context for timing and setup location, not as the primary basis for business judgment.'
+        : 'No image is attached. Focus on the business, filing, and capital-structure read.',
+      'Separate reported facts, derived metrics, and your own judgment.',
+      'Do not present vendor fallback data as if it were filing-backed when Ledger coverage is partial.',
+    ],
+    toolRole: 'financial_analyst',
+    dynamicContext: buildScannerWorkspaceContextBlock(context),
+  });
+}
+
+function buildTradeExecutionContextBlock(context: TradingContext): string {
+  const tradeContext = {
+    symbol: context.symbol || null,
+    entryPrice: context.entryPrice ?? null,
+    stopLoss: context.stopLoss ?? null,
+    takeProfit: context.takeProfit ?? null,
+    accountSize: context.accountSize ?? null,
+    riskPercent: context.riskPercent ?? null,
+    positionSize: context.positionSize ?? null,
+    leverage: context.leverage ?? null,
+    instrumentType: context.instrumentType ?? null,
+    tradeDirection: context.tradeDirection ?? null,
+  };
+  return stringifyWorkspaceContextSection('TRADING CONTEXT', tradeContext, 4000);
+}
+
+function buildCopilotWorkspacePrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
+  const skillContext = buildScannerWorkspaceSkillContext(context, userMessage, hasImage);
+  const sections = [
+    buildScannerWorkspaceContextBlock(context),
+    buildTradeExecutionContextBlock(context),
+  ].filter(Boolean);
+  return buildWorkspacePrompt({
+    workspaceName: 'Trading Copilot Workspace',
+    roleLabel: 'Trading Copilot',
+    rawUserMessage: skillContext.rawUserMessage,
+    skillIds: ['trading-copilot'],
+    liveInstructions: [
+      skillContext.hasImage
+        ? 'Use the attached chart image as primary evidence. If image and machine context disagree, call out the conflict explicitly.'
+        : 'No image is attached. Use live machine context honestly and say what you cannot visually confirm.',
+      'Blend chart structure, risk, and contextual fundamentals into one practical answer.',
+      'If the user asks for a trade stance, make a clear call and explain invalidation.',
+    ],
+    toolRole: 'copilot',
+    dynamicContext: sections.join('\n\n'),
+  });
+}
+
+function buildLiteralChartReaderWorkspacePrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
+  const skillContext = buildScannerWorkspaceSkillContext(context, userMessage, hasImage);
+  return buildWorkspacePrompt({
+    workspaceName: 'Literal Chart Reader Workspace',
+    roleLabel: 'Literal Chart Reader',
+    rawUserMessage: skillContext.rawUserMessage,
+    skillIds: ['literal-chart-read'],
+    liveInstructions: [
+      skillContext.hasImage
+        ? 'A chart image is attached. Read it literally first.'
+        : 'No image is attached. Say plainly that you cannot perform a literal chart read without an image.',
+      'Do not interpret before you report visible labels and annotations.',
+    ],
+    toolRole: 'literal_chart_reader',
+    dynamicContext: buildScannerWorkspaceContextBlock(context),
+  });
+}
+
+function buildHypothesisAuthorWorkspacePrompt(context: TradingContext, userMessage: string): string {
+  const analysis = context.copilotAnalysis || {};
+  const dynamicContext = [
+    stringifyWorkspaceContextSection('USER QUESTION', extractPrimaryUserMessage(userMessage), 2000),
+    stringifyWorkspaceContextSection('STRATEGY', analysis?.strategy ?? null, 12000),
+    stringifyWorkspaceContextSection('ACCOUNT SETTINGS', analysis?.accountSettings ?? null, 4000),
+    stringifyWorkspaceContextSection('RISK DEFAULTS', analysis?.riskDefaults ?? null, 4000),
+    stringifyWorkspaceContextSection('ADDITIONAL COMMENTARY', analysis?.commentary ?? null, 3000),
+  ].filter(Boolean).join('\n\n');
+
+  return buildWorkspacePrompt({
+    workspaceName: 'Hypothesis Author Workspace',
+    roleLabel: 'Hypothesis Author',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['strategy-review'],
+    liveInstructions: [
+      'Review the assembled strategy spec instead of inventing a new strategy from scratch.',
+      'Focus on configuration integrity, risk alignment, and validation readiness.',
+      'Always evaluate timeframe versus likely signal frequency.',
+    ],
+    toolRole: 'hypothesis_author',
+    dynamicContext,
+  });
+}
+
+function buildStatisticalInterpreterWorkspacePrompt(context: TradingContext, userMessage: string): string {
+  const analysis = context.copilotAnalysis || {};
+  const dynamicContext = [
+    stringifyWorkspaceContextSection('STRATEGY', analysis?.strategy ?? null, 8000),
+    stringifyWorkspaceContextSection('CURRENT REPORT', analysis?.report ?? null, 12000),
+    stringifyWorkspaceContextSection('REPORT HISTORY', analysis?.report_history ?? null, 12000),
+    analysis?.report_comparison_diagnostics
+      ? `COMPARISON DIAGNOSTICS:\n${summarizeComparisonDiagnosticsForPrompt(analysis.report_comparison_diagnostics)}`
+      : '',
+    stringifyWorkspaceContextSection('ADDITIONAL COMMENTARY', analysis?.commentary ?? null, 3000),
+  ].filter(Boolean).join('\n\n');
+
+  return buildWorkspacePrompt({
+    workspaceName: 'Statistical Interpreter Workspace',
+    roleLabel: 'Statistical Interpreter',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['validation-interpretation'],
+    liveInstructions: [
+      'Ground every analysis claim in report metrics or explicit report comparisons.',
+      'Lead with the bottom line and then explain the drivers.',
+      'When the user asks why a report failed, cite only actual failing thresholds as hard causes.',
+    ],
+    toolRole: 'statistical_interpreter',
+    dynamicContext,
+  });
+}
+
+function buildComplianceOfficerWorkspacePrompt(context: TradingContext, userMessage: string, hasImage: boolean): string {
+  const dynamicContext = [
+    buildTradeExecutionContextBlock(context),
+    stringifyWorkspaceContextSection('EXECUTION ANALYSIS', context.copilotAnalysis ?? null, 10000),
+  ].filter(Boolean).join('\n\n');
+
+  return buildWorkspacePrompt({
+    workspaceName: 'Compliance Officer Workspace',
+    roleLabel: 'Compliance Officer',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['compliance-review'],
+    liveInstructions: [
+      'Issue a binary GO or NO-GO verdict.',
+      hasImage
+        ? 'A chart image may be attached, but compliance still depends on rules, sizing, and execution policy first.'
+        : 'No image is required for compliance work. Focus on rules and numbers.',
+      'State exactly which checks passed and which failed.',
+    ],
+    toolRole: 'compliance_officer',
+    dynamicContext,
+  });
+}
+
+function buildForensicAuditorWorkspacePrompt(context: TradingContext, userMessage: string): string {
+  const dynamicContext = [
+    buildTradeExecutionContextBlock(context),
+    stringifyWorkspaceContextSection('TRADE REVIEW DATA', context.copilotAnalysis ?? null, 12000),
+  ].filter(Boolean).join('\n\n');
+
+  return buildWorkspacePrompt({
+    workspaceName: 'Forensic Auditor Workspace',
+    roleLabel: 'Forensic Auditor',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['trade-forensics'],
+    liveInstructions: [
+      'Judge process adherence, not emotional narrative.',
+      'Separate planned behavior from actual behavior and diagnose the gap.',
+    ],
+    toolRole: 'forensic_auditor',
+    dynamicContext,
+  });
+}
+
+function buildPluginEngineerWorkspacePrompt(context: TradingContext, userMessage: string): string {
+  const pluginContext = context as any;
+  const dynamicContext = [
+    stringifyWorkspaceContextSection('EDITOR STATE', {
+      page: pluginContext?.page ?? null,
+      patternName: pluginContext?.patternName ?? null,
+      patternId: pluginContext?.patternId ?? null,
+      currentCodeRef: pluginContext?.currentCodeRef ?? null,
+      currentDefinitionRef: pluginContext?.currentDefinitionRef ?? null,
+      isCompositeMode: pluginContext?.isCompositeMode ?? false,
+      compositeSeedStages: pluginContext?.compositeSeedStages ?? [],
+    }, 8000),
+    stringifyWorkspaceContextSection('AVAILABLE PRIMITIVES', summarizePrimitiveInventory(Array.isArray(pluginContext?.availablePrimitives) ? pluginContext.availablePrimitives : []), 12000),
+    stringifyWorkspaceContextSection('LAST TEST RESULT', pluginContext?.lastTestResult ?? null, 8000),
+    stringifyWorkspaceContextSection('CURRENT CODE', typeof pluginContext?.currentCode === 'string' ? pluginContext.currentCode : null, 12000),
+    stringifyWorkspaceContextSection('CURRENT DEFINITION', pluginContext?.currentDefinition ?? null, 12000),
+    stringifyWorkspaceContextSection('RECENT CHAT HISTORY', summarizeChatHistory(Array.isArray(pluginContext?.chatHistory) ? pluginContext.chatHistory : []), 8000),
+  ].filter(Boolean).join('\n\n');
+
+  return buildWorkspacePrompt({
+    workspaceName: 'Plugin Engineer Workspace',
+    roleLabel: 'Plugin Engineer',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['plugin-engineering'],
+    liveInstructions: [
+      'When the user wants final artifacts, preserve the plugin marker blocks exactly.',
+      'Keep code, definition, and current editor state aligned.',
+      'Prefer valid artifacts over verbose explanation.',
+    ],
+    toolRole: 'plugin_engineer',
+    dynamicContext,
+  });
+}
+
+function buildBlocklyComposerWorkspacePrompt(context: TradingContext, userMessage: string): string {
+  const blocklyContext = context as any;
+  const dynamicContext = [
+    stringifyWorkspaceContextSection('COMPOSER METADATA', blocklyContext?.metadata ?? null, 4000),
+    stringifyWorkspaceContextSection('CURRENT COMPOSITION', blocklyContext?.currentComposition ?? null, 12000),
+    stringifyWorkspaceContextSection('AVAILABLE PRIMITIVES', summarizePrimitiveInventory(Array.isArray(blocklyContext?.availablePrimitives) ? blocklyContext.availablePrimitives : []), 12000),
+    stringifyWorkspaceContextSection('RECENT CHAT HISTORY', summarizeChatHistory(Array.isArray(blocklyContext?.chatHistory) ? blocklyContext.chatHistory : []), 8000),
+  ].filter(Boolean).join('\n\n');
+
+  return buildWorkspacePrompt({
+    workspaceName: 'Blockly Composer Workspace',
+    roleLabel: 'Blockly Composer',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['blockly-composition'],
+    liveInstructions: [
+      'Help the user compose with existing primitives instead of generating Python code.',
+      'Preserve metadata markers only when the user is naming or publishing a composition.',
+      'Explain ports, reducers, and wiring clearly.',
+    ],
+    toolRole: 'blockly_composer',
+    dynamicContext,
+  });
+}
+
+function buildCompositeArchitectWorkspacePrompt(context: TradingContext, userMessage: string): string {
+  const compositeContext = context as any;
+  const dynamicContext = [
+    stringifyWorkspaceContextSection('METADATA', compositeContext?.metadata ?? null, 4000),
+    stringifyWorkspaceContextSection('CURRENT DEFINITION', compositeContext?.currentDefinition ?? null, 12000),
+    stringifyWorkspaceContextSection('AVAILABLE PRIMITIVES', summarizePrimitiveInventory(Array.isArray(compositeContext?.availablePrimitives) ? compositeContext.availablePrimitives : []), 12000),
+    stringifyWorkspaceContextSection('RECENT CHAT HISTORY', summarizeChatHistory(Array.isArray(compositeContext?.chatHistory) ? compositeContext.chatHistory : []), 8000),
+  ].filter(Boolean).join('\n\n');
+
+  return buildWorkspacePrompt({
+    workspaceName: 'Composite Architect Workspace',
+    roleLabel: 'Composite Architect',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['composite-architecture'],
+    liveInstructions: [
+      'If primitives are already staged, use them instead of asking the user to restate them.',
+      'Name composites by strategy behavior, not by listing every primitive.',
+      'Emit machine-readable composite markers only when the user asks for final output.',
+    ],
+    toolRole: 'composite_architect',
+    dynamicContext,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -2948,9 +3592,20 @@ ${chatHistory ? `\n## RECENT CHAT HISTORY\n${chatHistory}\n` : ''}
 
 function buildCopilotSystemPrompt(context: TradingContext, hasImage: boolean = false, userMessage: string = ''): string {
   const wantsDecision = isTradeDecisionQuestion(userMessage);
-  let prompt = `You are a trading desk assistant specializing in Wyckoff Method analysis. You help traders evaluate patterns, set entry/exit levels, and calculate position sizes. You also have full knowledge of this app's features, settings, and controls — if the user asks about any setting or button, you can explain exactly what it does and how it affects their trades.
+  let prompt = `You are a trading desk assistant specializing in technical chart analysis and fundamentals. You help traders evaluate setups, set entry/exit levels, and size positions correctly. You also have full knowledge of this app's features, settings, and controls.
 
-Be concise but helpful. Use markdown formatting where appropriate.
+RESPONSE FORMAT — follow this exactly for every chart/setup analysis:
+- No markdown symbols. No hashtags. No asterisks. No bold markers. Plain text only.
+- Start with a verdict line in caps: either "TRADABLE" or "DO NOT TRADE THIS", followed by a one-line reason.
+- Be direct. Do not hedge. If the chart is valid with proper risk management, say TRADABLE. If the setup is broken, extended, or fundamentally dangerous, say DO NOT TRADE THIS.
+- Structure every analysis response in this order:
+  1. Verdict line (TRADABLE or DO NOT TRADE THIS + one-line reason)
+  2. Chart: one or two sentences on current structure
+  3. What stands out — Negatives listed one per line, then Positives listed one per line, no bullet symbols
+  4. If I was trading this — exact how: size, stop, profit target, early exit condition
+  5. Bottom line — one or two plain sentences
+
+For conversational follow-up questions (not chart analysis), respond naturally in plain text without the structured format.
 `;
 
   // Check if the user is asking about app features/settings
@@ -3248,6 +3903,7 @@ DECISION MODE:
 }
 
 function generateLocalResponseForRole(role: AIRole, message: string, context: TradingContext): string {
+  const isScannerAnalysisRole = role === 'pattern_analyst' || role === 'contextual_ranker' || role === 'literal_chart_reader';
   if (role === 'statistical_interpreter') {
     if (shouldInjectStatisticalInterpreterHelp(context, message)) {
       const helpContent = searchAppReference(message);
@@ -3258,7 +3914,7 @@ function generateLocalResponseForRole(role: AIRole, message: string, context: Tr
     return generateLocalStatisticalInterpreterResponse(message, context);
   }
 
-  if (shouldInjectHelpContext(message)) {
+  if (!isScannerAnalysisRole && shouldInjectHelpContext(message)) {
     const helpContent = searchAppReference(message);
     if (helpContent) {
       return `${helpContent}\n\n*— From app reference*`;
@@ -3276,6 +3932,12 @@ function generateLocalResponseForRole(role: AIRole, message: string, context: Tr
   }
   if (role === 'literal_chart_reader') {
     return generateLocalLiteralChartReaderResponse(message, context);
+  }
+  if (role === 'financial_analyst') {
+    return generateLocalFinancialAnalystResponse(message, context);
+  }
+  if (role === 'pattern_analyst') {
+    return generateLocalContextualRankerResponse(message, context);
   }
   if (role === 'contextual_ranker') {
     return generateLocalContextualRankerResponse(message, context);
@@ -3464,6 +4126,79 @@ function generateLocalStatisticalInterpreterResponse(message: string, context: T
     `- OOS expectancy: ${fmtR(oos.oos_expectancy)}`,
     `- OOS degradation: ${fmtPct(oos.oos_degradation_pct)}`,
     `- Max drawdown: ${fmtPct(rs.max_drawdown_pct)} (${fmtR(-Number(rs.max_drawdown_R || 0))})`,
+  ].join('\n');
+}
+
+function generateLocalFinancialAnalystResponse(message: string, context: TradingContext): string {
+  const rawMessage = extractPrimaryUserMessage(message);
+  const lower = rawMessage.toLowerCase();
+  const scanner = context?.copilotAnalysis || {};
+  const fundamentals = scanner?.fundamentals || null;
+  const symbol = context?.symbol || scanner?.candidate?.symbol || 'this company';
+  const companyName = fundamentals?.companyName || symbol;
+
+  const revenueGrowth = Number(fundamentals?.revenueGrowthPct);
+  const earningsGrowth = Number(fundamentals?.earningsGrowthPct);
+  const marketCap = Number(fundamentals?.marketCap);
+  const cash = Number(fundamentals?.cash);
+  const debt = Number(fundamentals?.debt);
+  const currentRatio = Number(fundamentals?.currentRatio);
+  const quickRatio = Number(fundamentals?.quickRatio);
+  const fcf = Number(fundamentals?.freeCashFlowTTM);
+  const ocf = Number(fundamentals?.operatingCashFlowTTM);
+  const quality = fundamentals?.quality || 'N/A';
+  const riskNote = fundamentals?.riskNote || 'N/A';
+  const catalystFlag = fundamentals?.catalystFlag || 'N/A';
+
+  const fmtMoney = (value: any): string => Number.isFinite(Number(value))
+    ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : 'N/A';
+  const fmtPct = (value: any): string => Number.isFinite(Number(value))
+    ? `${Number(value).toFixed(1)}%`
+    : 'N/A';
+  const fmtNum = (value: any): string => Number.isFinite(Number(value))
+    ? Number(value).toFixed(2)
+    : 'N/A';
+
+  if (/\bdcf\b|discounted cash flow|fair value|intrinsic value|overvalued|undervalued|valuation/.test(lower)) {
+    return [
+      `I’m Ledger, and I can give you a provisional valuation read on ${companyName}, but the full filing-backed valuation path is not available in this fallback.`,
+      '',
+      'What is currently loaded:',
+      `- Quality: ${quality}`,
+      `- Revenue growth: ${fmtPct(revenueGrowth)}`,
+      `- Earnings growth: ${fmtPct(earningsGrowth)}`,
+      `- Operating cash flow TTM: ${fmtMoney(ocf)}`,
+      `- Free cash flow TTM: ${fmtMoney(fcf)}`,
+      `- Cash: ${fmtMoney(cash)}`,
+      `- Debt: ${fmtMoney(debt)}`,
+      `- Current ratio: ${fmtNum(currentRatio)}`,
+      `- Quick ratio: ${fmtNum(quickRatio)}`,
+      `- Market cap: ${fmtMoney(marketCap)}`,
+      '',
+      'So I can give a high-level valuation direction here, but I should not pretend I have a full DCF unless the Ledger filing-backed context and forecast assumptions are available.',
+      '',
+      `Current risk note: ${riskNote}`,
+      `Current catalyst flag: ${catalystFlag}`,
+    ].join('\n');
+  }
+
+  return [
+    `I’m Ledger, the Financial Analyst, and I can still give you a business-quality read on ${companyName}, but the full filing-backed Ledger context is not available in this fallback.`,
+    '',
+    'Current loaded snapshot:',
+    `- Quality: ${quality}`,
+    `- Revenue growth: ${fmtPct(revenueGrowth)}`,
+    `- Earnings growth: ${fmtPct(earningsGrowth)}`,
+    `- Operating cash flow TTM: ${fmtMoney(ocf)}`,
+    `- Free cash flow TTM: ${fmtMoney(fcf)}`,
+    `- Cash: ${fmtMoney(cash)}`,
+    `- Debt: ${fmtMoney(debt)}`,
+    `- Current ratio: ${fmtNum(currentRatio)}`,
+    `- Quick ratio: ${fmtNum(quickRatio)}`,
+    `- Risk note: ${riskNote}`,
+    '',
+    'If you want a proper valuation or note-level filing judgment, I should use the Ledger filing-backed context rather than rely only on this snapshot fallback.',
   ].join('\n');
 }
 
@@ -3668,6 +4403,33 @@ function generateLocalBlocklyComposerResponse(message: string, context: TradingC
   const stages = Array.isArray(composition?.stages) ? composition.stages : [];
   const reducer = composition?.reducer || null;
   const primitives = Array.isArray(ctx?.availablePrimitives) ? ctx.availablePrimitives : [];
+  const msg = String(message || '').toLowerCase();
+
+  if (/\b(symbolic regression|sr strategy|sr formula|sr_score|formula_id)\b/i.test(msg)) {
+    return [
+      'To create a symbolic-regression strategy, start in Research Studio, not Blockly Composer.',
+      '',
+      'Use this workflow:',
+      '- Open Research Studio',
+      '- Set Mode to Symbolic Regression',
+      '- Start with SPY, 1d, 2 years, target bars 5, population 500, GP generations 20',
+      '- Start with features: RSI(14), ATR normalized(14), Momentum(5)',
+      '- Run the session and review the discovered formulas',
+      '- Promote the formula you want to Tier-1',
+      '',
+      'What promotion does:',
+      '- saves the formula with a formula_id',
+      '- wraps it into an SR strategy using the sr_score path',
+      '- sends that strategy into Tier-1 validation',
+      '',
+      'Important distinction:',
+      '- SR formula = discovered score expression',
+      '- sr_score = primitive/signal path',
+      '- SR strategy = sr_score plus threshold, risk, and validation settings',
+      '',
+      'Blockly Composer is for composing existing primitives and composites after that discovery step.',
+    ].join('\n');
+  }
 
   if (!stages.length) {
     const preview = primitives.slice(0, 8).map((p: any) => `- ${p.pattern_id} (${p.indicator_role || 'unknown'})`).join('\n') || '(no primitives loaded)';
@@ -4114,6 +4876,30 @@ KEY CONCEPTS:
 
 4. WORKFLOW: Build primitives in Builder -> Compose here -> Validate -> Register directly (or Send to Builder for advanced editing)
 
+5. SYMBOLIC REGRESSION (SR) WORKFLOW:
+   - Do NOT tell users to create the SR formula directly in Blockly first
+   - SR discovery starts in Research Studio, not in Blockly Composer
+   - The user should open Research Studio, set Mode to "Symbolic Regression", choose symbol/interval/data window/features, then start the session
+   - Each generation discovers a formula and stores it with a formula_id
+   - When the user clicks "Promote to Tier-1", the system wraps that formula into a validator-ready SR strategy using the sr_score path
+   - Explain the distinction clearly:
+     - SR formula = discovered scoring expression
+     - sr_score = primitive/signal path that evaluates the formula
+     - SR strategy = sr_score plus threshold, risk config, and validation context
+   - If the user asks for a good first SR run, recommend:
+     - Symbol: SPY
+     - Interval: 1d
+     - Years: 2
+     - Target bars: 5
+     - Population size: 500
+     - GP generations: 20
+     - Features: RSI(14), ATR normalized(14), Momentum(5)
+   - If the user asks what formula quality to look for, explain:
+     - R² around 0.02 to 0.08 is more believable than extremely high values
+     - lower complexity is better
+     - very high R² plus high complexity usually means overfitting
+     - a constant formula means the chosen features did not explain the target well
+
 REGISTERED PRIMITIVES AVAILABLE:
 ${primitiveSummary}
 
@@ -4210,6 +4996,7 @@ IMPORTANT RULES:
 
 GUIDELINES:
 - When users ask what to connect, suggest specific primitives by pattern_id
+- When users ask how to create a symbolic-regression strategy, tell them the SR discovery step belongs in Research Studio first, then explain how the promoted result can be used downstream in strategy/composite workflows
 - Explain port types if users are confused about where to wire: blue = Swing/Leg, green = Fib, orange = Signal, purple = Pattern/Energy, white = Price
 - If a needed primitive does not exist, tell them to create it in the Indicator Builder first
 - Be concise and practical — this is a tool for experienced traders

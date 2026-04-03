@@ -1,0 +1,263 @@
+{
+  "pattern_id": "lth_continuation_composite",
+  "name": "LTH Continuation Composite",
+  "category": "indicator_signals",
+  "description": "Composite indicator generated from Blockly composition.",
+  "author": "user",
+  "version": "1.0.0",
+  "plugin_file": "plugins/composite_runner.py",
+  "plugin_function": "run_composite_plugin",
+  "pattern_type": "lth_continuation_composite",
+  "artifact_type": "indicator",
+  "composition": "composite",
+  "indicator_role": "entry_composite",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "lth_continuation_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "structure",
+          "pattern_id": "structural_family_signal",
+          "params": {
+            "allowed_families": "LTH|CONTINUATION_UP|HH_ONLY|DEEP_DOM",
+            "reversal_multiple_atr": 2,
+            "min_bars_between_pivots": 3,
+            "equal_band_atr": 0.25
+          }
+        },
+        {
+          "id": "location",
+          "pattern_id": "fib_location_primitive",
+          "params": {
+            "location_min_retracement_pct": 50,
+            "location_max_retracement_pct": 79,
+            "location_require_near_level": false
+          }
+        },
+        {
+          "id": "timing",
+          "pattern_id": "rsi_primitive",
+          "params": {
+            "rsi_period": 14,
+            "rsi_threshold": 30,
+            "cross_direction": "below",
+            "overbought_level": 70,
+            "oversold_level": 30,
+            "lookback_bars": 500
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "structure",
+          "location",
+          "timing"
+        ]
+      }
+    }
+  },
+  "default_entry": {
+    "entry_type": "market_on_close"
+  },
+  "tunable_params": [
+    {
+      "key": "structure_allowed_families",
+      "label": "structure: Allowed Families",
+      "path": "setup_config.composite_spec.stages.0.params.allowed_families",
+      "type": "string",
+      "default": "",
+      "description": "Comma-separated familySignatureV2 values. Blank means all detected families.",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false
+    },
+    {
+      "key": "structure_reversal_multiple_atr",
+      "label": "structure: ATR Reversal Multiple",
+      "path": "setup_config.composite_spec.stages.0.params.reversal_multiple_atr",
+      "type": "float",
+      "min": 0.5,
+      "max": 5,
+      "default": 2,
+      "description": "ATR multiple required to confirm each reversal pivot.",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "structure_min_bars_between_pivots",
+      "label": "structure: Min Bars Between Pivots",
+      "path": "setup_config.composite_spec.stages.0.params.min_bars_between_pivots",
+      "type": "int",
+      "min": 1,
+      "max": 20,
+      "default": 3,
+      "description": "Minimum spacing between confirmed pivots.",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "structure_equal_band_atr",
+      "label": "structure: Equal Band ATR",
+      "path": "setup_config.composite_spec.stages.0.params.equal_band_atr",
+      "type": "float",
+      "min": 0.05,
+      "max": 1,
+      "default": 0.25,
+      "description": "ATR-normalized band for EH/EL labeling.",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "location_location_min_retracement_pct",
+      "label": "location: Min Retracement %",
+      "path": "setup_config.composite_spec.stages.1.params.location_min_retracement_pct",
+      "type": "float",
+      "min": 30,
+      "max": 79,
+      "default": 50,
+      "anatomy": "location",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "location_location_max_retracement_pct",
+      "label": "location: Max Retracement %",
+      "path": "setup_config.composite_spec.stages.1.params.location_max_retracement_pct",
+      "type": "float",
+      "min": 50,
+      "max": 95,
+      "default": 79,
+      "anatomy": "location",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "location_location_require_near_level",
+      "label": "location: Require Near Fib Level",
+      "path": "setup_config.composite_spec.stages.1.params.location_require_near_level",
+      "type": "bool",
+      "default": false,
+      "anatomy": "location",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false
+    },
+    {
+      "key": "timing_rsi_period",
+      "label": "timing: RSI Period",
+      "path": "setup_config.composite_spec.stages.2.params.rsi_period",
+      "type": "int",
+      "min": 2,
+      "max": 100,
+      "default": 14,
+      "description": "Number of bars for the RSI calculation (standard is 14)",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "timing_rsi_threshold",
+      "label": "timing: Trigger Level",
+      "path": "setup_config.composite_spec.stages.2.params.rsi_threshold",
+      "type": "float",
+      "min": 5,
+      "max": 95,
+      "default": 30,
+      "description": "RSI level that triggers the signal when crossed",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "timing_cross_direction",
+      "label": "timing: Cross Direction",
+      "path": "setup_config.composite_spec.stages.2.params.cross_direction",
+      "type": "enum",
+      "default": "below",
+      "options": [
+        "below",
+        "above"
+      ],
+      "description": "Below = RSI crosses below threshold (oversold entry). Above = RSI crosses above threshold (overbought exit).",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false
+    },
+    {
+      "key": "timing_overbought_level",
+      "label": "timing: Overbought Level",
+      "path": "setup_config.composite_spec.stages.2.params.overbought_level",
+      "type": "float",
+      "min": 50,
+      "max": 95,
+      "default": 70,
+      "description": "RSI level considered overbought (informational / scoring)",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "timing_oversold_level",
+      "label": "timing: Oversold Level",
+      "path": "setup_config.composite_spec.stages.2.params.oversold_level",
+      "type": "float",
+      "min": 5,
+      "max": 50,
+      "default": 30,
+      "description": "RSI level considered oversold (informational / scoring)",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    },
+    {
+      "key": "timing_lookback_bars",
+      "label": "timing: Lookback Window",
+      "path": "setup_config.composite_spec.stages.2.params.lookback_bars",
+      "type": "int",
+      "min": 1,
+      "max": 1000,
+      "default": 500,
+      "description": "Only search for crossovers in the last N bars",
+      "anatomy": "entry_timing",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true
+    }
+  ],
+  "default_risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_length": 14,
+    "atr_multiplier": 1.5,
+    "take_profit_R": 1.5,
+    "max_hold_bars": 20,
+    "max_concurrent_positions": 2
+  },
+  "backtest_config": {
+    "direction": "long"
+  },
+  "suggested_timeframes": [
+    "D",
+    "W"
+  ],
+  "min_data_bars": 220
+}

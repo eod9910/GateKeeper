@@ -15,14 +15,19 @@ This directory is organized into four buckets:
 
 Read these first:
 
-1. `ACTIVE/single-user-production-readiness-checklist.md`
-2. `ACTIVE/legacy-plugin-conversion-plan.md`
-3. `ACTIVE/backtesting-master.md`
-4. `ACTIVE/python-execution-layer.md`
-5. `ACTIVE/research-to-live-trading.md`
+1. `ACTIVE/structural-families-to-execution-prd.md` — master PRD for structure-first evolution (research → signal → strategy → portfolio)
+2. `ACTIVE/family-discovery-v2-prd-pdr.md` — research layer detail (motifs, families, v1/v2 signatures)
+3. `ACTIVE/SR Engine.md` — Symbolic Regression Module (SRM): formula discovery for scoring setups (families, indicators, strategies). Integrated as a Research page mode. First path: indicator + OHLCV; then family/strategy.
+4. `ACTIVE/primitive-normalization-engine-and-autonomous-research.md` — canonical primitive contract, normalization engine, imported indicator core, and Research Studio rebuild for autonomous strategy discovery
+5. `ACTIVE/single-user-production-readiness-checklist.md`
+6. `ACTIVE/backtesting-master.md`
+7. `ACTIVE/python-execution-layer.md`
+8. `ACTIVE/research-to-live-trading.md` — composite/strategy discovery path (distinct from structural families)
 
 ## What Changed
 
+- **SR Engine** added to ACTIVE: formula-discovery (SR) as a Research page mode; easiest first path = indicator + OHLCV; then structural families / strategies.
+- **Primitive normalization + autonomous research** added to ACTIVE: import commodity indicators through a normalization engine, unify imported/custom primitives behind one contract, and rebuild Research Studio around normalized autonomous strategy discovery.
 - The old flat `plans/` directory was split into `ACTIVE`, `BACKLOG`, `REFERENCE`, and `ARCHIVE`.
 - Historical implementation plans like scanner refactors, validator landing page work, plugin workshop buildout, auto-labeler work, and ETFM planning were moved to `ARCHIVE`.
 - Reference-heavy documents like system architecture, structure references, design-system notes, and authoring guides were moved to `REFERENCE`.
