@@ -11,6 +11,7 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import { spawn } from 'child_process';
 
 import candidatesRouter from './routes/candidates';
 import labelsRouter from './routes/labels';
@@ -40,6 +41,37 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const FRONTEND_PUBLIC_DIR = path.join(__dirname, '..', '..', 'frontend', 'public');
 const RESEARCH_ARTIFACTS_DIR = path.join(__dirname, '..', 'data', 'research');
+const REPO_STATE_SCRIPT = path.join(__dirname, '..', 'scripts', 'check_repo_state.ps1');
+
+function runRepoStateCheckOnStartup(): void {
+  const shell = process.platform === 'win32' ? 'powershell' : 'pwsh';
+  const child = spawn(shell, ['-ExecutionPolicy', 'Bypass', '-File', REPO_STATE_SCRIPT], {
+    cwd: path.join(__dirname, '..', '..'),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  child.stdout.on('data', (chunk) => {
+    const text = String(chunk || '').trim();
+    if (!text) return;
+    console.log(`[RepoState]\n${text}`);
+  });
+
+  child.stderr.on('data', (chunk) => {
+    const text = String(chunk || '').trim();
+    if (!text) return;
+    console.warn(`[RepoState] ${text}`);
+  });
+
+  child.on('error', (err) => {
+    console.warn('[RepoState] failed to start repo-state check:', err?.message || String(err));
+  });
+
+  child.on('exit', (code) => {
+    if (code && code !== 0) {
+      console.warn(`[RepoState] repo-state check exited with code ${code}`);
+    }
+  });
+}
 
 // Middleware
 app.use(cors());
@@ -201,6 +233,8 @@ app.listen(PORT, () => {
 ║    POST /api/trades             - Save trade   ║
 ╚════════════════════════════════════════════════╝
   `);
+
+  runRepoStateCheckOnStartup();
 
   void executionBridge.resumeBridgeFromDisk()
     .then((resumed) => {
