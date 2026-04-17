@@ -11,6 +11,8 @@ import {
   FundamentalsOwnership,
   FundamentalsPositioning,
   FundamentalsReportedExecution,
+  FundamentalsSpecialSituation,
+  FundamentalsValuationSnapshot,
   StrategyCandidate,
 } from '../types';
 import { ChartBar, RawChartBar, formatChartBars } from './chartData';
@@ -176,6 +178,59 @@ function sanitizeOwnership(value: unknown): FundamentalsOwnership | null {
         .map(sanitizeInstitutionalHolder)
         .filter((row): row is FundamentalsInstitutionalHolder => Boolean(row))
       : [],
+  };
+}
+
+function sanitizeValuationSnapshot(value: unknown): FundamentalsValuationSnapshot | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const valuationState = obj.valuationState === 'undervalued'
+    || obj.valuationState === 'overvalued'
+    || obj.valuationState === 'roughly_fair'
+    || obj.valuationState === 'fair'
+    ? obj.valuationState
+    : null;
+  return {
+    valuationState,
+    qualityGrade: asNullableString(obj.qualityGrade),
+    qualityScore: asNullableNumber(obj.qualityScore),
+    coverageMode: asNullableString(obj.coverageMode),
+    price: asNullableNumber(obj.price),
+    fairValueLow: asNullableNumber(obj.fairValueLow),
+    fairValueMid: asNullableNumber(obj.fairValueMid),
+    fairValueHigh: asNullableNumber(obj.fairValueHigh),
+    valuationGapPct: asNullableNumber(obj.valuationGapPct),
+    marketCap: asNullableNumber(obj.marketCap),
+    enterpriseValue: asNullableNumber(obj.enterpriseValue),
+    enterpriseToSales: asNullableNumber(obj.enterpriseToSales),
+    revenue: asNullableNumber(obj.revenue),
+    freeCashFlow: asNullableNumber(obj.freeCashFlow),
+    sharesOutstanding: asNullableNumber(obj.sharesOutstanding),
+    revenueGrowthPct: asNullableNumber(obj.revenueGrowthPct),
+    operatingMarginPct: asNullableNumber(obj.operatingMarginPct),
+    freeCashFlowMarginPct: asNullableNumber(obj.freeCashFlowMarginPct),
+    currentRatio: asNullableNumber(obj.currentRatio),
+    asOfDate: asNullableString(obj.asOfDate),
+  };
+}
+
+function sanitizeSpecialSituation(value: unknown): FundamentalsSpecialSituation | null {
+  const obj = asObject(value);
+  if (!obj) return null;
+  const severity = obj.severity === 'high' || obj.severity === 'critical' ? obj.severity : null;
+  return {
+    code: asNullableString(obj.code),
+    status: asNullableString(obj.status),
+    label: asNullableString(obj.label),
+    severity,
+    analysisModeOverride: asNullableString(obj.analysisModeOverride),
+    summary: asNullableString(obj.summary),
+    confidence: asNullableString(obj.confidence),
+    dealPricePerShare: asNullableNumber(obj.dealPricePerShare),
+    contingentValueRightMaxPerShare: asNullableNumber(obj.contingentValueRightMaxPerShare),
+    expectedClose: asNullableString(obj.expectedClose),
+    currentPrice: asNullableNumber(obj.currentPrice),
+    currentToDealSpreadPct: asNullableNumber(obj.currentToDealSpreadPct),
   };
 }
 
@@ -447,6 +502,7 @@ export function normalizeFundamentalsSnapshot(payload: unknown): FundamentalsSna
     marketCap: asNullableNumber(obj.marketCap),
     enterpriseValue: asNullableNumber(obj.enterpriseValue),
     enterpriseToSales: asNullableNumber(obj.enterpriseToSales),
+    annualRevenue: asNullableNumber(obj.annualRevenue),
     netCash: asNullableNumber(obj.netCash),
     cashPctMarketCap: asNullableNumber(obj.cashPctMarketCap),
     lowEnterpriseValueFlag: Boolean(obj.lowEnterpriseValueFlag),
@@ -517,6 +573,8 @@ export function normalizeFundamentalsSnapshot(payload: unknown): FundamentalsSna
     positioning: sanitizePositioning(obj.positioning),
     marketContext: sanitizeMarketContext(obj.marketContext),
     ownership: sanitizeOwnership(obj.ownership),
+    specialSituation: sanitizeSpecialSituation(obj.specialSituation),
+    valuationSnapshot: sanitizeValuationSnapshot(obj.valuationSnapshot),
     historicalStatements: sanitizeHistoricalStatements(obj.historicalStatements),
     stockdex: obj.stockdex && typeof obj.stockdex === 'object' ? (obj.stockdex as Record<string, unknown>) : null,
   };

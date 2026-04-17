@@ -2,8 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as broker from './brokerClient';
 import * as logger from './executionLogger';
+import { readJsonDocument, writeJsonDocument } from './appStateDb';
 
-const STATE_FILE = path.join(__dirname, '../../data/execution-state.json');
+const LEGACY_STATE_FILE = path.join(__dirname, '../../data/execution-state.json');
+const EXECUTION_STATE_NAMESPACE = 'execution_bridge_state';
+const EXECUTION_STATE_KEY = 'default';
 
 export interface ManagedPosition {
   symbol: string;
@@ -74,18 +77,25 @@ function normalizeState(raw: any): BridgeState {
 }
 
 export function loadState(): BridgeState {
-  if (!fs.existsSync(STATE_FILE)) return { ...DEFAULT_STATE };
+  const dbState = readJsonDocument<BridgeState>(
+    EXECUTION_STATE_NAMESPACE,
+    EXECUTION_STATE_KEY,
+    normalizeState,
+  );
+  if (dbState) return dbState;
+
+  if (!fs.existsSync(LEGACY_STATE_FILE)) return { ...DEFAULT_STATE };
   try {
-    return normalizeState(JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')));
+    const parsed = normalizeState(JSON.parse(fs.readFileSync(LEGACY_STATE_FILE, 'utf8')));
+    writeJsonDocument(EXECUTION_STATE_NAMESPACE, EXECUTION_STATE_KEY, parsed);
+    return parsed;
   } catch {
     return { ...DEFAULT_STATE };
   }
 }
 
 export function saveState(state: BridgeState): void {
-  const dir = path.dirname(STATE_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+  writeJsonDocument(EXECUTION_STATE_NAMESPACE, EXECUTION_STATE_KEY, normalizeState(state));
 }
 
 export function getOpenPositionCount(state: BridgeState): number {

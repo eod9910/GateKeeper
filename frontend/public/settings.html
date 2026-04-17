@@ -123,7 +123,7 @@
         </a>
         <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
         <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
-        <a href="/settings" class="sidebar-nav-item active" aria-current="page" style="margin-top:auto;"><span class="nav-dot"></span><span class="sidebar-label-text">âš™ Settings</span></a>
+        <a href="/settings" class="sidebar-nav-item active" aria-current="page" style="margin-top:auto;"><span class="nav-dot"></span><span class="sidebar-label-text">&#9881; Settings</span></a>
       </nav>
     </aside>
 
@@ -143,6 +143,7 @@
             <button class="settings-nav-item active" onclick="showTab('account')">Account</button>
             <button class="settings-nav-item" onclick="showTab('risk')">Risk Rules</button>
             <button class="settings-nav-item" onclick="showTab('ai')">AI</button>
+            <button class="settings-nav-item" onclick="showTab('automation')">Automation</button>
           </nav>
 
           <!-- Right content -->
@@ -507,6 +508,120 @@
                   <div class="settings-field full">
                     <label class="settings-label" for="s-validator-analyst-system-prompt">Validator Analyst Prompt</label>
                     <textarea id="s-validator-analyst-system-prompt" class="input input-sm settings-textarea" placeholder="Optional override for validator/statistical interpretation."></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- AUTOMATION TAB -->
+            <div id="tab-automation" class="settings-tab">
+              <div class="settings-section">
+                <div class="settings-section-title">Ledger Hydration</div>
+                <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                  Schedule the backend to refresh Ledger filing coverage automatically, or kick off a manual hydration job immediately.
+                </div>
+                <div class="settings-grid">
+                  <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                    <input type="checkbox" id="s-ledger-hydration-enabled" onchange="toggleHydrationScheduleFields()">
+                    <label class="settings-label" for="s-ledger-hydration-enabled" style="cursor:pointer;">Enable scheduled hydration</label>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-frequency">Frequency</label>
+                    <select id="s-ledger-hydration-frequency" class="select select-sm" onchange="toggleHydrationScheduleFields()">
+                      <option value="manual">Manual only</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </div>
+                  <div class="settings-field" id="ledger-hydration-day-field">
+                    <label class="settings-label" for="s-ledger-hydration-day-of-week">Day of Week</label>
+                    <select id="s-ledger-hydration-day-of-week" class="select select-sm">
+                      <option value="0">Sunday</option>
+                      <option value="1">Monday</option>
+                      <option value="2">Tuesday</option>
+                      <option value="3">Wednesday</option>
+                      <option value="4">Thursday</option>
+                      <option value="5">Friday</option>
+                      <option value="6">Saturday</option>
+                    </select>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-time">Time</label>
+                    <input type="time" id="s-ledger-hydration-time" class="input input-sm" value="02:00">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-timezone">Timezone</label>
+                    <input type="text" id="s-ledger-hydration-timezone" class="input input-sm" value="America/Los_Angeles">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-workers">Workers</label>
+                    <input type="number" id="s-ledger-hydration-workers" class="input input-sm" value="3" min="1" max="8">
+                    <span class="settings-hint">Parallel symbol hydrators</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-limit">Limit</label>
+                    <input type="number" id="s-ledger-hydration-limit" class="input input-sm" value="0" min="0">
+                    <span class="settings-hint">0 = full eligible universe</span>
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-annual-count">Annual Filings</label>
+                    <input type="number" id="s-ledger-hydration-annual-count" class="input input-sm" value="1" min="0">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-quarterly-count">Quarterly Filings</label>
+                    <input type="number" id="s-ledger-hydration-quarterly-count" class="input input-sm" value="2" min="0">
+                  </div>
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-hydration-current-count">Current Reports</label>
+                    <input type="number" id="s-ledger-hydration-current-count" class="input input-sm" value="6" min="0">
+                  </div>
+                  <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                    <input type="checkbox" id="s-ledger-hydration-write-report" checked>
+                    <label class="settings-label" for="s-ledger-hydration-write-report" style="cursor:pointer;">Write research report JSON for each run</label>
+                  </div>
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-ledger-hydration-refresh-valuations" checked>
+                      <label class="settings-label" for="s-ledger-hydration-refresh-valuations" style="cursor:pointer;">Refresh DCF valuation snapshot and valuation regime universes after hydration</label>
+                    </div>
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-ledger-hydration-refresh-yahoo-identity" checked>
+                      <label class="settings-label" for="s-ledger-hydration-refresh-yahoo-identity" style="cursor:pointer;">Refresh Yahoo sector / industry identity metadata after hydration</label>
+                    </div>
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-ledger-hydration-refresh-consumer-cycle" checked>
+                      <label class="settings-label" for="s-ledger-hydration-refresh-consumer-cycle" style="cursor:pointer;">Refresh consumer-cycle classifications after hydration</label>
+                    </div>
+                  <div class="settings-field full">
+                    <label class="settings-label">Current Status</label>
+                    <div id="s-ledger-hydration-status" class="text-muted" style="font-size:var(--text-small);">Loading hydration status...</div>
+                    <div id="s-ledger-hydration-meta" class="settings-hint"></div>
+                  </div>
+                  <div class="settings-field full" style="justify-content:flex-end;">
+                    <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                      <button class="btn btn-primary btn-sm" type="button" onclick="saveHydrationScheduleSettings()">Save Hydration Schedule</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="runHydrationNow()">Run Now</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="loadHydrationScheduleSettings()">Refresh Status</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Consumer Cycle Classification</div>
+                <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                  Rebuild the symbol-to-cycle taxonomy used by the Consumer Cycle page. This classifies tradable stocks into cycle buckets, specific categories, and spend classes, and writes a review queue for weak-confidence names.
+                </div>
+                <div class="settings-grid">
+                  <div class="settings-field full">
+                    <label class="settings-label">Current Status</label>
+                    <div id="s-consumer-cycle-status" class="text-muted" style="font-size:var(--text-small);">Loading consumer-cycle status...</div>
+                    <div id="s-consumer-cycle-meta" class="settings-hint"></div>
+                  </div>
+                  <div class="settings-field full" style="justify-content:flex-end;">
+                    <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="runConsumerCycleClassificationNow()">Run Now</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="loadHydrationScheduleSettings()">Refresh Status</button>
+                    </div>
                   </div>
                 </div>
               </div>

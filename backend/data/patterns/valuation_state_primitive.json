@@ -1,0 +1,97 @@
+{
+  "pattern_id": "valuation_state_primitive",
+  "name": "Valuation State (Primitive)",
+  "category": "indicator_signals",
+  "description": "Point-in-time valuation state filter built from Ledger's valuation engine. Use it to scan for undervalued, fair-value, or overvalued names, or wrap it inside a strategy with stops and targets. Supports a current-state mode for scanner work and a transition mode for cleaner validator entries.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/valuation_state_primitive.py",
+  "plugin_function": "run_valuation_state_primitive_plugin",
+  "pattern_type": "valuation_state_primitive",
+  "chart_indicator": false,
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "valuation_state_primitive",
+    "target_state": "undervalued",
+    "signal_mode": "current_state",
+    "gap_threshold_pct": 20.0
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "target_state",
+      "label": "Valuation State",
+      "type": "enum",
+      "default": "undervalued",
+      "options": [
+        { "label": "Undervalued", "value": "undervalued" },
+        { "label": "Fair Value", "value": "roughly_fair" },
+        { "label": "Overvalued", "value": "overvalued" }
+      ],
+      "description": "Which valuation state should pass the indicator."
+    },
+    {
+      "key": "signal_mode",
+      "label": "Signal Mode",
+      "type": "enum",
+      "default": "current_state",
+      "options": [
+        { "label": "Current State Match", "value": "current_state" },
+        { "label": "Transition Into State", "value": "state_transition" }
+      ],
+      "description": "Use current-state matching for scanner filters, or transition mode for cleaner strategy entries."
+    },
+    {
+      "key": "gap_threshold_pct",
+      "label": "Gap Threshold %",
+      "type": "float",
+      "min": 5.0,
+      "max": 100.0,
+      "default": 20.0,
+      "description": "Minimum discount/premium to classify a symbol as under- or overvalued. Values inside the threshold are treated as fair."
+    }
+  ],
+  "examples": [
+    {
+      "name": "Undervalued Long Filter",
+      "setup_config": {
+        "pattern_type": "valuation_state_primitive",
+        "target_state": "undervalued",
+        "signal_mode": "current_state",
+        "gap_threshold_pct": 20.0
+      }
+    },
+    {
+      "name": "Overvalued Short Filter",
+      "setup_config": {
+        "pattern_type": "valuation_state_primitive",
+        "target_state": "overvalued",
+        "signal_mode": "current_state",
+        "gap_threshold_pct": 20.0
+      }
+    },
+    {
+      "name": "Undervalued Transition Trigger",
+      "setup_config": {
+        "pattern_type": "valuation_state_primitive",
+        "target_state": "undervalued",
+        "signal_mode": "state_transition",
+        "gap_threshold_pct": 20.0
+      }
+    }
+  ],
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 2,
+  "status": "active",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "regime_state",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": false,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["valuation", "dcf", "undervalued", "overvalued", "fair_value", "fundamental", "ledger"],
+  "source_kind": "custom"
+}

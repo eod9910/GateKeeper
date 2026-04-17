@@ -804,12 +804,16 @@
       const instrType = settings.instrumentType || 'stock';
 
       const stopPriceEl = document.getElementById('ipnl-stop-price');
+      const stopLabelEl = document.getElementById('ipnl-stop-label');
       const distEl      = document.getElementById('ipnl-stop-dist');
       const tpPriceEl   = document.getElementById('ipnl-tp-price');
+      const targetLabelEl = document.getElementById('ipnl-target-label');
       const gainPctEl   = document.getElementById('ipnl-gain-pct');
       const lossEl      = document.getElementById('ipnl-loss');
+      const lossLabelEl = document.getElementById('ipnl-loss-label');
       const lossPctEl   = document.getElementById('ipnl-loss-pct');
       const gainEl      = document.getElementById('ipnl-gain');
+      const gainLabelEl = document.getElementById('ipnl-gain-label');
       const rrEl        = document.getElementById('ipnl-rr');
 
       const fmtPx = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -819,12 +823,20 @@
       };
       const hide = () => { panel.style.display = 'none'; };
       const show = () => { panel.style.display = ''; };
+      if (stopLabelEl) stopLabelEl.textContent = 'Stop @ Price';
+      if (targetLabelEl) targetLabelEl.textContent = 'Target @ Price';
+      if (lossLabelEl) lossLabelEl.textContent = 'Max Loss';
+      if (gainLabelEl) gainLabelEl.textContent = 'Max Gain';
 
       // ── OPTIONS ──────────────────────────────────────────────────────────────
       if (instrType === 'options') {
         const premium    = settings.optionPrice || 0;  // entry premium per share
         const multiplier = settings.contractMultiplier || 100;
         const tpR        = settings.optionTpR || 2;
+        const tpPx       = parseFloat(document.getElementById('take-profit-price-input')?.value);
+        const selectedContract = typeof window.getSelectedTradingDeskOptionContract === 'function'
+          ? window.getSelectedTradingDeskOptionContract()
+          : null;
 
         if (!premium || premium <= 0) { hide(); return; }
 
@@ -838,20 +850,50 @@
         contracts = Math.max(1, Math.round(contracts));
 
         const maxLossDollars = premium * multiplier * contracts;
-        const tpPremium      = premium * (1 + tpR);   // e.g. 2R: sell at 3× entry premium (entry + 2× entry)
+        const chartTargetAvailable = Number.isFinite(tpPx) && tpPx > 0;
+        const estimatedTargetPremium = chartTargetAvailable && settings.optionStrike > 0
+          ? (settings.optionType === 'call'
+              ? Math.max(0, tpPx - settings.optionStrike)
+              : Math.max(0, settings.optionStrike - tpPx))
+          : null;
+        const tpPremium      = Number.isFinite(estimatedTargetPremium)
+          ? estimatedTargetPremium
+          : premium * (1 + tpR);   // fallback to R-based target if no stock target is set
         const tpGainPerShare = tpPremium - premium;
-        const maxGainDollars = tpGainPerShare * multiplier * contracts;
+        const targetGainDollars = tpGainPerShare * multiplier * contracts;
+        const maxGainDollars = targetGainDollars;
         const rr             = tpR;
 
-        if (stopPriceEl) stopPriceEl.textContent = '.00 (full loss)';
+        if (stopLabelEl) stopLabelEl.textContent = 'Stop @ Premium';
+        if (targetLabelEl) targetLabelEl.textContent = chartTargetAvailable ? 'Stock Target' : 'Target Exit';
+        if (lossLabelEl) lossLabelEl.textContent = 'Max Loss';
+        if (gainLabelEl) gainLabelEl.textContent = 'Target Gain';
+        if (stopPriceEl) stopPriceEl.textContent = '$0.00/share';
         if (distEl)      distEl.textContent       = 'Max loss = premium paid';
         if (lossEl)      lossEl.textContent        = fmt(-maxLossDollars);
         if (lossPctEl)   lossPctEl.textContent     = contracts + ' contract' + (contracts !== 1 ? 's' : '') + ' × $' + (premium * multiplier).toFixed(0);
-        if (tpPriceEl)   tpPriceEl.textContent     = fmtPx(tpPremium) + '/share';
-        if (gainPctEl)   gainPctEl.textContent     = tpR + 'R — sell at ' + tpR + '× profit on premium';
+        if (tpPriceEl)   tpPriceEl.textContent     = chartTargetAvailable ? fmtPx(tpPx) : fmtPx(tpPremium) + '/share premium';
+        if (gainPctEl)   gainPctEl.textContent     = chartTargetAvailable
+          ? `Estimated exit premium at stock target: ${fmtPx(tpPremium)}`
+          : tpR + 'R — sell at ' + tpR + '× profit on premium';
         if (gainEl)      gainEl.textContent         = fmt(maxGainDollars);
+        if (gainPctEl) {
+          if (selectedContract) {
+            const ask = Number(selectedContract.ask || 0);
+            const mark = Number(selectedContract.mark || selectedContract.premium || selectedContract.lastPrice || 0);
+            const oi = Number(selectedContract.openInterest || 0);
+            gainPctEl.textContent = chartTargetAvailable
+              ? `Est. exit ${fmtPx(tpPremium)} | chain ask ${fmtPx(ask > 0 ? ask : premium)} | mark ${fmtPx(mark > 0 ? mark : premium)} | OI ${oi}`
+              : `Chain quote: ask ${fmtPx(ask > 0 ? ask : premium)} | mark ${fmtPx(mark > 0 ? mark : premium)} | OI ${oi}`;
+          } else {
+            gainPctEl.textContent = chartTargetAvailable
+              ? `Estimated exit premium at stock target: ${fmtPx(tpPremium)}`
+              : 'No contract selected - using manual premium';
+          }
+        }
+        if (gainEl)      gainEl.textContent         = fmt(targetGainDollars);
         if (rrEl) {
-          rrEl.textContent = 'R:R  1 : ' + rr.toFixed(1);
+          rrEl.textContent = 'Target R:R  1 : ' + rr.toFixed(1);
           rrEl.style.color = rr >= 2 ? '#22c55e' : rr >= 1 ? '#f59e0b' : '#ef4444';
         }
         show(); return;

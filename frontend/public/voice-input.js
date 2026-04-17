@@ -213,11 +213,13 @@
     } else {
       const row = session.input.parentElement;
       if (!row) return null;
-      const firstButton = Array.from(row.children).find((child) => child.tagName === 'BUTTON');
+      const toolbar = row.querySelector('.scanner-chat-input-toolbar');
+      const mount = toolbar || row;
+      const firstButton = Array.from(mount.children).find((child) => child.tagName === 'BUTTON');
       if (firstButton) {
-        row.insertBefore(button, firstButton);
+        mount.insertBefore(button, firstButton);
       } else {
-        row.appendChild(button);
+        mount.appendChild(button);
       }
     }
 

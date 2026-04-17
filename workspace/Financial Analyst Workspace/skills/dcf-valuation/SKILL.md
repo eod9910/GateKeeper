@@ -6,6 +6,23 @@ Estimate a company’s intrinsic value using a disciplined discounted cash flow 
 
 This skill should normally be entered through the `run_dcf_valuation` tool.
 
+## Runtime Contract
+
+This skill is the workspace contract for Ledger's DCF workflow.
+
+- Runtime tool: `run_dcf_valuation`
+- Backend engine: `dcf_engine`
+- Normal dependency inputs:
+  - `get_ledger_context`
+  - `earnings_quality_engine`
+  - `financial_analysis_engine`
+
+What this means:
+
+- the workspace defines the valuation doctrine, assumptions discipline, and output contract
+- the backend engine performs the structured DCF math
+- Ledger interprets the result and states the price-versus-value judgment
+
 ## Reference Set
 
 Primary references for this skill:

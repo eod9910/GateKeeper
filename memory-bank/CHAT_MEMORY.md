@@ -5,6 +5,19 @@
 
 ## Active Project: Pattern Detector / Trading Co-Pilot
 
+### Recent Working State (2026-04-16) — Hygiene + Scope Pass
+
+- Closed the data-leakage half of the standing repo-state recovery plan:
+  - `.gitignore` now permanently excludes runtime SQLite (`*.sqlite/-shm/-wal`), valuation regime snapshots, smoke artifacts, `.tmp/`, and root-level `_tmp_*` scripts.
+  - Orphan zero-byte `backend/data/fundamentals_pit.sqlite` (underscore typo variant) removed; canonical hyphen filename is the only one in code.
+  - `npm run repo:check` (run from `backend/`) wraps `check_repo_state.ps1`.
+  - `git status` `backend/data` entries dropped from 15 → 3.
+- Three open decisions for the user, captured in `.planning/plans/ACTIVE/repo-hygiene-followups-2026-04-16.md`:
+  1. **Scope sprawl** — 116 changed files across valuation/consumer-cycle/ledger-hydration; none is the contract-hardening 3rd-issuer Ledger validation that the standing plan declared next. Recommended: checkpoint commit + formally park other initiatives.
+  2. **OneDrive + 4.5 GB of SQLite** — real corruption risk; minimum action is exclude `backend/data/` from OneDrive sync; right answer is env-configurable data dir outside the repo path.
+  3. **Python/TS contract drift** — crossing surface widening with no canonical schema source. Needs a `docs/ts-python-contract-policy.md` before next major interface.
+- Next AI should read `.planning/plans/ACTIVE/repo-hygiene-followups-2026-04-16.md` first, resolve Issues 1 + 2 with user before more feature work.
+
 ### Recent Working State (2026-03-30)
 - Workstream shifted to the **data foundation required for Ledger** rather than frontend UX.
 - Source-of-truth split now clarified:

@@ -8,14 +8,15 @@ let candidates = [];
 let currentIndex = 0;
 
 // Track whatever is currently displayed on chart (swing, fib-energy, or candidate)
-let currentDisplayData = null;
+// Use var so chart.js (loaded earlier) resolves the same global binding when reading/writing.
+var currentDisplayData = null;
 
 // Swing review mode state
 let swingReviewMode = false;
 let swingReviewSymbols = [];
 let swingReviewIndex = 0;
 let swingReviewSettings = { period: 'max', interval: '1wk' };
-let swingDisplayActive = false;  // Guard to prevent other functions from overwriting swing display
+var swingDisplayActive = false;  // Guard to prevent other functions from overwriting swing display
 const fundamentalsCache = new Map();
 
 function setCandidateInfoVisibility(isVisible) {
@@ -56,10 +57,33 @@ async function loadCandidates(autoShow = true) {
   }
 }
 
+function parseDisplayDate(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const dateOnlyMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const year = Number(dateOnlyMatch[1]);
+    const monthIndex = Number(dateOnlyMatch[2]) - 1;
+    const day = Number(dateOnlyMatch[3]);
+    const localDate = new Date(year, monthIndex, day);
+    return Number.isNaN(localDate.getTime()) ? null : localDate;
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function formatDate(isoDate) {
   if (!isoDate) return 'N/A';
-  try { const d = new Date(isoDate); return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
-  catch { return isoDate.substring(0, 10); }
+  try {
+    const d = parseDisplayDate(isoDate);
+    if (!d) return String(isoDate).substring(0, 10);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch {
+    return String(isoDate).substring(0, 10);
+  }
 }
 
 function escapeHtml(value) {
@@ -143,6 +167,33 @@ function formatSignalLabel(value) {
   if (value === 'selling') return 'Selling';
   if (value === 'quiet') return 'Quiet';
   return String(value);
+}
+
+function formatValuationStateLabel(value) {
+  if (value === 'undervalued') return 'Undervalued';
+  if (value === 'overvalued') return 'Overvalued';
+  if (value === 'roughly_fair' || value === 'fair') return 'Fair Value';
+  return 'N/A';
+}
+
+function valuationToneFromState(value) {
+  if (value === 'undervalued') return 'positive';
+  if (value === 'overvalued') return 'danger';
+  if (value === 'roughly_fair' || value === 'fair') return 'muted';
+  return 'neutral';
+}
+
+function formatValuationGapLabel(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return 'Gap N/A';
+  const num = Number(value);
+  return (num > 0 ? '+' : '') + num.toFixed(1) + '% gap';
+}
+
+function formatValuationRange(low, high) {
+  if ((low === null || low === undefined || Number.isNaN(low)) && (high === null || high === undefined || Number.isNaN(high))) {
+    return 'N/A';
+  }
+  return formatMoneyValue(low) + ' to ' + formatMoneyValue(high);
 }
 
 function semanticRoleStyle(role) {
@@ -309,6 +360,8 @@ function renderFundamentalsSnapshot(data) {
   const positioning = data.positioning || null;
   const marketContext = data.marketContext || null;
   const ownership = data.ownership || null;
+  const valuationSnapshot = data.valuationSnapshot || null;
+  const specialSituation = data.specialSituation || null;
   const sdx = data.stockdex || null;
   const earningsHistory = execution && Array.isArray(execution.history) && execution.history.length
     ? execution.history
@@ -346,6 +399,16 @@ function renderFundamentalsSnapshot(data) {
     summaryCard('Forward', formatScoreValue(data.forwardExpectationsScore), forward ? formatSignalLabel(forward.signal) : 'Estimate trend'),
     summaryCard('Insiders', formatScoreValue(data.positioningScore), positioning ? formatSignalLabel(positioning.signal) : 'Positioning'),
     summaryCard(
+      'Special Situation',
+      specialSituation ? (specialSituation.label || 'Flagged') : 'None',
+      specialSituation ? (specialSituation.expectedClose ? ('Expected close ' + specialSituation.expectedClose) : (specialSituation.summary || 'Deal-driven setup')) : 'Standalone equity'
+    ),
+    summaryCard(
+      'Valuation',
+      formatValuationStateLabel(valuationSnapshot ? valuationSnapshot.valuationState : null),
+      valuationSnapshot ? formatValuationGapLabel(valuationSnapshot.valuationGapPct) : 'Universe DCF snapshot'
+    ),
+    summaryCard(
       'Squeeze',
       formatScoreValue(data.squeezePressureScore),
       data.squeezePressureLabel || 'N/A'
@@ -353,7 +416,19 @@ function renderFundamentalsSnapshot(data) {
     summaryCard('Catalyst', formatFlagLabel(data.catalystFlag), catalystSummary),
   ].join('');
 
-  const tagList = Array.isArray(data.tags) ? data.tags : [];
+  const tagList = Array.isArray(data.tags) ? data.tags.slice() : [];
+  if (valuationSnapshot && valuationSnapshot.valuationState) {
+    tagList.push({
+      label: formatValuationStateLabel(valuationSnapshot.valuationState),
+      tone: valuationToneFromState(valuationSnapshot.valuationState),
+    });
+  }
+  if (specialSituation && specialSituation.label) {
+    tagList.unshift({
+      label: specialSituation.label,
+      tone: 'danger',
+    });
+  }
   tags.innerHTML = tagList.map(tag => {
     const style = tagToneStyle(tag.tone);
     return (
@@ -397,6 +472,10 @@ function renderFundamentalsSnapshot(data) {
       ['Forward Score', formatScoreValue(data.forwardExpectationsScore), data.forwardExpectationsScore != null && data.forwardExpectationsScore >= 65 ? 'positive' : (data.forwardExpectationsScore != null && data.forwardExpectationsScore <= 35 ? 'danger' : null)],
     ]),
     sectionCard('Positioning / Event Risk', [
+      ['Special Situation', specialSituation ? (specialSituation.label || 'Flagged') : 'None', specialSituation ? 'danger' : null],
+      ['Deal Price', formatMoneyValue(specialSituation ? specialSituation.dealPricePerShare : null), specialSituation && specialSituation.dealPricePerShare != null ? 'warning' : null],
+      ['Spread To Deal', formatSignedPercentValue(specialSituation ? specialSituation.currentToDealSpreadPct : null), specialSituation && specialSituation.currentToDealSpreadPct != null ? 'warning' : null],
+      ['Expected Close', specialSituation ? (specialSituation.expectedClose || 'N/A') : 'N/A', specialSituation && specialSituation.expectedClose ? 'warning' : null],
       ['Insider Signal', formatSignalLabel(positioning ? positioning.signal : null), positioning && positioning.signal === 'buying' ? 'positive' : (positioning && positioning.signal === 'selling' ? 'warning' : null)],
       ['Recent Buys', positioning && positioning.recentBuyCount != null ? String(positioning.recentBuyCount) : 'N/A', positioning && positioning.recentBuyCount > 0 ? 'positive' : null],
       ['Recent Sales', positioning && positioning.recentSellCount != null ? String(positioning.recentSellCount) : 'N/A', positioning && positioning.recentSellCount > 0 ? 'warning' : null],
@@ -427,16 +506,32 @@ function renderFundamentalsSnapshot(data) {
       ['Market Score', formatScoreValue(data.marketContextScore), data.marketContextScore != null && data.marketContextScore >= 65 ? 'positive' : (data.marketContextScore != null && data.marketContextScore <= 35 ? 'warning' : null)],
     ]),
     sectionCard('Valuation', [
+      ['DCF State', formatValuationStateLabel(valuationSnapshot ? valuationSnapshot.valuationState : null), valuationSnapshot ? valuationToneFromState(valuationSnapshot.valuationState) : null],
+      ['DCF Gap', valuationSnapshot ? formatSignedPercentValue(valuationSnapshot.valuationGapPct) : 'N/A', valuationSnapshot ? valuationToneFromState(valuationSnapshot.valuationState) : null],
+      ['Fair Value Mid', valuationSnapshot ? formatMoneyValue(valuationSnapshot.fairValueMid) : 'N/A'],
+      ['Fair Value Range', valuationSnapshot ? formatValuationRange(valuationSnapshot.fairValueLow, valuationSnapshot.fairValueHigh) : 'N/A'],
+      ['Snapshot Price', valuationSnapshot ? formatMoneyValue(valuationSnapshot.price) : 'N/A'],
+      ['Coverage', valuationSnapshot && valuationSnapshot.coverageMode ? String(valuationSnapshot.coverageMode).replace(/_/g, ' ') : 'N/A'],
+      ['Quality', valuationSnapshot ? ((valuationSnapshot.qualityGrade || 'N/A') + (valuationSnapshot.qualityScore != null ? ' (' + Number(valuationSnapshot.qualityScore).toFixed(0) + ')' : '')) : 'N/A'],
+      ['As Of', valuationSnapshot ? formatDate(valuationSnapshot.asOfDate) : 'N/A'],
       ['Mkt Cap', formatCompactNumber(data.marketCap)],
       ['EV', formatCompactNumber(data.enterpriseValue)],
       ['EV / Sales', formatRatioValue(data.enterpriseToSales)],
       ['Cash - Debt', formatMoneyValue(data.netCash), data.netCash != null && data.netCash > 0 ? 'positive' : (data.netCash != null && data.netCash < 0 ? 'danger' : null)],
-      ['Story Flag', data.lowEnterpriseValueFlag ? 'Cash-rich' : 'Normal', data.lowEnterpriseValueFlag ? 'positive' : null],
-      ['Gross Margin', formatPercentValue(data.grossMarginPct)],
-      ['Op Margin', formatPercentValue(data.operatingMarginPct)],
-      ['Last ER', formatDate(data.lastEarningsDate)],
     ]),
   ];
+
+  if (specialSituation && specialSituation.summary) {
+    sections.unshift(
+      sectionCard('Deal Risk', [
+        ['Status', specialSituation.label || 'Flagged', 'danger'],
+        ['Summary', specialSituation.summary],
+        ['Deal Price', formatMoneyValue(specialSituation.dealPricePerShare)],
+        ['Spread To Deal', formatSignedPercentValue(specialSituation.currentToDealSpreadPct), specialSituation.currentToDealSpreadPct != null ? 'warning' : null],
+        ['Expected Close', specialSituation.expectedClose || 'N/A'],
+      ])
+    );
+  }
 
   if (earningsHistory.length > 0) {
     const beatStreak = execution ? (execution.epsBeatStreak || 0) : 0;
@@ -463,6 +558,7 @@ function copyFundamentalsToClipboard() {
   var forward = d.forwardExpectations || null;
   var positioning = d.positioning || null;
   var mc = d.marketContext || null;
+  var valuation = d.valuationSnapshot || null;
 
   function pct(v) { return v != null ? Number(v).toFixed(1) + '%' : 'N/A'; }
   function money(v) {
@@ -486,6 +582,7 @@ function copyFundamentalsToClipboard() {
     '',
     '── Tags ──',
     (Array.isArray(d.tags) ? d.tags.map(function(t) { return t.label; }).join(', ') : 'None'),
+    valuation ? 'Valuation State: ' + formatValuationStateLabel(valuation.valuationState) + ' | DCF Gap: ' + pct(valuation.valuationGapPct) : '',
     '',
     '── Survivability ──',
     'Cash: ' + money(d.totalCash) + ' | FCF TTM: ' + money(d.freeCashFlowTTM),
@@ -521,6 +618,9 @@ function copyFundamentalsToClipboard() {
     mc ? 'Trend: ' + (mc.above200Day ? 'Above 200D' : 'Below 200D') : '',
     '',
     '── Valuation ──',
+    valuation ? 'DCF State: ' + formatValuationStateLabel(valuation.valuationState) + ' | Coverage: ' + (valuation.coverageMode || 'N/A') : 'DCF State: N/A',
+    valuation ? 'Fair Value Mid: ' + money(valuation.fairValueMid) + ' | Range: ' + formatValuationRange(valuation.fairValueLow, valuation.fairValueHigh) : 'Fair Value Mid: N/A',
+    valuation ? 'Snapshot Price: ' + money(valuation.price) + ' | Gap: ' + pct(valuation.valuationGapPct) : 'Snapshot Price: N/A',
     'Mkt Cap: ' + money(d.marketCap) + ' | EV: ' + money(d.enterpriseValue),
     'EV/Sales: ' + val(d.enterpriseToSales) + ' | Cash-Debt: ' + money(d.netCash),
     'Gross Margin: ' + pct(d.grossMarginPct) + ' | Op Margin: ' + pct(d.operatingMarginPct),
@@ -616,6 +716,7 @@ function renderSocialBuzz(buzz) {
   var panel = document.getElementById('social-buzz-panel');
   var summaryEl = document.getElementById('social-buzz-summary');
   var msgsEl = document.getElementById('social-buzz-messages');
+  var sourceEl = document.getElementById('social-buzz-source');
   if (!panel || !summaryEl) return;
 
   panel.style.display = 'block';
@@ -630,6 +731,14 @@ function renderSocialBuzz(buzz) {
     'No Data': '#6b7280',
   };
   var moodColor = moodColors[buzz.mood] || '#6b7280';
+  var sampledCount = Number.isFinite(Number(buzz.sampled_message_count)) ? Number(buzz.sampled_message_count) : Number(buzz.message_count || 0);
+  var stocktwitsCount = Number.isFinite(Number(buzz.stocktwits_message_count)) ? Number(buzz.stocktwits_message_count) : 0;
+  var yahooCount = Number.isFinite(Number(buzz.yahoo_message_count)) ? Number(buzz.yahoo_message_count) : 0;
+  var sourceLabel = buzz.source_label || (Array.isArray(buzz.sources) && buzz.sources.length ? buzz.sources.join(' + ') : 'Social Buzz');
+
+  if (sourceEl) {
+    sourceEl.textContent = sourceLabel;
+  }
 
   var watchlistStr = buzz.watchlist_count ? buzz.watchlist_count.toLocaleString() : '—';
 
@@ -656,9 +765,25 @@ function renderSocialBuzz(buzz) {
       barHtml +
     '</div>' +
     '<div style="display:flex;flex-direction:column;gap:2px;">' +
-      '<div style="font-size:13px;font-weight:600;">' + buzz.message_count + '</div>' +
-      '<div style="font-size:11px;color:var(--color-text-muted);">Messages</div>' +
+      '<div style="font-size:13px;font-weight:600;">' + sampledCount + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">Sampled Posts</div>' +
     '</div>';
+
+  if (stocktwitsCount || yahooCount) {
+    summaryEl.innerHTML +=
+      '<div style="display:flex;flex-direction:column;gap:2px;">' +
+        '<div style="font-size:13px;font-weight:600;">' + stocktwitsCount + ' / ' + yahooCount + '</div>' +
+        '<div style="font-size:11px;color:var(--color-text-muted);">ST / Yahoo</div>' +
+      '</div>';
+  }
+
+  if (buzz.oldest_message_at && buzz.newest_message_at) {
+    summaryEl.innerHTML +=
+      '<div style="display:flex;flex-direction:column;gap:2px;">' +
+        '<div style="font-size:13px;font-weight:600;">' + (buzz.pages_fetched || 1) + ' pulls</div>' +
+        '<div style="font-size:11px;color:var(--color-text-muted);">Depth</div>' +
+      '</div>';
+  }
 
   if (msgsEl && buzz.recent_messages && buzz.recent_messages.length > 0) {
     msgsEl.style.display = 'block';
@@ -668,6 +793,10 @@ function renderSocialBuzz(buzz) {
       var sentBadge = '';
       if (m.sentiment === 'Bullish') sentBadge = '<span style="color:#22c55e;font-weight:600;font-size:10px;margin-right:4px;">BULL</span>';
       else if (m.sentiment === 'Bearish') sentBadge = '<span style="color:#ef4444;font-weight:600;font-size:10px;margin-right:4px;">BEAR</span>';
+      var sourceBadge = '';
+      if (m.source) {
+        sourceBadge = '<span style="display:inline-flex;align-items:center;padding:1px 6px;border:1px solid rgba(255,255,255,0.12);border-radius:999px;color:var(--color-text-muted);font-size:9px;font-weight:700;letter-spacing:0.04em;margin-right:6px;text-transform:uppercase;">' + m.source + '</span>';
+      }
       var timeStr = '';
       if (m.created_at) {
         try {
@@ -681,6 +810,7 @@ function renderSocialBuzz(buzz) {
       }
       html += '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;line-height:1.4;">' +
         sentBadge +
+        sourceBadge +
         '<span style="color:var(--color-text-muted);font-size:10px;">' + (m.user || '') + (timeStr ? ' · ' + timeStr : '') + '</span>' +
         '<div style="margin-top:2px;color:var(--color-text);opacity:0.85;">' + (m.body || '') + '</div>' +
       '</div>';
@@ -722,6 +852,20 @@ function showCandidate(index) {
     return;
   }
 
+  const candidate = candidates[index];
+
+  document.getElementById('current-index').textContent = index + 1;
+  document.getElementById('chart-symbol').textContent = candidate.symbol + ' (' + candidate.timeframe + ')';
+  if (typeof setChartContext === 'function') {
+    const interval = typeof resolveScannerChartInterval === 'function'
+      ? resolveScannerChartInterval(candidate)
+      : ({ W: '1wk', D: '1d', '1h': '1h', '4h': '4h', M: '1mo' }[candidate.timeframe] || '1d');
+    const indicatorSelect = document.getElementById('scan-indicator-select');
+    const activePluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
+    setChartContext(candidate.symbol, interval, activePluginId || '');
+  }
+  updateCandidateNavButtons();
+
   if (swingDisplayActive) { console.log('showCandidate skipped - swing display is active'); return; }
 
   if (drawingCtx) { clearAllDrawings(); }
@@ -735,8 +879,6 @@ function showCandidate(index) {
   if (aiSuggestions) aiSuggestions.classList.add('hidden');
   const mlScores = document.getElementById('ml-scores');
   if (mlScores) mlScores.classList.add('hidden');
-
-  const candidate = candidates[index];
   const lastSymbol = document.getElementById('ai-panel')?.dataset?.loadedSymbol;
   const isNewSymbol = candidate?.symbol && candidate.symbol !== lastSymbol;
   if (isNewSymbol) {
@@ -823,17 +965,8 @@ function showCandidate(index) {
   const phasesEl = document.getElementById('wyckoff-phases');
   if (phasesEl) phasesEl.style.display = 'none';
 
-  document.getElementById('current-index').textContent = index + 1;
-  document.getElementById('chart-symbol').textContent = candidate.symbol + ' (' + candidate.timeframe + ')';
-  if (typeof setChartContext === 'function') {
-    const intervalMap = { 'W': '1wk', 'D': '1d', '1h': '1h', '4h': '4h', 'M': '1mo' };
-    const indicatorSelect = document.getElementById('scan-indicator-select');
-    const activePluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
-    setChartContext(candidate.symbol, intervalMap[candidate.timeframe] || '1d', activePluginId || candidate.pattern_type || '');
-  }
   updateEntryGate(candidate);
   drawPatternChart(candidate);
-  updateCandidateNavButtons();
 }
 
 function updateCandidateNavButtons() {

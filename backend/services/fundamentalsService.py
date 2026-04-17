@@ -1018,6 +1018,53 @@ def _build_market_context(snapshot: Dict[str, Any], stockdex_data: Dict[str, Any
     }
 
 
+def _reconcile_shares_outstanding(
+    snapshot: Dict[str, Any],
+    stockdex_data: Dict[str, Any],
+) -> Tuple[Optional[float], Optional[str]]:
+    trading = stockdex_data.get("tradingInformation") or {}
+    if not isinstance(trading, dict):
+        trading = {}
+
+    vendor_shares = _first_number(snapshot.get("sharesOutstanding"))
+    market_cap = _first_number(snapshot.get("marketCap"))
+    current_price = _first_number(snapshot.get("currentPrice"))
+    derived_shares = (market_cap / current_price) if market_cap and current_price else None
+    stockdex_shares = _parse_compact_number_text(_lookup_loose_value(trading, "Shares Outstanding"))
+    implied_shares = _parse_compact_number_text(_lookup_loose_value(trading, "Implied Shares Outstanding"))
+    float_shares = _first_number(snapshot.get("floatShares"))
+
+    candidates: List[Tuple[str, Optional[float]]] = [
+        ("vendor_info", vendor_shares),
+        ("stockdex_implied", implied_shares),
+        ("market_cap_implied", derived_shares),
+        ("stockdex_reported", stockdex_shares),
+        ("float_shares", float_shares),
+    ]
+
+    valid_candidates = [(label, value) for label, value in candidates if value is not None and value > 0]
+    if not valid_candidates:
+        return vendor_shares, None
+
+    if vendor_shares is None or vendor_shares <= 0:
+        preferred_label, preferred_value = valid_candidates[0]
+        return _round(preferred_value, 2), preferred_label
+
+    for preferred_label, preferred_value in valid_candidates:
+        if preferred_label == "vendor_info":
+            continue
+        ratio = preferred_value / vendor_shares if vendor_shares else None
+        if ratio is None:
+            continue
+        if ratio >= 3.0 and derived_shares and implied_shares:
+            if abs(implied_shares - derived_shares) / max(abs(derived_shares), 1.0) <= 0.35:
+                return _round(implied_shares, 2), "stockdex_implied"
+        if ratio >= 5.0 and preferred_label in {"stockdex_implied", "market_cap_implied"}:
+            return _round(preferred_value, 2), preferred_label
+
+    return _round(vendor_shares, 2), "vendor_info"
+
+
 def _build_ownership_context(snapshot: Dict[str, Any], stockdex_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     top_holders = stockdex_data.get("topInstitutionalHolders") or []
     has_holders = isinstance(top_holders, list) and len(top_holders) > 0
@@ -1338,6 +1385,7 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
         "marketCap": market_cap,
         "enterpriseValue": enterprise_value,
         "enterpriseToSales": _round(enterprise_to_sales, 2),
+        "annualRevenue": annual_revenue,
         "netCash": net_cash,
         "cashPctMarketCap": _round(cash_pct_market_cap, 1),
         "lowEnterpriseValueFlag": low_ev_flag,
@@ -1448,6 +1496,11 @@ def get_fundamentals(symbol: str) -> Dict[str, Any]:
         try:
             stockdex_data = _fetch_stockdex(symbol)
             snapshot["stockdex"] = stockdex_data
+            reconciled_shares, reconciled_source = _reconcile_shares_outstanding(snapshot, stockdex_data)
+            if reconciled_shares is not None:
+                snapshot["sharesOutstanding"] = reconciled_shares
+            if reconciled_source:
+                snapshot["sharesOutstandingSource"] = reconciled_source
             if stockdex_data.get("analystTargetPrice") and not snapshot.get("targetPrice"):
                 snapshot["targetPrice"] = stockdex_data["analystTargetPrice"]
             snapshot["reportedExecution"] = _build_reported_execution_context(stockdex_data, snapshot.get("epsSurprisePct"))
@@ -1593,26 +1646,66 @@ def _fetch_stockdex(symbol: str) -> Dict[str, Any]:
     return result
 
 
-# ── StockTwits Social Buzz ────────────────────────────────────────────────────
+# ── Social Buzz (StockTwits + Yahoo Finance Community) ───────────────────────
 
-def get_social_buzz(symbol: str) -> Dict[str, Any]:
+def _stocktwits_social_buzz(symbol: str) -> Dict[str, Any]:
     """Fetch social buzz data from StockTwits public API (no auth required)."""
     import urllib.request
     import urllib.error
 
-    url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol.upper()}.json"
-    try:
+    base_url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol.upper()}.json"
+    max_pages = 3
+    sample_limit = 90
+    recent_limit = 20
+
+    def fetch_page(max_id: Optional[int] = None) -> Dict[str, Any]:
+        url = base_url if max_id is None else f"{base_url}?max={int(max_id)}"
         req = urllib.request.Request(url, headers={"User-Agent": "PatternDetector/1.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
-            raw = json.loads(resp.read().decode("utf-8"))
+            return json.loads(resp.read().decode("utf-8"))
+
+    try:
+        sym_info = {}
+        messages: List[Dict[str, Any]] = []
+        seen_ids = set()
+        next_max_id = None
+        pages_fetched = 0
+
+        while pages_fetched < max_pages and len(messages) < sample_limit:
+            raw = fetch_page(next_max_id)
+            if raw.get("response", {}).get("status") != 200:
+                if pages_fetched == 0:
+                    return {"symbol": symbol, "error": "Bad response from StockTwits", "available": False}
+                break
+
+            if not sym_info:
+                sym_info = raw.get("symbol", {})
+
+            page_messages = raw.get("messages", [])
+            if not page_messages:
+                break
+
+            added_this_page = 0
+            for msg in page_messages:
+                message_id = msg.get("id")
+                if message_id in seen_ids:
+                    continue
+                seen_ids.add(message_id)
+                messages.append(msg)
+                added_this_page += 1
+                if len(messages) >= sample_limit:
+                    break
+
+            pages_fetched += 1
+            if added_this_page == 0:
+                break
+
+            last_id = page_messages[-1].get("id")
+            if not last_id or last_id == next_max_id:
+                break
+            next_max_id = last_id
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as exc:
         return {"symbol": symbol, "error": str(exc), "available": False}
-
-    if raw.get("response", {}).get("status") != 200:
-        return {"symbol": symbol, "error": "Bad response from StockTwits", "available": False}
-
-    sym_info = raw.get("symbol", {})
-    messages = raw.get("messages", [])
 
     bullish = 0
     bearish = 0
@@ -1628,8 +1721,10 @@ def get_social_buzz(symbol: str) -> Dict[str, Any]:
             no_sentiment += 1
 
     total_tagged = bullish + bearish
+    sample_count = len(messages)
     bull_pct = round(bullish / total_tagged * 100, 1) if total_tagged > 0 else None
     bear_pct = round(bearish / total_tagged * 100, 1) if total_tagged > 0 else None
+    neutral_pct = round(no_sentiment / sample_count * 100, 1) if sample_count > 0 else None
 
     if total_tagged >= 3:
         if bull_pct >= 70:
@@ -1648,7 +1743,7 @@ def get_social_buzz(symbol: str) -> Dict[str, Any]:
         mood = "No Data"
 
     recent_messages = []
-    for msg in messages[:5]:
+    for msg in messages[:recent_limit]:
         s = (msg.get("entities") or {}).get("sentiment", {})
         basic = s.get("basic") if isinstance(s, dict) else None
         body = msg.get("body", "")
@@ -1661,21 +1756,248 @@ def get_social_buzz(symbol: str) -> Dict[str, Any]:
             "sentiment": basic,
             "created_at": msg.get("created_at"),
             "user": (msg.get("user") or {}).get("username"),
+            "source": "StockTwits",
         })
+
+    newest_message_at = messages[0].get("created_at") if messages else None
+    oldest_message_at = messages[-1].get("created_at") if messages else None
 
     return {
         "symbol": symbol.upper(),
+        "source": "StockTwits",
         "available": True,
         "watchlist_count": sym_info.get("watchlist_count"),
         "title": sym_info.get("title"),
-        "message_count": len(messages),
+        "message_count": sample_count,
+        "pages_fetched": pages_fetched,
+        "sampled_message_count": sample_count,
+        "tagged_message_count": total_tagged,
         "bullish": bullish,
         "bearish": bearish,
         "no_sentiment": no_sentiment,
         "bull_pct": bull_pct,
         "bear_pct": bear_pct,
+        "neutral_pct": neutral_pct,
         "mood": mood,
+        "newest_message_at": newest_message_at,
+        "oldest_message_at": oldest_message_at,
         "recent_messages": recent_messages,
+    }
+
+
+def _yahoo_community_buzz(symbol: str) -> Dict[str, Any]:
+    """Fetch lightweight Yahoo Finance community comments using the message board id."""
+    try:
+        import requests
+        import yfinance as yf
+    except Exception as exc:
+        return {"symbol": symbol, "source": "Yahoo Finance", "available": False, "error": str(exc)}
+
+    symbol = symbol.upper().strip()
+    sample_limit = 40
+    recent_limit = 12
+    page_size = 20
+    max_pages = 2
+    spot_id = "sp_Rba9aFpG"
+
+    try:
+        info = yf.Ticker(symbol).info or {}
+        message_board_id = str(info.get("messageBoardId") or "").strip()
+        if not message_board_id:
+            return {
+                "symbol": symbol,
+                "source": "Yahoo Finance",
+                "available": False,
+                "error": "No Yahoo Finance message board id available.",
+            }
+
+        post_id = message_board_id.replace("_", "$")
+        api_url = "https://api-2-0.spot.im/v1.0.0/conversation/read"
+        headers = {
+            "User-Agent": "PatternDetector/1.0",
+            "Content-Type": "application/json",
+            "x-spot-id": spot_id,
+            "x-post-id": post_id,
+        }
+
+        comments: List[Dict[str, Any]] = []
+        seen_ids = set()
+        offset = 0
+        pages_fetched = 0
+        total_comments = None
+        total_replies = None
+
+        def flatten_comment(comment: Dict[str, Any]) -> List[Dict[str, Any]]:
+            items = [comment]
+            for reply in comment.get("replies") or []:
+                if isinstance(reply, dict):
+                    items.append(reply)
+            return items
+
+        while pages_fetched < max_pages and len(comments) < sample_limit:
+            payload = {
+                "conversation_id": f"{spot_id}_{post_id}",
+                "count": page_size,
+                "offset": offset,
+                "sort_by": "newest",
+            }
+            resp = requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=10)
+            resp.raise_for_status()
+            raw = resp.json()
+            conversation = raw.get("conversation") or {}
+            page_comments = conversation.get("comments") or []
+            if total_comments is None:
+                total_comments = conversation.get("comments_count")
+            if total_replies is None:
+                total_replies = conversation.get("replies_count")
+            if not page_comments:
+                break
+
+            added_this_page = 0
+            for root_comment in page_comments:
+                for item in flatten_comment(root_comment):
+                    item_id = item.get("id")
+                    if not item_id or item_id in seen_ids:
+                        continue
+                    seen_ids.add(item_id)
+                    comments.append(item)
+                    added_this_page += 1
+                    if len(comments) >= sample_limit:
+                        break
+                if len(comments) >= sample_limit:
+                    break
+
+            pages_fetched += 1
+            if added_this_page == 0 or not conversation.get("has_next"):
+                break
+            next_offset = conversation.get("offset")
+            if not isinstance(next_offset, int) or next_offset <= offset:
+                break
+            offset = next_offset
+
+        def comment_text(comment: Dict[str, Any]) -> str:
+            parts = []
+            for part in comment.get("content") or []:
+                if isinstance(part, dict):
+                    text = str(part.get("text") or "").strip()
+                    if text:
+                        parts.append(text)
+            return " ".join(parts).strip()
+
+        recent_messages = []
+        newest_message_at = None
+        oldest_message_at = None
+        for comment in comments[:recent_limit]:
+            written_at = comment.get("written_at") or comment.get("time")
+            created_at = None
+            if isinstance(written_at, (int, float)):
+                created_at = datetime.utcfromtimestamp(int(written_at)).isoformat() + "Z"
+            body = comment_text(comment)
+            if not body:
+                continue
+            if newest_message_at is None:
+                newest_message_at = created_at
+            oldest_message_at = created_at
+            recent_messages.append({
+                "body": body[:280],
+                "sentiment": None,
+                "created_at": created_at,
+                "user": comment.get("user_display_name") or "Yahoo User",
+                "source": "Yahoo Finance",
+                "replies_count": comment.get("replies_count"),
+                "stars": comment.get("stars"),
+            })
+
+        return {
+            "symbol": symbol,
+            "source": "Yahoo Finance",
+            "available": len(recent_messages) > 0,
+            "message_board_id": message_board_id,
+            "pages_fetched": pages_fetched,
+            "message_count": len(recent_messages),
+            "sampled_message_count": len(comments),
+            "recent_messages": recent_messages,
+            "newest_message_at": newest_message_at,
+            "oldest_message_at": oldest_message_at,
+            "total_comments": total_comments,
+            "total_replies": total_replies,
+            "mood": "Community Active" if recent_messages else "No Data",
+        }
+    except Exception as exc:
+        return {"symbol": symbol, "source": "Yahoo Finance", "available": False, "error": str(exc)}
+
+
+def get_social_buzz(symbol: str) -> Dict[str, Any]:
+    """Fetch and aggregate social buzz from StockTwits plus Yahoo Finance community."""
+    stocktwits = _stocktwits_social_buzz(symbol)
+    yahoo_finance = _yahoo_community_buzz(symbol)
+
+    available_sources = []
+    if stocktwits.get("available"):
+        available_sources.append("StockTwits")
+    if yahoo_finance.get("available"):
+        available_sources.append("Yahoo Finance")
+
+    combined_recent = []
+    for source_payload in (stocktwits, yahoo_finance):
+        for message in source_payload.get("recent_messages") or []:
+            combined_recent.append(dict(message))
+
+    def sort_key(item: Dict[str, Any]) -> float:
+        created_at = item.get("created_at")
+        try:
+            if isinstance(created_at, str) and created_at:
+                normalized = created_at.replace("Z", "+00:00")
+                return datetime.fromisoformat(normalized).timestamp()
+        except Exception:
+            pass
+        return 0.0
+
+    combined_recent.sort(key=sort_key, reverse=True)
+    combined_recent = combined_recent[:20]
+
+    newest_message_at = combined_recent[0].get("created_at") if combined_recent else (
+        stocktwits.get("newest_message_at") or yahoo_finance.get("newest_message_at")
+    )
+    oldest_message_at = combined_recent[-1].get("created_at") if combined_recent else (
+        yahoo_finance.get("oldest_message_at") or stocktwits.get("oldest_message_at")
+    )
+
+    aggregate_message_count = int(stocktwits.get("sampled_message_count") or 0) + int(yahoo_finance.get("sampled_message_count") or 0)
+    aggregate_pages_fetched = int(stocktwits.get("pages_fetched") or 0) + int(yahoo_finance.get("pages_fetched") or 0)
+    source_label = " + ".join(available_sources) if available_sources else "StockTwits + Yahoo Finance"
+    mood = stocktwits.get("mood") if stocktwits.get("available") else (yahoo_finance.get("mood") or "No Data")
+
+    return {
+        "symbol": symbol.upper(),
+        "available": bool(available_sources),
+        "source_label": source_label,
+        "sources": available_sources,
+        "primary_source": "StockTwits" if stocktwits.get("available") else ("Yahoo Finance" if yahoo_finance.get("available") else None),
+        "source_breakdown": {
+            "stocktwits": stocktwits,
+            "yahoo_finance": yahoo_finance,
+        },
+        "watchlist_count": stocktwits.get("watchlist_count"),
+        "title": stocktwits.get("title") or symbol.upper(),
+        "message_count": aggregate_message_count,
+        "pages_fetched": aggregate_pages_fetched,
+        "sampled_message_count": aggregate_message_count,
+        "tagged_message_count": stocktwits.get("tagged_message_count"),
+        "bullish": stocktwits.get("bullish"),
+        "bearish": stocktwits.get("bearish"),
+        "no_sentiment": stocktwits.get("no_sentiment"),
+        "bull_pct": stocktwits.get("bull_pct"),
+        "bear_pct": stocktwits.get("bear_pct"),
+        "neutral_pct": stocktwits.get("neutral_pct"),
+        "mood": mood,
+        "newest_message_at": newest_message_at,
+        "oldest_message_at": oldest_message_at,
+        "recent_messages": combined_recent,
+        "stocktwits_message_count": stocktwits.get("sampled_message_count") or 0,
+        "yahoo_message_count": yahoo_finance.get("sampled_message_count") or 0,
+        "yahoo_total_comments": yahoo_finance.get("total_comments"),
+        "yahoo_total_replies": yahoo_finance.get("total_replies"),
     }
 
 

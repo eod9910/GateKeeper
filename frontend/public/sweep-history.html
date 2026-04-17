@@ -60,6 +60,12 @@
       font-family: var(--font-mono);
       white-space: nowrap;
     }
+    .strategy-group-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      flex-shrink: 0;
+    }
     .strategy-group-body { display: block; }
     .strategy-group-body.collapsed { display: none; }
     .sweep-row {
@@ -181,6 +187,7 @@
     </div>
   </div>
 
+  <script src="sweep-name-utils.js"></script>
   <script>
     const API = '';
 
@@ -210,6 +217,55 @@
       if (!Array.isArray(values) || values.length === 0) return '—';
       if (values.length <= 5) return values.join(', ');
       return `${values.slice(0, 4).join(', ')} +${values.length - 4} more`;
+    }
+
+    function formatStrategyDisplayName(spec, baseId) {
+      return window.SweepNameUtils?.normalizeStrategyDisplayName({
+        rawName: fixEncoding(spec?.name || ''),
+        strategyVersionId: baseId,
+        strategyId: spec?.strategy_id || baseId,
+        version: spec?.version,
+      }) || fixEncoding(spec?.name || baseId);
+    }
+
+    async function deleteHistorySweep(sweepId) {
+      const id = String(sweepId || '').trim();
+      if (!id) return;
+      const ok = window.confirm('Delete this sweep and all linked reports/trades?');
+      if (!ok) return;
+
+      try {
+        const res = await fetch(`${API}/api/sweep/${encodeURIComponent(id)}/delete`, {
+          method: 'POST',
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to delete sweep');
+        await loadHistory();
+      } catch (err) {
+        window.alert(`Failed to delete sweep: ${err.message || err}`);
+      }
+    }
+
+    async function deleteHistoryGroup(groupIndex) {
+      const group = allGroups[groupIndex];
+      if (!group || !Array.isArray(group.sweeps) || group.sweeps.length === 0) return;
+      const ok = window.confirm(`Delete "${group.name}" and all ${group.sweeps.length} sweeps inside it?`);
+      if (!ok) return;
+
+      try {
+        for (const sweep of group.sweeps) {
+          const id = String(sweep?.sweep_id || '').trim();
+          if (!id) continue;
+          const res = await fetch(`${API}/api/sweep/${encodeURIComponent(id)}/delete`, {
+            method: 'POST',
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || `Failed to delete ${id}`);
+        }
+        await loadHistory();
+      } catch (err) {
+        window.alert(`Failed to delete grouped sweeps: ${err.message || err}`);
+      }
     }
 
     let allGroups = [];
@@ -243,7 +299,7 @@
 
         allGroups = Array.from(groupMap.values()).map(g => {
           const spec = strategyMap.get(g.baseId);
-          const name = fixEncoding(spec?.name || g.baseId);
+          const name = formatStrategyDisplayName(spec, g.baseId);
           return { ...g, name, spec };
         }).sort((a, b) => {
           const aDate = new Date(a.sweeps[0]?.created_at || 0);
@@ -302,6 +358,7 @@
               <div class="sweep-row-actions">
                 <a href="/parameter-sweep?sweep=${encodeURIComponent(sweep.sweep_id)}" class="btn btn-sm" title="Open this sweep in Parameter Sweep">Open</a>
                 ${promotedId ? `<a href="/validator?strategy_version_id=${encodeURIComponent(promotedId)}" class="btn btn-sm" title="Open winner in Validator">Validate</a>` : ''}
+                <button type="button" class="btn btn-sm" onclick="deleteHistorySweep('${escHtml(sweep.sweep_id)}')" title="Delete this sweep and its linked report data">Delete</button>
               </div>
             </div>`;
         }).join('');
@@ -313,8 +370,17 @@
           <div class="strategy-group" data-group="${gi}">
             <div class="strategy-group-header" onclick="toggleGroup(${gi})">
               <div class="strategy-group-name" title="${escHtml(g.name)}">${escHtml(g.name)}</div>
-              <div class="strategy-group-meta">${escHtml(meta)}</div>
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;transition:transform 0.15s;transform:rotate(-90deg);" class="group-chevron"><path d="M4 6l4 4 4-4"/></svg>
+              <div class="strategy-group-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  onclick="event.stopPropagation(); deleteHistoryGroup(${gi})"
+                  title="Delete this strategy group and all sweeps inside it">
+                  Delete All
+                </button>
+                <div class="strategy-group-meta">${escHtml(meta)}</div>
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;transition:transform 0.15s;transform:rotate(-90deg);" class="group-chevron"><path d="M4 6l4 4 4-4"/></svg>
+              </div>
             </div>
             <div class="strategy-group-body collapsed" id="group-body-${gi}">${rows}</div>
           </div>`;

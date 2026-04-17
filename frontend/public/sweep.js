@@ -88,43 +88,52 @@ function getActiveDimParams() {
     .filter(Boolean);
 }
 
+function renderUniversalDimCards(groupDims = []) {
+  return groupDims.map(dim => {
+    const sel = universalDimSelections.get(dim.key) || new Set();
+    const hasAny = sel.size > 0;
+    return `
+      <div class="udim-card${hasAny ? ' active' : ''}" id="udim-card-${dim.key}">
+        <div class="udim-header">
+          <div class="udim-toggle${hasAny ? ' checked' : ''}" id="udim-toggle-${dim.key}"></div>
+          <div class="udim-name">${dim.label}</div>
+          <div class="udim-count" id="udim-count-${dim.key}">${hasAny ? sel.size + ' selected' : ''}</div>
+        </div>
+        <div class="udim-values" id="udim-pills-${dim.key}">
+          ${dim.suggested_values.map(sv => {
+            const isSelected = [...sel].some(v => String(v) === String(sv.value));
+            const encodedVal = encodeURIComponent(String(sv.value));
+            return `<span class="udim-pill${isSelected ? ' selected' : ''}"
+              onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
+              title="${sv.label}">${sv.label}</span>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
 function renderUniversalDims() {
   const section = document.getElementById('universal-dims-section');
-  const body = document.getElementById('universal-dims-body');
-  if (!section || !body || !universalDimsSpec) return;
+  const researchBody = document.getElementById('universal-dims-research-body');
+  const riskBody = document.getElementById('universal-dims-risk-body');
+  const researchSection = document.getElementById('universal-dims-research-section');
+  const riskSection = document.getElementById('universal-dims-risk-section');
+  if (!section || !researchBody || !riskBody || !researchSection || !riskSection || !universalDimsSpec) return;
   section.style.display = 'block';
 
   const dims = universalDimsSpec.dims;
-  const groups = [...new Set(dims.map(d => d.group))];
+  const researchDims = dims.filter(d => String(d.group || '').toLowerCase() === 'environment');
+  const riskDims = dims.filter(d => String(d.group || '').toLowerCase() === 'risk');
 
-  let html = '';
-  for (const group of groups) {
-    const groupDims = dims.filter(d => d.group === group);
-    const groupLabel = groupDims[0].group_label;
-    html += `<div class="udim-group-label">${groupLabel}</div>`;
-    for (const dim of groupDims) {
-      const sel = universalDimSelections.get(dim.key) || new Set();
-      const hasAny = sel.size > 0;
-      html += `
-        <div class="udim-card${hasAny ? ' active' : ''}" id="udim-card-${dim.key}">
-          <div class="udim-header">
-            <div class="udim-toggle${hasAny ? ' checked' : ''}" id="udim-toggle-${dim.key}"></div>
-            <div class="udim-name">${dim.label}</div>
-            <div class="udim-count" id="udim-count-${dim.key}">${hasAny ? sel.size + ' selected' : ''}</div>
-          </div>
-          <div class="udim-values" id="udim-pills-${dim.key}">
-            ${dim.suggested_values.map(sv => {
-              const isSelected = [...sel].some(v => String(v) === String(sv.value));
-              const encodedVal = encodeURIComponent(String(sv.value));
-              return `<span class="udim-pill${isSelected ? ' selected' : ''}"
-                onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
-                title="${sv.label}">${sv.label}</span>`;
-            }).join('')}
-          </div>
-        </div>`;
-    }
-  }
-  body.innerHTML = html;
+  researchBody.innerHTML = researchDims.length
+    ? `<div class="udim-group-label">${researchDims[0].group_label || 'Research'}</div>${renderUniversalDimCards(researchDims)}`
+    : '<div class="udim-subsection-help">No research dimensions available.</div>';
+  riskBody.innerHTML = riskDims.length
+    ? `<div class="udim-group-label">${riskDims[0].group_label || 'Risk / Execution'}</div>${renderUniversalDimCards(riskDims)}`
+    : '<div class="udim-subsection-help">No risk or execution dimensions available.</div>';
+
+  researchSection.style.display = researchDims.length ? 'block' : 'none';
+  riskSection.style.display = riskDims.length ? 'block' : 'none';
   updateUniversalDimsBadge();
 }
 
@@ -886,6 +895,14 @@ function configureSweepTierSelector() {
       <option value="sp500"${defaultTier === 'sp500' ? ' selected' : ''}>S&P 500 — ~406 large cap stocks</option>
       <option value="sp400"${defaultTier === 'sp400' ? ' selected' : ''}>S&P 400 — ~341 mid cap stocks</option>
       <option value="sp600"${defaultTier === 'sp600' ? ' selected' : ''}>S&P 600 — ~474 small cap stocks</option>
+      <optgroup label="DCF Valuation Regimes (run build_universe_valuation_snapshot.py first)">
+        <option value="valuation_regime_undervalued_sample100"${defaultTier === 'valuation_regime_undervalued_sample100' ? ' selected' : ''}>DCF: Undervalued Sample 100 - faster regime test</option>
+        <option value="valuation_regime_undervalued"${defaultTier === 'valuation_regime_undervalued' ? ' selected' : ''}>DCF: Undervalued — valuation longs/reversals</option>
+        <option value="valuation_regime_fair_sample100"${defaultTier === 'valuation_regime_fair_sample100' ? ' selected' : ''}>DCF: Fair Value Sample 100 - faster continuation test</option>
+        <option value="valuation_regime_fair"${defaultTier === 'valuation_regime_fair' ? ' selected' : ''}>DCF: Fair Value — continuation candidates</option>
+        <option value="valuation_regime_overvalued_sample100"${defaultTier === 'valuation_regime_overvalued_sample100' ? ' selected' : ''}>DCF: Overvalued Sample 100 - faster short test</option>
+        <option value="valuation_regime_overvalued"${defaultTier === 'valuation_regime_overvalued' ? ' selected' : ''}>DCF: Overvalued — short/topping candidates</option>
+      </optgroup>
       <optgroup label="Regime Universes (run build_regime_universes.py first)">
         <option value="regime_expansion"${defaultTier === 'regime_expansion' ? ' selected' : ''}>Regime: Expansion — stocks above 200MA, momentum up</option>
         <option value="regime_distribution"${defaultTier === 'regime_distribution' ? ' selected' : ''}>Regime: Distribution — stocks above 200MA, fading</option>
@@ -923,6 +940,16 @@ function setupAddValueOnEnter() {
 }
 
 // ─── Strategy loading ──────────────────────────────────────────────────────────
+function getStrategyDisplayName(strategyVersionId, rawNameOverride = '') {
+  const spec = strategyCatalog.get(strategyVersionId) || {};
+  const rawName = String(rawNameOverride || spec?.name || strategyVersionId || '').trim();
+  return window.SweepNameUtils?.normalizeStrategyDisplayName({
+    rawName,
+    strategyVersionId,
+    strategyId: spec?.strategy_id || strategyVersionId,
+    version: spec?.version,
+  }) || rawName;
+}
 
 function stripStrategyNameSuffixes(name) {
   return String(name || '')
@@ -944,7 +971,7 @@ function updateStrategyDisplay(strategyVersionId) {
     return;
   }
   const rawName = String(spec?.name || strategyVersionId);
-  const displayName = stripStrategyNameSuffixes(rawName) || rawName;
+  const displayName = getStrategyDisplayName(strategyVersionId, rawName) || rawName;
   const interval = spec?.interval || '';
   const stage = String(spec?.sweep_stage || '').toUpperCase();
   const stageMeta = [interval, stage].filter(Boolean).join(' · ');
@@ -1003,7 +1030,7 @@ async function ensureStrategySpec(strategyVersionId) {
   if (existing?._not_found) return null;
 
   try {
-    const res = await fetch(`${API}/strategies/${encodeURIComponent(id)}`);
+    const res = await fetch(`${API}/validator/strategy/${encodeURIComponent(id)}`);
     if (res.status === 404) {
       strategyCatalog.set(id, { _not_found: true });
       return null;
@@ -1313,10 +1340,10 @@ function renderGridControls() {
   if (!secondSlot.active) {
     const hasFirstParam = primary.values.length > 0 && primary.path;
     container.innerHTML = hasFirstParam
-      ? `<button type="button" onclick="addSecondParamSlot()" style="width:100%;padding:var(--space-8);background:none;border:1px dashed var(--color-border);border-radius:var(--radius-sm);color:var(--color-text-muted);cursor:pointer;font-size:var(--text-caption);font-family:var(--font-mono);transition:all 0.15s;"
-          onmouseover="this.style.borderColor='var(--color-accent)';this.style.color='var(--color-accent)'"
-          onmouseout="this.style.borderColor='var(--color-border)';this.style.color='var(--color-text-muted)'"
-          >+ Add 2nd Parameter (Grid Sweep)</button>`
+      ? `<button type="button" onclick="addSecondParamSlot()" class="strategy-grid-add-btn">
+          <strong>Grid Sweep</strong>
+          + Add 2nd Parameter
+        </button>`
       : '';
     return;
   }
@@ -1385,6 +1412,30 @@ function addSecondParamSlot() {
         </div>
       </div>
     </div>`;
+
+  const card = slot.firstElementChild;
+  const cardHeader = card?.firstElementChild;
+  const title = cardHeader?.querySelector('.sweep-section-label');
+  const removeBtn = cardHeader?.querySelector('button');
+  if (card) {
+    card.classList.add('strategy-param-card');
+    card.style.borderTop = 'none';
+    card.style.paddingTop = '';
+  }
+  if (cardHeader) {
+    cardHeader.classList.add('strategy-param-card-header');
+    const helper = document.createElement('div');
+    helper.className = 'strategy-param-subsection-help';
+    helper.textContent = 'Add a second knob to run a grid sweep across both parameter sets.';
+    if (title) {
+      title.classList.add('strategy-param-subsection-title');
+      title.after(helper);
+    }
+  }
+  if (removeBtn) {
+    removeBtn.className = 'strategy-param-subsection-remove';
+    removeBtn.textContent = '×';
+  }
 
   const select2 = document.getElementById('custom-param-select-2');
   if (select2) {
@@ -1579,7 +1630,7 @@ function renderLoadedSweepBanner(sweep = null) {
   }
 
   const baseStrategyId = String(sweep?.base_strategy_version_id || '').trim();
-  const baseName = stripStrategyNameSuffixes(getStrategyName(baseStrategyId)) || getStrategyName(baseStrategyId);
+  const baseName = getStrategyDisplayName(baseStrategyId, getStrategyName(baseStrategyId)) || getStrategyName(baseStrategyId);
 
   // Look up session version number from the module-level map populated by the session list
   const vNum = sweepVersionMap.get(sweep.sweep_id);
@@ -2059,6 +2110,37 @@ async function deleteSweepVariant(sweepId, variantId) {
     showToast('Variant deleted', 'success');
   } catch (e) {
     alert(`Failed to delete variant: ${e.message}`);
+  }
+}
+
+async function deleteSweepHistoryItem(sweepId) {
+  if (!sweepId) return;
+  const ok = window.confirm('Delete this sweep step and all linked reports/trades?');
+  if (!ok) return;
+
+  try {
+    const res = await fetch(`${API}/sweep/${encodeURIComponent(sweepId)}/delete`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to delete sweep');
+
+    if (activeSweepId === sweepId) {
+      activeSweepId = null;
+      persistActiveSweepId('');
+      selectedComparisonVariantIds.clear();
+      selectedSweepVariantId = null;
+      selectedSweepReportId = null;
+      activeSweepReferenceKey = null;
+      activeSweepReferenceReportId = null;
+      renderLoadingState('');
+      document.getElementById('results-body').innerHTML = '<div style="padding:var(--space-16);color:var(--color-text-subtle);">No sweep loaded.</div>';
+    }
+
+    await loadRecentSweeps();
+    showToast('Sweep deleted', 'success');
+  } catch (e) {
+    alert(`Failed to delete sweep: ${e.message}`);
   }
 }
 
@@ -2825,8 +2907,11 @@ async function _loadRecentSweepsImpl(strategyId) {
     for (const sweep of displayOrderedSweeps) {
       const displayStrategyId = getSweepDisplayStrategyId(sweep) || currentStrategyId || String(sweep?.base_strategy_version_id || '').trim();
       const rawGroupName = getStrategyName(displayStrategyId) || getStrategyName(sweep?.base_strategy_version_id) || displayStrategyId;
-      const displayGroupName = stripStrategyNameSuffixes(rawGroupName) || rawGroupName;
-      const groupKey = displayGroupName;
+      const displayGroupName = getStrategyDisplayName(displayStrategyId, rawGroupName) || rawGroupName;
+      const groupKey = window.SweepNameUtils?.getStrategyFamilyKey({
+        strategyVersionId: displayStrategyId,
+        strategyId: strategyCatalog.get(displayStrategyId)?.strategy_id || displayStrategyId,
+      }) || displayGroupName;
       if (!groupedSweepMap.has(groupKey)) {
         const group = {
           key: groupKey,
@@ -2928,6 +3013,11 @@ async function _loadRecentSweepsImpl(strategyId) {
               style="flex:1;opacity:0.7;">
               Send to Validator →
             </button>`}
+            <button class="sweep-inline-btn"
+              onclick="event.stopPropagation(); deleteSweepHistoryItem('${sweep.sweep_id}')"
+              title="Delete this sweep step and its linked report data">
+              Delete
+            </button>
           </div>
         </div>
       `;
@@ -3145,7 +3235,7 @@ async function jsonViewerLoad() {
   if (stratIdEl) stratIdEl.textContent = '';
 
   try {
-    const res = await fetch(`${API}/strategies/${encodeURIComponent(strategyId)}`);
+    const res = await fetch(`${API}/validator/strategy/${encodeURIComponent(strategyId)}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Not found');
     const pretty = JSON.stringify(data.data, null, 2);
@@ -3242,4 +3332,3 @@ async function jsonViewerSave() {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✓ Save Changes'; }
   }
 }
-

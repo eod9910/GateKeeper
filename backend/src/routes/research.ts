@@ -40,11 +40,88 @@ import {
   cancelRanking,
   subscribeToRanking,
 } from '../services/formulaRankingEngine';
+import { buildResearchCatalogSnapshot } from '../services/researchCatalogService';
+import { getValuationBacktestStatus, runValuationBacktest } from '../services/valuationBacktestService';
+import { getValuationSignalStrategyStatus, runValuationSignalStrategy } from '../services/valuationSignalStrategyService';
 
 const router = Router();
 
 // Load persisted sessions on startup — track promise so routes can await it
 let sessionsReadyPromise = loadAllSessions().catch(console.error);
+
+router.get('/catalog', async (_req: Request, res: Response) => {
+  try {
+    const snapshot = await buildResearchCatalogSnapshot();
+    res.json({ success: true, data: snapshot });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/valuation-backtest', (_req: Request, res: Response) => {
+  try {
+    res.json({ success: true, data: getValuationBacktestStatus() });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/valuation-backtest/run', (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const payload = runValuationBacktest({
+      frequency: body.frequency === 'quarterly' ? 'quarterly' : 'monthly',
+      horizons: Array.isArray(body.horizons)
+        ? body.horizons.map((value: any) => Number(value)).filter((value: number) => Number.isFinite(value) && value > 0)
+        : typeof body.horizons === 'string'
+          ? String(body.horizons)
+              .split(',')
+              .map((value) => Number(value.trim()))
+              .filter((value) => Number.isFinite(value) && value > 0)
+          : undefined,
+      gap_threshold_pct: Number.isFinite(Number(body.gap_threshold_pct)) ? Number(body.gap_threshold_pct) : undefined,
+      cap_tier: ['micro', 'small', 'mid', 'large'].includes(String(body.cap_tier || ''))
+        ? String(body.cap_tier) as 'micro' | 'small' | 'mid' | 'large'
+        : null,
+      limit: Number.isFinite(Number(body.limit)) && Number(body.limit) > 0 ? Number(body.limit) : null,
+      start_date: body.start_date ? String(body.start_date) : null,
+      end_date: body.end_date ? String(body.end_date) : null,
+    });
+    res.json({ success: true, data: payload });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/valuation-signal-strategy', (_req: Request, res: Response) => {
+  try {
+    res.json({ success: true, data: getValuationSignalStrategyStatus() });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/valuation-signal-strategy/run', (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const payload = runValuationSignalStrategy({
+      frequency: body.frequency === 'quarterly' ? 'quarterly' : 'monthly',
+      horizon: Number.isFinite(Number(body.horizon)) ? Number(body.horizon) : undefined,
+      gap_threshold_pct: Number.isFinite(Number(body.gap_threshold_pct)) ? Number(body.gap_threshold_pct) : undefined,
+      cap_tier: ['micro', 'small', 'mid', 'large'].includes(String(body.cap_tier || ''))
+        ? String(body.cap_tier) as 'micro' | 'small' | 'mid' | 'large'
+        : null,
+      limit: Number.isFinite(Number(body.limit)) && Number(body.limit) > 0 ? Number(body.limit) : null,
+      start_date: body.start_date ? String(body.start_date) : null,
+      end_date: body.end_date ? String(body.end_date) : null,
+      take_profit_pct: Number.isFinite(Number(body.take_profit_pct)) ? Number(body.take_profit_pct) : null,
+      stop_loss_pct: Number.isFinite(Number(body.stop_loss_pct)) ? Number(body.stop_loss_pct) : null,
+    });
+    res.json({ success: true, data: payload });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // ─── POST /sessions ───────────────────────────────────────────────────────────
 

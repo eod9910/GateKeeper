@@ -108,7 +108,7 @@
       color: var(--color-text);
       font-size: var(--text-small);
       line-height: var(--leading-body);
-      padding: var(--space-12) 140px var(--space-12) var(--space-12);
+      padding: var(--space-12) 200px var(--space-12) var(--space-12);
       min-height: 82px;
       max-height: 180px;
       resize: none;
@@ -157,10 +157,27 @@
     .scanner-chart-btn--preview {
       right: 104px;
     }
+    .scanner-chat-input-toolbar {
+      position: absolute;
+      right: 24px;
+      bottom: 24px;
+      z-index: 3;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+    .scanner-chat-input-toolbar .scanner-send-btn {
+      position: static;
+      right: auto;
+    }
+    .scanner-chat-input-toolbar .voice-input-btn {
+      flex-shrink: 0;
+    }
     .chat-attachment-tray {
       position: absolute;
       left: 24px;
-      right: 140px;
+      right: 200px;
       top: 24px;
       display: flex;
       flex-wrap: wrap;
@@ -543,7 +560,7 @@
       line-height: 1.45;
     }
     .scanner-analysis-list li::before {
-      content: 'â€¢';
+      content: '\2022';
       position: absolute;
       left: 0;
       top: 0;
@@ -723,7 +740,7 @@
           <span class="nav-dot"></span>
           <span class="sidebar-label-text">Execution Desk</span>
         </a>
-        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">âš™ Settings</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">&#9881; Settings</span></a>
       </nav>
     
     </aside>
@@ -745,7 +762,7 @@
               style="padding:6px 16px;font-size:14px;font-weight:600;border:1px solid var(--color-border);border-radius:6px;min-width:100px;">
               Next &#9654;
             </button>
-            <span style="font-size:12px;color:var(--color-text-muted);margin-left:8px;">or use â† â†’ arrow keys</span>
+            <span style="font-size:12px;color:var(--color-text-muted);margin-left:8px;">or use &larr; &rarr; arrow keys</span>
           </div>
         </div>
         <div class="workshop-header-actions">
@@ -783,7 +800,7 @@
             <div style="min-width:140px;">
               <label class="sidebar-field-label" for="scan-asset-class">Asset Class</label>
               <select id="scan-asset-class" class="select" style="width:160px;">
-                <option value="all" selected>All (Full Library)</option>
+                <option value="all" selected>Stocks (Tradable Default)</option>
                 <option value="indices">Indices</option>
                 <option value="sectors">Sectors</option>
                 <option value="smallcaps">Small Caps</option>
@@ -794,6 +811,18 @@
                 <option value="forex">Forex</option>
                 <option value="international">International</option>
                 <option value="bonds">Bonds</option>
+              </select>
+            </div>
+            <div style="min-width:170px;">
+              <label class="sidebar-field-label" for="scan-secondary-filter">Criteria</label>
+              <select id="scan-secondary-filter" class="select" style="width:170px;">
+                <option value="any" selected>Any</option>
+                <option value="optionable">Optionable</option>
+                <option value="smallcaps">Small Caps</option>
+                <option value="largecaps">Large Caps</option>
+                <option value="undervalued">DCF Undervalued</option>
+                <option value="fairvalue">DCF Fair Value</option>
+                <option value="overvalued">DCF Overvalued</option>
               </select>
             </div>
             <div>
@@ -824,6 +853,7 @@
               <datalist id="symbol-suggestions"></datalist>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="quickLoadSymbol(document.getElementById('scan-single-symbol').value)">Load</button>
+            <button id="btn-reload-symbol-library" class="btn btn-ghost btn-sm" type="button" onclick="reloadSymbolLibrary()">Reload Symbols</button>
             <div>
               <label class="sidebar-field-label" for="chart-indicator-select">Chart Indicators</label>
               <select id="chart-indicator-select" class="select" style="width:200px;" onchange="if(this.value){_ciToggleIndicator(this.value);this.value='';}_ciPopulateIndicatorSelect();">
@@ -939,21 +969,13 @@
               </button>
               
               <div id="chart-indicator-badges" style="display:flex;gap:4px;margin-left:8px;flex-wrap:wrap;"></div>
-              <div class="chart-legend">
-                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#7a4040;"></span>Pk</span>
-                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#7a5a35;"></span>Dst</span>
-                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#3a7a50;"></span>Bas</span>
-                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#3a5a7a;"></span>Mkp</span>
-                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#7a7a3a;"></span>Pul</span>
-                <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#5a3a7a;"></span>Brk</span>
-              </div>
             </div>
             <div class="dt-chart-shell" style="padding:var(--space-12) var(--space-12) 0;">
               <aside class="dt-chart-rail" aria-label="Chart drawing tools">
                 <div id="scanner-dt-toolbar" data-dt-for="pattern-chart" class="dt-toolbar dt-toolbar--dock dt-toolbar--grouped"></div>
               </aside>
               <div class="dt-chart-stage">
-                <div id="chart-container" tabindex="0" aria-label="Pattern chart navigation" title="Click chart, then use â†/â†’ to move instruments" style="position:relative;height:480px;background:#1e1e1e;outline:none;">
+                <div id="chart-container" tabindex="0" aria-label="Pattern chart navigation" title="Click chart, then use &larr;/&rarr; to move instruments" style="position:relative;height:480px;background:#1e1e1e;outline:none;">
                   <div id="pattern-chart" style="position:absolute;inset:0;"></div>
                   <canvas id="drawing-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:10;display:none;"></canvas>
                   <div id="ci-pane-labels-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:50;"></div>
@@ -1047,7 +1069,7 @@
                     <div id="social-buzz-panel" style="display:none;margin-bottom:var(--space-12);padding:12px 14px;border:1px solid var(--color-border);border-radius:10px;background:rgba(255,255,255,0.02);">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <div style="font-size:var(--text-caption);color:var(--color-text-muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Social Buzz</div>
-                        <div id="social-buzz-source" style="font-size:11px;color:var(--color-text-muted);">StockTwits</div>
+                        <div id="social-buzz-source" style="font-size:11px;color:var(--color-text-muted);">Social Buzz</div>
                       </div>
                       <div id="social-buzz-summary" style="display:flex;gap:var(--space-12);align-items:center;flex-wrap:wrap;margin-bottom:8px;"></div>
                       <div id="social-buzz-messages" style="display:none;border-top:1px solid var(--color-border);padding-top:8px;max-height:180px;overflow-y:auto;"></div>
@@ -1166,9 +1188,8 @@
               <button class="cc-toggle-btn" onclick="toggleChat('ai-panel','scanner-main-grid','chat-collapsed')" title="Collapse panel">&#8250;</button>
               <span class="cc-title">Copilot</span>
               <select id="scanner-analyst-select" title="Choose which analyst is answering in this chat">
-                <option value="pattern_analyst">Atlas</option>
-                <option value="technical_analyst">Structure</option>
                 <option value="financial_analyst">Ledger</option>
+                <option value="technical_analyst">Structure</option>
               </select>
               <span id="ai-status" class="cc-status">Ready</span>
               <button class="cc-popout-btn" onclick="popoutChatPanel({panelId:'ai-panel',gridId:'scanner-main-grid',collapsedClass:'chat-collapsed',title:'Copilot',statusId:'ai-status',messagesId:'scanner-chat-messages',inputId:'scanner-chat-input',sendFn:'sendScannerChat',actions:[{label:'Analyze Chart',prefill:'Analyze the current chart'},{label:'Explain Setup',prefill:'Explain this setup'},{label:'Explain Fundamentals',prefill:'Explain the quality of this company and how the fundamentals and social buzz affect this setup.'},{label:'Improve Rules',prefill:'How can I improve detection rules?'}]})" title="Pop out to separate window">&#8599;</button>
@@ -1248,21 +1269,21 @@
               <div class="flex gap-2">
                 <button onclick="submitAIFeedback(true)" id="btn-ai-correct"
                         class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-2 rounded">
-                  âœ“ Correct
+                  &#10003; Correct
                 </button>
                 <button onclick="submitAIFeedback(false)" id="btn-ai-incorrect"
                         class="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-1.5 px-2 rounded">
-                  âœ— Incorrect
+                  &#10007; Incorrect
                 </button>
               </div>
-              <p id="ai-feedback-saved" class="hidden text-xs text-green-400 mt-1 text-center">âœ“ Feedback saved!</p>
+              <p id="ai-feedback-saved" class="hidden text-xs text-green-400 mt-1 text-center">&#10003; Feedback saved!</p>
               
               <!-- Level Adjustment Controls -->
               <div class="mt-3 pt-2 border-t border-gray-600">
                 <p class="text-xs text-gray-400 mb-2">Or adjust the AI's levels:</p>
                 <button onclick="toggleDragMode()" id="btn-drag-levels"
                         class="hidden w-full bg-purple-600 hover:bg-purple-700 text-white text-xs py-1.5 px-2 rounded mb-2">
-                  âœ‹ Adjust AI Levels
+                  &#9998; Adjust AI Levels
                 </button>
                 <p id="drag-instruction" class="hidden text-xs text-yellow-400 mb-2">
                   Click and drag any line to adjust. Lines turn gold when adjusted.
@@ -1279,15 +1300,19 @@
             </div>
             <div id="scanner-chat-input-row" class="scanner-chat-input-row">
               <textarea id="scanner-chat-input" placeholder="Ask..." oninput="autoResizeScannerChatInput()" onkeydown="handleScannerChatKeydown(event)" onpaste="handleScannerChatPaste(event)"></textarea>
-              <button class="scanner-send-btn scanner-chart-btn" type="button" title="Send current chart with this message" aria-label="Send scanner chat message with current chart screenshot" onclick="sendScannerChatWithChart()">Img</button>
-              <button class="scanner-send-btn scanner-chart-btn scanner-chart-btn--preview" type="button" title="Preview the exact screenshot sent to Scanner AI" aria-label="Preview scanner chart screenshot" onclick="previewScannerChartCapture()">Prev</button>
-              <button class="scanner-send-btn" type="button" aria-label="Send scanner chat message" onclick="sendScannerChat()">&#8593;</button>
+              <div class="scanner-chat-input-toolbar" role="toolbar" aria-label="Scanner chat composer actions">
+                <button class="scanner-send-btn scanner-chart-btn scanner-chart-btn--preview" type="button" title="Preview the exact screenshot sent to Scanner AI" aria-label="Preview scanner chart screenshot" onclick="previewScannerChartCapture()">Prev</button>
+                <button class="scanner-send-btn scanner-chart-btn" type="button" title="Send current chart with this message" aria-label="Send scanner chat message with current chart screenshot" onclick="sendScannerChatWithChart()">Img</button>
+                <button class="scanner-send-btn" type="button" aria-label="Send scanner chat message" onclick="sendScannerChat()">&#8593;</button>
+              </div>
               <div id="scanner-chat-attachment" class="chat-attachment-tray hidden"></div>
             </div>
             <div class="scanner-chat-actions">
               <button onclick="askAI()" id="btn-ask-ai" class="btn btn-ghost">Analyze Chart</button>
-              <button onclick="askScannerWhy()" class="btn btn-ghost">Explain Setup</button>
-              <button onclick="askScannerEdits()" class="btn btn-ghost">Improve Rules</button>
+              <button onclick="askScannerWhy()" id="btn-scanner-action-2" class="btn btn-ghost">Explain Setup</button>
+              <button onclick="askScannerEdits()" id="btn-scanner-action-3" class="btn btn-ghost">Improve Rules</button>
+              <button onclick="runScannerAction(3)" id="btn-scanner-action-4" class="btn btn-ghost">Hidden Notes</button>
+              <button onclick="runScannerAction(4)" id="btn-scanner-action-5" class="btn btn-ghost">DCF</button>
               <button onclick="clearScannerChatSession()" class="btn btn-ghost">Clear Session</button>
             </div>
           </div>

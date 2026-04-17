@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en" data-page-id="consumer-cycle">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consumer Cycle - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .consumer-cycle-shell {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-24);
+      min-height: 100%;
+    }
+    .consumer-cycle-intro {
+      max-width: 980px;
+      color: var(--color-text-subtle);
+      font-size: var(--text-small);
+      line-height: 1.6;
+    }
+    .consumer-cycle-grid {
+      display: grid;
+      gap: var(--space-16);
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .consumer-kpi {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      padding: var(--space-16);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      min-height: 120px;
+    }
+    .consumer-kpi-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted);
+    }
+    .consumer-kpi-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1;
+    }
+    .consumer-kpi-hint {
+      color: var(--color-text-subtle);
+      font-size: var(--text-caption);
+      line-height: 1.5;
+    }
+    .consumer-panel {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      padding: var(--space-20);
+    }
+    .consumer-panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      margin-bottom: var(--space-16);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+    .consumer-filter-grid {
+      display: grid;
+      gap: var(--space-12);
+      grid-template-columns: 1.5fr repeat(4, minmax(160px, 1fr));
+      align-items: end;
+    }
+    .consumer-filter-grid--secondary {
+      margin-top: var(--space-12);
+      grid-template-columns: minmax(180px, 220px) minmax(120px, 140px) auto;
+    }
+    .consumer-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+    }
+    .consumer-field label {
+      color: var(--color-text-muted);
+      font-size: var(--text-small);
+      font-weight: 500;
+    }
+    .consumer-chip-grid {
+      display: grid;
+      gap: var(--space-12);
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .consumer-chip {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--color-surface) 85%, black 15%);
+      padding: var(--space-14);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+    }
+    .consumer-chip strong {
+      font-size: var(--text-small);
+      color: var(--color-text);
+    }
+    .consumer-chip span {
+      color: var(--color-text-subtle);
+      font-size: var(--text-caption);
+    }
+    .consumer-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-bg);
+    }
+    .consumer-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+    }
+    .consumer-table th,
+    .consumer-table td {
+      padding: var(--space-10) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      vertical-align: top;
+      font-size: var(--text-small);
+    }
+    .consumer-table th {
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      background: color-mix(in srgb, var(--color-surface) 88%, black 12%);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .consumer-table td code {
+      font-size: 12px;
+    }
+    .consumer-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .consumer-status {
+      color: var(--color-text-subtle);
+      font-size: var(--text-caption);
+    }
+    .consumer-empty {
+      padding: var(--space-24);
+      text-align: center;
+      color: var(--color-text-subtle);
+      font-size: var(--text-small);
+    }
+    .monitor-shell {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+    }
+    .monitor-banner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      padding: var(--space-16);
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-surface) 88%, black 12%);
+    }
+    .monitor-banner-text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+      min-width: 0;
+      flex: 1;
+    }
+    .monitor-banner-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-10);
+      font-size: var(--text-small);
+      color: var(--color-text);
+      font-weight: 600;
+    }
+    .monitor-banner-copy {
+      color: var(--color-text-subtle);
+      font-size: var(--text-small);
+      line-height: 1.6;
+    }
+    .monitor-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 84px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .monitor-status.green { color: #70d6a3; background: rgba(16, 72, 44, 0.35); border-color: rgba(93, 214, 146, 0.35); }
+    .monitor-status.yellow { color: #ffd86b; background: rgba(94, 74, 10, 0.3); border-color: rgba(255, 216, 107, 0.35); }
+    .monitor-status.orange { color: #ffb067; background: rgba(95, 47, 8, 0.3); border-color: rgba(255, 176, 103, 0.35); }
+    .monitor-status.red { color: #ff8f8f; background: rgba(94, 17, 17, 0.32); border-color: rgba(255, 143, 143, 0.35); }
+    .monitor-grid {
+      display: grid;
+      gap: var(--space-12);
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .monitor-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-bg);
+      padding: var(--space-14);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .monitor-card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      font-size: var(--text-small);
+      color: var(--color-text);
+      font-weight: 600;
+    }
+    .monitor-card-copy {
+      color: var(--color-text-subtle);
+      font-size: var(--text-caption);
+      line-height: 1.5;
+      min-height: 42px;
+    }
+    .monitor-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-10);
+    }
+    .monitor-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .monitor-metric-label {
+      color: var(--color-text-muted);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+    .monitor-metric-value {
+      color: var(--color-text);
+      font-size: var(--text-small);
+      font-weight: 600;
+    }
+    @media (max-width: 1180px) {
+      .consumer-filter-grid,
+      .consumer-filter-grid--secondary {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 720px) {
+      .consumer-filter-grid,
+      .consumer-filter-grid--secondary {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="/position-book" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+        <a href="/validator" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="/indicator-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="/auto-labeler" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Auto Labeler</span></a>
+        <a href="/research-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Studio</span></a>
+        <a href="/parameter-sweep" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:auto;"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main class="app-main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Consumer Cycle</h1>
+          <div class="consumer-cycle-intro">
+            Track the part of consumer demand that actually matters for the business cycle. This page classifies tradable stocks by demand bucket, recession behavior, and slowdown preference so we can bias longs toward resilient areas and avoid the cyclical pockets that crack first.
+          </div>
+        </div>
+      </div>
+
+      <div class="content" style="padding:var(--space-24);overflow-y:auto;height:calc(100vh - 80px);">
+        <div class="consumer-cycle-shell">
+          <section class="consumer-panel">
+            <div class="consumer-panel-title">
+              <span>Cyclical Demand Monitor</span>
+              <span class="consumer-status" id="consumer-monitor-status">Loading macro monitor…</span>
+            </div>
+            <div class="monitor-shell">
+              <div class="monitor-banner" id="consumer-monitor-banner">
+                <div class="monitor-banner-text">
+                  <div class="monitor-banner-title">
+                    <span id="consumer-monitor-status-pill" class="monitor-status yellow">Loading</span>
+                    <span id="consumer-monitor-title">Building cyclical-demand signal…</span>
+                  </div>
+                  <div class="monitor-banner-copy" id="consumer-monitor-copy">
+                    Pulling real quarterly activity from the core consumer-cycle buckets plus housing and business equipment.
+                  </div>
+                </div>
+                <div class="consumer-status" id="consumer-monitor-meta"></div>
+              </div>
+              <div class="monitor-grid" id="consumer-monitor-series"></div>
+            </div>
+          </section>
+
+          <section class="consumer-cycle-grid" id="consumer-kpis"></section>
+
+          <section class="consumer-panel">
+            <div class="consumer-panel-title">
+              <span>Filters</span>
+              <span class="consumer-status" id="consumer-filter-status">Loading classifications…</span>
+            </div>
+            <div class="consumer-filter-grid">
+              <div class="consumer-field">
+                <label for="consumer-search">Search</label>
+                <input id="consumer-search" class="input input-sm" type="text" placeholder="Ticker, name, sector, demand bucket…">
+              </div>
+              <div class="consumer-field">
+                <label for="consumer-spend-class">Spend Class</label>
+                <select id="consumer-spend-class" class="select select-sm">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="consumer-field">
+                <label for="consumer-bucket">Category</label>
+                <select id="consumer-bucket" class="select select-sm">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="consumer-field">
+                <label for="consumer-sensitivity">Cycle Bucket</label>
+                <select id="consumer-sensitivity" class="select select-sm">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="consumer-field">
+                <label for="consumer-profile">Recession Profile</label>
+                <select id="consumer-profile" class="select select-sm">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="consumer-field">
+                <label for="consumer-preference">Slowdown Preference</label>
+                <select id="consumer-preference" class="select select-sm">
+                  <option value="">All</option>
+                </select>
+              </div>
+            </div>
+            <div class="consumer-filter-grid consumer-filter-grid--secondary">
+              <div class="consumer-field">
+                <label for="consumer-limit">Rows</label>
+                <select id="consumer-limit" class="select select-sm">
+                  <option value="100">100</option>
+                  <option value="250" selected>250</option>
+                  <option value="500">500</option>
+                  <option value="1000">1000</option>
+                </select>
+              </div>
+              <div class="consumer-field">
+                <label style="visibility:hidden;">Optionable</label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:var(--text-small);color:var(--color-text);">
+                  <input id="consumer-optionable" type="checkbox">
+                  Optionable only
+                </label>
+              </div>
+              <div class="consumer-field" style="justify-content:flex-end;">
+                <button id="consumer-refresh" class="btn btn-sm">Refresh</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="consumer-panel">
+            <div class="consumer-panel-title"><span>Taxonomy Reference</span></div>
+            <div class="consumer-status" style="margin-bottom:var(--space-12);">
+              Keep the full cycle map visible: highly cyclical drives the early warning, while mildly cyclical and stable buckets help with breadth and rotation context.
+            </div>
+            <div class="consumer-panel-title"><span>Spend Classes</span></div>
+            <div class="consumer-chip-grid" id="consumer-spend-classes"></div>
+            <div style="height: var(--space-16);"></div>
+            <div class="consumer-panel-title"><span>Highly Cyclical Categories</span></div>
+            <div class="consumer-chip-grid" id="consumer-group-highly"></div>
+            <div style="height: var(--space-16);"></div>
+            <div class="consumer-panel-title"><span>Mildly Cyclical Categories</span></div>
+            <div class="consumer-chip-grid" id="consumer-group-mildly"></div>
+            <div style="height: var(--space-16);"></div>
+            <div class="consumer-panel-title"><span>Stable Categories</span></div>
+            <div class="consumer-chip-grid" id="consumer-group-stable"></div>
+          </section>
+
+          <section class="consumer-panel">
+            <div class="consumer-panel-title">
+              <span>Symbol Map</span>
+              <span class="consumer-status" id="consumer-table-status"></span>
+            </div>
+            <div class="consumer-table-wrap">
+              <table class="consumer-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Name</th>
+                    <th>Cycle Bucket</th>
+                    <th>Category</th>
+                    <th>Spend Class</th>
+                    <th>Recession</th>
+                    <th>Slowdown Bias</th>
+                    <th>Optionable</th>
+                    <th>Classification</th>
+                  </tr>
+                </thead>
+                <tbody id="consumer-table-body">
+                  <tr><td colspan="9" class="consumer-empty">Loading symbol map…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="consumer-cycle.js"></script>
+</body>
+</html>

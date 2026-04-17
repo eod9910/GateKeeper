@@ -13,6 +13,7 @@
     "py:service": "py services/plugin_service.py --port 8100",
     "manifest:audit": "tsx scripts/auditParameterManifest.ts",
     "manifest:backfill": "tsx scripts/backfillParameterManifest.ts",
+    "repo:check": "powershell -ExecutionPolicy Bypass -File scripts/check_repo_state.ps1",
     "robinhood:positions:test": "py scripts/test_robinhood_positions.py",
     "base:suite": "py scripts/run_base_method_suite.py",
     "training:test": "tsx src/services/training/forwardResolver.test.ts",

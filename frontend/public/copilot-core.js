@@ -478,6 +478,9 @@
       
       // Options-specific UI: relabel inputs, disable stop loss
       applyOptionsMode(type === 'options');
+      if (type === 'options' && typeof window.loadOptionChainForDesk === 'function') {
+        setTimeout(() => window.loadOptionChainForDesk(false), 0);
+      }
       if (typeof window.syncExecutionRouteSelection === 'function') {
         window.syncExecutionRouteSelection(true);
       }
@@ -727,6 +730,454 @@
       if (typeof window.syncInstrumentPnlSummary === 'function') {
         window.syncInstrumentPnlSummary();
       }
+    }
+
+    let tradingDeskOptionChainState = {
+      symbol: '',
+      type: 'call',
+      matchedExpiry: '',
+      underlyingPrice: 0,
+      contracts: [],
+      selectedValue: '',
+    };
+
+    function setOptionChainStatus(message, tone = 'muted') {
+      const el = document.getElementById('option-chain-status');
+      if (!el) return;
+      el.textContent = message || '';
+      el.style.color = tone === 'error'
+        ? '#ef4444'
+        : tone === 'success'
+          ? '#22c55e'
+          : 'var(--color-text-subtle)';
+    }
+
+    function getOptionContractSelectValue(contract) {
+      if (!contract || typeof contract !== 'object') return '';
+      const contractSymbol = String(contract.contractSymbol || '').trim();
+      if (contractSymbol) return contractSymbol;
+      return `${Number(contract.strike || 0).toFixed(2)}|${String(contract.type || '').trim().toLowerCase()}`;
+    }
+
+    function getSelectedTradingDeskOptionContract() {
+      const selected = String(tradingDeskOptionChainState.selectedValue || '').trim();
+      if (!selected) return null;
+      return tradingDeskOptionChainState.contracts.find((contract) => getOptionContractSelectValue(contract) === selected) || null;
+    }
+    window.getSelectedTradingDeskOptionContract = getSelectedTradingDeskOptionContract;
+
+    function formatOptionChainMoney(value) {
+      const num = Number(value || 0);
+      return Number.isFinite(num) ? `$${num.toFixed(2)}` : '--';
+    }
+
+    function formatOptionChainSignedMoney(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '--';
+      const prefix = num > 0 ? '+' : '';
+      return `${prefix}$${num.toFixed(2)}`;
+    }
+
+    function formatOptionChainSignedPercent(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '--';
+      const prefix = num > 0 ? '+' : '';
+      return `${prefix}${num.toFixed(2)}%`;
+    }
+
+    function getOptionBreakevenPrice(contract, optionType) {
+      const strike = Number(contract?.strike || 0);
+      const ask = Number(contract?.ask || contract?.mark || contract?.premium || contract?.lastPrice || 0);
+      if (!(strike > 0) || !(ask >= 0)) return null;
+      return optionType === 'put' ? strike - ask : strike + ask;
+    }
+
+    function resetOptionChainBoard(message = 'Load a symbol and choose an expiry.') {
+      const body = document.getElementById('option-chain-board-body');
+      const title = document.getElementById('option-chain-board-title');
+      const price = document.getElementById('option-chain-board-price');
+      if (title) title.textContent = 'Chain Snapshot';
+      if (price) price.textContent = '--';
+      if (body) {
+        body.innerHTML = `<tr><td colspan="6" class="option-chain-board__empty">${message}</td></tr>`;
+      }
+    }
+
+    function renderOptionChainBoard(contracts, { selectedValue = '', underlyingPrice = 0, optionType = 'call', symbol = '', expiry = '' } = {}) {
+      const body = document.getElementById('option-chain-board-body');
+      const title = document.getElementById('option-chain-board-title');
+      const price = document.getElementById('option-chain-board-price');
+      if (!body) return;
+
+      if (title) {
+        const headerBits = [];
+        if (symbol) headerBits.push(String(symbol).toUpperCase());
+        if (optionType) headerBits.push(String(optionType).toUpperCase());
+        if (expiry) headerBits.push(expiry);
+        title.textContent = headerBits.length ? headerBits.join(' • ') : 'Chain Snapshot';
+      }
+      if (price) {
+        price.textContent = Number(underlyingPrice || 0) > 0 ? `Underlying ${formatOptionChainMoney(underlyingPrice)}` : '--';
+      }
+
+      if (!Array.isArray(contracts) || contracts.length === 0) {
+        body.innerHTML = '<tr><td colspan="6" class="option-chain-board__empty">No contracts available for the selected expiry.</td></tr>';
+        return;
+      }
+
+      const sortedContracts = [...contracts].sort((a, b) => Number(a?.strike || 0) - Number(b?.strike || 0));
+      body.innerHTML = '';
+
+      sortedContracts.forEach((contract) => {
+        const strike = Number(contract?.strike || 0);
+        const ask = Number(contract?.ask || contract?.mark || contract?.premium || contract?.lastPrice || 0);
+        const mark = Number(contract?.mark || contract?.premium || contract?.lastPrice || 0);
+        const reference = Number(contract?.lastPrice || mark || 0);
+        const change = reference > 0 ? ask - reference : null;
+        const pctChange = reference > 0 ? (change / reference) * 100 : null;
+        const breakeven = getOptionBreakevenPrice(contract, optionType);
+        const toBreakeven = Number(underlyingPrice || 0) > 0 && Number.isFinite(breakeven)
+          ? (optionType === 'put'
+            ? ((underlyingPrice - breakeven) / underlyingPrice) * 100
+            : ((breakeven - underlyingPrice) / underlyingPrice) * 100)
+          : null;
+        const contractValue = getOptionContractSelectValue(contract);
+        const row = document.createElement('tr');
+        if (selectedValue && contractValue === selectedValue) {
+          row.classList.add('is-selected');
+        }
+
+        const askClass = ask > 0 ? 'btn btn-primary btn-sm option-chain-board__ask-btn' : 'btn btn-secondary btn-sm option-chain-board__ask-btn';
+        row.innerHTML = `
+          <td class="option-chain-board__strike">$${strike.toFixed(2)}</td>
+          <td>${Number.isFinite(breakeven) ? formatOptionChainMoney(breakeven) : '--'}</td>
+          <td class="${Number.isFinite(toBreakeven) ? (toBreakeven >= 0 ? 'option-chain-board__metric--positive' : 'option-chain-board__metric--negative') : 'option-chain-board__metric--muted'}">${formatOptionChainSignedPercent(toBreakeven)}</td>
+          <td class="${Number.isFinite(pctChange) ? (pctChange >= 0 ? 'option-chain-board__metric--positive' : 'option-chain-board__metric--negative') : 'option-chain-board__metric--muted'}">${formatOptionChainSignedPercent(pctChange)}</td>
+          <td class="${Number.isFinite(change) ? (change >= 0 ? 'option-chain-board__metric--positive' : 'option-chain-board__metric--negative') : 'option-chain-board__metric--muted'}">${formatOptionChainSignedMoney(change)}</td>
+          <td><button type="button" class="${askClass}" data-contract-value="${contractValue}">${formatOptionChainMoney(ask)}</button></td>
+        `;
+        body.appendChild(row);
+      });
+
+      body.querySelectorAll('[data-contract-value]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const contractValue = String(button.getAttribute('data-contract-value') || '').trim();
+          if (!contractValue) return;
+          tradingDeskOptionChainState.selectedValue = contractValue;
+          const contract = getSelectedTradingDeskOptionContract();
+          const contractSelect = document.getElementById('option-contract-select');
+          if (contractSelect) contractSelect.value = contractValue;
+          if (contract) {
+            applySelectedOptionContract(contract);
+          }
+        });
+      });
+    }
+
+    function pickPreferredOptionContract(contracts, preferredStrike, underlyingPrice) {
+      if (!Array.isArray(contracts) || contracts.length === 0) return null;
+      const validPreferredStrike = Number(preferredStrike || 0);
+      if (validPreferredStrike > 0) {
+        const closestToSaved = contracts.reduce((best, contract) => {
+          if (!best) return contract;
+          const bestDiff = Math.abs(Number(best.strike || 0) - validPreferredStrike);
+          const contractDiff = Math.abs(Number(contract.strike || 0) - validPreferredStrike);
+          return contractDiff < bestDiff ? contract : best;
+        }, null);
+        if (closestToSaved && Math.abs(Number(closestToSaved.strike || 0) - validPreferredStrike) <= 0.5) {
+          return closestToSaved;
+        }
+      }
+
+      const anchor = Number(underlyingPrice || 0);
+      if (anchor > 0) {
+        return contracts.reduce((best, contract) => {
+          if (!best) return contract;
+          const bestDiff = Math.abs(Number(best.strike || 0) - anchor);
+          const contractDiff = Math.abs(Number(contract.strike || 0) - anchor);
+          return contractDiff < bestDiff ? contract : best;
+        }, null);
+      }
+
+      return contracts[0] || null;
+    }
+
+    function populateOptionExpirySuggestions(expiries, preferredExpiry = '') {
+      const select = document.getElementById('option-expiry');
+      if (!select) return;
+
+      const normalizedPreferred = String(preferredExpiry || select.value || '').trim();
+      select.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select expiry';
+      select.appendChild(placeholder);
+
+      (Array.isArray(expiries) ? expiries : []).forEach((expiry) => {
+        const normalized = String(expiry || '').trim();
+        if (!normalized) return;
+        const option = document.createElement('option');
+        option.value = normalized;
+        option.textContent = normalized;
+        select.appendChild(option);
+      });
+
+      if (normalizedPreferred && Array.from(select.options).some((option) => option.value === normalizedPreferred)) {
+        select.value = normalizedPreferred;
+      }
+    }
+
+    function formatOptionContractLabel(contract) {
+      const strike = Number(contract?.strike || 0);
+      const bid = Number(contract?.bid || 0);
+      const ask = Number(contract?.ask || 0);
+      const mark = Number(contract?.mark || contract?.premium || contract?.lastPrice || 0);
+      const oi = Number(contract?.openInterest || 0);
+      const volume = Number(contract?.volume || 0);
+      return `$${strike.toFixed(2)} | Bid ${formatOptionChainMoney(bid)} | Ask ${formatOptionChainMoney(ask)} | Mark ${formatOptionChainMoney(mark)} | OI ${oi} | Vol ${volume}`;
+    }
+
+    function populateOptionStrikeSelect(contracts, selectedContract = null) {
+      const select = document.getElementById('option-strike');
+      if (!select) return;
+
+      select.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select strike';
+      select.appendChild(placeholder);
+
+      (Array.isArray(contracts) ? contracts : []).forEach((contract) => {
+        const strike = Number(contract?.strike || 0);
+        if (!(strike > 0)) return;
+        const option = document.createElement('option');
+        option.value = strike.toFixed(2);
+        option.textContent = `$${strike.toFixed(2)}`;
+        select.appendChild(option);
+      });
+
+      if (selectedContract) {
+        const strike = Number(selectedContract?.strike || 0);
+        if (strike > 0) {
+          select.value = strike.toFixed(2);
+        }
+      }
+    }
+
+    function populateOptionContractSelect(contracts, preferredValue, preferredStrike, underlyingPrice) {
+      const select = document.getElementById('option-contract-select');
+      if (!select) return null;
+      select.innerHTML = '';
+
+      if (!Array.isArray(contracts) || contracts.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No contracts available';
+        select.appendChild(option);
+        populateOptionStrikeSelect([], null);
+        return null;
+      }
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select a contract';
+      select.appendChild(placeholder);
+
+      contracts.forEach((contract) => {
+        const option = document.createElement('option');
+        option.value = getOptionContractSelectValue(contract);
+        option.textContent = formatOptionContractLabel(contract);
+        select.appendChild(option);
+      });
+
+      let selectedContract = contracts.find((contract) => getOptionContractSelectValue(contract) === preferredValue) || null;
+      if (!selectedContract) {
+        selectedContract = pickPreferredOptionContract(contracts, preferredStrike, underlyingPrice);
+      }
+      if (selectedContract) {
+        select.value = getOptionContractSelectValue(selectedContract);
+      }
+      populateOptionStrikeSelect(contracts, selectedContract);
+      return selectedContract;
+    }
+
+    function applySelectedOptionContract(contract, { suppressReload = false } = {}) {
+      if (!contract) return;
+
+      const strikeInput = document.getElementById('option-strike');
+      const expiryInput = document.getElementById('option-expiry');
+      const entryInput = document.getElementById('option-price');
+      const currentInput = document.getElementById('option-current-premium');
+
+      const strike = Number(contract.strike || 0);
+      const ask = Number(contract.ask || 0);
+      const mark = Number(contract.mark || contract.premium || contract.lastPrice || 0);
+      const bid = Number(contract.bid || 0);
+      const entryPremium = ask > 0 ? ask : (mark > 0 ? mark : bid);
+      const livePremium = mark > 0 ? mark : (bid > 0 ? bid : entryPremium);
+
+      if (strikeInput && strike > 0) strikeInput.value = strike.toFixed(2);
+      if (expiryInput && tradingDeskOptionChainState.matchedExpiry) expiryInput.value = tradingDeskOptionChainState.matchedExpiry;
+      if (entryInput && entryPremium > 0) entryInput.value = entryPremium.toFixed(2);
+      if (currentInput && livePremium > 0) currentInput.value = livePremium.toFixed(2);
+
+      tradingDeskOptionChainState.selectedValue = getOptionContractSelectValue(contract);
+      setOptionChainStatus(
+        `Selected ${formatOptionContractLabel(contract)} from the Yahoo-backed chain snapshot. Entry uses ask; live premium uses mark when available.`,
+        'success'
+      );
+      renderOptionChainBoard(tradingDeskOptionChainState.contracts, {
+        selectedValue: tradingDeskOptionChainState.selectedValue,
+        underlyingPrice: tradingDeskOptionChainState.underlyingPrice,
+        optionType: tradingDeskOptionChainState.type,
+        symbol: tradingDeskOptionChainState.symbol,
+        expiry: tradingDeskOptionChainState.matchedExpiry,
+      });
+
+      saveSettings();
+      onOptionPremiumChange();
+
+      if (!suppressReload && typeof window.syncExecutionRouteSelection === 'function') {
+        window.syncExecutionRouteSelection(true);
+      }
+    }
+
+    async function loadOptionChainForDesk(forceRefresh = false) {
+      const instrumentType = document.getElementById('instrument-type')?.value || 'stock';
+      if (instrumentType !== 'options') return;
+
+      const symbol = normalizeTradingDeskSymbol(document.getElementById('copilot-symbol')?.value || '');
+      const type = String(document.getElementById('option-type')?.value || 'call').trim().toLowerCase();
+      const expiry = String(document.getElementById('option-expiry')?.value || '').trim();
+      const currentStrike = parseFloat(document.getElementById('option-strike')?.value || '0') || 0;
+      const refreshBtn = document.getElementById('option-chain-refresh');
+      const contractSelect = document.getElementById('option-contract-select');
+
+      if (!symbol) {
+        setOptionChainStatus('Enter a symbol to load an option chain.');
+        resetOptionChainBoard('Load a symbol and choose an expiry.');
+        if (contractSelect) {
+          contractSelect.innerHTML = '<option value=\"\">Load a symbol and choose an expiry</option>';
+        }
+        return;
+      }
+
+      setOptionChainStatus(`Loading ${symbol} ${type.toUpperCase()} chain...`);
+      resetOptionChainBoard(`Loading ${symbol.toUpperCase()} ${type.toUpperCase()} contracts...`);
+      if (refreshBtn) refreshBtn.disabled = true;
+      if (contractSelect) contractSelect.disabled = true;
+
+      try {
+        const res = await fetch('/api/quotes/options/chain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, expiry, type, maxContracts: 150, force_refresh: forceRefresh }),
+        });
+        const payload = await res.json();
+        if (!payload?.success || !payload?.data || payload.data.error) {
+          throw new Error(payload?.data?.error || payload?.error || 'Failed to load option chain');
+        }
+
+        const chain = payload.data;
+        tradingDeskOptionChainState = {
+          symbol,
+          type,
+          matchedExpiry: String(chain.matchedExpiry || expiry || ''),
+          underlyingPrice: Number(chain.underlyingPrice || 0),
+          contracts: Array.isArray(chain.contracts) ? chain.contracts.map((contract) => ({ ...contract, type })) : [],
+          selectedValue: tradingDeskOptionChainState.selectedValue || '',
+        };
+
+        populateOptionExpirySuggestions(chain.expiries || [], String(chain.matchedExpiry || expiry || ''));
+        if (tradingDeskOptionChainState.matchedExpiry && document.getElementById('option-expiry')) {
+          document.getElementById('option-expiry').value = tradingDeskOptionChainState.matchedExpiry;
+        }
+
+        const selectedContract = populateOptionContractSelect(
+          tradingDeskOptionChainState.contracts,
+          tradingDeskOptionChainState.selectedValue,
+          currentStrike,
+          tradingDeskOptionChainState.underlyingPrice
+        );
+        renderOptionChainBoard(tradingDeskOptionChainState.contracts, {
+          selectedValue: selectedContract ? getOptionContractSelectValue(selectedContract) : tradingDeskOptionChainState.selectedValue,
+          underlyingPrice: tradingDeskOptionChainState.underlyingPrice,
+          optionType: tradingDeskOptionChainState.type,
+          symbol: tradingDeskOptionChainState.symbol,
+          expiry: tradingDeskOptionChainState.matchedExpiry,
+        });
+
+        if (selectedContract) {
+          applySelectedOptionContract(selectedContract, { suppressReload: true });
+        } else {
+          setOptionChainStatus(`Loaded ${symbol} ${type.toUpperCase()} chain, but no contracts matched the selected expiry.`, 'error');
+          resetOptionChainBoard(`No ${type.toUpperCase()} contracts matched ${tradingDeskOptionChainState.matchedExpiry || 'the selected expiry'}.`);
+        }
+      } catch (error) {
+        console.error('Failed to load option chain:', error);
+        setOptionChainStatus(error?.message || 'Failed to load option chain.', 'error');
+        resetOptionChainBoard(error?.message || 'Failed to load option chain.');
+      } finally {
+        if (refreshBtn) refreshBtn.disabled = false;
+        if (contractSelect) contractSelect.disabled = false;
+      }
+    }
+    window.loadOptionChainForDesk = loadOptionChainForDesk;
+
+    function initTradingDeskOptionChainControls() {
+      if (window.__tradingDeskOptionChainControlsInitialized) return;
+      window.__tradingDeskOptionChainControlsInitialized = true;
+
+      document.getElementById('option-chain-refresh')?.addEventListener('click', () => {
+        loadOptionChainForDesk(true);
+      });
+
+      document.getElementById('option-type')?.addEventListener('change', () => {
+        tradingDeskOptionChainState.selectedValue = '';
+        loadOptionChainForDesk(true);
+      });
+
+      document.getElementById('option-expiry')?.addEventListener('change', () => {
+        tradingDeskOptionChainState.selectedValue = '';
+        loadOptionChainForDesk(true);
+      });
+
+      document.getElementById('option-strike')?.addEventListener('change', (event) => {
+        const strikeValue = parseFloat(String(event.target?.value || '').trim());
+        if (!(strikeValue > 0)) return;
+        const contract = (tradingDeskOptionChainState.contracts || []).find((item) => {
+          return Math.abs(Number(item?.strike || 0) - strikeValue) < 0.001;
+        });
+        if (contract) {
+          tradingDeskOptionChainState.selectedValue = getOptionContractSelectValue(contract);
+          const contractSelect = document.getElementById('option-contract-select');
+          if (contractSelect) contractSelect.value = tradingDeskOptionChainState.selectedValue;
+          applySelectedOptionContract(contract);
+        }
+      });
+
+      document.getElementById('copilot-symbol')?.addEventListener('change', () => {
+        if ((document.getElementById('instrument-type')?.value || 'stock') === 'options') {
+          tradingDeskOptionChainState.selectedValue = '';
+          loadOptionChainForDesk(true);
+        }
+      });
+
+      document.getElementById('option-contract-select')?.addEventListener('change', (event) => {
+        const selectedValue = String(event.target?.value || '').trim();
+        tradingDeskOptionChainState.selectedValue = selectedValue;
+        const contract = getSelectedTradingDeskOptionContract();
+        if (contract) {
+          applySelectedOptionContract(contract);
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initTradingDeskOptionChainControls, { once: true });
+    } else {
+      initTradingDeskOptionChainControls();
     }
 
     // Update the options P&L summary in the sidebar

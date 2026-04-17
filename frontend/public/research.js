@@ -15,6 +15,9 @@ let activeEventSource = null;
 let selectedGeneration = null;
 let showArchived = false;
 let sessionModeFilter = 'all'; // 'all' | 'strategy_discovery' | 'symbolic_regression'
+let researchCatalog = null;
+let valuationBacktestStatus = null;
+let valuationSignalStrategyStatus = null;
 /** Follow-up Q&A per session+gen: key = "sessionId-gen", value = [{ role: 'user'|'assistant', content }] */
 let interpretConversation = new Map();
 
@@ -282,7 +285,13 @@ function toggleSrForm(mode) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadSessions();
+  loadResearchCatalog();
+  loadValuationBacktestStatus();
+  loadValuationSignalStrategyStatus();
   setInterval(loadSessions, 30_000);
+  setInterval(loadResearchCatalog, 60_000);
+  setInterval(loadValuationBacktestStatus, 15_000);
+  setInterval(loadValuationSignalStrategyStatus, 15_000);
   toggleSrForm(document.getElementById('input-mode')?.value || 'strategy_discovery');
 
   // Check for seed hypothesis from URL
@@ -295,6 +304,686 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
+
+async function loadResearchCatalog(showAlertOnError = false) {
+  try {
+    const res = await fetch(`${API}/catalog`);
+    const payload = await res.json();
+    if (!payload.success) {
+      if (showAlertOnError) window.alert(payload.error || 'Failed to load research catalog.');
+      return;
+    }
+    researchCatalog = payload.data || null;
+    refreshResearchCatalogPanels();
+  } catch (err) {
+    if (showAlertOnError) window.alert('Failed to load research catalog.');
+  }
+}
+
+async function loadValuationBacktestStatus(showAlertOnError = false) {
+  try {
+    const res = await fetch(`${API}/valuation-backtest`);
+    const payload = await res.json();
+    if (!payload.success) {
+      if (showAlertOnError) window.alert(payload.error || 'Failed to load valuation backtest status.');
+      return;
+    }
+    valuationBacktestStatus = payload.data || null;
+    refreshResearchCatalogPanels();
+  } catch (err) {
+    if (showAlertOnError) window.alert('Failed to load valuation backtest status.');
+  }
+}
+
+async function loadValuationSignalStrategyStatus(showAlertOnError = false) {
+  try {
+    const res = await fetch(`${API}/valuation-signal-strategy`);
+    const payload = await res.json();
+    if (!payload.success) {
+      if (showAlertOnError) window.alert(payload.error || 'Failed to load valuation signal strategy status.');
+      return;
+    }
+    valuationSignalStrategyStatus = payload.data || null;
+    refreshResearchCatalogPanels();
+  } catch (err) {
+    if (showAlertOnError) window.alert('Failed to load valuation signal strategy status.');
+  }
+}
+
+function refreshResearchCatalogPanels() {
+  const catalogHost = document.getElementById('research-catalog-host');
+  if (catalogHost) catalogHost.innerHTML = renderResearchCatalogPanel();
+  const valuationHost = document.getElementById('valuation-backtest-host');
+  if (valuationHost) valuationHost.innerHTML = renderValuationBacktestPanel();
+  const strategyHost = document.getElementById('valuation-signal-strategy-host');
+  if (strategyHost) strategyHost.innerHTML = renderValuationSignalStrategyPanel();
+}
+
+function renderResearchCatalogPanel() {
+  const summary = researchCatalog?.summary || null;
+  const strategies = Array.isArray(researchCatalog?.strategies) ? researchCatalog.strategies : [];
+  const sweeps = Array.isArray(researchCatalog?.sweeps) ? researchCatalog.sweeps : [];
+  const topStrategies = [...strategies]
+    .sort((a, b) => {
+      const fitnessDelta = (Number(b.best_fitness_score) || Number.NEGATIVE_INFINITY) - (Number(a.best_fitness_score) || Number.NEGATIVE_INFINITY);
+      if (fitnessDelta !== 0) return fitnessDelta;
+      return (Date.parse(String(b.latest_report_at || 0)) || 0) - (Date.parse(String(a.latest_report_at || 0)) || 0);
+    })
+    .slice(0, 10);
+  const recentSweeps = [...sweeps]
+    .sort((a, b) => (Date.parse(String(b.created_at || 0)) || 0) - (Date.parse(String(a.created_at || 0)) || 0))
+    .slice(0, 10);
+
+  return `
+    <div class="panel collapsible" id="research-catalog-panel" data-collapse-key="research-catalog">
+      <div class="panel-header">
+        <span class="panel-chevron">&#9660;</span>
+        <span>Research Database</span>
+        <div class="catalog-panel-actions">
+          <span class="catalog-updated-at">${summary?.generated_at ? `Updated ${escHtml(formatCatalogTimestamp(summary.generated_at))}` : 'Loading...'}</span>
+          <button class="btn-ghost" type="button" onclick="event.stopPropagation(); loadResearchCatalog(true)">Refresh</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        ${summary ? `
+          <div class="catalog-summary-grid">
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Strategies</div>
+              <div class="catalog-summary-value">${summary.strategy_count}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Sweeps</div>
+              <div class="catalog-summary-value">${summary.sweep_count}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Reports</div>
+              <div class="catalog-summary-value">${summary.validation_report_count}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Passes</div>
+              <div class="catalog-summary-value">${summary.passing_report_count}</div>
+            </div>
+          </div>
+        ` : '<div class="catalog-empty">Loading research database…</div>'}
+
+        <div class="catalog-section-title">Top Strategies</div>
+        ${topStrategies.length ? `
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Strategy</th>
+                <th>Status</th>
+                <th>Reports</th>
+                <th>Sweeps</th>
+                <th>Best Fitness</th>
+                <th>Best Exp</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${topStrategies.map((row) => `
+                <tr>
+                  <td>
+                    <div class="catalog-name-cell">
+                      <span>${escHtml(row.name || row.strategy_version_id)}</span>
+                      <span class="catalog-subtle">${escHtml(row.strategy_version_id || '')}</span>
+                    </div>
+                  </td>
+                  <td><span class="badge badge-${String(row.status || 'completed').toLowerCase()}">${escHtml(row.status || 'unknown')}</span></td>
+                  <td>${row.validation_report_count ?? 0}</td>
+                  <td>${row.sweep_count ?? 0}</td>
+                  <td>${formatCatalogMetric(row.best_fitness_score, 3)}</td>
+                  <td>${formatCatalogMetric(row.best_expectancy_R, 3, 'R')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<div class="catalog-empty">No strategies have been recorded yet.</div>'}
+
+        <div class="catalog-section-title">Recent Sweeps</div>
+        ${recentSweeps.length ? `
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Sweep</th>
+                <th>Base Strategy</th>
+                <th>Status</th>
+                <th>Tier</th>
+                <th>Variants</th>
+                <th>Winner Fitness</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${recentSweeps.map((row) => `
+                <tr>
+                  <td>
+                    <div class="catalog-name-cell">
+                      <span>${escHtml(row.sweep_id || '')}</span>
+                      <span class="catalog-subtle">${escHtml(formatCatalogTimestamp(row.created_at))}</span>
+                    </div>
+                  </td>
+                  <td>${escHtml(row.base_strategy_name || row.base_strategy_version_id || '')}</td>
+                  <td><span class="badge badge-${String(row.status || 'completed').toLowerCase()}">${escHtml(row.status || 'unknown')}</span></td>
+                  <td>${escHtml(row.tier || '—')}</td>
+                  <td>${row.variant_count ?? 0}</td>
+                  <td>${formatCatalogMetric(row.winner_fitness_score, 3)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<div class="catalog-empty">No sweeps have been recorded yet.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function getValuationBacktestDraft() {
+  return {
+    frequency: document.getElementById('valuation-backtest-frequency')?.value || valuationBacktestStatus?.runtime?.last_config?.frequency || 'monthly',
+    horizons: document.getElementById('valuation-backtest-horizons')?.value || (valuationBacktestStatus?.runtime?.last_config?.horizons || [63, 126, 252]).join(','),
+    gap_threshold_pct: document.getElementById('valuation-backtest-gap-threshold')?.value || String(valuationBacktestStatus?.runtime?.last_config?.gap_threshold_pct || 20),
+    cap_tier: document.getElementById('valuation-backtest-cap-tier')?.value || String(valuationBacktestStatus?.runtime?.last_config?.cap_tier || ''),
+    limit: document.getElementById('valuation-backtest-limit')?.value || String(valuationBacktestStatus?.runtime?.last_config?.limit || ''),
+  };
+}
+
+function getValuationSignalStrategyDraft() {
+  return {
+    frequency: document.getElementById('valuation-signal-strategy-frequency')?.value || valuationSignalStrategyStatus?.runtime?.last_config?.frequency || 'monthly',
+    horizon: document.getElementById('valuation-signal-strategy-horizon')?.value || String(valuationSignalStrategyStatus?.runtime?.last_config?.horizon || 252),
+    gap_threshold_pct: document.getElementById('valuation-signal-strategy-gap-threshold')?.value || String(valuationSignalStrategyStatus?.runtime?.last_config?.gap_threshold_pct || 20),
+    cap_tier: document.getElementById('valuation-signal-strategy-cap-tier')?.value || String(valuationSignalStrategyStatus?.runtime?.last_config?.cap_tier || ''),
+    limit: document.getElementById('valuation-signal-strategy-limit')?.value || String(valuationSignalStrategyStatus?.runtime?.last_config?.limit || ''),
+    take_profit_pct: document.getElementById('valuation-signal-strategy-take-profit')?.value || String(valuationSignalStrategyStatus?.runtime?.last_config?.take_profit_pct || ''),
+    stop_loss_pct: document.getElementById('valuation-signal-strategy-stop-loss')?.value || String(valuationSignalStrategyStatus?.runtime?.last_config?.stop_loss_pct || ''),
+  };
+}
+
+function formatPercentMaybe(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `${n.toFixed(2)}%`;
+}
+
+function formatRatioMaybe(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return n.toFixed(3);
+}
+
+function renderGroupedRows(section, order) {
+  return order.map((key) => {
+    const group = section?.[key];
+    if (!group) return '';
+    const under = group.horizons?.['252']?.by_state?.undervalued || {};
+    const over = group.horizons?.['252']?.by_state?.overvalued || {};
+    return `
+      <tr>
+        <td>${escHtml(key)}</td>
+        <td>${group.symbols ?? 0}</td>
+        <td>${group.observations ?? 0}</td>
+        <td>${formatPercentMaybe(under.avg_forward_return_pct)}</td>
+        <td>${formatRatioMaybe(under.directional_accuracy)}</td>
+        <td>${formatPercentMaybe(over.avg_forward_return_pct)}</td>
+        <td>${formatRatioMaybe(over.directional_accuracy)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderValuationBacktestPanel() {
+  const runtime = valuationBacktestStatus?.runtime || null;
+  const summary = valuationBacktestStatus?.summary || null;
+  const grouped = valuationBacktestStatus?.grouped_summary || null;
+  const draft = getValuationBacktestDraft();
+  const isRunning = Boolean(runtime?.running);
+  const overall63 = summary?.accuracy?.['63']?.by_state || {};
+  const overall126 = summary?.accuracy?.['126']?.by_state || {};
+  const overall252 = summary?.accuracy?.['252']?.by_state || {};
+
+  return `
+    <div class="panel collapsible" id="valuation-backtest-panel" data-collapse-key="valuation-backtest">
+      <div class="panel-header">
+        <span class="panel-chevron">&#9660;</span>
+        <span>Valuation Backtest</span>
+        <div class="catalog-panel-actions">
+          <span class="catalog-updated-at">${runtime?.last_finished_at ? `Last run ${escHtml(formatCatalogTimestamp(runtime.last_finished_at))}` : 'No run yet'}</span>
+          <button class="btn-ghost" type="button" onclick="event.stopPropagation(); loadValuationBacktestStatus(true)">Refresh</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="form-row" style="margin-bottom:var(--space-8);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Frequency</label>
+            <select id="valuation-backtest-frequency" class="form-select">
+              <option value="monthly" ${draft.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+              <option value="quarterly" ${draft.frequency === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Horizons</label>
+            <input id="valuation-backtest-horizons" class="form-input" value="${escHtml(draft.horizons)}" placeholder="63,126,252">
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:var(--space-8);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Gap Threshold %</label>
+            <input id="valuation-backtest-gap-threshold" class="form-input" value="${escHtml(draft.gap_threshold_pct)}" placeholder="20">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Cap Tier</label>
+            <select id="valuation-backtest-cap-tier" class="form-select">
+              <option value="" ${!draft.cap_tier ? 'selected' : ''}>All</option>
+              <option value="micro" ${draft.cap_tier === 'micro' ? 'selected' : ''}>Micro</option>
+              <option value="small" ${draft.cap_tier === 'small' ? 'selected' : ''}>Small</option>
+              <option value="mid" ${draft.cap_tier === 'mid' ? 'selected' : ''}>Mid</option>
+              <option value="large" ${draft.cap_tier === 'large' ? 'selected' : ''}>Large</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:var(--space-12);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Limit Symbols</label>
+            <input id="valuation-backtest-limit" class="form-input" value="${escHtml(draft.limit)}" placeholder="Blank = full universe">
+          </div>
+          <div class="form-group" style="justify-content:flex-end;margin-bottom:0;">
+            <label class="form-label">Run</label>
+            <button class="btn-primary" type="button" onclick="runValuationBacktest()" ${isRunning ? 'disabled' : ''}>${isRunning ? 'Running…' : 'Run Valuation Study'}</button>
+          </div>
+        </div>
+
+        <div class="catalog-empty" style="text-align:left;margin-bottom:var(--space-12);">
+          <strong>Status:</strong> ${escHtml(runtime?.last_message || 'Ready')}<br>
+          <strong>Job:</strong> ${escHtml(runtime?.job_id || '—')}<br>
+          <strong>Started:</strong> ${escHtml(runtime?.last_started_at ? formatCatalogTimestamp(runtime.last_started_at) : '—')}<br>
+          <strong>Finished:</strong> ${escHtml(runtime?.last_finished_at ? formatCatalogTimestamp(runtime.last_finished_at) : '—')}
+        </div>
+
+        ${summary ? `
+          <div class="catalog-summary-grid">
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Observations</div>
+              <div class="catalog-summary-value">${summary?.study?.observation_count ?? 0}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Symbols</div>
+              <div class="catalog-summary-value">${summary?.study?.symbols_with_observations ?? 0}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">63d Overvalued</div>
+              <div class="catalog-summary-value" style="font-size:20px;">${formatPercentMaybe(overall63.overvalued?.avg_forward_return_pct)}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">252d Undervalued</div>
+              <div class="catalog-summary-value" style="font-size:20px;">${formatPercentMaybe(overall252.undervalued?.avg_forward_return_pct)}</div>
+            </div>
+          </div>
+
+          <div class="catalog-section-title">Overall Accuracy</div>
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Horizon</th>
+                <th>Undervalued Avg</th>
+                <th>Undervalued Acc</th>
+                <th>Overvalued Avg</th>
+                <th>Overvalued Acc</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>63d</td>
+                <td>${formatPercentMaybe(overall63.undervalued?.avg_forward_return_pct)}</td>
+                <td>${formatRatioMaybe(overall63.undervalued?.directional_accuracy)}</td>
+                <td>${formatPercentMaybe(overall63.overvalued?.avg_forward_return_pct)}</td>
+                <td>${formatRatioMaybe(overall63.overvalued?.directional_accuracy)}</td>
+              </tr>
+              <tr>
+                <td>126d</td>
+                <td>${formatPercentMaybe(overall126.undervalued?.avg_forward_return_pct)}</td>
+                <td>${formatRatioMaybe(overall126.undervalued?.directional_accuracy)}</td>
+                <td>${formatPercentMaybe(overall126.overvalued?.avg_forward_return_pct)}</td>
+                <td>${formatRatioMaybe(overall126.overvalued?.directional_accuracy)}</td>
+              </tr>
+              <tr>
+                <td>252d</td>
+                <td>${formatPercentMaybe(overall252.undervalued?.avg_forward_return_pct)}</td>
+                <td>${formatRatioMaybe(overall252.undervalued?.directional_accuracy)}</td>
+                <td>${formatPercentMaybe(overall252.overvalued?.avg_forward_return_pct)}</td>
+                <td>${formatRatioMaybe(overall252.overvalued?.directional_accuracy)}</td>
+              </tr>
+            </tbody>
+          </table>
+        ` : '<div class="catalog-empty">Run the valuation study to populate results here.</div>'}
+
+        ${grouped ? `
+          <div class="catalog-section-title">Cap Tier Breakout (252d)</div>
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Cap Tier</th>
+                <th>Symbols</th>
+                <th>Obs</th>
+                <th>Under Avg</th>
+                <th>Under Acc</th>
+                <th>Over Avg</th>
+                <th>Over Acc</th>
+              </tr>
+            </thead>
+            <tbody>${renderGroupedRows(grouped.cap_tier_breakout, ['micro', 'small', 'mid', 'large', 'unknown'])}</tbody>
+          </table>
+
+          <div class="catalog-section-title">Quality Breakout (252d)</div>
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Quality</th>
+                <th>Symbols</th>
+                <th>Obs</th>
+                <th>Under Avg</th>
+                <th>Under Acc</th>
+                <th>Over Avg</th>
+                <th>Over Acc</th>
+              </tr>
+            </thead>
+            <tbody>${renderGroupedRows(grouped.quality_breakout, ['high', 'good', 'mixed', 'weak'])}</tbody>
+          </table>
+
+          <div class="catalog-empty" style="margin-top:var(--space-12);text-align:left;">${escHtml(grouped.consumer_cycle_note || '')}</div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderValuationSignalStrategyPanel() {
+  const runtime = valuationSignalStrategyStatus?.runtime || null;
+  const summary = valuationSignalStrategyStatus?.summary || null;
+  const draft = getValuationSignalStrategyDraft();
+  const isRunning = Boolean(runtime?.running);
+  const overall = summary?.results?.overall || {};
+  const formations = summary?.results?.formations || {};
+  const bySide = summary?.results?.by_side || {};
+  const exits = summary?.results?.exit_reasons?.overall || {};
+  const sampleTrades = Array.isArray(summary?.sample_trades) ? summary.sample_trades.slice(0, 10) : [];
+
+  return `
+    <div class="panel collapsible" id="valuation-signal-strategy-panel" data-collapse-key="valuation-signal-strategy">
+      <div class="panel-header">
+        <span class="panel-chevron">&#9660;</span>
+        <span>Valuation Signal Strategy</span>
+        <div class="catalog-panel-actions">
+          <span class="catalog-updated-at">${runtime?.last_finished_at ? `Last run ${escHtml(formatCatalogTimestamp(runtime.last_finished_at))}` : 'No run yet'}</span>
+          <button class="btn-ghost" type="button" onclick="event.stopPropagation(); loadValuationSignalStrategyStatus(true)">Refresh</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="catalog-empty" style="text-align:left;margin-bottom:var(--space-12);">
+          <strong>Rule:</strong> Long undervalued, short overvalued, equal weight by formation date.<br>
+          <strong>Exit assumption:</strong> If stop and target both touch on the same daily bar, the stop wins first for a conservative result.
+        </div>
+
+        <div class="form-row" style="margin-bottom:var(--space-8);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Frequency</label>
+            <select id="valuation-signal-strategy-frequency" class="form-select">
+              <option value="monthly" ${draft.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+              <option value="quarterly" ${draft.frequency === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Horizon Bars</label>
+            <input id="valuation-signal-strategy-horizon" class="form-input" value="${escHtml(draft.horizon)}" placeholder="252">
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-bottom:var(--space-8);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Gap Threshold %</label>
+            <input id="valuation-signal-strategy-gap-threshold" class="form-input" value="${escHtml(draft.gap_threshold_pct)}" placeholder="20">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Cap Tier</label>
+            <select id="valuation-signal-strategy-cap-tier" class="form-select">
+              <option value="" ${!draft.cap_tier ? 'selected' : ''}>All</option>
+              <option value="micro" ${draft.cap_tier === 'micro' ? 'selected' : ''}>Micro</option>
+              <option value="small" ${draft.cap_tier === 'small' ? 'selected' : ''}>Small</option>
+              <option value="mid" ${draft.cap_tier === 'mid' ? 'selected' : ''}>Mid</option>
+              <option value="large" ${draft.cap_tier === 'large' ? 'selected' : ''}>Large</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-bottom:var(--space-12);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Take Profit %</label>
+            <input id="valuation-signal-strategy-take-profit" class="form-input" value="${escHtml(draft.take_profit_pct)}" placeholder="Blank = hold to horizon">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Stop Loss %</label>
+            <input id="valuation-signal-strategy-stop-loss" class="form-input" value="${escHtml(draft.stop_loss_pct)}" placeholder="Blank = hold to horizon">
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-bottom:var(--space-12);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Limit Symbols</label>
+            <input id="valuation-signal-strategy-limit" class="form-input" value="${escHtml(draft.limit)}" placeholder="Blank = full universe">
+          </div>
+          <div class="form-group" style="justify-content:flex-end;margin-bottom:0;">
+            <label class="form-label">Run</label>
+            <button class="btn-primary" type="button" onclick="runValuationSignalStrategy()" ${isRunning ? 'disabled' : ''}>${isRunning ? 'Running…' : 'Run Strategy Study'}</button>
+          </div>
+        </div>
+
+        <div class="catalog-empty" style="text-align:left;margin-bottom:var(--space-12);">
+          <strong>Status:</strong> ${escHtml(runtime?.last_message || 'Ready')}<br>
+          <strong>Job:</strong> ${escHtml(runtime?.job_id || '—')}<br>
+          <strong>Started:</strong> ${escHtml(runtime?.last_started_at ? formatCatalogTimestamp(runtime.last_started_at) : '—')}<br>
+          <strong>Finished:</strong> ${escHtml(runtime?.last_finished_at ? formatCatalogTimestamp(runtime.last_finished_at) : '—')}
+        </div>
+
+        ${summary ? `
+          <div class="catalog-summary-grid">
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Trades</div>
+              <div class="catalog-summary-value">${overall.count ?? 0}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Avg Trade</div>
+              <div class="catalog-summary-value" style="font-size:20px;">${formatPercentMaybe(overall.avg_return_pct)}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Trade Win Rate</div>
+              <div class="catalog-summary-value" style="font-size:20px;">${formatRatioMaybe(overall.win_rate)}</div>
+            </div>
+            <div class="catalog-summary-card">
+              <div class="catalog-summary-label">Formation Avg</div>
+              <div class="catalog-summary-value" style="font-size:20px;">${formatPercentMaybe(formations.avg_return_pct)}</div>
+            </div>
+          </div>
+
+          <div class="catalog-section-title">Strategy Summary</div>
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Slice</th>
+                <th>Count</th>
+                <th>Avg Return</th>
+                <th>Median</th>
+                <th>Win Rate</th>
+                <th>Avg Hold</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Overall Trades</td>
+                <td>${overall.count ?? 0}</td>
+                <td>${formatPercentMaybe(overall.avg_return_pct)}</td>
+                <td>${formatPercentMaybe(overall.median_return_pct)}</td>
+                <td>${formatRatioMaybe(overall.win_rate)}</td>
+                <td>${Number.isFinite(Number(overall.avg_holding_bars)) ? Number(overall.avg_holding_bars).toFixed(1) : '—'}</td>
+              </tr>
+              <tr>
+                <td>Long Trades</td>
+                <td>${bySide.long?.count ?? 0}</td>
+                <td>${formatPercentMaybe(bySide.long?.avg_return_pct)}</td>
+                <td>${formatPercentMaybe(bySide.long?.median_return_pct)}</td>
+                <td>${formatRatioMaybe(bySide.long?.win_rate)}</td>
+                <td>${Number.isFinite(Number(bySide.long?.avg_holding_bars)) ? Number(bySide.long.avg_holding_bars).toFixed(1) : '—'}</td>
+              </tr>
+              <tr>
+                <td>Short Trades</td>
+                <td>${bySide.short?.count ?? 0}</td>
+                <td>${formatPercentMaybe(bySide.short?.avg_return_pct)}</td>
+                <td>${formatPercentMaybe(bySide.short?.median_return_pct)}</td>
+                <td>${formatRatioMaybe(bySide.short?.win_rate)}</td>
+                <td>${Number.isFinite(Number(bySide.short?.avg_holding_bars)) ? Number(bySide.short.avg_holding_bars).toFixed(1) : '—'}</td>
+              </tr>
+              <tr>
+                <td>Formations</td>
+                <td>${formations.formation_count ?? 0}</td>
+                <td>${formatPercentMaybe(formations.avg_return_pct)}</td>
+                <td>${formatPercentMaybe(formations.median_return_pct)}</td>
+                <td>${formatRatioMaybe(formations.win_rate)}</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="catalog-section-title">Exit Reasons</div>
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th>Take Profit</th>
+                <th>Stop Loss</th>
+                <th>Horizon Close</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${exits.take_profit ?? 0}</td>
+                <td>${exits.stop_loss ?? 0}</td>
+                <td>${exits.horizon_close ?? 0}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          ${sampleTrades.length ? `
+            <div class="catalog-section-title">Sample Trades</div>
+            <table class="catalog-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Symbol</th>
+                  <th>Side</th>
+                  <th>Return</th>
+                  <th>Exit</th>
+                  <th>Hold</th>
+                  <th>Gap</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${sampleTrades.map((row) => `
+                  <tr>
+                    <td>${escHtml(row.asof_date || '')}</td>
+                    <td>${escHtml(row.symbol || '')}</td>
+                    <td>${escHtml(row.side || '')}</td>
+                    <td>${formatPercentMaybe(row.return_pct)}</td>
+                    <td>${escHtml(row.exit_reason || '')}</td>
+                    <td>${row.holding_bars ?? 0}</td>
+                    <td>${formatPercentMaybe(row.valuation_gap_pct)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : ''}
+        ` : '<div class="catalog-empty">Run the strategy study to see how raw undervalued/overvalued signals behave as a simple long-short rule.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+async function runValuationBacktest() {
+  const frequency = document.getElementById('valuation-backtest-frequency')?.value || 'monthly';
+  const horizonsRaw = document.getElementById('valuation-backtest-horizons')?.value || '63,126,252';
+  const gapThreshold = Number(document.getElementById('valuation-backtest-gap-threshold')?.value || 20);
+  const capTier = document.getElementById('valuation-backtest-cap-tier')?.value || '';
+  const limitRaw = document.getElementById('valuation-backtest-limit')?.value || '';
+  const horizons = String(horizonsRaw)
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  try {
+    const res = await fetch(`${API}/valuation-backtest/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        frequency,
+        horizons,
+        gap_threshold_pct: gapThreshold,
+        cap_tier: capTier || null,
+        limit: limitRaw ? Number(limitRaw) : null,
+      }),
+    });
+    const payload = await res.json();
+    if (!payload.success) {
+      window.alert(payload.error || 'Failed to start valuation backtest.');
+      return;
+    }
+    valuationBacktestStatus = payload.data || null;
+    refreshResearchCatalogPanels();
+  } catch (err) {
+    window.alert('Failed to start valuation backtest.');
+  }
+}
+
+async function runValuationSignalStrategy() {
+  const frequency = document.getElementById('valuation-signal-strategy-frequency')?.value || 'monthly';
+  const horizon = Number(document.getElementById('valuation-signal-strategy-horizon')?.value || 252);
+  const gapThreshold = Number(document.getElementById('valuation-signal-strategy-gap-threshold')?.value || 20);
+  const capTier = document.getElementById('valuation-signal-strategy-cap-tier')?.value || '';
+  const limitRaw = document.getElementById('valuation-signal-strategy-limit')?.value || '';
+  const takeProfitRaw = document.getElementById('valuation-signal-strategy-take-profit')?.value || '';
+  const stopLossRaw = document.getElementById('valuation-signal-strategy-stop-loss')?.value || '';
+
+  try {
+    const res = await fetch(`${API}/valuation-signal-strategy/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        frequency,
+        horizon,
+        gap_threshold_pct: gapThreshold,
+        cap_tier: capTier || null,
+        limit: limitRaw ? Number(limitRaw) : null,
+        take_profit_pct: takeProfitRaw ? Number(takeProfitRaw) : null,
+        stop_loss_pct: stopLossRaw ? Number(stopLossRaw) : null,
+      }),
+    });
+    const payload = await res.json();
+    if (!payload.success) {
+      window.alert(payload.error || 'Failed to start valuation signal strategy study.');
+      return;
+    }
+    valuationSignalStrategyStatus = payload.data || null;
+    refreshResearchCatalogPanels();
+  } catch (err) {
+    window.alert('Failed to start valuation signal strategy study.');
+  }
+}
+
+function formatCatalogMetric(value, decimals = 2, suffix = '') {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `${n.toFixed(decimals)}${suffix}`;
+}
+
+function formatCatalogTimestamp(value) {
+  const ms = Date.parse(String(value || ''));
+  if (!Number.isFinite(ms)) return '—';
+  return new Date(ms).toLocaleString();
+}
 
 // ─── Session list ─────────────────────────────────────────────────────────────
 
@@ -620,6 +1309,8 @@ function renderSessionDetail(data) {
 
     <!-- Detail drawer -->
     <div id="detail-drawer" style="display:none;"></div>
+
+    <div id="research-catalog-host">${renderResearchCatalogPanel()}</div>
   `;
   initCollapsiblePanels(document.getElementById('research-main'));
   applyCollapsedKeys();

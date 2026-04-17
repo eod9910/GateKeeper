@@ -8,9 +8,12 @@ import * as killSwitch from './killSwitch';
 import * as broker from './brokerClient';
 import * as logger from './executionLogger';
 import * as storage from './storageService';
+import { deleteJsonDocument, readJsonDocument, writeJsonDocument } from './appStateDb';
 
 const LEGACY_CONFIG_FILE = path.join(__dirname, '../../data/execution-bridge-config.json');
 const LOCAL_CONFIG_FILE = path.join(__dirname, '../../data/preferences/execution-bridge-config.local.json');
+const EXECUTION_BRIDGE_NAMESPACE = 'settings';
+const EXECUTION_BRIDGE_DOCUMENT_KEY = 'execution_bridge_config';
 
 let _cronJob: ScheduledTask | null = null;
 let _monitorInterval: ReturnType<typeof setInterval> | null = null;
@@ -84,18 +87,11 @@ async function assertExecutionEligibility(strategyVersionId: string): Promise<vo
 function saveBridgeConfig(config: BridgeConfig): void {
   const dir = path.dirname(LOCAL_CONFIG_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(LOCAL_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+  writeJsonDocument(EXECUTION_BRIDGE_NAMESPACE, EXECUTION_BRIDGE_DOCUMENT_KEY, config);
 }
 
 function loadBridgeConfig(): BridgeConfig | null {
-  const configPath = fs.existsSync(LOCAL_CONFIG_FILE)
-    ? LOCAL_CONFIG_FILE
-    : fs.existsSync(LEGACY_CONFIG_FILE)
-      ? LEGACY_CONFIG_FILE
-      : null;
-  if (!configPath) return null;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const normalize = (parsed: any): BridgeConfig | null => {
     if (!parsed || typeof parsed !== 'object') return null;
     return {
       strategy_version_id: String(parsed.strategy_version_id || '').trim(),
@@ -108,12 +104,34 @@ function loadBridgeConfig(): BridgeConfig | null {
       max_daily_loss_pct: Math.min(50, Math.max(0.5, Number(parsed.max_daily_loss_pct) || 3)),
       monitor_interval_ms: Math.max(5000, Number(parsed.monitor_interval_ms) || 60000),
     };
+  };
+
+  const persisted = readJsonDocument<BridgeConfig>(
+    EXECUTION_BRIDGE_NAMESPACE,
+    EXECUTION_BRIDGE_DOCUMENT_KEY,
+    normalize,
+  );
+  if (persisted) return persisted;
+
+  const configPath = fs.existsSync(LOCAL_CONFIG_FILE)
+    ? LOCAL_CONFIG_FILE
+    : fs.existsSync(LEGACY_CONFIG_FILE)
+      ? LEGACY_CONFIG_FILE
+      : null;
+  if (!configPath) return null;
+  try {
+    const legacy = normalize(JSON.parse(fs.readFileSync(configPath, 'utf8')));
+    if (legacy) {
+      writeJsonDocument(EXECUTION_BRIDGE_NAMESPACE, EXECUTION_BRIDGE_DOCUMENT_KEY, legacy);
+    }
+    return legacy;
   } catch {
     return null;
   }
 }
 
 function clearBridgeConfig(): void {
+  deleteJsonDocument(EXECUTION_BRIDGE_NAMESPACE, EXECUTION_BRIDGE_DOCUMENT_KEY);
   if (fs.existsSync(LOCAL_CONFIG_FILE)) {
     fs.unlinkSync(LOCAL_CONFIG_FILE);
   }

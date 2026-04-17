@@ -30,6 +30,88 @@
       gap: var(--space-12);
       overflow-y: auto;
     }
+    .catalog-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: var(--space-8);
+      margin-bottom: var(--space-12);
+    }
+    .catalog-summary-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .catalog-summary-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      margin-bottom: 6px;
+    }
+    .catalog-summary-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1;
+    }
+    .catalog-section-title {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      margin: var(--space-12) 0 var(--space-8);
+    }
+    .catalog-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .catalog-table th,
+    .catalog-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      text-align: left;
+      vertical-align: top;
+    }
+    .catalog-table th {
+      color: var(--color-text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+    }
+    .catalog-name-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .catalog-subtle {
+      color: var(--color-text-subtle);
+      font-size: 11px;
+    }
+    .catalog-empty {
+      padding: var(--space-16);
+      color: var(--color-text-muted);
+      font-size: var(--text-small);
+      border: 1px dashed rgba(255,255,255,0.12);
+      border-radius: 6px;
+      text-align: center;
+    }
+    .catalog-panel-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+    }
+    .catalog-updated-at {
+      font-size: 10px;
+      color: var(--color-text-subtle);
+      font-family: var(--font-mono);
+      text-transform: none;
+      letter-spacing: 0;
+    }
 
     /* â”€â”€ Panel base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .panel {
@@ -870,6 +952,9 @@
               </div>
             </div>
           </div>
+          <div id="research-catalog-host"></div>
+          <div id="valuation-backtest-host"></div>
+          <div id="valuation-signal-strategy-host"></div>
         </div>
 
       </div>
@@ -880,4 +965,3 @@
   <script src="research.js"></script>
 </body>
 </html>
-

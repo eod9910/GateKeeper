@@ -10,6 +10,7 @@ import {
   promoteWinner,
   cancelSweep,
   deleteSweepVariant,
+  deleteSweep,
   loadAllSweeps,
   computeVariantCount,
   SweepParamDef,
@@ -240,6 +241,15 @@ router.post('/:sweepId/cancel', async (req: Request, res: Response) => {
 router.post('/:sweepId/variants/:variantId/delete', async (req: Request, res: Response) => {
   try {
     await deleteSweepVariant(req.params.sweepId, req.params.variantId);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/:sweepId/delete', async (req: Request, res: Response) => {
+  try {
+    await deleteSweep(req.params.sweepId);
     res.json({ success: true });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });

@@ -364,7 +364,85 @@ class DrawingToolsManager {
       if (drawing.anchorTime2 == null) drawing.anchorTime2 = drawing.time2 ?? null;
       if (drawing.anchorLogical1 == null) drawing.anchorLogical1 = drawing.logical1 ?? null;
       if (drawing.anchorLogical2 == null) drawing.anchorLogical2 = drawing.logical2 ?? null;
+      this._normalizeRegressionChannelSettings(drawing);
+      delete drawing._geometryCacheKey;
+      delete drawing._resolvedGeometry;
     });
+  }
+
+  _normalizeRegressionChannelStdMult(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.max(0.25, Math.min(6, Math.round(numeric * 100) / 100));
+  }
+
+  _normalizeRegressionChannelDeviation(value, fallback) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return Math.round(fallback * 100) / 100;
+    return Math.max(-12, Math.min(12, Math.round(numeric * 100) / 100));
+  }
+
+  _normalizeRegressionChannelSettings(drawing) {
+    if (!drawing || drawing.type !== 'reg-channel') return drawing;
+    const legacyMult = this._normalizeRegressionChannelStdMult(drawing.stdMult);
+    const defaultUpper = Math.max(0.25, legacyMult * 2);
+    const defaultLower = -Math.max(0.25, legacyMult * 2);
+
+    drawing.upperDeviation = Math.abs(
+      this._normalizeRegressionChannelDeviation(drawing.upperDeviation, defaultUpper),
+    );
+    drawing.lowerDeviation = -Math.abs(
+      this._normalizeRegressionChannelDeviation(drawing.lowerDeviation, defaultLower),
+    );
+    drawing.useUpperDeviation = drawing.useUpperDeviation !== false;
+    drawing.useLowerDeviation = drawing.useLowerDeviation !== false;
+    drawing.source = 'close';
+    drawing.stdMult = this._normalizeRegressionChannelStdMult(
+      Math.max(Math.abs(drawing.upperDeviation), Math.abs(drawing.lowerDeviation)) / 2,
+    );
+    return drawing;
+  }
+
+  _formatRegressionChannelStatus(drawing) {
+    this._normalizeRegressionChannelSettings(drawing);
+    const upperText = drawing.useUpperDeviation
+      ? `+${drawing.upperDeviation.toFixed(2)}σ`
+      : 'upper off';
+    const lowerText = drawing.useLowerDeviation
+      ? `${drawing.lowerDeviation.toFixed(2)}σ`
+      : 'lower off';
+    return `Regression channel selected  ${upperText} / ${lowerText}  ([ / ] to adjust, dbl-click to edit)`;
+  }
+
+  _adjustSelectedRegressionChannelStdMult(delta) {
+    const idx = this._selectedIdx;
+    if (!(idx >= 0 && idx < this._drawings.length)) return false;
+    const drawing = this._drawings[idx];
+    if (!drawing || drawing.type !== 'reg-channel') return false;
+    this._normalizeRegressionChannelSettings(drawing);
+    const currentUpper = drawing.upperDeviation;
+    const currentLower = drawing.lowerDeviation;
+    const nextUpper = drawing.useUpperDeviation
+      ? Math.max(0.25, this._normalizeRegressionChannelDeviation(currentUpper + delta, currentUpper + delta))
+      : currentUpper;
+    const nextLower = drawing.useLowerDeviation
+      ? -Math.max(0.25, Math.abs(this._normalizeRegressionChannelDeviation(currentLower - delta, currentLower - delta)))
+      : currentLower;
+    if (
+      Math.abs(nextUpper - currentUpper) < 0.0001 &&
+      Math.abs(nextLower - currentLower) < 0.0001
+    ) return false;
+    drawing.upperDeviation = nextUpper;
+    drawing.lowerDeviation = nextLower;
+    drawing.stdMult = this._normalizeRegressionChannelStdMult(
+      Math.max(Math.abs(nextUpper), Math.abs(nextLower)) / 2,
+    );
+    delete drawing._geometryCacheKey;
+    delete drawing._resolvedGeometry;
+    this._setStatus(this._formatRegressionChannelStatus(drawing));
+    this._render();
+    this._fireChange();
+    return true;
   }
 
   _isPatternTool(tool = this._activeTool) {
@@ -481,6 +559,13 @@ class DrawingToolsManager {
     if (e.key === 'Escape') {
       if (this._activeTool) { this.deactivate(); e.preventDefault(); }
     }
+    if ((e.key === '[' || e.key === ']') && document.activeElement === document.body) {
+      const changed = this._adjustSelectedRegressionChannelStdMult(e.key === ']' ? 0.25 : -0.25);
+      if (changed) {
+        e.preventDefault();
+        return;
+      }
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (this._selectedIdx >= 0 && document.activeElement === document.body) {
         this.deleteSelected();
@@ -548,6 +633,16 @@ class DrawingToolsManager {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     this._selectedIdx = this._hitTest(mx, my);
+    if (this._selectedIdx >= 0) {
+      const drawing = this._drawings[this._selectedIdx];
+      if (drawing && drawing.type === 'reg-channel') {
+        this._setStatus(this._formatRegressionChannelStatus(drawing));
+      } else {
+        this._setStatus('');
+      }
+    } else {
+      this._setStatus('');
+    }
     this._render();
   }
 
@@ -562,8 +657,12 @@ class DrawingToolsManager {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     const idx = this._hitTest(mx, my);
-    if (idx >= 0 && this._drawings[idx].type === 'fib') {
-      this._openFibEditor(idx);
+    if (idx >= 0) {
+      if (this._drawings[idx].type === 'fib') {
+        this._openFibEditor(idx);
+      } else if (this._drawings[idx].type === 'reg-channel') {
+        this._openRegressionChannelEditor(idx);
+      }
     }
   }
 
@@ -638,6 +737,12 @@ class DrawingToolsManager {
         this._state = { clicks: 0 };
         return;
       }
+      reg.stdMult = 1;
+      reg.upperDeviation = 2;
+      reg.lowerDeviation = -2;
+      reg.useUpperDeviation = true;
+      reg.useLowerDeviation = true;
+      reg.source = 'close';
       reg.anchorTime1 = s.time1;
       reg.anchorTime2 = s.time2;
       reg.anchorLogical1 = s.logical1;
@@ -738,12 +843,20 @@ class DrawingToolsManager {
   _hitTestRegressionChannel(d, mx, my, threshold) {
     const channel = this._resolveRegressionChannelGeometry(d);
     const lines = [
-      { time1: channel.time1, price1: channel.mid1,  time2: channel.time2, price2: channel.mid2 },
-      { time1: channel.time1, price1: channel.up11,  time2: channel.time2, price2: channel.up12 },
-      { time1: channel.time1, price1: channel.dn11,  time2: channel.time2, price2: channel.dn12 },
-      { time1: channel.time1, price1: channel.up21,  time2: channel.time2, price2: channel.up22 },
-      { time1: channel.time1, price1: channel.dn21,  time2: channel.time2, price2: channel.dn22 },
-    ];
+      { time1: channel.time1, price1: channel.mid1, time2: channel.time2, price2: channel.mid2 },
+      Number.isFinite(channel.up11) && Number.isFinite(channel.up12)
+        ? { time1: channel.time1, price1: channel.up11, time2: channel.time2, price2: channel.up12 }
+        : null,
+      Number.isFinite(channel.dn11) && Number.isFinite(channel.dn12)
+        ? { time1: channel.time1, price1: channel.dn11, time2: channel.time2, price2: channel.dn12 }
+        : null,
+      Number.isFinite(channel.up21) && Number.isFinite(channel.up22)
+        ? { time1: channel.time1, price1: channel.up21, time2: channel.time2, price2: channel.up22 }
+        : null,
+      Number.isFinite(channel.dn21) && Number.isFinite(channel.dn22)
+        ? { time1: channel.time1, price1: channel.dn21, time2: channel.time2, price2: channel.dn22 }
+        : null,
+    ].filter(Boolean);
     for (const ln of lines) {
       if (this._hitTestLine(ln, mx, my, threshold)) return true;
     }
@@ -912,49 +1025,61 @@ class DrawingToolsManager {
     const channel = this._resolveRegressionChannelGeometry(d);
     const midA = this._toPixel(channel.time1, channel.mid1);
     const midB = this._toPixel(channel.time2, channel.mid2);
-    const up1A = this._toPixel(channel.time1, channel.up11);
-    const up1B = this._toPixel(channel.time2, channel.up12);
-    const dn1A = this._toPixel(channel.time1, channel.dn11);
-    const dn1B = this._toPixel(channel.time2, channel.dn12);
-    const up2A = this._toPixel(channel.time1, channel.up21);
-    const up2B = this._toPixel(channel.time2, channel.up22);
-    const dn2A = this._toPixel(channel.time1, channel.dn21);
-    const dn2B = this._toPixel(channel.time2, channel.dn22);
-    if (!midA || !midB || !up1A || !up1B || !dn1A || !dn1B || !up2A || !up2B || !dn2A || !dn2B) return;
+    if (!midA || !midB) return;
+
+    const toRegressionLine = (startPrice, endPrice) => {
+      if (!Number.isFinite(startPrice) || !Number.isFinite(endPrice)) return null;
+      const start = this._toPixel(channel.time1, startPrice);
+      const end = this._toPixel(channel.time2, endPrice);
+      if (!start || !end) return null;
+      return { start, end };
+    };
+
+    const up1 = toRegressionLine(channel.up11, channel.up12);
+    const dn1 = toRegressionLine(channel.dn11, channel.dn12);
+    const up2 = toRegressionLine(channel.up21, channel.up22);
+    const dn2 = toRegressionLine(channel.dn21, channel.dn22);
 
     const ext = 0.12;
-    const extend = (a, b) => {
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      return { a: { x: a.x - dx * ext, y: a.y - dy * ext }, b: { x: b.x + dx * ext, y: b.y + dy * ext } };
+    const extend = (line) => {
+      if (!line) return null;
+      const dx = line.end.x - line.start.x;
+      const dy = line.end.y - line.start.y;
+      return {
+        a: { x: line.start.x - dx * ext, y: line.start.y - dy * ext },
+        b: { x: line.end.x + dx * ext, y: line.end.y + dy * ext },
+      };
     };
-    const m = extend(midA, midB);
-    const u1 = extend(up1A, up1B);
-    const d1 = extend(dn1A, dn1B);
-    const u2 = extend(up2A, up2B);
-    const d2 = extend(dn2A, dn2B);
+    const m = extend({ start: midA, end: midB });
+    const u1 = extend(up1);
+    const d1 = extend(dn1);
+    const u2 = extend(up2);
+    const d2 = extend(dn2);
 
     const c = channel.color || d.color || '#38bdf8';
 
-    ctx.fillStyle = c + '10';
-    ctx.beginPath();
-    ctx.moveTo(u2.a.x, u2.a.y);
-    ctx.lineTo(u2.b.x, u2.b.y);
-    ctx.lineTo(d2.b.x, d2.b.y);
-    ctx.lineTo(d2.a.x, d2.a.y);
-    ctx.closePath();
-    ctx.fill();
+    const fillBetween = (top, bottom, alpha) => {
+      if (!top || !bottom) return;
+      ctx.fillStyle = c + alpha;
+      ctx.beginPath();
+      ctx.moveTo(top.a.x, top.a.y);
+      ctx.lineTo(top.b.x, top.b.y);
+      ctx.lineTo(bottom.b.x, bottom.b.y);
+      ctx.lineTo(bottom.a.x, bottom.a.y);
+      ctx.closePath();
+      ctx.fill();
+    };
 
-    ctx.fillStyle = c + '16';
-    ctx.beginPath();
-    ctx.moveTo(u1.a.x, u1.a.y);
-    ctx.lineTo(u1.b.x, u1.b.y);
-    ctx.lineTo(d1.b.x, d1.b.y);
-    ctx.lineTo(d1.a.x, d1.a.y);
-    ctx.closePath();
-    ctx.fill();
+    if (u2 && d2) fillBetween(u2, d2, '10');
+    else if (u2) fillBetween(u2, m, '10');
+    else if (d2) fillBetween(m, d2, '10');
+
+    if (u1 && d1) fillBetween(u1, d1, '16');
+    else if (u1) fillBetween(u1, m, '16');
+    else if (d1) fillBetween(m, d1, '16');
 
     const drawLine = (ln, width, dashed) => {
+      if (!ln) return;
       ctx.strokeStyle = c;
       ctx.lineWidth = width;
       ctx.setLineDash(dashed ? [6, 4] : []);
@@ -1365,6 +1490,106 @@ class DrawingToolsManager {
     dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.remove(); });
   }
 
+  _openRegressionChannelEditor(idx) {
+    const drawing = this._drawings[idx];
+    if (!drawing || drawing.type !== 'reg-channel') return;
+    this._normalizeRegressionChannelSettings(drawing);
+
+    let existingDialog = document.getElementById('dt-reg-editor-dialog');
+    if (existingDialog) existingDialog.remove();
+
+    const dialog = document.createElement('div');
+    dialog.id = 'dt-reg-editor-dialog';
+    dialog.className = 'dt-reg-editor-backdrop';
+    dialog.innerHTML = `
+      <div class="dt-reg-editor-panel">
+        <div class="dt-reg-editor-header">
+          <h3 class="dt-reg-editor-title">Regression Trend</h3>
+          <button type="button" class="dt-reg-editor-close" aria-label="Close">×</button>
+        </div>
+        <div class="dt-reg-editor-tabs" role="tablist" aria-label="Regression settings tabs">
+          <button type="button" class="dt-reg-editor-tab is-active">Inputs</button>
+          <button type="button" class="dt-reg-editor-tab" tabindex="-1">Style</button>
+          <button type="button" class="dt-reg-editor-tab" tabindex="-1">Coordinates</button>
+          <button type="button" class="dt-reg-editor-tab" tabindex="-1">Visibility</button>
+        </div>
+        <div class="dt-reg-editor-body">
+          <label class="dt-reg-editor-field">
+            <span>Upper Deviation</span>
+            <input id="dt-reg-upper" type="number" step="0.25" min="0.25" max="12" value="${drawing.upperDeviation}">
+          </label>
+          <label class="dt-reg-editor-field">
+            <span>Lower Deviation</span>
+            <input id="dt-reg-lower" type="number" step="0.25" min="-12" max="-0.25" value="${drawing.lowerDeviation}">
+          </label>
+          <label class="dt-reg-editor-check">
+            <input id="dt-reg-use-upper" type="checkbox" ${drawing.useUpperDeviation ? 'checked' : ''}>
+            <span>Use Upper Deviation</span>
+          </label>
+          <label class="dt-reg-editor-check">
+            <input id="dt-reg-use-lower" type="checkbox" ${drawing.useLowerDeviation ? 'checked' : ''}>
+            <span>Use Lower Deviation</span>
+          </label>
+          <label class="dt-reg-editor-field">
+            <span>Source</span>
+            <select id="dt-reg-source">
+              <option value="close" selected>Close</option>
+            </select>
+          </label>
+        </div>
+        <div class="dt-reg-editor-actions">
+          <button type="button" id="dt-reg-reset" class="dt-reg-editor-btn dt-reg-editor-btn--ghost">Reset</button>
+          <button type="button" id="dt-reg-cancel" class="dt-reg-editor-btn dt-reg-editor-btn--ghost">Cancel</button>
+          <button type="button" id="dt-reg-save" class="dt-reg-editor-btn dt-reg-editor-btn--primary">Apply</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dialog);
+
+    const closeDialog = () => dialog.remove();
+    const upperInput = dialog.querySelector('#dt-reg-upper');
+    const lowerInput = dialog.querySelector('#dt-reg-lower');
+    const useUpperInput = dialog.querySelector('#dt-reg-use-upper');
+    const useLowerInput = dialog.querySelector('#dt-reg-use-lower');
+
+    dialog.querySelector('.dt-reg-editor-close').onclick = closeDialog;
+    dialog.querySelector('#dt-reg-cancel').onclick = closeDialog;
+    dialog.querySelector('#dt-reg-reset').onclick = () => {
+      upperInput.value = '2';
+      lowerInput.value = '-2';
+      useUpperInput.checked = true;
+      useLowerInput.checked = true;
+      dialog.querySelector('#dt-reg-source').value = 'close';
+    };
+    dialog.querySelector('#dt-reg-save').onclick = () => {
+      const upperDeviation = Math.max(
+        0.25,
+        Math.abs(this._normalizeRegressionChannelDeviation(upperInput.value, 2)),
+      );
+      const lowerDeviation = -Math.max(
+        0.25,
+        Math.abs(this._normalizeRegressionChannelDeviation(lowerInput.value, -2)),
+      );
+
+      drawing.upperDeviation = upperDeviation;
+      drawing.lowerDeviation = lowerDeviation;
+      drawing.useUpperDeviation = useUpperInput.checked;
+      drawing.useLowerDeviation = useLowerInput.checked;
+      drawing.source = 'close';
+      drawing.stdMult = this._normalizeRegressionChannelStdMult(
+        Math.max(Math.abs(upperDeviation), Math.abs(lowerDeviation)) / 2,
+      );
+      delete drawing._geometryCacheKey;
+      delete drawing._resolvedGeometry;
+      closeDialog();
+      this._setStatus(this._formatRegressionChannelStatus(drawing));
+      this._render();
+      this._fireChange();
+    };
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) closeDialog();
+    });
+  }
+
   _fireChange() {
     if (this._onChange) this._onChange(this.getDrawings());
   }
@@ -1460,6 +1685,12 @@ class DrawingToolsManager {
       sigma,
       slope,
       bars: n,
+      stdMult: 1,
+      upperDeviation: 2,
+      lowerDeviation: -2,
+      useUpperDeviation: true,
+      useLowerDeviation: true,
+      source: 'close',
     };
   }
 
@@ -1571,11 +1802,21 @@ class DrawingToolsManager {
 
     const anchorTime1 = d.anchorTime1 ?? d.time1;
     const anchorTime2 = d.anchorTime2 ?? d.time2;
+    this._normalizeRegressionChannelSettings(d);
+    const upperDeviation = d.useUpperDeviation ? d.upperDeviation : null;
+    const lowerDeviation = d.useLowerDeviation ? d.lowerDeviation : null;
     const bars = this._getBars ? this._getBars() : null;
     const barsFingerprint = Array.isArray(bars) && bars.length
       ? `${bars.length}|${this._timeToComparable(bars[0]?.time)}|${this._timeToComparable(bars[bars.length - 1]?.time)}`
       : 'no-bars';
-    const cacheKey = `${this._timeToComparable(anchorTime1)}|${this._timeToComparable(anchorTime2)}|${barsFingerprint}`;
+    const cacheKey = [
+      this._timeToComparable(anchorTime1),
+      this._timeToComparable(anchorTime2),
+      Number.isFinite(upperDeviation) ? upperDeviation : 'off',
+      Number.isFinite(lowerDeviation) ? lowerDeviation : 'off',
+      d.source || 'close',
+      barsFingerprint,
+    ].join('|');
 
     if (d._geometryCacheKey === cacheKey && d._resolvedGeometry) {
       return d._resolvedGeometry;
@@ -1590,18 +1831,40 @@ class DrawingToolsManager {
         anchorTime2,
         anchorLogical1: d.anchorLogical1 ?? d.logical1 ?? null,
         anchorLogical2: d.anchorLogical2 ?? d.logical2 ?? null,
+        upperDeviation,
+        lowerDeviation,
+        useUpperDeviation: d.useUpperDeviation,
+        useLowerDeviation: d.useLowerDeviation,
+        stdMult: d.stdMult,
       };
       return d._resolvedGeometry;
     }
+
+    const sigma = Number.isFinite(recomputed.sigma) ? recomputed.sigma : 0;
+    const upperInnerDeviation = Number.isFinite(upperDeviation) ? upperDeviation / 2 : null;
+    const lowerInnerDeviation = Number.isFinite(lowerDeviation) ? lowerDeviation / 2 : null;
 
     d._geometryCacheKey = cacheKey;
     d._resolvedGeometry = {
       ...d,
       ...recomputed,
+      up11: Number.isFinite(upperInnerDeviation) ? recomputed.mid1 + sigma * upperInnerDeviation : null,
+      up12: Number.isFinite(upperInnerDeviation) ? recomputed.mid2 + sigma * upperInnerDeviation : null,
+      dn11: Number.isFinite(lowerInnerDeviation) ? recomputed.mid1 + sigma * lowerInnerDeviation : null,
+      dn12: Number.isFinite(lowerInnerDeviation) ? recomputed.mid2 + sigma * lowerInnerDeviation : null,
+      up21: Number.isFinite(upperDeviation) ? recomputed.mid1 + sigma * upperDeviation : null,
+      up22: Number.isFinite(upperDeviation) ? recomputed.mid2 + sigma * upperDeviation : null,
+      dn21: Number.isFinite(lowerDeviation) ? recomputed.mid1 + sigma * lowerDeviation : null,
+      dn22: Number.isFinite(lowerDeviation) ? recomputed.mid2 + sigma * lowerDeviation : null,
       anchorTime1,
       anchorTime2,
       anchorLogical1: d.anchorLogical1 ?? d.logical1 ?? null,
       anchorLogical2: d.anchorLogical2 ?? d.logical2 ?? null,
+      upperDeviation,
+      lowerDeviation,
+      useUpperDeviation: d.useUpperDeviation,
+      useLowerDeviation: d.useLowerDeviation,
+      stdMult: d.stdMult,
     };
     return d._resolvedGeometry;
   }

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -418,16 +419,112 @@ def _infer_document_scale(markdown_path: Optional[str]) -> Optional[str]:
     if not markdown_path:
         return None
     try:
-        text = Path(markdown_path).read_text(encoding="utf-8").lower()
+        markdown_lines = Path(markdown_path).read_text(encoding="utf-8").splitlines()
     except Exception:
         return None
-    if "in billions" in text:
+    distinct_scales = {
+        scale
+        for line in markdown_lines
+        for scale in [_extract_scale_from_text(line)]
+        if scale and _looks_like_scale_header_line(line)
+    }
+    if len(distinct_scales) == 1:
+        return next(iter(distinct_scales))
+    return None
+
+
+def _extract_scale_from_text(text: Optional[str]) -> Optional[str]:
+    lowered = str(text or "").lower()
+    if re.search(r"\b(?:in\s+)?billions?\b", lowered):
         return "billions"
-    if "in millions" in text:
+    if re.search(r"\b(?:in\s+)?millions?\b", lowered):
         return "millions"
-    if "in thousands" in text:
+    if re.search(r"\b(?:in\s+)?thousands?\b", lowered):
         return "thousands"
     return None
+
+
+def _looks_like_scale_header_line(text: Optional[str]) -> bool:
+    lowered = str(text or "").strip().lower()
+    if not lowered:
+        return False
+    if not _extract_scale_from_text(lowered):
+        return False
+    if any(token in lowered for token in (" u.s. dollars", " us dollars", " usd", "(millions", "(billions", "(thousands")):
+        return True
+    if "tabular dollars" in lowered or "presented in millions" in lowered or "presented in billions" in lowered or "presented in thousands" in lowered:
+        return True
+    if len(lowered) > 140:
+        return False
+    if lowered.startswith("|") and lowered.count("|") >= 2:
+        return True
+    if lowered.startswith("(") and lowered.endswith(")"):
+        return True
+    return False
+
+
+def _looks_like_numeric_evidence_line(text: Optional[str]) -> bool:
+    lowered = str(text or "").strip().lower()
+    if not lowered:
+        return False
+    if "$" in lowered or "," in lowered or "e+" in lowered or "e-" in lowered:
+        return True
+    numeric_tokens = re.findall(r"\d+(?:\.\d+)?", lowered)
+    long_tokens = [token for token in numeric_tokens if len(token.replace(".", "")) >= 5]
+    return len(long_tokens) >= 2
+
+
+def _infer_fact_scale(markdown_path: Optional[str], evidence_lines: Optional[List[str]]) -> Optional[str]:
+    if evidence_lines:
+        for line in evidence_lines:
+            scale = _extract_scale_from_text(line)
+            if scale and _looks_like_scale_header_line(line):
+                return scale
+
+    if markdown_path and evidence_lines:
+        try:
+            markdown_lines = Path(markdown_path).read_text(encoding="utf-8").splitlines()
+        except Exception:
+            markdown_lines = []
+        if markdown_lines:
+            normalized_candidates = [str(line or "").strip() for line in evidence_lines if str(line or "").strip()]
+            preferred_candidates = [candidate for candidate in normalized_candidates if _looks_like_numeric_evidence_line(candidate)]
+            if not preferred_candidates:
+                preferred_candidates = [candidate for candidate in normalized_candidates if any(char.isdigit() for char in candidate)]
+            candidate_pool = preferred_candidates or normalized_candidates
+            matched_indexes: List[int] = []
+
+            for idx, markdown_line in enumerate(markdown_lines):
+                normalized_markdown = str(markdown_line or "").strip()
+                if normalized_markdown and any(candidate and candidate == normalized_markdown for candidate in candidate_pool):
+                    matched_indexes.append(idx)
+
+            if not matched_indexes:
+                for idx, markdown_line in enumerate(markdown_lines):
+                    normalized_markdown = str(markdown_line or "").strip()
+                    if not normalized_markdown:
+                        continue
+                    if any(candidate and candidate in normalized_markdown for candidate in candidate_pool):
+                        matched_indexes.append(idx)
+
+            for idx in matched_indexes:
+                window_start = max(0, idx - 12)
+                window_end = min(len(markdown_lines), idx + 3)
+                for probe_line in reversed(markdown_lines[window_start:window_end]):
+                    scale = _extract_scale_from_text(probe_line)
+                    if scale and _looks_like_scale_header_line(probe_line):
+                        return scale
+
+                broader_window_start = max(0, idx - 120)
+                for probe_line in reversed(markdown_lines[broader_window_start:window_start]):
+                    lowered_probe = str(probe_line or "").strip().lower()
+                    if "tabular dollars" not in lowered_probe and "presented in " not in lowered_probe:
+                        continue
+                    scale = _extract_scale_from_text(probe_line)
+                    if scale and _looks_like_scale_header_line(probe_line):
+                        return scale
+
+    return _infer_document_scale(markdown_path)
 
 
 def _statement_metric_metadata(fact_key: str) -> Tuple[str, Optional[str], str]:
@@ -438,6 +535,7 @@ def _statement_metric_metadata(fact_key: str) -> Tuple[str, Optional[str], str]:
         "current_assets",
         "current_liabilities",
         "shareholders_equity",
+        "total_equity",
         "operating_cash_flow",
         "capital_expenditures",
         "free_cash_flow",
@@ -928,22 +1026,33 @@ def ingest_canonical_filing_payload(
     )
     summary.document_rows += int(inserted_document)
 
+    conn.execute(
+        """
+        DELETE FROM pit_statement_facts
+        WHERE symbol = ?
+          AND source_type = ?
+          AND source_document = ?
+        """,
+        (symbol, source_type, source_document),
+    )
+
     period_type = _filing_period_type(form_type)
-    scale = _infer_document_scale(markdown_file)
     facts = payload.get("facts") or {}
     evidence = payload.get("evidence") or {}
     for fact_key, values in facts.items():
         if not isinstance(values, dict):
             continue
         unit, currency, fact_origin = _statement_metric_metadata(str(fact_key))
+        evidence_lines = evidence.get(fact_key) if isinstance(evidence.get(fact_key), list) else None
+        scale = _infer_fact_scale(markdown_file, evidence_lines)
         evidence_ref = None
-        if isinstance(evidence.get(fact_key), list):
+        if evidence_lines:
             evidence_ref = json.dumps(
                 {
                     "kind": "docling_markdown_lines",
                     "fact_key": fact_key,
                     "markdown_file": markdown_file,
-                    "lines": evidence.get(fact_key),
+                    "lines": evidence_lines,
                 },
                 ensure_ascii=True,
                 sort_keys=True,

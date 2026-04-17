@@ -2893,7 +2893,7 @@ async function sendWorkshopScannerChat(prefill) {
       body: JSON.stringify({
         message,
         context,
-        role: 'pattern_analyst',
+        role: 'technical_analyst',
       }),
     });
     const data = await res.json();

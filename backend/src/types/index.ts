@@ -208,7 +208,7 @@ export interface ValidationReport {
     date_end: string;
     universe: string[];
     timeframes: string[];
-    validation_tier?: 'tier1' | 'tier1b' | 'tier2' | 'tier3';
+    validation_tier?: 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'valuation_regime_undervalued' | 'valuation_regime_undervalued_sample100' | 'valuation_regime_fair' | 'valuation_regime_fair_sample100' | 'valuation_regime_overvalued' | 'valuation_regime_overvalued_sample100' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
     asset_class?: 'futures' | 'stocks' | 'options' | 'forex' | 'crypto';
     costs: {
       commission_per_trade: number;

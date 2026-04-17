@@ -177,6 +177,20 @@ def _parse_period_days(period: str) -> Optional[int]:
     return None
 
 
+def _normalize_intraday_period(period: str, max_days: int = 720) -> str:
+    """Clamp intraday requests to a Yahoo-safe lookback window."""
+    p = str(period or "").strip().lower() or "60d"
+    if p == "max":
+        return f"{max_days}d"
+
+    days = _parse_period_days(p)
+    if days is None:
+        return p
+    if days > max_days:
+        return f"{max_days}d"
+    return p
+
+
 def _safe_parse_ts(ts: str) -> Optional[datetime]:
     if not ts:
         return None
@@ -432,8 +446,16 @@ def _download_from_yahoo(symbol: str, period: str, interval: str) -> List[OHLCV]
     df = ticker.history(period=period, interval=interval)
     
     if df is None or df.empty:
-        print(f"Warning: No data returned for {symbol}. Trying shorter period...", file=sys.stderr)
-        df = ticker.history(period="5y", interval=interval)
+        intraday_intervals = {'1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h'}
+        fallback_period = "5y"
+        if interval in intraday_intervals:
+            requested_days = _parse_period_days(period)
+            fallback_period = "365d" if requested_days is not None and requested_days >= 365 else "60d"
+        print(
+            f"Warning: No data returned for {symbol}. Trying shorter period ({fallback_period})...",
+            file=sys.stderr,
+        )
+        df = ticker.history(period=fallback_period, interval=interval)
         
     if df is None or df.empty:
         raise ValueError(f"No data available for symbol: {symbol}")
@@ -480,9 +502,11 @@ def fetch_data_yfinance(symbol: str, period: str = "10y", interval: str = "1wk",
     needs_aggregation = (interval == '4h')
     yahoo_interval = '1h' if needs_aggregation else interval
     
-    # Yahoo limits intraday data: 1h max period is 730d, for initial we use 60d
-    if yahoo_interval == '1h' and period in ('10y', '5y', 'max'):
-        period = '730d'
+    # Yahoo intraday history has hard retention limits; stay comfortably inside
+    # them so chart timeframe switches do not fail near the boundary.
+    intraday_intervals = {'1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h'}
+    if yahoo_interval in intraday_intervals:
+        period = _normalize_intraday_period(period, max_days=720)
     
     requested_period = period
 

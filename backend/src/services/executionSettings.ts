@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { readJsonDocument, writeJsonDocument } from './appStateDb';
 
 export type ExecutionBrokerProvider = 'alpaca' | 'oanda';
 export type AlpacaMode = 'paper' | 'live';
@@ -24,6 +25,8 @@ export interface ExecutionSettings {
 
 const LEGACY_SETTINGS_FILE = path.join(__dirname, '..', '..', 'data', 'execution-settings.json');
 const LOCAL_SETTINGS_FILE = path.join(__dirname, '..', '..', 'data', 'preferences', 'execution-settings.local.json');
+const EXECUTION_SETTINGS_NAMESPACE = 'settings';
+const EXECUTION_SETTINGS_DOCUMENT_KEY = 'execution_settings';
 
 function readSettingsFile(filePath: string): ExecutionSettings | null {
   try {
@@ -36,13 +39,19 @@ function readSettingsFile(filePath: string): ExecutionSettings | null {
 }
 
 export function loadExecutionSettings(): ExecutionSettings | null {
-  return readSettingsFile(LOCAL_SETTINGS_FILE) || readSettingsFile(LEGACY_SETTINGS_FILE);
+  const persisted = readJsonDocument<ExecutionSettings>(EXECUTION_SETTINGS_NAMESPACE, EXECUTION_SETTINGS_DOCUMENT_KEY);
+  if (persisted) return persisted;
+  const legacy = readSettingsFile(LOCAL_SETTINGS_FILE) || readSettingsFile(LEGACY_SETTINGS_FILE);
+  if (legacy) {
+    writeJsonDocument(EXECUTION_SETTINGS_NAMESPACE, EXECUTION_SETTINGS_DOCUMENT_KEY, legacy);
+  }
+  return legacy;
 }
 
 export function saveExecutionSettings(settings: ExecutionSettings): void {
   const dir = path.dirname(LOCAL_SETTINGS_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(LOCAL_SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+  writeJsonDocument(EXECUTION_SETTINGS_NAMESPACE, EXECUTION_SETTINGS_DOCUMENT_KEY, settings);
 }
 
 export function getExecutionSettingsPaths() {

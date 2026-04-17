@@ -1330,23 +1330,30 @@ let _symbolLibrary = null;
 let _universePriceSnapshot = null;
 let _lastScanInsiderScreenMap = new Map();
 
-async function loadSymbolLibrary() {
-  if (_symbolLibrary) return _symbolLibrary;
+async function loadSymbolLibrary(forceRefresh = false) {
+  if (_symbolLibrary && !forceRefresh) return _symbolLibrary;
   try {
-    const res = await fetch(`${API_URL}/api/candidates/symbols`);
+    const requestUrl = forceRefresh
+      ? `${API_URL}/api/candidates/symbols?refresh=${Date.now()}`
+      : `${API_URL}/api/candidates/symbols`;
+    const res = await fetch(requestUrl, { cache: 'no-store' });
     const json = await res.json();
     if (json.success && json.data) {
       _symbolLibrary = json.data;
-      const sel = document.getElementById('scan-asset-class');
-      if (sel) {
+      const updateSelectCounts = (selectId) => {
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
         for (const opt of sel.options) {
           const key = opt.value;
+          if (!key || key === 'any') continue;
           const symbols = key === 'all' ? _symbolLibrary.all || [] : _symbolLibrary[key] || [];
           const count = symbols.length;
           const baseName = opt.textContent.replace(/\s*\(\d+\)$/, '');
           opt.textContent = `${baseName} (${count})`;
         }
-      }
+      };
+      updateSelectCounts('scan-asset-class');
+      updateSelectCounts('scan-secondary-filter');
       console.log('Symbol library loaded:', Object.keys(_symbolLibrary).filter(k => k !== 'description' && k !== 'all').map(k => `${k}: ${(_symbolLibrary[k] || []).length}`).join(', '));
       populateSymbolSuggestions();
       return _symbolLibrary;
@@ -1359,9 +1366,40 @@ async function loadSymbolLibrary() {
     sectors: ['XLF', 'XLE', 'XLK', 'XLV', 'XLI'],
     forex: [],
     optionable: [],
+    smallcaps: [],
+    largecaps: [],
+    undervalued: [],
+    fairvalue: [],
+    overvalued: [],
     all: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI'],
   };
   return _symbolLibrary;
+}
+
+async function reloadSymbolLibrary() {
+  const button = document.getElementById('btn-reload-symbol-library');
+  const status = document.getElementById('scan-status');
+  const previousLabel = button ? button.textContent : '';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Reloading...';
+  }
+  if (status) status.textContent = 'Refreshing symbol library...';
+  try {
+    await loadSymbolLibrary(true);
+    if (status) {
+      const count = Array.isArray(_symbolLibrary?.all) ? _symbolLibrary.all.length : 0;
+      status.textContent = `Symbol library refreshed (${count} symbols).`;
+    }
+  } catch (err) {
+    console.error('Failed to refresh symbol library:', err);
+    if (status) status.textContent = 'Failed to refresh symbol library.';
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = previousLabel || 'Reload Symbols';
+    }
+  }
 }
 
 async function loadUniversePriceSnapshot() {
@@ -1518,8 +1556,15 @@ async function getScanSymbols(statusEl) {
   // Get symbols from asset class
   const assetClassEl = document.getElementById('scan-asset-class');
   const assetClass = assetClassEl ? assetClassEl.value : 'all';
+  const criteriaEl = document.getElementById('scan-secondary-filter');
+  const criteria = criteriaEl ? String(criteriaEl.value || 'any').trim().toLowerCase() : 'any';
   if (!_symbolLibrary) return [];
   let symbols = (_symbolLibrary[assetClass] || _symbolLibrary.all || []).slice();
+
+  if (criteria && criteria !== 'any') {
+    const criteriaSet = new Set((_symbolLibrary[criteria] || []).slice());
+    symbols = symbols.filter((symbol) => criteriaSet.has(symbol));
+  }
 
   const { min, max } = getScanPriceFilters();
   if (min != null || max != null) {

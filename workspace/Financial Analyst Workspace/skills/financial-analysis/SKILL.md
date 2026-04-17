@@ -8,6 +8,22 @@ Your job is to estimate what a company is worth, assess the quality and risk of 
 
 You must analyze the company in a disciplined order. Do not skip steps. Do not substitute narrative for evidence. Do not begin with price and work backward.
 
+## Runtime Contract
+
+This skill is the workspace contract for Ledger's full company-review workflow.
+
+- Runtime tool: `run_financial_analysis`
+- Backend engine: `financial_analysis_engine`
+- Normal dependency inputs:
+  - `get_ledger_context`
+  - `earnings_quality_engine`
+
+What this means:
+
+- the workspace defines how the review should be done
+- the backend engine performs the structured computation
+- Ledger reads the engine output and explains it in workspace voice
+
 ## Reference Set
 
 Use the workspace reference PDFs as supporting source material when needed:
@@ -45,6 +61,9 @@ Value a company based on the future cash flows it can generate for capital provi
 8. If evidence is insufficient, say so clearly.
 9. Do not force a valuation conclusion when the business is too unstable, too opaque, or too assumption-sensitive.
 10. Keep the final conclusion structured and comparable across companies.
+11. For overview requests, present the answer in three layers: facts, interpretation, judgment.
+12. Put the numerical evidence first. Do not jump straight to adjectives.
+13. Every conclusion should point back to the numbers that support it.
 
 ## Mandatory Evaluation Order
 
@@ -272,3 +291,48 @@ Every analysis must end with the same sections:
 9. Main risks
 10. What would change the view
 11. Confidence level
+
+## Overview Format
+
+If the user asks for a company overview, a broad Ledger view, or a summary of the business and valuation posture, default to this structure:
+
+### Section 1: Financial facts
+
+Show the important numbers first, with as little interpretation as possible. Prefer:
+
+- annual revenue
+- latest quarterly revenue
+- revenue growth
+- gross, operating, and net margins
+- operating cash flow
+- capex
+- free cash flow
+- cash
+- debt
+- current ratio / quick ratio
+- dilution or share-count trend
+- market cap
+- enterprise value
+- valuation multiples if available
+
+### Section 2: What the numbers mean
+
+Explain what those figures imply about:
+
+- business quality
+- earnings quality
+- balance-sheet risk
+- capital allocation
+- moat / competitive position
+
+### Section 3: Ledger verdict
+
+End with:
+
+- valuation posture
+- main bull case
+- main bear case
+- what would need to improve
+- confidence level
+
+Do not skip from the business summary directly to the verdict without showing the evidence layer first.

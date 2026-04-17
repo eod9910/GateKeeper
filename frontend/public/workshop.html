@@ -366,7 +366,9 @@
                     <div id="workshop-scanner-ai-messages" class="scanner-chat-messages"></div>
                     <div class="scanner-chat-input-row">
                       <textarea id="workshop-scanner-ai-input" rows="3" placeholder="Ask about this pattern..." onkeydown="handleWorkshopScannerChatKeydown(event)"></textarea>
-                      <button class="scanner-send-btn" type="button" aria-label="Send pattern analyst chat message" onclick="sendWorkshopScannerChat()">&#8593;</button>
+                      <div class="scanner-chat-input-toolbar" role="toolbar" aria-label="Pattern analyst chat actions">
+                        <button class="scanner-send-btn" type="button" aria-label="Send pattern analyst chat message" onclick="sendWorkshopScannerChat()">&#8593;</button>
+                      </div>
                     </div>
                     <div class="scanner-chat-actions">
                       <button class="btn btn-ghost" onclick="sendWorkshopScannerChat('Is this a valid pattern?')">Validate</button>

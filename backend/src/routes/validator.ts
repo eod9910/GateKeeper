@@ -13,6 +13,7 @@ import * as storage from '../services/storageService';
 import { getPersistedBridgeStrategyVersionId } from '../services/executionBridge';
 import { ApiResponse, StrategySpec, StrategyAssetClass, ValidationReport, TradeInstance, ValidatorComparisonDiagnostics } from '../types';
 import { applyParameterManifest } from '../services/parameterManifest';
+import { readJsonDocument, writeJsonDocument } from '../services/appStateDb';
 import { loadUniverseSymbolsSync } from '../services/universeRegistry';
 import {
   getPluginServiceHealth,
@@ -21,6 +22,7 @@ import {
   cancelValidatorJobOnService,
 } from '../services/pluginServiceClient';
 import { buildValidatorComparisonDiagnostics } from '../services/validatorComparisonService';
+import { pruneSweepVariantsByReportId } from '../services/sweepEngine';
 
 const router = Router();
 
@@ -56,7 +58,7 @@ interface RunJob {
   job_id: string;
   status: RunJobStatus;
   strategy_version_id: string;
-  tier?: 'tier1' | 'tier1b' | 'tier2' | 'tier3';
+  tier?: ValidationTier;
   asset_class?: StrategyAssetClass;
   interval?: string;
   date_start?: string;
@@ -88,15 +90,16 @@ const runJobs = new Map<string, RunJob>();
 const activeProcesses = new Map<string, ChildProcess>();
 /** AbortControllers for in-flight HTTP requests to the Python service (service-path cancellation). */
 const activeAbortControllers = new Map<string, AbortController>();
-const JOBS_FILE = path.join(__dirname, '..', '..', 'data', 'validator-run-jobs.json');
+const LEGACY_JOBS_FILE = path.join(__dirname, '..', '..', 'data', 'validator-run-jobs.json');
+const RUN_JOBS_NAMESPACE = 'validator_run_jobs';
+const RUN_JOBS_DOCUMENT_KEY = 'all';
 const MAX_CONCURRENT_RUNS = Math.max(1, Number(process.env.VALIDATOR_MAX_CONCURRENT_RUNS || 2));
 const PIPELINE_BASE_TIMEOUT_MS = Math.max(60_000, Number(process.env.VALIDATOR_PIPELINE_TIMEOUT_MS || 10 * 60_000));
 const VALIDATOR_USE_PY_SERVICE = isPyServiceEnabled();
-type ValidationTier = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
-const VALIDATION_TIER_KEYS: ValidationTier[] = ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3', 'large_cap_known', 'sp500', 'sp400', 'sp600', 'regime_expansion', 'regime_distribution', 'regime_accumulation', 'regime_markdown'];
+type ValidationTier = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'valuation_regime_undervalued' | 'valuation_regime_undervalued_sample100' | 'valuation_regime_fair' | 'valuation_regime_fair_sample100' | 'valuation_regime_overvalued' | 'valuation_regime_overvalued_sample100' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
+const VALIDATION_TIER_KEYS: ValidationTier[] = ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3', 'large_cap_known', 'sp500', 'sp400', 'sp600', 'valuation_regime_undervalued', 'valuation_regime_undervalued_sample100', 'valuation_regime_fair', 'valuation_regime_fair_sample100', 'valuation_regime_overvalued', 'valuation_regime_overvalued_sample100', 'regime_expansion', 'regime_distribution', 'regime_accumulation', 'regime_markdown'];
 const ASSET_CLASSES: StrategyAssetClass[] = ['futures', 'stocks', 'options', 'forex', 'crypto'];
 const OPTIONABLE_UNIVERSE_FILE = path.join(__dirname, '..', '..', 'data', 'universe', 'optionable.json');
-const CLEAN_STOCK_UNIVERSE_FILE = path.join(__dirname, '..', '..', 'data', 'universe_clean.json');
 const STOCKS_TIER1B_TARGET_SYMBOLS = Math.max(150, Number(process.env.VALIDATOR_TIER1B_STOCKS_TARGET_SYMBOLS || 250));
 const SP500_SYMBOLS = loadUniverseSymbolsSync('sp500');
 const SP400_SYMBOLS = loadUniverseSymbolsSync('sp400');
@@ -111,6 +114,12 @@ const REGIME_EXPANSION_SYMBOLS = loadUniverseSymbolsSync('regime_expansion');
 const REGIME_DISTRIBUTION_SYMBOLS = loadUniverseSymbolsSync('regime_distribution');
 const REGIME_ACCUMULATION_SYMBOLS = loadUniverseSymbolsSync('regime_accumulation');
 const REGIME_MARKDOWN_SYMBOLS = loadUniverseSymbolsSync('regime_markdown');
+const VALUATION_UNDERVALUE_SYMBOLS = loadUniverseSymbolsSync('valuation_regime_undervalued');
+const VALUATION_UNDERVALUE_SAMPLE100_SYMBOLS = loadUniverseSymbolsSync('valuation_regime_undervalued_sample100');
+const VALUATION_FAIR_SYMBOLS = loadUniverseSymbolsSync('valuation_regime_fair');
+const VALUATION_FAIR_SAMPLE100_SYMBOLS = loadUniverseSymbolsSync('valuation_regime_fair_sample100');
+const VALUATION_OVERVALUE_SYMBOLS = loadUniverseSymbolsSync('valuation_regime_overvalued');
+const VALUATION_OVERVALUE_SAMPLE100_SYMBOLS = loadUniverseSymbolsSync('valuation_regime_overvalued_sample100');
 const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTier, string[]>> = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
@@ -123,6 +132,12 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     sp500: [],
     sp400: [],
     sp600: [],
+    valuation_regime_undervalued: [],
+    valuation_regime_undervalued_sample100: [],
+    valuation_regime_fair: [],
+    valuation_regime_fair_sample100: [],
+    valuation_regime_overvalued: [],
+    valuation_regime_overvalued_sample100: [],
     regime_expansion: [],
     regime_distribution: [],
     regime_accumulation: [],
@@ -139,6 +154,12 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     sp500: SP500_SYMBOLS,
     sp400: SP400_SYMBOLS,
     sp600: SP600_SYMBOLS,
+    valuation_regime_undervalued: VALUATION_UNDERVALUE_SYMBOLS,
+    valuation_regime_undervalued_sample100: VALUATION_UNDERVALUE_SAMPLE100_SYMBOLS,
+    valuation_regime_fair: VALUATION_FAIR_SYMBOLS,
+    valuation_regime_fair_sample100: VALUATION_FAIR_SAMPLE100_SYMBOLS,
+    valuation_regime_overvalued: VALUATION_OVERVALUE_SYMBOLS,
+    valuation_regime_overvalued_sample100: VALUATION_OVERVALUE_SAMPLE100_SYMBOLS,
     regime_expansion: REGIME_EXPANSION_SYMBOLS,
     regime_distribution: REGIME_DISTRIBUTION_SYMBOLS,
     regime_accumulation: REGIME_ACCUMULATION_SYMBOLS,
@@ -155,6 +176,12 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     sp500: [],
     sp400: [],
     sp600: [],
+    valuation_regime_undervalued: [],
+    valuation_regime_undervalued_sample100: [],
+    valuation_regime_fair: [],
+    valuation_regime_fair_sample100: [],
+    valuation_regime_overvalued: [],
+    valuation_regime_overvalued_sample100: [],
     regime_expansion: [],
     regime_distribution: [],
     regime_accumulation: [],
@@ -171,6 +198,12 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     sp500: [],
     sp400: [],
     sp600: [],
+    valuation_regime_undervalued: [],
+    valuation_regime_undervalued_sample100: [],
+    valuation_regime_fair: [],
+    valuation_regime_fair_sample100: [],
+    valuation_regime_overvalued: [],
+    valuation_regime_overvalued_sample100: [],
     regime_expansion: [],
     regime_distribution: [],
     regime_accumulation: [],
@@ -187,6 +220,12 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     sp500: [],
     sp400: [],
     sp600: [],
+    valuation_regime_undervalued: [],
+    valuation_regime_undervalued_sample100: [],
+    valuation_regime_fair: [],
+    valuation_regime_fair_sample100: [],
+    valuation_regime_overvalued: [],
+    valuation_regime_overvalued_sample100: [],
     regime_expansion: [],
     regime_distribution: [],
     regime_accumulation: [],
@@ -204,6 +243,12 @@ const VALIDATION_TIER_LABELS: Record<ValidationTier, string> = {
   sp500: `S&P 500 — ${SP500_SYMBOLS.length} Large Cap Stocks`,
   sp400: `S&P 400 — ${SP400_SYMBOLS.length} Mid Cap Stocks`,
   sp600: `S&P 600 — ${SP600_SYMBOLS.length} Small Cap Stocks`,
+  valuation_regime_undervalued: `DCF Regime: Undervalued — ${VALUATION_UNDERVALUE_SYMBOLS.length} stocks`,
+  valuation_regime_undervalued_sample100: `DCF Regime: Undervalued Sample 100 - ${VALUATION_UNDERVALUE_SAMPLE100_SYMBOLS.length} stocks`,
+  valuation_regime_fair: `DCF Regime: Fair Value — ${VALUATION_FAIR_SYMBOLS.length} stocks`,
+  valuation_regime_fair_sample100: `DCF Regime: Fair Value Sample 100 - ${VALUATION_FAIR_SAMPLE100_SYMBOLS.length} stocks`,
+  valuation_regime_overvalued: `DCF Regime: Overvalued — ${VALUATION_OVERVALUE_SYMBOLS.length} stocks`,
+  valuation_regime_overvalued_sample100: `DCF Regime: Overvalued Sample 100 - ${VALUATION_OVERVALUE_SAMPLE100_SYMBOLS.length} stocks`,
   regime_expansion: `Regime: Expansion — ${REGIME_EXPANSION_SYMBOLS.length} stocks (above 200MA, momentum up)`,
   regime_distribution: `Regime: Distribution — ${REGIME_DISTRIBUTION_SYMBOLS.length} stocks (above 200MA, fading)`,
   regime_accumulation: `Regime: Accumulation — ${REGIME_ACCUMULATION_SYMBOLS.length} stocks (below 200MA, recovering)`,
@@ -220,6 +265,12 @@ const VALIDATION_TIER_DESCRIPTIONS: Record<ValidationTier, string> = {
   sp500: 'Broad large-cap benchmark. Use this to confirm a strategy truly generalizes across large caps, not just a curated subset.',
   sp400: 'Mid-cap benchmark. Use this to see whether the edge survives outside large caps or is cap-specific.',
   sp600: 'Small-cap benchmark. Use this to test whether the strategy prefers smaller, noisier, higher-volatility names.',
+  valuation_regime_undervalued: 'DCF valuation regime universe. Use this to test long and reversal ideas only inside names the valuation engine currently screens as undervalued.',
+  valuation_regime_undervalued_sample100: 'DCF valuation sample. Use this faster 100-name undervalued bucket when you want regime evidence without paying full-universe runtime.',
+  valuation_regime_fair: 'DCF valuation regime universe. Use this to test whether continuation or trend-following ideas work best in names the valuation engine screens as roughly fair value.',
+  valuation_regime_fair_sample100: 'DCF valuation sample. Use this faster 100-name fair-value bucket when you want a quicker continuation-regime read.',
+  valuation_regime_overvalued: 'DCF valuation regime universe. Use this to test short and topping ideas only inside names the valuation engine currently screens as overvalued.',
+  valuation_regime_overvalued_sample100: 'DCF valuation sample. Use this faster 100-name overvalued bucket when you want a quicker short-regime read.',
   regime_expansion: 'Environment diagnosis for trend-friendly conditions. Use this for breakouts, momentum, and pullback-continuation ideas. Built by build_regime_universes.py.',
   regime_distribution: 'Environment diagnosis for fading uptrends. Use this to see whether a strategy weakens when momentum rolls over. Built by build_regime_universes.py.',
   regime_accumulation: 'Environment diagnosis for bottoming and recovery conditions. Useful for reversal and early-trend strategies. Built by build_regime_universes.py.',
@@ -247,10 +298,7 @@ async function loadCleanStockUniverseSet(): Promise<Set<string>> {
     return new Set(cleanStockUniverseCache);
   }
   try {
-    const raw = await fs.readFile(CLEAN_STOCK_UNIVERSE_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const stocks = Array.isArray(parsed?.stocks) ? parsed.stocks : [];
-    const symbols = normalizeUniverseSymbols(stocks.map((entry: any) => entry?.ticker));
+    const symbols = loadUniverseSymbolsSync('tradable_stock_default');
     cleanStockUniverseCache = new Set(symbols);
     return new Set(cleanStockUniverseCache);
   } catch {
@@ -279,6 +327,18 @@ function buildDeterministicUniverseSlice(symbols: string[], targetCount: number)
 async function loadOptionableStocksTier1BUniverse(): Promise<string[]> {
   if (optionableStocksUniverseCache && optionableStocksUniverseCache.length > 0) {
     return optionableStocksUniverseCache.slice();
+  }
+  try {
+    const optionable = loadUniverseSymbolsSync('tradable_optionable_stocks');
+    if (optionable.length > 0) {
+      const sampled = buildDeterministicUniverseSlice(optionable, STOCKS_TIER1B_TARGET_SYMBOLS);
+      if (sampled.length > 0) {
+        optionableStocksUniverseCache = sampled;
+        return sampled.slice();
+      }
+    }
+  } catch {
+    // Fall through to the file-based fallback below.
   }
   try {
     const raw = await fs.readFile(OPTIONABLE_UNIVERSE_FILE, 'utf-8');
@@ -318,6 +378,12 @@ function pipelineTimeoutMs(symbolCount: number, tier: ValidationTier = 'tier2'):
     sp500: 2,              // ~406 symbols, baseline only (no sensitivity)
     sp400: 2,              // ~341 symbols, baseline only
     sp600: 2,              // ~474 symbols, baseline only
+    valuation_regime_undervalued: 2,
+    valuation_regime_undervalued_sample100: 2,
+    valuation_regime_fair: 2,
+    valuation_regime_fair_sample100: 2,
+    valuation_regime_overvalued: 2,
+    valuation_regime_overvalued_sample100: 2,
     regime_expansion: 2,   // dynamic size, baseline only
     regime_distribution: 2,
     regime_accumulation: 2,
@@ -327,15 +393,12 @@ function pipelineTimeoutMs(symbolCount: number, tier: ValidationTier = 'tier2'):
 }
 
 async function loadRunJobs(): Promise<void> {
-  try {
-    const raw = await fs.readFile(JOBS_FILE, 'utf-8');
-    const arr = JSON.parse(raw) as RunJob[];
+  const persisted = readJsonDocument<RunJob[]>(RUN_JOBS_NAMESPACE, RUN_JOBS_DOCUMENT_KEY);
+  if (Array.isArray(persisted)) {
     const now = Date.now();
     let mutated = false;
-    for (const j of arr) {
+    for (const j of persisted) {
       if (j.status === 'running' || j.status === 'queued') {
-        // Any job still marked running/queued at startup is definitely dead —
-        // the process that was executing it no longer exists.
         j.status = 'failed';
         j.progress = 1;
         j.stage = 'failed';
@@ -349,6 +412,32 @@ async function loadRunJobs(): Promise<void> {
     if (mutated) {
       await persistRunJobs();
     }
+    return;
+  }
+  try {
+    const raw = await fs.readFile(LEGACY_JOBS_FILE, 'utf-8');
+    const arr = JSON.parse(raw) as RunJob[];
+    const now = Date.now();
+    let mutated = false;
+    let loadedLegacy = false;
+    for (const j of arr) {
+      loadedLegacy = true;
+      if (j.status === 'running' || j.status === 'queued') {
+        // Any job still marked running/queued at startup is definitely dead —
+        // the process that was executing it no longer exists.
+        j.status = 'failed';
+        j.progress = 1;
+        j.stage = 'failed';
+        j.warning = undefined;
+        j.error = j.error || 'Recovered stale job after server restart.';
+        j.completed_at = new Date(now).toISOString();
+        mutated = true;
+      }
+      runJobs.set(j.job_id, j);
+    }
+    if (mutated || loadedLegacy) {
+      await persistRunJobs();
+    }
   } catch {
     // no-op: first boot or malformed file
   }
@@ -359,7 +448,7 @@ async function persistRunJobs(): Promise<void> {
     const all = Array.from(runJobs.values()).sort((a, b) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-    await fs.writeFile(JOBS_FILE, JSON.stringify(all, null, 2), 'utf-8');
+    writeJsonDocument(RUN_JOBS_NAMESPACE, RUN_JOBS_DOCUMENT_KEY, all);
   } catch (err) {
     console.warn('[validator] failed to persist run jobs:', (err as Error).message);
   }
@@ -1303,6 +1392,7 @@ router.delete('/report/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Report not found' } as ApiResponse<null>);
     }
     await storage.deleteValidationReport(req.params.id);
+    await pruneSweepVariantsByReportId(req.params.id);
     res.json({ success: true, data: { report_id: req.params.id } });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);

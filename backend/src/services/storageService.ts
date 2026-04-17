@@ -1,8 +1,8 @@
 /**
  * Pattern Storage Service (TypeScript)
- * 
- * Stores pattern candidates and user labels in JSON files.
- * Inspired by the corrections workflow in FlashRAG's handwriting system.
+ *
+ * Stores query-heavy app state in SQLite-backed persistence with legacy JSON
+ * fallback/import paths for older installs.
  */
 
 import * as fs from 'fs/promises';
@@ -21,6 +21,20 @@ import {
   TradeInstance
 } from '../types';
 import { applyParameterManifest } from './parameterManifest';
+import {
+  clearAppRecords,
+  deleteAppRecord,
+  deleteTradeInstancesByReport,
+  deleteValidationReportRecord,
+  listAppRecords,
+  listTradeInstances,
+  listValidationReports,
+  readAppRecord,
+  readValidationReport,
+  replaceTradeInstances,
+  writeAppRecord,
+  writeValidationReport,
+} from './appStateDb';
 
 // ---------------------------------------------------------------------------
 // Pattern definition loader — used to enrich manifests at read-time
@@ -98,6 +112,16 @@ const STRATEGIES_DIR = path.join(DATA_DIR, 'strategies');
 const STRATEGIES_ARCHIVE_DIR = path.join(DATA_DIR, 'strategies', 'archive');
 const VALIDATION_REPORTS_DIR = path.join(DATA_DIR, 'validation-reports');
 const TRADE_INSTANCES_DIR = path.join(DATA_DIR, 'trade-instances');
+const CANDIDATES_NAMESPACE = 'candidates';
+const LABELS_NAMESPACE = 'labels';
+const CORRECTIONS_NAMESPACE = 'corrections';
+const SAVED_CHARTS_NAMESPACE = 'saved_charts';
+const TRADE_HISTORY_NAMESPACE = 'trade_history';
+const DISCOUNT_CANDIDATES_NAMESPACE = 'discount_candidates';
+const STRATEGIES_NAMESPACE = 'strategies';
+let _validationReportsMigrated = false;
+const _tradeInstanceMigrations = new Set<string>();
+const _migratedRecordNamespaces = new Set<string>();
 
 function parseJsonWithBomSupport<T>(content: string): T {
   if (typeof content !== 'string') {
@@ -169,6 +193,50 @@ function strategyCandidateDedupeKey(candidate: any): string {
   ].join('|');
 }
 
+async function migrateLegacyRecordNamespaceIfNeeded<T>(
+  namespace: string,
+  dirPath: string,
+  options: {
+    parse: (content: string, file: string) => Promise<T | null> | T | null;
+    getId: (record: T, file: string) => string;
+    getUserKey?: (record: T) => string | null | undefined;
+    getSortKey?: (record: T) => string | null | undefined;
+  },
+): Promise<void> {
+  if (_migratedRecordNamespaces.has(namespace)) return;
+  await ensureDirectories();
+  let files: string[] = [];
+  try {
+    files = await fs.readdir(dirPath);
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') {
+      _migratedRecordNamespaces.add(namespace);
+      return;
+    }
+    throw err;
+  }
+
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+    const filepath = path.join(dirPath, file);
+    try {
+      const content = await fs.readFile(filepath, 'utf-8');
+      const record = await options.parse(content, file);
+      if (!record) continue;
+      const recordId = String(options.getId(record, file) || '').trim();
+      if (!recordId) continue;
+      writeAppRecord(namespace, recordId, record, {
+        userKey: options.getUserKey?.(record) ?? null,
+        sortKey: options.getSortKey?.(record) ?? null,
+      });
+    } catch {
+      // Skip malformed legacy files.
+    }
+  }
+
+  _migratedRecordNamespaces.add(namespace);
+}
+
 /**
  * Ensure data directories exist
  */
@@ -185,22 +253,67 @@ async function ensureDirectories(): Promise<void> {
   await fs.mkdir(TRADE_INSTANCES_DIR, { recursive: true });
 }
 
+async function migrateLegacyValidationReportsIfNeeded(): Promise<void> {
+  if (_validationReportsMigrated) return;
+  _validationReportsMigrated = true;
+  await ensureDirectories();
+  const files = await fs.readdir(VALIDATION_REPORTS_DIR);
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+    const filepath = path.join(VALIDATION_REPORTS_DIR, file);
+    try {
+      const content = await fs.readFile(filepath, 'utf-8');
+      const report = parseJsonWithBomSupport<ValidationReport>(content);
+      if (!report?.report_id) continue;
+      writeValidationReport(report);
+    } catch {
+      // Skip malformed legacy report files.
+    }
+  }
+}
+
+async function migrateLegacyTradeInstancesIfNeeded(reportId: string): Promise<void> {
+  const key = String(reportId || '').trim();
+  if (!key || _tradeInstanceMigrations.has(key)) return;
+  _tradeInstanceMigrations.add(key);
+  await ensureDirectories();
+  const reportDir = path.join(TRADE_INSTANCES_DIR, key);
+  try {
+    const files = await fs.readdir(reportDir);
+    const trades: TradeInstance[] = [];
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      const filepath = path.join(reportDir, file);
+      try {
+        const content = await fs.readFile(filepath, 'utf-8');
+        trades.push(parseJsonWithBomSupport<TradeInstance>(content));
+      } catch {
+        // Skip malformed legacy trade files.
+      }
+    }
+    if (trades.length > 0) {
+      trades.sort((a, b) => new Date(a.entry_time).getTime() - new Date(b.entry_time).getTime());
+      replaceTradeInstances(key, trades);
+    }
+  } catch (err: any) {
+    if (err?.code !== 'ENOENT') throw err;
+  }
+}
+
 /**
  * Save a pattern candidate
  */
 export async function saveCandidate(candidate: PatternCandidate): Promise<string> {
   await ensureDirectories();
-  
   const id = candidate.id || uuidv4();
-  const filepath = path.join(CANDIDATES_DIR, `${id}.json`);
-  
   const data: PatternCandidate = {
     ...candidate,
     id,
     createdAt: candidate.createdAt || new Date().toISOString()
   };
-  
-  await fs.writeFile(filepath, JSON.stringify(data, null, 2));
+  writeAppRecord(CANDIDATES_NAMESPACE, id, data, {
+    sortKey: String(data.createdAt || ''),
+  });
   return id;
 }
 
@@ -220,11 +333,18 @@ export async function saveCandidates(candidates: PatternCandidate[]): Promise<st
  * Get a candidate by ID
  */
 export async function getCandidate(id: string): Promise<PatternCandidate | null> {
+  const persisted = readAppRecord<PatternCandidate>(CANDIDATES_NAMESPACE, id);
+  if (persisted) return persisted;
   const filepath = path.join(CANDIDATES_DIR, `${id}.json`);
-  
   try {
     const content = await fs.readFile(filepath, 'utf-8');
-    return JSON.parse(content) as PatternCandidate;
+    const candidate = parseJsonWithBomSupport<PatternCandidate>(content);
+    if (candidate?.id) {
+      writeAppRecord(CANDIDATES_NAMESPACE, String(candidate.id), candidate, {
+        sortKey: String(candidate.createdAt || candidate.created_at || ''),
+      });
+    }
+    return candidate;
   } catch (err: any) {
     if (err.code === 'ENOENT') return null;
     throw err;
@@ -235,25 +355,23 @@ export async function getCandidate(id: string): Promise<PatternCandidate | null>
  * Get all candidates
  */
 export async function getAllCandidates(): Promise<PatternCandidate[]> {
-  await ensureDirectories();
-  
-  const files = await fs.readdir(CANDIDATES_DIR);
+  await migrateLegacyRecordNamespaceIfNeeded<PatternCandidate>(CANDIDATES_NAMESPACE, CANDIDATES_DIR, {
+    parse: (content) => parseJsonWithBomSupport<PatternCandidate>(content),
+    getId: (candidate, file) => String(candidate?.id || path.basename(file, '.json')),
+    getSortKey: (candidate: any) => String(candidate?.createdAt || candidate?.created_at || candidate?.timestamp || ''),
+  });
+  const files = listAppRecords<PatternCandidate>(CANDIDATES_NAMESPACE);
   const dedupedByKey = new Map<string, PatternCandidate>();
-  
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(CANDIDATES_DIR, file);
-      try {
-        const content = await fs.readFile(filepath, 'utf-8');
-        const candidate = JSON.parse(content) as PatternCandidate;
-        const key = strategyCandidateDedupeKey(candidate as any);
-        const existing = dedupedByKey.get(key);
-        if (!existing || shouldReplaceCandidate(existing, candidate)) {
-          dedupedByKey.set(key, candidate);
-        }
-      } catch {
-        // Skip malformed candidate files.
+
+  for (const candidate of files) {
+    try {
+      const key = strategyCandidateDedupeKey(candidate as any);
+      const existing = dedupedByKey.get(key);
+      if (!existing || shouldReplaceCandidate(existing, candidate)) {
+        dedupedByKey.set(key, candidate);
       }
+    } catch {
+      // Skip malformed candidate records.
     }
   }
 
@@ -275,10 +393,7 @@ export async function saveLabel(
   metadata?: Partial<Pick<PatternLabel, 'source' | 'confidence' | 'modelVersion' | 'runId' | 'reasoning'>>
 ): Promise<string> {
   await ensureDirectories();
-  
   const id = uuidv4();
-  const filepath = path.join(LABELS_DIR, `${id}.json`);
-  
   const data: PatternLabel = {
     id,
     candidateId,
@@ -294,8 +409,10 @@ export async function saveLabel(
     ...(metadata?.runId ? { runId: String(metadata.runId) } : {}),
     ...(metadata?.reasoning ? { reasoning: String(metadata.reasoning) } : {}),
   };
-  
-  await fs.writeFile(filepath, JSON.stringify(data, null, 2));
+  writeAppRecord(LABELS_NAMESPACE, id, data, {
+    userKey: String(userId || ''),
+    sortKey: String(data.timestamp || ''),
+  });
   return id;
 }
 
@@ -303,23 +420,15 @@ export async function saveLabel(
  * Get all labels
  */
 export async function getAllLabels(userId?: string): Promise<PatternLabel[]> {
-  await ensureDirectories();
-  
-  const files = await fs.readdir(LABELS_DIR);
-  const labels: PatternLabel[] = [];
-  
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(LABELS_DIR, file);
-      const content = await fs.readFile(filepath, 'utf-8');
-      const label = parseJsonWithBomSupport<PatternLabel>(content);
-      
-      if (!userId || label.userId === userId) {
-        labels.push(label);
-      }
-    }
-  }
-  
+  await migrateLegacyRecordNamespaceIfNeeded<PatternLabel>(LABELS_NAMESPACE, LABELS_DIR, {
+    parse: (content) => parseJsonWithBomSupport<PatternLabel>(content),
+    getId: (label, file) => String(label?.id || path.basename(file, '.json')),
+    getUserKey: (label) => String((label as any)?.userId || ''),
+    getSortKey: (label) => String((label as any)?.timestamp || ''),
+  });
+  const labels = listAppRecords<PatternLabel>(LABELS_NAMESPACE, {
+    userKey: userId != null ? String(userId) : null,
+  });
   // Sort by timestamp descending
   return labels.sort((a, b) => 
     new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -338,13 +447,14 @@ export async function getLabelsForCandidate(candidateId: string): Promise<Patter
  * Delete a label
  */
 export async function deleteLabel(id: string): Promise<boolean> {
+  const existed = readAppRecord<PatternLabel>(LABELS_NAMESPACE, id) != null;
+  deleteAppRecord(LABELS_NAMESPACE, id);
   const filepath = path.join(LABELS_DIR, `${id}.json`);
-  
   try {
     await fs.unlink(filepath);
     return true;
   } catch (err: any) {
-    if (err.code === 'ENOENT') return false;
+    if (err.code === 'ENOENT') return existed;
     throw err;
   }
 }
@@ -354,6 +464,7 @@ export async function deleteLabel(id: string): Promise<boolean> {
  */
 export async function clearLabels(): Promise<void> {
   await ensureDirectories();
+  clearAppRecords(LABELS_NAMESPACE);
   const files = await fs.readdir(LABELS_DIR);
   
   for (const file of files) {
@@ -474,6 +585,7 @@ export async function getStats(userId?: string): Promise<LabelingStats> {
  */
 export async function clearCandidates(): Promise<void> {
   await ensureDirectories();
+  clearAppRecords(CANDIDATES_NAMESPACE);
   const files = await fs.readdir(CANDIDATES_DIR);
   
   for (const file of files) {
@@ -492,17 +604,16 @@ export async function clearCandidates(): Promise<void> {
  */
 export async function saveCorrection(correction: Omit<PatternCorrection, 'id' | 'timestamp'>): Promise<string> {
   await ensureDirectories();
-  
   const id = uuidv4();
-  const filepath = path.join(CORRECTIONS_DIR, `${id}.json`);
-  
   const data: PatternCorrection = {
     ...correction,
     id,
     timestamp: new Date().toISOString()
   };
-  
-  await fs.writeFile(filepath, JSON.stringify(data, null, 2));
+  writeAppRecord(CORRECTIONS_NAMESPACE, id, data, {
+    userKey: String((data as any).userId || ''),
+    sortKey: String(data.timestamp || ''),
+  });
   return id;
 }
 
@@ -510,19 +621,13 @@ export async function saveCorrection(correction: Omit<PatternCorrection, 'id' | 
  * Get all corrections
  */
 export async function getAllCorrections(): Promise<PatternCorrection[]> {
-  await ensureDirectories();
-  
-  const files = await fs.readdir(CORRECTIONS_DIR);
-  const corrections: PatternCorrection[] = [];
-  
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(CORRECTIONS_DIR, file);
-      const content = await fs.readFile(filepath, 'utf-8');
-      corrections.push(parseJsonWithBomSupport<PatternCorrection>(content));
-    }
-  }
-  
+  await migrateLegacyRecordNamespaceIfNeeded<PatternCorrection>(CORRECTIONS_NAMESPACE, CORRECTIONS_DIR, {
+    parse: (content) => parseJsonWithBomSupport<PatternCorrection>(content),
+    getId: (correction, file) => String(correction?.id || path.basename(file, '.json')),
+    getUserKey: (correction) => String((correction as any)?.userId || ''),
+    getSortKey: (correction) => String((correction as any)?.timestamp || ''),
+  });
+  const corrections = listAppRecords<PatternCorrection>(CORRECTIONS_NAMESPACE);
   // Sort by timestamp descending
   return corrections.sort((a, b) => 
     new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
@@ -533,13 +638,14 @@ export async function getAllCorrections(): Promise<PatternCorrection[]> {
  * Delete a correction
  */
 export async function deleteCorrection(id: string): Promise<boolean> {
+  const existed = readAppRecord(CORRECTIONS_NAMESPACE, id) != null;
+  deleteAppRecord(CORRECTIONS_NAMESPACE, id);
   const filepath = path.join(CORRECTIONS_DIR, `${id}.json`);
-  
   try {
     await fs.unlink(filepath);
     return true;
   } catch (err: any) {
-    if (err.code === 'ENOENT') return false;
+    if (err.code === 'ENOENT') return existed;
     throw err;
   }
 }
@@ -549,6 +655,7 @@ export async function deleteCorrection(id: string): Promise<boolean> {
  */
 export async function clearCorrections(): Promise<void> {
   await ensureDirectories();
+  clearAppRecords(CORRECTIONS_NAMESPACE);
   const files = await fs.readdir(CORRECTIONS_DIR);
   
   for (const file of files) {
@@ -567,17 +674,15 @@ export async function clearCorrections(): Promise<void> {
  */
 export async function saveChart(chart: any): Promise<string> {
   await ensureDirectories();
-  
   const id = chart.id || Date.now().toString();
-  const filepath = path.join(SAVED_CHARTS_DIR, `${id}.json`);
-  
   const data = {
     ...chart,
     id,
     savedAt: chart.savedAt || new Date().toISOString()
   };
-  
-  await fs.writeFile(filepath, JSON.stringify(data, null, 2));
+  writeAppRecord(SAVED_CHARTS_NAMESPACE, String(id), data, {
+    sortKey: String(data.savedAt || data.timestamp || ''),
+  });
   return id;
 }
 
@@ -585,19 +690,12 @@ export async function saveChart(chart: any): Promise<string> {
  * Get all saved charts
  */
 export async function getAllSavedCharts(): Promise<any[]> {
-  await ensureDirectories();
-  
-  const files = await fs.readdir(SAVED_CHARTS_DIR);
-  const charts: any[] = [];
-  
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(SAVED_CHARTS_DIR, file);
-      const content = await fs.readFile(filepath, 'utf-8');
-      charts.push(JSON.parse(content));
-    }
-  }
-  
+  await migrateLegacyRecordNamespaceIfNeeded<any>(SAVED_CHARTS_NAMESPACE, SAVED_CHARTS_DIR, {
+    parse: (content) => parseJsonWithBomSupport<any>(content),
+    getId: (chart, file) => String(chart?.id || path.basename(file, '.json')),
+    getSortKey: (chart) => String(chart?.savedAt || chart?.timestamp || ''),
+  });
+  const charts = listAppRecords<any>(SAVED_CHARTS_NAMESPACE);
   // Sort by savedAt descending (newest first)
   return charts.sort((a, b) => {
     const tA = a.savedAt || a.timestamp || '';
@@ -610,11 +708,16 @@ export async function getAllSavedCharts(): Promise<any[]> {
  * Get a saved chart by ID
  */
 export async function getSavedChart(id: string): Promise<any | null> {
+  const persisted = readAppRecord<any>(SAVED_CHARTS_NAMESPACE, id);
+  if (persisted) return persisted;
   const filepath = path.join(SAVED_CHARTS_DIR, `${id}.json`);
-  
   try {
     const content = await fs.readFile(filepath, 'utf-8');
-    return JSON.parse(content);
+    const chart = parseJsonWithBomSupport<any>(content);
+    writeAppRecord(SAVED_CHARTS_NAMESPACE, String(chart?.id || id), chart, {
+      sortKey: String(chart?.savedAt || chart?.timestamp || ''),
+    });
+    return chart;
   } catch (err: any) {
     if (err.code === 'ENOENT') return null;
     throw err;
@@ -625,13 +728,14 @@ export async function getSavedChart(id: string): Promise<any | null> {
  * Delete a saved chart
  */
 export async function deleteSavedChart(id: string): Promise<boolean> {
+  const existed = readAppRecord<any>(SAVED_CHARTS_NAMESPACE, id) != null;
+  deleteAppRecord(SAVED_CHARTS_NAMESPACE, id);
   const filepath = path.join(SAVED_CHARTS_DIR, `${id}.json`);
-  
   try {
     await fs.unlink(filepath);
     return true;
   } catch (err: any) {
-    if (err.code === 'ENOENT') return false;
+    if (err.code === 'ENOENT') return existed;
     throw err;
   }
 }
@@ -641,6 +745,7 @@ export async function deleteSavedChart(id: string): Promise<boolean> {
  */
 export async function clearSavedCharts(): Promise<void> {
   await ensureDirectories();
+  clearAppRecords(SAVED_CHARTS_NAMESPACE);
   const files = await fs.readdir(SAVED_CHARTS_DIR);
   
   for (const file of files) {
@@ -659,17 +764,15 @@ export async function clearSavedCharts(): Promise<void> {
  */
 export async function saveTrade(trade: any): Promise<string> {
   await ensureDirectories();
-  
   const id = trade.id?.toString() || Date.now().toString();
-  const filepath = path.join(TRADE_HISTORY_DIR, `${id}.json`);
-  
   const data = {
     ...trade,
     id,
     savedAt: trade.savedAt || new Date().toISOString()
   };
-  
-  await fs.writeFile(filepath, JSON.stringify(data, null, 2));
+  writeAppRecord(TRADE_HISTORY_NAMESPACE, String(id), data, {
+    sortKey: String(data.createdAt || data.savedAt || ''),
+  });
   return id;
 }
 
@@ -677,19 +780,12 @@ export async function saveTrade(trade: any): Promise<string> {
  * Get all trades
  */
 export async function getAllTrades(): Promise<any[]> {
-  await ensureDirectories();
-  
-  const files = await fs.readdir(TRADE_HISTORY_DIR);
-  const trades: any[] = [];
-  
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(TRADE_HISTORY_DIR, file);
-      const content = await fs.readFile(filepath, 'utf-8');
-      trades.push(JSON.parse(content));
-    }
-  }
-  
+  await migrateLegacyRecordNamespaceIfNeeded<any>(TRADE_HISTORY_NAMESPACE, TRADE_HISTORY_DIR, {
+    parse: (content) => parseJsonWithBomSupport<any>(content),
+    getId: (trade, file) => String(trade?.id || path.basename(file, '.json')),
+    getSortKey: (trade) => String(trade?.createdAt || trade?.savedAt || ''),
+  });
+  const trades = listAppRecords<any>(TRADE_HISTORY_NAMESPACE);
   // Sort by createdAt descending (newest first)
   return trades.sort((a, b) => {
     const tA = a.createdAt || a.savedAt || '';
@@ -702,11 +798,16 @@ export async function getAllTrades(): Promise<any[]> {
  * Get a trade by ID
  */
 export async function getTrade(id: string): Promise<any | null> {
+  const persisted = readAppRecord<any>(TRADE_HISTORY_NAMESPACE, id);
+  if (persisted) return persisted;
   const filepath = path.join(TRADE_HISTORY_DIR, `${id}.json`);
-  
   try {
     const content = await fs.readFile(filepath, 'utf-8');
-    return JSON.parse(content);
+    const trade = parseJsonWithBomSupport<any>(content);
+    writeAppRecord(TRADE_HISTORY_NAMESPACE, String(trade?.id || id), trade, {
+      sortKey: String(trade?.createdAt || trade?.savedAt || ''),
+    });
+    return trade;
   } catch (err: any) {
     if (err.code === 'ENOENT') return null;
     throw err;
@@ -721,8 +822,9 @@ export async function updateTrade(id: string, updates: any): Promise<any | null>
   if (!trade) return null;
   
   const updated = { ...trade, ...updates, updatedAt: new Date().toISOString() };
-  const filepath = path.join(TRADE_HISTORY_DIR, `${id}.json`);
-  await fs.writeFile(filepath, JSON.stringify(updated, null, 2));
+  writeAppRecord(TRADE_HISTORY_NAMESPACE, String(id), updated, {
+    sortKey: String(updated.createdAt || updated.savedAt || ''),
+  });
   return updated;
 }
 
@@ -730,13 +832,14 @@ export async function updateTrade(id: string, updates: any): Promise<any | null>
  * Delete a trade
  */
 export async function deleteTrade(id: string): Promise<boolean> {
+  const existed = readAppRecord<any>(TRADE_HISTORY_NAMESPACE, id) != null;
+  deleteAppRecord(TRADE_HISTORY_NAMESPACE, id);
   const filepath = path.join(TRADE_HISTORY_DIR, `${id}.json`);
-  
   try {
     await fs.unlink(filepath);
     return true;
   } catch (err: any) {
-    if (err.code === 'ENOENT') return false;
+    if (err.code === 'ENOENT') return existed;
     throw err;
   }
 }
@@ -746,6 +849,7 @@ export async function deleteTrade(id: string): Promise<boolean> {
  */
 export async function clearTrades(): Promise<void> {
   await ensureDirectories();
+  clearAppRecords(TRADE_HISTORY_NAMESPACE);
   const files = await fs.readdir(TRADE_HISTORY_DIR);
   
   for (const file of files) {
@@ -763,26 +867,21 @@ export async function clearTrades(): Promise<void> {
 export async function saveDiscountCandidate(candidate: any): Promise<void> {
   await ensureDirectories();
   const id = `${candidate.symbol}_${candidate.timeframe}`;
-  const filepath = path.join(DISCOUNT_CANDIDATES_DIR, `${id}.json`);
-  await fs.writeFile(filepath, JSON.stringify(candidate, null, 2));
+  writeAppRecord(DISCOUNT_CANDIDATES_NAMESPACE, id, candidate, {
+    sortKey: String(Number(candidate?.rank_score || 0)).padStart(16, '0'),
+  });
 }
 
 /**
  * Get all discount zone candidates
  */
 export async function getAllDiscountCandidates(): Promise<any[]> {
-  await ensureDirectories();
-  const files = await fs.readdir(DISCOUNT_CANDIDATES_DIR);
-  const candidates: any[] = [];
-  
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(DISCOUNT_CANDIDATES_DIR, file);
-      const content = await fs.readFile(filepath, 'utf-8');
-      candidates.push(JSON.parse(content));
-    }
-  }
-  
+  await migrateLegacyRecordNamespaceIfNeeded<any>(DISCOUNT_CANDIDATES_NAMESPACE, DISCOUNT_CANDIDATES_DIR, {
+    parse: (content) => parseJsonWithBomSupport<any>(content),
+    getId: (candidate, file) => String(`${candidate?.symbol || path.basename(file, '.json')}_${candidate?.timeframe || ''}`),
+    getSortKey: (candidate) => String(Number(candidate?.rank_score || 0)).padStart(16, '0'),
+  });
+  const candidates = listAppRecords<any>(DISCOUNT_CANDIDATES_NAMESPACE);
   // Sort by rank_score descending
   candidates.sort((a, b) => (b.rank_score || 0) - (a.rank_score || 0));
   return candidates;
@@ -796,21 +895,16 @@ export async function updateDiscountLabel(
   timeframe: string,
   label: string
 ): Promise<boolean> {
-  await ensureDirectories();
   const id = `${symbol}_${timeframe}`;
-  const filepath = path.join(DISCOUNT_CANDIDATES_DIR, `${id}.json`);
-  
-  try {
-    const content = await fs.readFile(filepath, 'utf-8');
-    const candidate = JSON.parse(content);
-    candidate.user_label = label;
-    candidate.label_date = new Date().toISOString();
-    await fs.writeFile(filepath, JSON.stringify(candidate, null, 2));
-    return true;
-  } catch (err: any) {
-    if (err.code === 'ENOENT') return false;
-    throw err;
-  }
+  const candidate = readAppRecord<any>(DISCOUNT_CANDIDATES_NAMESPACE, id)
+    || (await getAllDiscountCandidates()).find((entry) => `${entry?.symbol}_${entry?.timeframe}` === id);
+  if (!candidate) return false;
+  candidate.user_label = label;
+  candidate.label_date = new Date().toISOString();
+  writeAppRecord(DISCOUNT_CANDIDATES_NAMESPACE, id, candidate, {
+    sortKey: String(Number(candidate?.rank_score || 0)).padStart(16, '0'),
+  });
+  return true;
 }
 
 /**
@@ -818,6 +912,7 @@ export async function updateDiscountLabel(
  */
 export async function clearDiscountCandidates(): Promise<void> {
   await ensureDirectories();
+  clearAppRecords(DISCOUNT_CANDIDATES_NAMESPACE);
   const files = await fs.readdir(DISCOUNT_CANDIDATES_DIR);
   
   for (const file of files) {
@@ -850,7 +945,30 @@ export async function saveStrategy(strategy: StrategySpec, force: boolean = fals
   
   const id = normalizedStrategy.strategy_version_id;
   const filepath = path.join(STRATEGIES_DIR, `${id}.json`);
-  
+  const persistedExisting = await getStrategy(id);
+  if (!force && persistedExisting) {
+    const existingHash = persistedExisting.spec_hash || computeSpecHash(persistedExisting);
+    const incomingHash = computeSpecHash(normalizedStrategy);
+    if (existingHash !== incomingHash) {
+      throw new Error(
+        `Immutability violation: Cannot overwrite strategy ${id} with different config. ` +
+        `Existing hash: ${existingHash.slice(0, 12)}, New hash: ${incomingHash.slice(0, 12)}. ` +
+        `Create a new version instead.`
+      );
+    }
+  }
+
+  const persistedSpecHash = computeSpecHash(normalizedStrategy);
+  const persistedStrategy: StrategySpec = {
+    ...normalizedStrategy,
+    spec_hash: persistedSpecHash,
+    updated_at: new Date().toISOString()
+  };
+  writeAppRecord(STRATEGIES_NAMESPACE, id, persistedStrategy, {
+    sortKey: String(persistedStrategy.updated_at || ''),
+  });
+  return id;
+
   // Enforce immutability: don't overwrite existing specs unless forced
   if (!force) {
     try {
@@ -895,6 +1013,29 @@ export async function saveStrategy(strategy: StrategySpec, force: boolean = fals
  * Get all strategies
  */
 export async function getAllStrategies(): Promise<StrategySpec[]> {
+  await migrateLegacyRecordNamespaceIfNeeded<Partial<StrategySpec>>(STRATEGIES_NAMESPACE, STRATEGIES_DIR, {
+    parse: (content) => parseJsonWithBomSupport<Partial<StrategySpec>>(content),
+    getId: (strategy, file) => String(strategy?.strategy_version_id || path.basename(file, '.json')),
+    getSortKey: (strategy) => String((strategy as any)?.updated_at || ''),
+  });
+  const storedStrategies = listAppRecords<Partial<StrategySpec>>(STRATEGIES_NAMESPACE);
+  const hydratedStrategies: StrategySpec[] = [];
+  for (const parsed of storedStrategies) {
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof parsed.strategy_id !== 'string' ||
+      typeof parsed.strategy_version_id !== 'string' ||
+      typeof parsed.name !== 'string'
+    ) {
+      continue;
+    }
+    hydratedStrategies.push(await applyParameterManifestWithPattern(parsed as StrategySpec));
+  }
+  return hydratedStrategies.sort((a, b) =>
+    new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  );
+
   await ensureDirectories();
   
   const files = await fs.readdir(STRATEGIES_DIR);
@@ -925,6 +1066,9 @@ export async function getAllStrategies(): Promise<StrategySpec[]> {
 }
 
 export async function archiveRejectedStrategies(): Promise<number> {
+  const strategies = await getAllStrategies();
+  return strategies.filter((strategy) => String(strategy?.status || '').toLowerCase() === 'rejected').length;
+
   // Soft archive: rejected strategies stay in place (status=rejected is sufficient).
   // Count how many are rejected for the response.
   await ensureDirectories();
@@ -948,6 +1092,21 @@ export async function archiveRejectedStrategies(): Promise<number> {
  * Get a strategy by version ID
  */
 export async function getStrategy(strategyVersionId: string): Promise<StrategySpec | null> {
+  const persistedStrategy = readAppRecord<StrategySpec>(STRATEGIES_NAMESPACE, strategyVersionId);
+  if (persistedStrategy) {
+    return await applyParameterManifestWithPattern(persistedStrategy);
+  }
+
+  await migrateLegacyRecordNamespaceIfNeeded<Partial<StrategySpec>>(STRATEGIES_NAMESPACE, STRATEGIES_DIR, {
+    parse: (content) => parseJsonWithBomSupport<Partial<StrategySpec>>(content),
+    getId: (strategy, file) => String(strategy?.strategy_version_id || path.basename(file, '.json')),
+    getSortKey: (strategy) => String((strategy as any)?.updated_at || ''),
+  });
+  const migratedStrategy = readAppRecord<StrategySpec>(STRATEGIES_NAMESPACE, strategyVersionId);
+  if (migratedStrategy) {
+    return await applyParameterManifestWithPattern(migratedStrategy);
+  }
+
   const filepath = path.join(STRATEGIES_DIR, `${strategyVersionId}.json`);
   
   try {
@@ -986,6 +1145,8 @@ export async function getStrategy(strategyVersionId: string): Promise<StrategySp
  * Returns true when a saved strategy file was removed.
  */
 export async function deleteStrategy(strategyVersionId: string): Promise<boolean> {
+  const existed = readAppRecord<StrategySpec>(STRATEGIES_NAMESPACE, strategyVersionId) != null;
+  deleteAppRecord(STRATEGIES_NAMESPACE, strategyVersionId);
   const filepath = path.join(STRATEGIES_DIR, `${strategyVersionId}.json`);
 
   try {
@@ -1015,7 +1176,7 @@ export async function deleteStrategy(strategyVersionId: string): Promise<boolean
     }
   }
 
-  return false;
+  return existed;
 }
 
 /**
@@ -1097,49 +1258,33 @@ export async function updateStrategyStatus(
  */
 export async function saveValidationReport(report: ValidationReport): Promise<string> {
   await ensureDirectories();
-  
-  const id = report.report_id;
-  const filepath = path.join(VALIDATION_REPORTS_DIR, `${id}.json`);
-  
-  await fs.writeFile(filepath, JSON.stringify(report, null, 2));
-  return id;
+  writeValidationReport(report);
+  return report.report_id;
 }
 
 /**
  * Get all validation reports, optionally filtered by strategy
  */
 export async function getAllValidationReports(strategyVersionId?: string): Promise<ValidationReport[]> {
-  await ensureDirectories();
-  
-  const files = await fs.readdir(VALIDATION_REPORTS_DIR);
-  const reports: ValidationReport[] = [];
-  
-  for (const file of files) {
-    if (file.endsWith('.json')) {
-      const filepath = path.join(VALIDATION_REPORTS_DIR, file);
-      const content = await fs.readFile(filepath, 'utf-8');
-      const report = JSON.parse(content) as ValidationReport;
-      
-      if (!strategyVersionId || report.strategy_version_id === strategyVersionId) {
-        reports.push(report);
-      }
-    }
-  }
-  
-  return reports.sort((a, b) => 
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+  await migrateLegacyValidationReportsIfNeeded();
+  return listValidationReports(strategyVersionId);
 }
 
 /**
  * Get a validation report by ID
  */
 export async function getValidationReport(reportId: string): Promise<ValidationReport | null> {
+  const persisted = readValidationReport(reportId);
+  if (persisted) return persisted;
+
   const filepath = path.join(VALIDATION_REPORTS_DIR, `${reportId}.json`);
-  
   try {
     const content = await fs.readFile(filepath, 'utf-8');
-    return JSON.parse(content) as ValidationReport;
+    const report = parseJsonWithBomSupport<ValidationReport>(content);
+    if (report?.report_id) {
+      writeValidationReport(report);
+    }
+    return report;
   } catch (err: any) {
     if (err.code === 'ENOENT') return null;
     throw err;
@@ -1178,56 +1323,23 @@ export async function updateReportDecision(
  */
 export async function saveTradeInstances(reportId: string, trades: TradeInstance[]): Promise<void> {
   await ensureDirectories();
-  
-  // Store grouped by report ID
-  const reportDir = path.join(TRADE_INSTANCES_DIR, reportId);
-  await fs.mkdir(reportDir, { recursive: true });
-
-  // Idempotency: clear existing files for this report before writing.
-  const existingFiles = await fs.readdir(reportDir);
-  for (const file of existingFiles) {
-    if (file.endsWith('.json')) {
-      await fs.unlink(path.join(reportDir, file));
-    }
-  }
-  
-  for (const trade of trades) {
-    const filepath = path.join(reportDir, `${trade.trade_id}.json`);
-    await fs.writeFile(filepath, JSON.stringify(trade, null, 2));
-  }
+  replaceTradeInstances(reportId, trades);
+  _tradeInstanceMigrations.add(String(reportId || '').trim());
 }
 
 /**
  * Get all trade instances for a report
  */
 export async function getTradeInstances(reportId: string): Promise<TradeInstance[]> {
-  const reportDir = path.join(TRADE_INSTANCES_DIR, reportId);
-  
-  try {
-    const files = await fs.readdir(reportDir);
-    const trades: TradeInstance[] = [];
-    
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        const filepath = path.join(reportDir, file);
-        const content = await fs.readFile(filepath, 'utf-8');
-        trades.push(JSON.parse(content) as TradeInstance);
-      }
-    }
-    
-    return trades.sort((a, b) => 
-      new Date(a.entry_time).getTime() - new Date(b.entry_time).getTime()
-    );
-  } catch (err: any) {
-    if (err.code === 'ENOENT') return [];
-    throw err;
-  }
+  await migrateLegacyTradeInstancesIfNeeded(reportId);
+  return listTradeInstances(reportId);
 }
 
 /**
  * Delete a single validation report and its associated trade instances.
  */
 export async function deleteValidationReport(reportId: string): Promise<void> {
+  deleteValidationReportRecord(reportId);
   const reportFile = path.join(VALIDATION_REPORTS_DIR, `${reportId}.json`);
   try { await fs.unlink(reportFile); } catch {}
   await deleteTradeInstances(reportId);
@@ -1237,6 +1349,7 @@ export async function deleteValidationReport(reportId: string): Promise<void> {
  * Delete all trade instances for a report.
  */
 export async function deleteTradeInstances(reportId: string): Promise<void> {
+  deleteTradeInstancesByReport(reportId);
   const reportDir = path.join(TRADE_INSTANCES_DIR, reportId);
   try {
     await fs.rm(reportDir, { recursive: true, force: true });
@@ -1292,24 +1405,19 @@ export async function saveStrategyCandidate(candidate: StrategyCandidate): Promi
  * Save multiple strategy candidates.
  */
 export async function saveStrategyCandidates(candidates: StrategyCandidate[]): Promise<string[]> {
-  await ensureDirectories();
-
-  const files = await fs.readdir(CANDIDATES_DIR);
+  const files = await getAllCandidates();
   const existingByDedupeKey = new Map<string, { id: string; candidate: any }>();
 
-  for (const file of files) {
-    if (!file.endsWith('.json')) continue;
-    const filepath = path.join(CANDIDATES_DIR, file);
+  for (const parsed of files) {
     try {
-      const parsed = JSON.parse(await fs.readFile(filepath, 'utf-8'));
-      const existingId = String(parsed?.id || parsed?.candidate_id || path.basename(file, '.json'));
+      const existingId = String((parsed as any)?.id || (parsed as any)?.candidate_id || '');
       const key = strategyCandidateDedupeKey(parsed);
       const existing = existingByDedupeKey.get(key);
       if (!existing || shouldReplaceCandidate(existing.candidate, parsed)) {
         existingByDedupeKey.set(key, { id: existingId, candidate: parsed });
       }
     } catch {
-      // Ignore malformed files.
+      // Ignore malformed records.
     }
   }
 
@@ -1325,7 +1433,6 @@ export async function saveStrategyCandidates(candidates: StrategyCandidate[]): P
     const rawId = candidate.candidate_id || candidate.id || uuidv4();
     // Sanitize: replace Windows-illegal filename chars (: \ / * ? " < > |) with dashes
     const id = String(rawId).replace(/[:\\/*?"<>|]/g, '-');
-    const filepath = path.join(CANDIDATES_DIR, `${id}.json`);
 
     const data = {
       ...candidate,
@@ -1336,7 +1443,9 @@ export async function saveStrategyCandidates(candidates: StrategyCandidate[]): P
       createdAt: candidate.created_at || new Date().toISOString(),
     };
 
-    await fs.writeFile(filepath, JSON.stringify(data, null, 2));
+    writeAppRecord(CANDIDATES_NAMESPACE, id, data, {
+      sortKey: String((data as any).createdAt || ''),
+    });
 
     existingByDedupeKey.set(dedupeKey, { id, candidate: data });
     ids.push(id);

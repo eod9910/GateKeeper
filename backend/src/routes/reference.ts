@@ -82,6 +82,11 @@ const PAGE_HELP: Record<string, HelpConfig> = {
     intro: 'Family Explorer is for inspecting structural motif families, stability, and behavior summaries produced by the research pipeline.',
     sections: ['Backtesting & Validation \u2014 What It Is and How It Works'],
   },
+  'consumer-cycle.html': {
+    title: 'Consumer Cycle Help',
+    intro: 'Consumer Cycle maps tradable stocks by demand bucket, cyclical sensitivity, and recession behavior. Use it to find resilient slowdown candidates, avoid the fragile demand pockets, and align symbol selection with macro-cycle risk.',
+    sections: ['Research Studio', 'Buttons and Controls Reference', 'Risk Rules'],
+  },
   'settings.html': {
     title: 'Settings Help',
     intro: 'Settings controls risk defaults, AI defaults, and app-wide behavior. Changes here affect downstream workflows in Trading Desk, Validator, and Execution Desk.',
@@ -111,6 +116,7 @@ function normalizePage(value: string): string {
   if (leaf === 'auto-labeler') return 'auto-labeler.html';
   if (leaf === 'vision-lab') return 'vision-lab.html';
   if (leaf === 'family-explorer') return 'family-explorer.html';
+  if (leaf === 'consumer-cycle') return 'consumer-cycle.html';
   return leaf.includes('.') ? leaf : `${leaf}.html`;
 }
 

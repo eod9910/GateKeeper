@@ -74,7 +74,12 @@ def main() -> None:
             "--resume",
         ])
 
+    run_step([str(SCRIPTS_DIR / "build_ledger_filing_eligible_universe.py")])
+    run_step([str(SCRIPTS_DIR / "enrich_canonical_universe.py")])
+
     run_step([str(SCRIPTS_DIR / "build_mixed_cap_validation_ladder.py")])
+    run_step([str(SCRIPTS_DIR / "build_universe_valuation_snapshot.py")])
+    run_step([str(SCRIPTS_DIR / "build_valuation_regime_universes.py")])
 
     if not parsed.skip_regimes:
         regime_args = [

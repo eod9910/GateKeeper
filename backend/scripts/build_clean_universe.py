@@ -44,8 +44,10 @@ SP600_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_600_companies"
 # ── Filter patterns for non-common-stock tickers ──────────────────────────────
 # Tickers with these characters are warrants, units, preferred, rights, etc.
 BAD_TICKER_CHARS = re.compile(r'[/\+\=\^\$\~\*\!]')
-# Tickers ending in these suffixes (after stripping) are non-common
-BAD_TICKER_SUFFIXES = re.compile(r'(W|R|U|P|Q|WS|WT|RT|PR|CL|WW)$')
+# Tickers ending in these explicit multi-letter suffixes (after stripping)
+# are still commonly used for warrants/rights/preferred variants. Single-letter
+# endings are far too noisy and were excluding valid common stocks like ORCL.
+BAD_TICKER_SUFFIXES = re.compile(r'(WS|WT|RT|PR|WW)$')
 # Company name keywords that indicate non-common-stock
 BAD_NAME_KEYWORDS = [
     "ETF", "ETP", "Fund", "Trust", "Note", "Notes", "Warrant", "Unit",

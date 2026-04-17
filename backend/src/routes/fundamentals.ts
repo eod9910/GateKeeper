@@ -4,7 +4,9 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { FundamentalsSnapshotV2, LedgerCoverageInfo } from '../types';
 import { normalizeFundamentalsSnapshot } from '../services/contractValidation';
+import { detectCorporateAction } from '../services/ledgerEngines';
 import { normalizeMarketDataSymbol } from '../services/marketSymbols';
+import { getSymbolValuationSnapshot, upsertSymbolMetrics } from '../services/symbolCatalog';
 import {
   CacheEnvelope,
   FreshnessInfo,
@@ -30,6 +32,7 @@ const FUNDAMENTALS_SCREEN_CONCURRENCY = 2;
 const FUNDAMENTALS_CACHE_DIR = path.join(__dirname, '..', '..', 'data', 'fundamentals-cache');
 const LEDGER_COVERAGE_SERVICE_PATH = path.join(__dirname, '..', '..', 'services', 'ledgerCoverage.py');
 const LEDGER_CONTEXT_SERVICE_PATH = path.join(__dirname, '..', '..', 'services', 'ledgerContext.py');
+const LEDGER_FINANCIAL_OVERLAY_QUERY = 'revenue operating income net income operating cash flow capital expenditures free cash flow current assets current liabilities';
 
 type LedgerStatementFactValue = {
   value_numeric: number | null;
@@ -119,6 +122,23 @@ const ledgerContextCache = new Map<string, { data: LedgerContextPayload; fetched
 function getFundamentalsCachePath(symbol: string): string {
   const safe = symbol.toUpperCase().replace(/[^A-Z0-9._=-]/g, '_');
   return path.join(FUNDAMENTALS_CACHE_DIR, `${safe}.json`);
+}
+
+async function persistFundamentalsSnapshot(
+  symbol: string,
+  snapshot: FundamentalsSnapshotV2,
+): Promise<void> {
+  const normalized = normalizeMarketDataSymbol(symbol);
+  if (!normalized) return;
+  const cacheKey = normalized.toUpperCase();
+  const entry = createCacheEnvelope(
+    cacheKey,
+    normalizeFundamentalsSnapshot(snapshot),
+    FUNDAMENTALS_CACHE_TTL_MS,
+    'fundamentalsService+ledgerOverlay',
+  );
+  fundamentalsCache.set(cacheKey, entry);
+  await writeCacheEnvelope(getFundamentalsCachePath(cacheKey), entry);
 }
 
 async function loadFundamentalsSnapshot(symbol: string, forceRefresh = false): Promise<LoadedFundamentalsSnapshot> {
@@ -337,6 +357,161 @@ async function loadLedgerCoverage(symbol: string, forceRefresh = false): Promise
 
   ledgerCoverageCache.set(cacheKey, { data: coverage, fetchedAt: Date.now() });
   return coverage;
+}
+
+function attachCatalogValuationSnapshot(snapshot: FundamentalsSnapshotV2): FundamentalsSnapshotV2 {
+  const valuationSnapshot = getSymbolValuationSnapshot(snapshot.symbol);
+  if (!valuationSnapshot) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    valuationSnapshot,
+  };
+}
+
+function metricNumeric(metric?: LedgerStatementFactValue | null): number | null {
+  const value = metric?.value_numeric;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function ratioPercent(numerator: number | null, denominator: number | null): number | null {
+  if (numerator == null || denominator == null || denominator === 0) return null;
+  const ratio = (numerator / denominator) * 100;
+  if (!Number.isFinite(ratio) || ratio < -100 || ratio > 100) return null;
+  return Math.round(ratio * 10) / 10;
+}
+
+async function attachLedgerStatementOverlay(
+  snapshot: FundamentalsSnapshotV2,
+  coverage: LedgerCoverageInfo,
+  forceRefresh = false,
+  preloadedContext?: LedgerContextPayload | null,
+): Promise<FundamentalsSnapshotV2> {
+  if (!snapshot?.symbol || coverage.coverage_tier !== 'full_filing_supported') {
+    return snapshot;
+  }
+
+  try {
+    const context = preloadedContext || await loadLedgerContext(
+      snapshot.symbol,
+      LEDGER_FINANCIAL_OVERLAY_QUERY,
+      1,
+      forceRefresh,
+    );
+    const latestAnnual = context?.statement_backbone?.annual?.[0];
+    const metrics = latestAnnual?.metrics || {};
+    if (!latestAnnual || !metrics) {
+      return snapshot;
+    }
+
+    const revenue = metricNumeric(metrics.revenue);
+    const operatingIncome = metricNumeric(metrics.operating_income);
+    const netIncome = metricNumeric(metrics.net_income);
+    const operatingCashFlow = metricNumeric(metrics.operating_cash_flow);
+    const capitalExpenditures = metricNumeric(metrics.capital_expenditures);
+    const freeCashFlow = metricNumeric(metrics.free_cash_flow)
+      ?? (
+        operatingCashFlow != null && capitalExpenditures != null
+          ? operatingCashFlow - capitalExpenditures
+          : null
+      );
+    const currentAssets = metricNumeric(metrics.current_assets);
+    const currentLiabilities = metricNumeric(metrics.current_liabilities);
+    const currentRatio = currentAssets != null && currentLiabilities != null && currentLiabilities !== 0
+      ? Math.round((currentAssets / currentLiabilities) * 100) / 100
+      : null;
+    const operatingMarginPct = ratioPercent(operatingIncome, revenue);
+    const profitMarginPct = ratioPercent(netIncome, revenue);
+
+    return {
+      ...snapshot,
+      annualRevenue: revenue ?? snapshot.annualRevenue,
+      operatingCashFlowTTM: operatingCashFlow ?? snapshot.operatingCashFlowTTM,
+      freeCashFlowTTM: freeCashFlow ?? snapshot.freeCashFlowTTM,
+      currentRatio: currentRatio ?? snapshot.currentRatio,
+      operatingMarginPct: operatingMarginPct ?? snapshot.operatingMarginPct,
+      profitMarginPct: profitMarginPct ?? snapshot.profitMarginPct,
+    };
+  } catch {
+    return snapshot;
+  }
+}
+
+async function attachSpecialSituation(
+  snapshot: FundamentalsSnapshotV2,
+  coverage: LedgerCoverageInfo,
+  forceRefresh = false,
+  preloadedContext?: LedgerContextPayload | null,
+): Promise<FundamentalsSnapshotV2> {
+  if (!snapshot?.symbol || coverage.coverage_tier !== 'full_filing_supported') {
+    return snapshot;
+  }
+
+  try {
+    const context = preloadedContext || await loadLedgerContext(
+      snapshot.symbol,
+      'merger acquisition going private take-private definitive agreement merger agreement stockholders to receive expected to close acquired by',
+      8,
+      forceRefresh,
+    );
+
+    const corporateAction = detectCorporateAction({
+      symbol: snapshot.symbol,
+      current_snapshot: snapshot,
+      evidence_context: {
+        recent_documents: context.recent_documents,
+        retrieval: context.retrieval,
+      },
+    } as any);
+
+    if (!corporateAction) {
+      return snapshot;
+    }
+
+    const tags = Array.isArray(snapshot.tags) ? snapshot.tags.slice() : [];
+    if (!tags.some((tag) => String(tag?.label || '').toLowerCase().includes('pending acquisition'))) {
+      tags.unshift({ label: 'Pending acquisition', tone: 'danger' });
+    }
+
+    return {
+      ...snapshot,
+      statusNote: corporateAction.label || snapshot.statusNote,
+      riskNote: corporateAction.summary || snapshot.riskNote,
+      tags,
+      specialSituation: {
+        code: corporateAction.code || null,
+        status: corporateAction.status || null,
+        label: corporateAction.label || null,
+        severity: corporateAction.severity === 'high' || corporateAction.severity === 'critical' ? corporateAction.severity : null,
+        analysisModeOverride: corporateAction.analysis_mode_override || null,
+        summary: corporateAction.summary || null,
+        confidence: corporateAction.confidence || null,
+        dealPricePerShare: corporateAction.deal_price_per_share ?? null,
+        contingentValueRightMaxPerShare: corporateAction.contingent_value_right_max_per_share ?? null,
+        expectedClose: corporateAction.expected_close || null,
+        currentPrice: corporateAction.current_price ?? null,
+        currentToDealSpreadPct: corporateAction.current_to_deal_spread_pct ?? null,
+      },
+    };
+  } catch {
+    return snapshot;
+  }
+}
+
+function shouldPersistOverlay(
+  baseSnapshot: FundamentalsSnapshotV2,
+  overlaidSnapshot: FundamentalsSnapshotV2,
+): boolean {
+  const keys: Array<keyof FundamentalsSnapshotV2> = [
+    'annualRevenue',
+    'operatingCashFlowTTM',
+    'freeCashFlowTTM',
+    'currentRatio',
+    'operatingMarginPct',
+    'profitMarginPct',
+  ];
+  return keys.some((key) => baseSnapshot[key] !== overlaidSnapshot[key]);
 }
 
 async function loadLedgerContext(
@@ -581,6 +756,128 @@ router.post('/screen', async (req: Request, res: Response) => {
 const BUZZ_CACHE = new Map<string, { data: any; fetchedAt: number }>();
 const BUZZ_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function toBuzzFiniteNumber(value: unknown): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function summarizeSentimentLabel(score: number | null): string | null {
+  if (score == null) return null;
+  if (score >= 45) return 'very_bullish';
+  if (score >= 15) return 'bullish';
+  if (score <= -45) return 'very_bearish';
+  if (score <= -15) return 'bearish';
+  return 'neutral';
+}
+
+function buildSocialSentimentMetrics(symbol: string, buzz: any): { enrichedBuzz: any; asOf: string } {
+  const asOf = new Date().toISOString();
+  const bullishPct = toBuzzFiniteNumber(buzz?.bullish_pct);
+  const bearishPct = toBuzzFiniteNumber(buzz?.bearish_pct);
+  const taggedMessageCount = toBuzzFiniteNumber(buzz?.tagged_message_count) ?? 0;
+  const sampledMessageCount = toBuzzFiniteNumber(buzz?.sampled_message_count)
+    ?? toBuzzFiniteNumber(buzz?.message_count)
+    ?? 0;
+  const watchlistCount = toBuzzFiniteNumber(buzz?.watchlist_count) ?? 0;
+  const yahooMessageCount = toBuzzFiniteNumber(buzz?.yahoo_message_count) ?? 0;
+  const stocktwitsMessageCount = toBuzzFiniteNumber(buzz?.stocktwits_message_count) ?? 0;
+  const sourceCount = Array.isArray(buzz?.sources) ? buzz.sources.length : 0;
+
+  const baseTilt = bullishPct != null && bearishPct != null
+    ? clamp(bullishPct - bearishPct, -100, 100)
+    : 0;
+  const taggingCoverage = sampledMessageCount > 0
+    ? clamp(taggedMessageCount / sampledMessageCount, 0, 1)
+    : 0;
+  const volumeFactor = clamp(Math.log10(sampledMessageCount + 1) / Math.log10(91), 0, 1);
+  const watcherFactor = clamp(Math.log10(watchlistCount + 1) / Math.log10(100001), 0, 1);
+  const sourceFactor = clamp(sourceCount / 2, 0, 1);
+  const reliability = clamp(
+    (taggingCoverage * 0.45) + (volumeFactor * 0.25) + (watcherFactor * 0.15) + (sourceFactor * 0.15),
+    0,
+    1,
+  );
+  const sentimentScore = Math.round(clamp(baseTilt * Math.max(0.25, reliability), -100, 100) * 10) / 10;
+  const sentimentIntensity = Math.round(baseTilt * 10) / 10;
+  const sentimentConfidence = Math.round(reliability * 1000) / 10;
+  const sentimentLabel = summarizeSentimentLabel(sentimentScore);
+
+  upsertSymbolMetrics(symbol, [
+    {
+      metricName: 'social_sentiment_score',
+      metricValueNum: sentimentScore,
+      metricValueText: sentimentLabel,
+      source: 'social_buzz_aggregate',
+      asOf,
+      payload: { symbol, source_label: buzz?.source_label ?? null },
+    },
+    {
+      metricName: 'social_sentiment_confidence',
+      metricValueNum: sentimentConfidence,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+    {
+      metricName: 'social_sentiment_intensity',
+      metricValueNum: sentimentIntensity,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+    {
+      metricName: 'social_watchers',
+      metricValueNum: watchlistCount || 0,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+    {
+      metricName: 'social_message_count',
+      metricValueNum: sampledMessageCount || 0,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+    {
+      metricName: 'social_stocktwits_message_count',
+      metricValueNum: stocktwitsMessageCount || 0,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+    {
+      metricName: 'social_yahoo_message_count',
+      metricValueNum: yahooMessageCount || 0,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+    {
+      metricName: 'social_bullish_pct',
+      metricValueNum: bullishPct,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+    {
+      metricName: 'social_bearish_pct',
+      metricValueNum: bearishPct,
+      source: 'social_buzz_aggregate',
+      asOf,
+    },
+  ]);
+
+  return {
+    asOf,
+    enrichedBuzz: {
+      ...buzz,
+      sentiment_score: sentimentScore,
+      sentiment_confidence: sentimentConfidence,
+      sentiment_intensity: sentimentIntensity,
+      sentiment_label: sentimentLabel,
+      sentiment_as_of: asOf,
+    },
+  };
+}
+
 router.get('/:symbol/buzz', async (req: Request, res: Response) => {
   try {
     const symbol = normalizeMarketDataSymbol(String(req.params.symbol || ''));
@@ -590,7 +887,8 @@ router.get('/:symbol/buzz', async (req: Request, res: Response) => {
 
     const cached = BUZZ_CACHE.get(symbol);
     if (cached && Date.now() - cached.fetchedAt < BUZZ_TTL_MS) {
-      return res.status(200).json({ success: true, data: cached.data, cache: 'hit' });
+      const { enrichedBuzz } = buildSocialSentimentMetrics(symbol, cached.data);
+      return res.status(200).json({ success: true, data: enrichedBuzz, cache: 'hit' });
     }
 
     const data = await new Promise<any>((resolve, reject) => {
@@ -623,11 +921,12 @@ router.get('/:symbol/buzz', async (req: Request, res: Response) => {
       const tid = setTimeout(() => {
         proc.kill();
         finish(new Error('StockTwits request timed out'));
-      }, 15000);
+      }, 20000);
     });
 
-    BUZZ_CACHE.set(symbol, { data, fetchedAt: Date.now() });
-    return res.status(200).json({ success: true, data });
+    const { enrichedBuzz } = buildSocialSentimentMetrics(symbol, data);
+    BUZZ_CACHE.set(symbol, { data: enrichedBuzz, fetchedAt: Date.now() });
+    return res.status(200).json({ success: true, data: enrichedBuzz });
   } catch (error: any) {
     return res.status(200).json({
       success: true,
@@ -656,11 +955,27 @@ router.get('/:symbol/ledger-context', async (req: Request, res: Response) => {
       loadLedgerCoverage(String(req.params.symbol || ''), forceRefresh),
       loadLedgerContext(String(req.params.symbol || ''), query, topK, forceRefresh),
     ]);
+    const withValuation = attachCatalogValuationSnapshot(loaded.snapshot);
+    const withLedgerOverlay = await attachLedgerStatementOverlay(
+      withValuation,
+      coverage,
+      forceRefresh,
+      context,
+    );
+    if (shouldPersistOverlay(withValuation, withLedgerOverlay)) {
+      await persistFundamentalsSnapshot(loaded.snapshot.symbol, withLedgerOverlay);
+    }
+    const enrichedSnapshot = await attachSpecialSituation(
+      withLedgerOverlay,
+      coverage,
+      forceRefresh,
+      context,
+    );
     return res.status(200).json({
       success: true,
       data: {
         symbol: loaded.snapshot.symbol,
-        snapshot: loaded.snapshot,
+        snapshot: enrichedSnapshot,
         coverage,
         statement_backbone: context.statement_backbone,
         recent_documents: context.recent_documents,
@@ -678,7 +993,26 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     const forceRefresh = String(req.query.force_refresh || '').trim().toLowerCase() === 'true';
     const loaded = await loadFundamentalsSnapshot(String(req.params.symbol || ''), forceRefresh);
     const coverage = await loadLedgerCoverage(String(req.params.symbol || ''), forceRefresh);
-    return res.status(200).json({ success: true, data: loaded.snapshot, freshness: loaded.freshness, coverage });
+    const withValuation = attachCatalogValuationSnapshot(loaded.snapshot);
+    const withLedgerOverlay = await attachLedgerStatementOverlay(
+      withValuation,
+      coverage,
+      forceRefresh,
+    );
+    if (shouldPersistOverlay(withValuation, withLedgerOverlay)) {
+      await persistFundamentalsSnapshot(loaded.snapshot.symbol, withLedgerOverlay);
+    }
+    const enrichedSnapshot = await attachSpecialSituation(
+      withLedgerOverlay,
+      coverage,
+      forceRefresh,
+    );
+    return res.status(200).json({
+      success: true,
+      data: enrichedSnapshot,
+      freshness: loaded.freshness,
+      coverage,
+    });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }

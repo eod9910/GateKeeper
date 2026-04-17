@@ -103,6 +103,29 @@ export interface FundamentalsOwnership {
   topInstitutionalHolders: FundamentalsInstitutionalHolder[];
 }
 
+export interface FundamentalsValuationSnapshot {
+  valuationState: 'undervalued' | 'overvalued' | 'roughly_fair' | 'fair' | null;
+  qualityGrade: string | null;
+  qualityScore: number | null;
+  coverageMode: string | null;
+  price: number | null;
+  fairValueLow: number | null;
+  fairValueMid: number | null;
+  fairValueHigh: number | null;
+  valuationGapPct: number | null;
+  marketCap: number | null;
+  enterpriseValue: number | null;
+  enterpriseToSales: number | null;
+  revenue: number | null;
+  freeCashFlow: number | null;
+  sharesOutstanding: number | null;
+  revenueGrowthPct: number | null;
+  operatingMarginPct: number | null;
+  freeCashFlowMarginPct: number | null;
+  currentRatio: number | null;
+  asOfDate: string | null;
+}
+
 export interface FundamentalsHistoricalStatementRow {
   period: string | null;
   periodEnd: string | null;
@@ -113,6 +136,21 @@ export interface FundamentalsHistoricalStatementRow {
 
 export interface FundamentalsHistoricalStatements {
   quarterly: FundamentalsHistoricalStatementRow[];
+}
+
+export interface FundamentalsSpecialSituation {
+  code: string | null;
+  status: string | null;
+  label: string | null;
+  severity: 'high' | 'critical' | null;
+  analysisModeOverride: string | null;
+  summary: string | null;
+  confidence: string | null;
+  dealPricePerShare: number | null;
+  contingentValueRightMaxPerShare: number | null;
+  expectedClose: string | null;
+  currentPrice: number | null;
+  currentToDealSpreadPct: number | null;
 }
 
 export interface FundamentalsScores {
@@ -140,6 +178,7 @@ export interface FundamentalsSnapshotV2 extends FundamentalsScores {
   marketCap: number | null;
   enterpriseValue: number | null;
   enterpriseToSales: number | null;
+  annualRevenue: number | null;
   netCash: number | null;
   cashPctMarketCap: number | null;
   lowEnterpriseValueFlag: boolean;
@@ -195,11 +234,13 @@ export interface FundamentalsSnapshotV2 extends FundamentalsScores {
   statusNote: string;
   riskNote: string;
   tags: FundamentalsTag[];
+  specialSituation?: FundamentalsSpecialSituation | null;
   reportedExecution?: FundamentalsReportedExecution | null;
   forwardExpectations?: FundamentalsForwardExpectations | null;
   positioning?: FundamentalsPositioning | null;
   marketContext?: FundamentalsMarketContext | null;
   ownership?: FundamentalsOwnership | null;
+  valuationSnapshot?: FundamentalsValuationSnapshot | null;
   historicalStatements?: FundamentalsHistoricalStatements | null;
   stockdex?: Record<string, unknown> | null;
 }

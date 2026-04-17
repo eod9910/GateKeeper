@@ -1,8 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { readJsonDocument, writeJsonDocument } from './appStateDb';
 
 const SETTINGS_PATH = path.join(__dirname, '..', '..', 'data', 'ai-settings.json');
 const OPENAI_PLACEHOLDER = 'your-openai-api-key-here';
+const AI_SETTINGS_NAMESPACE = 'settings';
+const AI_SETTINGS_DOCUMENT_KEY = 'ai_settings';
 
 export interface AISettings {
   openai_api_key?: string;
@@ -48,9 +51,15 @@ function normalizeAISettings(settings: unknown): AISettings | null {
 }
 
 export function loadAISettings(): AISettings | null {
+  const persisted = readJsonDocument<AISettings>(AI_SETTINGS_NAMESPACE, AI_SETTINGS_DOCUMENT_KEY, normalizeAISettings);
+  if (persisted) return persisted;
   try {
     if (fs.existsSync(SETTINGS_PATH)) {
-      return normalizeAISettings(JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')));
+      const legacy = normalizeAISettings(JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')));
+      if (legacy) {
+        writeJsonDocument(AI_SETTINGS_NAMESPACE, AI_SETTINGS_DOCUMENT_KEY, legacy);
+      }
+      return legacy;
     }
   } catch {
     // ignore malformed or missing settings file
@@ -62,7 +71,7 @@ export function saveAISettings(settings: AISettings): void {
   const dir = path.dirname(SETTINGS_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const normalized = normalizeAISettings(settings) || {};
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(normalized, null, 2), 'utf-8');
+  writeJsonDocument(AI_SETTINGS_NAMESPACE, AI_SETTINGS_DOCUMENT_KEY, normalized);
 }
 
 export function maskKey(key: string): string {

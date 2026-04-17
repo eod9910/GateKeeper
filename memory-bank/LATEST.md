@@ -1,4 +1,4 @@
-# Latest Session - 2026-03-30
+# Latest Session - 2026-04-16
 
 ## Status
 
@@ -6,6 +6,48 @@
 - Product state: universe centralization and PIT historical ownership clarified; isolated SEC filing extraction probe now works end to end
 - Current source-of-truth planning area: `.planning/plans/`
 - Startup continuity now includes `memory-bank/CURSOR_CONTINUITY.md`, generated from the live Cursor mirror
+- **2026-04-16 hygiene pass landed** — see `.planning/plans/ACTIVE/repo-hygiene-followups-2026-04-16.md` for full record and remaining decisions
+
+## Latest Update (2026-04-16)
+
+### Repo Hygiene + Scope + Fragility Pass
+
+A focused single-session pass closed the data-leakage half of the standing repo-state recovery plan and exposed the remaining decisions for the user.
+
+**Closed in this session:**
+
+- `.gitignore` extended to cover all currently-leaking classes:
+  - `backend/data/*.sqlite` / `*.sqlite-shm` / `*.sqlite-wal` (and `*.db` variants)
+  - `backend/data/valuation_regime_*.json`, `valuation_universe_snapshot*.json`
+  - `backend/data/app-state.*` / `symbol-catalog.*` / `fundamentals[-_]pit.*`
+  - `*.smoke.json` / `*_smoke.json`
+  - `.tmp/`, root-level `_tmp_*` / `tmp_*`
+- Orphan zero-byte `backend/data/fundamentals_pit.sqlite` (underscore variant) deleted. Canonical filename is hyphen `fundamentals-pit.sqlite`. Some recent one-off command typo'd the name and created the empty file. All in-repo code uses the hyphen variant.
+- New npm script `npm run repo:check` (in `backend/`) wraps `check_repo_state.ps1` so the audit is one keystroke.
+- `git status` `backend/data` entries dropped from **15 → 3**. The remaining three (`app-reference.md`, `patterns/registry.json`, `patterns/valuation_state_primitive.json`) are intentional new artifacts from the in-flight valuation work, not leakage.
+
+**Still open after this session — these need a user decision, not more code:**
+
+1. **Scope sprawl.** 116 changed files in worktree are real work across **valuation regime + consumer cycle + ledger hydration + analyst skills + workspace templates** — none of which is the contract-hardening / 3rd-issuer Ledger validation that the standing plan said was next. Recommendation in the followup doc is: take a labeled checkpoint commit now, then formally pick one workstream as active and park the rest in `.planning/plans/BACKLOG/`.
+2. **OneDrive + multi-GB SQLite.** `fundamentals-pit.sqlite` is **3.87 GB**, `app-state.sqlite` is **615 MB**, both with active WAL files inside the OneDrive sync tree. This is a real corruption vector. Three options ranked by effort are spelled out in the followup doc — minimum viable is to exclude `backend/data/` from OneDrive sync; long-term right answer is to make the data dir env-configurable and move it out of the repo path entirely.
+3. **Python/TS contract drift.** Crossing surface keeps widening (executionBridge, pluginServiceClient, ledgerEngines, signalScanner, now symbolCatalog + consumerCycle) with no canonical schema source. Not failing today; should be addressed before the next major interface lands. A one-pager `docs/ts-python-contract-policy.md` is the suggested next step.
+
+**Why this pass matters:**
+
+- The canonical "guardrails" plan (`.planning/plans/ACTIVE/repo-state-recovery-and-guardrails-plan.md`) existed but the worktree was still drifting under it. The hygiene-followups doc is the running operational checklist that the strategic plan needed.
+- `check_repo_state.ps1` now reports `backend/data: 3` instead of `15`, so the script's RED score is now a *scope* signal (real work in flight) rather than a *leakage* signal. That's the correct meaning.
+
+**Next-AI handoff:**
+
+- Read `.planning/plans/ACTIVE/repo-hygiene-followups-2026-04-16.md` first
+- Resolve Open Issues 1 and 2 with the user before doing more feature work
+- Run `cd backend && npm run repo:check` at session start and before any commit
+
+---
+
+## Previous Status
+
+
 
 ## Latest Update (2026-03-30)
 

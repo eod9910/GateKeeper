@@ -115,6 +115,7 @@
       padding: var(--space-12) var(--space-16);
       border-bottom: 1px solid var(--color-border);
       font-size: var(--text-caption);
+      line-height: 1.25;
       color: var(--color-text-muted);
       text-transform: uppercase;
       letter-spacing: 0.07em;
@@ -124,7 +125,26 @@
       align-items: center;
       justify-content: space-between;
       flex-shrink: 0;
+      min-width: 0;
       background: var(--color-surface);
+    }
+    .results-panel > .panel-header .sweep-results-header__cluster {
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+      min-width: 0;
+      overflow: hidden;
+      flex: 1;
+      font-size: var(--text-caption);
+      line-height: 1.25;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .results-panel > .panel-header .sweep-results-header__label {
+      flex-shrink: 0;
+    }
+    #results-sweep-id {
+      flex-shrink: 0;
     }
 
     /* ── Form elements ──────────────────────────────────────── */
@@ -177,6 +197,154 @@
       font-weight: 600;
       padding-bottom: var(--space-4);
       border-bottom: 1px solid var(--color-border);
+    }
+    .udim-subsection {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--color-surface-elevated) 82%, transparent);
+      overflow: hidden;
+    }
+    .udim-subsection summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      padding: var(--space-10) var(--space-12);
+    }
+    .udim-subsection summary::-webkit-details-marker { display: none; }
+    .udim-subsection summary::after {
+      content: '›';
+      color: var(--color-text-muted);
+      font-size: 16px;
+      line-height: 1;
+      transition: transform 0.15s ease;
+    }
+    .udim-subsection[open] summary::after {
+      transform: rotate(90deg);
+    }
+    .udim-subsection-body {
+      padding: 0 var(--space-12) var(--space-12) var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .udim-subsection-title {
+      font-size: var(--text-caption);
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .udim-subsection-help {
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--color-text-muted);
+      max-width: 72ch;
+    }
+    .strategy-parameter-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .strategy-param-subsection {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--color-surface-elevated) 82%, transparent);
+      overflow: hidden;
+    }
+    .strategy-param-subsection > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      padding: var(--space-10) var(--space-12);
+    }
+    .strategy-param-subsection > summary::-webkit-details-marker { display: none; }
+    .strategy-param-subsection > summary::after {
+      content: '›';
+      color: var(--color-text-muted);
+      font-size: 16px;
+      line-height: 1;
+      transition: transform 0.15s ease;
+    }
+    .strategy-param-subsection[open] > summary::after {
+      transform: rotate(90deg);
+    }
+    .strategy-param-subsection-body {
+      padding: 0 var(--space-12) var(--space-12) var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-10);
+    }
+    .strategy-param-subsection-title {
+      font-size: var(--text-caption);
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .strategy-param-subsection-help {
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--color-text-muted);
+      max-width: 72ch;
+    }
+    .strategy-param-subsection-remove {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 4px;
+    }
+    .strategy-param-subsection-remove:hover { color: var(--color-accent); }
+    .strategy-grid-add-btn {
+      width: 100%;
+      padding: var(--space-10) var(--space-12);
+      background: color-mix(in srgb, var(--color-surface-elevated) 82%, transparent);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      text-align: left;
+      transition: all 0.15s;
+    }
+    .strategy-grid-add-btn:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+    .strategy-grid-add-btn strong {
+      display: block;
+      font-size: var(--text-caption);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      font-family: inherit;
+    }
+    .strategy-param-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--color-surface-elevated) 82%, transparent);
+      padding: var(--space-10) var(--space-12) var(--space-12) var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-10);
+    }
+    .strategy-param-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-8);
     }
     .inline-link {
       font-size: var(--text-caption);
@@ -1101,10 +1269,10 @@
       background: color-mix(in srgb, var(--color-surface) 82%, transparent);
       flex-shrink: 0;
       padding: 0 var(--space-16);
-      gap: 0;
+      gap: var(--space-16);
     }
     .sweep-tab {
-      padding: var(--space-8) var(--space-14);
+      padding: var(--space-8) var(--space-16);
       font-size: var(--text-caption);
       font-family: var(--font-mono);
       font-weight: 600;
@@ -1131,6 +1299,11 @@
       padding: 1px 4px;
       font-weight: 700;
     }
+    .sweep-tab__json-label {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-12);
+    }
     .sweep-tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; min-height: 0; }
     .sweep-tab-content.active { display: flex; }
 
@@ -1150,9 +1323,11 @@
       gap: var(--space-12);
     }
     .results-panel > .panel-header .results-meta {
-      font-size: 10px;
-      color: var(--color-text-muted);
+      font-size: var(--text-caption);
+      line-height: 1.25;
+      font-weight: 600;
       font-family: var(--font-mono);
+      color: var(--color-text-muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -1160,14 +1335,13 @@
     .results-panel > .panel-header .header-pill-btn {
       flex-shrink: 0;
       margin-left: var(--space-12);
-      font-size: 10px;
+      font: inherit;
       padding: 4px 10px;
       background: color-mix(in srgb, var(--color-bg-subtle) 90%, transparent);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-sm);
       color: var(--color-text-muted);
       cursor: pointer;
-      font-family: var(--font-mono);
       white-space: nowrap;
       transition: border-color 0.15s, color 0.15s, background 0.15s;
     }
@@ -1341,43 +1515,74 @@
                       <span id="universal-dims-active-badge" style="display:none;background:var(--color-accent);color:#000;font-size:10px;font-family:var(--font-mono);font-weight:700;padding:1px 7px;border-radius:10px;"></span>
                     </div>
                   </summary>
-                  <div id="universal-dims-body" style="padding:var(--space-8) 0 0 0;display:flex;flex-direction:column;gap:var(--space-8);"></div>
+                  <div id="universal-dims-body" style="padding:var(--space-8) 0 0 0;display:flex;flex-direction:column;gap:var(--space-8);">
+                    <details class="udim-subsection" id="universal-dims-research-section" open>
+                      <summary>
+                        <div>
+                          <div class="udim-subsection-title">Research Dimensions</div>
+                          <div class="udim-subsection-help">Universe, cap tier, timeframe, and other context that define what you are testing.</div>
+                        </div>
+                      </summary>
+                      <div class="udim-subsection-body" id="universal-dims-research-body"></div>
+                    </details>
+                    <details class="udim-subsection" id="universal-dims-risk-section" open>
+                      <summary>
+                        <div>
+                          <div class="udim-subsection-title">Risk / Execution Dimensions</div>
+                          <div class="udim-subsection-help">Position management, exits, and portfolio controls that apply across strategies.</div>
+                        </div>
+                      </summary>
+                      <div class="udim-subsection-body" id="universal-dims-risk-body"></div>
+                    </details>
+                  </div>
                 </details>
               </div>
 
               <!-- Strategy-specific Parameter picker -->
               <div class="sweep-section config-card">
                 <div class="sweep-section-label">Strategy Parameter <span style="font-size:9px;font-weight:400;color:var(--color-text-muted);font-family:var(--font-mono);text-transform:none;letter-spacing:0;">(optional — entry-logic knobs)</span></div>
-                <div class="form-group">
-                  <select id="custom-param-select" class="form-select">
-                    <option value="">Choose a parameter...</option>
-                  </select>
-                  <div id="custom-param-help" class="custom-param-help" style="display:none;"></div>
-                </div>
-                <div class="form-group" id="suggested-values-group" style="display:none;">
-                  <label class="form-label">Suggested Values</label>
-                  <div id="suggested-values" class="suggested-values"></div>
-                </div>
-                <details class="advanced-custom-details">
-                  <summary>Advanced Path</summary>
-                  <div class="advanced-custom-body">
-                    <div class="form-group">
-                  <label class="form-label">Parameter Path</label>
-                  <input id="custom-param-path" class="form-input" type="text" placeholder="e.g. risk_config.stop_value" />
+                <div class="strategy-parameter-stack">
+                  <details class="strategy-param-subsection" open>
+                    <summary>
+                      <div>
+                        <div class="strategy-param-subsection-title">Primary Parameter</div>
+                        <div class="strategy-param-subsection-help">Pick the main strategy-specific knob to test across the sweep.</div>
+                      </div>
+                    </summary>
+                    <div class="strategy-param-subsection-body">
+                      <div class="form-group">
+                        <select id="custom-param-select" class="form-select">
+                          <option value="">Choose a parameter...</option>
+                        </select>
+                        <div id="custom-param-help" class="custom-param-help" style="display:none;"></div>
+                      </div>
+                      <div class="form-group" id="suggested-values-group" style="display:none;">
+                        <label class="form-label">Suggested Values</label>
+                        <div id="suggested-values" class="suggested-values"></div>
+                      </div>
+                      <details class="advanced-custom-details">
+                        <summary>Advanced Path</summary>
+                        <div class="advanced-custom-body">
+                          <div class="form-group">
+                            <label class="form-label">Parameter Path</label>
+                            <input id="custom-param-path" class="form-input" type="text" placeholder="e.g. risk_config.stop_value" />
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label">Label</label>
+                            <input id="custom-param-label" class="form-input" type="text" placeholder="e.g. Stop %" />
+                          </div>
+                        </div>
+                      </details>
+                      <div class="form-group">
+                        <label class="form-label">Values to Test</label>
+                        <div class="values-pills" id="values-pills"></div>
+                        <div class="add-value-row">
+                          <input id="add-value-input" type="text" placeholder="e.g. 0.05" />
+                          <button onclick="addCustomValue()">+ Add</button>
+                        </div>
+                      </div>
                     </div>
-                    <div class="form-group">
-                      <label class="form-label">Label</label>
-                      <input id="custom-param-label" class="form-input" type="text" placeholder="e.g. Stop %" />
-                    </div>
-                  </div>
-                </details>
-                <div class="form-group">
-                  <label class="form-label">Values to Test</label>
-                  <div class="values-pills" id="values-pills"></div>
-                  <div class="add-value-row">
-                    <input id="add-value-input" type="text" placeholder="e.g. 0.05" />
-                    <button onclick="addCustomValue()">+ Add</button>
-                  </div>
+                  </details>
                 </div>
               </div>
 
@@ -1414,19 +1619,22 @@
           <!-- Right: Results panel -->
           <div class="sweep-results-panel" id="sweep-results-panel">
             <div class="results-panel">
-              <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;min-width:0;">
-                <span style="display:flex;align-items:center;gap:var(--space-12);min-width:0;overflow:hidden;">
-                  <span style="flex-shrink:0;">Results</span>
+              <div class="panel-header">
+                <span class="sweep-results-header__cluster">
+                  <span class="sweep-results-header__label">Results</span>
                   <span id="results-loaded-strategy" class="results-meta"></span>
-                  <span id="results-sweep-id" class="results-meta" style="flex-shrink:0;"></span>
+                  <span id="results-sweep-id" class="results-meta"></span>
                 </span>
                 <button id="new-session-btn" class="header-pill-btn" onclick="startNewSession()" title="Clear this session and start fresh">New Session</button>
               </div>
 
               <!-- Results / JSON tabs -->
               <div class="sweep-results-tabs" id="sweep-results-tabs">
-                <button class="sweep-tab active" id="tab-btn-results" onclick="switchSweepTab('results')">Results</button>
-                <button class="sweep-tab" id="tab-btn-json" onclick="switchSweepTab('json')">Strategy JSON <span id="json-tab-badge" class="sweep-tab-badge" style="display:none;">EDITED</span></button>
+                <button type="button" class="sweep-tab active" id="tab-btn-results" onclick="switchSweepTab('results')">Results</button>
+                <button type="button" class="sweep-tab" id="tab-btn-json" onclick="switchSweepTab('json')" aria-label="Strategy JSON">
+                  <span class="sweep-tab__json-label"><span>Strategy</span><span>JSON</span></span>
+                  <span id="json-tab-badge" class="sweep-tab-badge" style="display:none;">EDITED</span>
+                </button>
               </div>
 
               <div id="sweep-promote-banner" class="sweep-promote-banner"></div>
@@ -1482,7 +1690,7 @@
   </div>
 
   <script src="app.js"></script>
+  <script src="sweep-name-utils.js"></script>
   <script src="sweep.js"></script>
 </body>
 </html>
-

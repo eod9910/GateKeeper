@@ -238,6 +238,112 @@ def get_option_quotes(option_requests):
     return result
 
 
+def get_option_chain(chain_request):
+    """
+    Fetch an option chain for one underlying/expiry/type combination.
+
+    chain_request: {
+      symbol: "AAPL",
+      expiry: "2026-07-17" | "7/17" | "",
+      type: "call" | "put",
+      maxContracts: 120
+    }
+    """
+    sym = str(chain_request.get('symbol', '') or '').strip().upper()
+    opt_type = str(chain_request.get('type', 'call') or 'call').strip().lower()
+    expiry_raw = str(chain_request.get('expiry', '') or '').strip()
+    max_contracts = int(chain_request.get('maxContracts', 120) or 120)
+    max_contracts = max(10, min(max_contracts, 250))
+
+    if not sym:
+        return {"error": "Missing symbol"}
+    if opt_type not in ('call', 'put'):
+        opt_type = 'call'
+
+    try:
+        ticker = yf.Ticker(sym)
+        info = ticker.fast_info
+        underlying_price = getattr(info, 'last_price', None) or getattr(info, 'previous_close', None)
+        try:
+            underlying_price = float(underlying_price) if underlying_price is not None else 0.0
+        except Exception:
+            underlying_price = 0.0
+
+        available_expiries = list(ticker.options or [])
+        if not available_expiries:
+            return {"error": f"No options data for {sym}"}
+
+        matched_expiry = available_expiries[0]
+        if expiry_raw:
+            target_expiry = normalize_expiry(expiry_raw)
+            exact = next((avail for avail in available_expiries if avail == target_expiry), None)
+            if exact:
+                matched_expiry = exact
+            else:
+                try:
+                    target_dt = datetime.datetime.strptime(target_expiry, '%Y-%m-%d')
+                    closest = min(
+                        available_expiries,
+                        key=lambda x: abs((datetime.datetime.strptime(x, '%Y-%m-%d') - target_dt).days),
+                    )
+                    closest_dt = datetime.datetime.strptime(closest, '%Y-%m-%d')
+                    if abs((closest_dt - target_dt).days) <= 21:
+                        matched_expiry = closest
+                except Exception:
+                    pass
+
+        chain = ticker.option_chain(matched_expiry)
+        df = chain.calls if opt_type == 'call' else chain.puts
+        if df.empty:
+            return {"error": f"No {opt_type} contracts for {matched_expiry}"}
+
+        try:
+            anchor = underlying_price if underlying_price > 0 else float(df['strike'].median())
+            df = df.assign(_anchor_diff=abs(df['strike'] - anchor))
+            df = df.sort_values(['_anchor_diff', 'strike']).head(max_contracts).sort_values('strike')
+        except Exception:
+            try:
+                df = df.sort_values('strike').head(max_contracts)
+            except Exception:
+                pass
+
+        contracts = []
+        for _, row in df.iterrows():
+            strike = float(row.get('strike', 0) or 0)
+            last_price = float(row.get('lastPrice', 0) or 0)
+            bid = float(row.get('bid', 0) or 0)
+            ask = float(row.get('ask', 0) or 0)
+            mark = round((bid + ask) / 2, 4) if (bid + ask) > 0 else last_price
+            iv = float(row.get('impliedVolatility', 0) or 0)
+            volume = int(row.get('volume', 0) or 0) if str(row.get('volume', '')) != 'nan' else 0
+            oi = int(row.get('openInterest', 0) or 0) if str(row.get('openInterest', '')) != 'nan' else 0
+            contracts.append({
+                "contractSymbol": str(row.get('contractSymbol', '') or ''),
+                "strike": strike,
+                "lastPrice": round(last_price, 4),
+                "bid": round(bid, 4),
+                "ask": round(ask, 4),
+                "mark": round(mark, 4),
+                "premium": mark if mark > 0 else last_price,
+                "iv": round(iv * 100, 2),
+                "ivRaw": round(iv, 6),
+                "volume": volume,
+                "openInterest": oi,
+                "inTheMoney": bool(row.get('inTheMoney', False)),
+            })
+
+        return {
+            "underlying": sym,
+            "underlyingPrice": round(underlying_price, 2),
+            "type": opt_type,
+            "expiries": available_expiries,
+            "matchedExpiry": matched_expiry,
+            "contracts": contracts,
+        }
+    except Exception as e:
+        return {"error": f"Failed to get option chain for {sym}: {str(e)}"}
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No symbols provided"}))
@@ -252,6 +358,17 @@ if __name__ == '__main__':
             option_requests = json.loads(sys.argv[2])
             quotes = get_option_quotes(option_requests)
             print(json.dumps(quotes))
+        except json.JSONDecodeError as e:
+            print(json.dumps({"error": f"Invalid JSON: {str(e)}"}))
+            sys.exit(1)
+    elif sys.argv[1] == '--option-chain':
+        if len(sys.argv) < 3:
+            print(json.dumps({"error": "No option chain request provided"}))
+            sys.exit(1)
+        try:
+            chain_request = json.loads(sys.argv[2])
+            chain = get_option_chain(chain_request)
+            print(json.dumps(chain))
         except json.JSONDecodeError as e:
             print(json.dumps({"error": f"Invalid JSON: {str(e)}"}))
             sys.exit(1)

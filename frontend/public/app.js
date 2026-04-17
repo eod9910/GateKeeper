@@ -236,6 +236,40 @@
 
 // Inject the Tombstones nav link into every shared sidebar.
 (function () {
+  function ensureConsumerCycleNav() {
+    var nav = document.querySelector('.sidebar-nav');
+    if (!nav) return;
+    if (nav.querySelector('a[href="consumer-cycle.html"], a[href="/consumer-cycle"]')) return;
+
+    var settingsLink = nav.querySelector('a[href="settings.html"], a[href="/settings"]');
+    var link = document.createElement('a');
+    link.href = '/consumer-cycle';
+    link.className = 'sidebar-nav-item';
+    link.innerHTML = '<span class="nav-dot"></span><span class="sidebar-label-text">Consumer Cycle</span>';
+
+    var pathname = (window.location.pathname || '').toLowerCase();
+    if (
+      pathname.endsWith('/consumer-cycle.html') ||
+      pathname.endsWith('\\consumer-cycle.html') ||
+      pathname === '/consumer-cycle.html' ||
+      pathname === '/consumer-cycle'
+    ) {
+      link.classList.add('active');
+      link.setAttribute('aria-current', 'page');
+    }
+
+    if (settingsLink && settingsLink.parentNode === nav) {
+      nav.insertBefore(link, settingsLink);
+    } else {
+      nav.appendChild(link);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', ensureConsumerCycleNav);
+})();
+
+// Inject the Tombstones nav link into every shared sidebar.
+(function () {
   function ensureTrainingNav() {
     var nav = document.querySelector('.sidebar-nav');
     if (!nav) return;
@@ -997,4 +1031,3 @@ window.toggleChat = toggleChat;
 
   document.addEventListener('DOMContentLoaded', ensureHelpUi);
 })();
-

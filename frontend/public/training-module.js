@@ -67,16 +67,44 @@
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  function toUnixMillis(value) {
+    if (value == null || value === '') return NaN;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value > 1e12 ? value : value * 1000;
+    }
+    const trimmed = String(value).trim();
+    if (!trimmed) return NaN;
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      return numeric > 1e12 ? numeric : numeric * 1000;
+    }
+    const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
+    const parsed = Date.parse(normalized.length === 19 ? (normalized + 'Z') : normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
   function fmtDate(value) {
     if (!value) return '--';
-    const date = new Date(value);
+    const date = new Date(toUnixMillis(value));
     return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
   }
 
   function toDateOnly(value) {
-    const date = new Date(value);
+    const date = new Date(toUnixMillis(value));
     if (Number.isNaN(date.getTime())) return '';
     return date.toISOString().slice(0, 10);
+  }
+
+  function barTimeMs(barOrTime) {
+    if (barOrTime && typeof barOrTime === 'object' && Object.prototype.hasOwnProperty.call(barOrTime, 'time')) {
+      return toUnixMillis(barOrTime.time);
+    }
+    return toUnixMillis(barOrTime);
+  }
+
+  function formatBarTimeForDisplay(barOrTime) {
+    const asDateOnly = toDateOnly(barOrTime);
+    return asDateOnly || String((barOrTime && typeof barOrTime === 'object' && Object.prototype.hasOwnProperty.call(barOrTime, 'time')) ? barOrTime.time : barOrTime || '--');
   }
 
   function activeContract() {
@@ -144,7 +172,7 @@
     $('kl-rr').textContent = rr == null || !Number.isFinite(rr) ? '--' : fmtNumber(Math.abs(rr), 2);
     $('kl-risk').textContent = riskPct == null || !Number.isFinite(riskPct) ? '--' : fmtPct(riskPct);
     const cutoffBar = state.fullBars[state.cutoffIndex];
-    $('kl-entry-bar').textContent = cutoffBar ? String(cutoffBar.time) : '--';
+    $('kl-entry-bar').textContent = cutoffBar ? formatBarTimeForDisplay(cutoffBar) : '--';
   }
 
   function currentDisplayBars() {
@@ -186,10 +214,10 @@
 
   function nearestBarIndexForDate(dateValue) {
     if (!state.fullBars.length) return -1;
-    const target = Date.parse(dateValue || '');
+    const target = toUnixMillis(dateValue || '');
     if (!Number.isFinite(target)) return state.fullBars.length - 1;
     let idx = state.fullBars.findIndex(function (bar) {
-      const ms = Date.parse(bar.time);
+      const ms = barTimeMs(bar);
       return Number.isFinite(ms) && ms >= target;
     });
     if (idx < 0) idx = state.fullBars.length - 1;
@@ -199,14 +227,14 @@
   function contextStartIndexForCutoff(cutoffIndex, preset) {
     if (!state.fullBars.length || cutoffIndex < 0) return 0;
     if (preset === 'all') return 0;
-    const cutoffTime = Date.parse(state.fullBars[Math.min(cutoffIndex, state.fullBars.length - 1)].time);
+    const cutoffTime = barTimeMs(state.fullBars[Math.min(cutoffIndex, state.fullBars.length - 1)]);
     if (!Number.isFinite(cutoffTime)) return Math.max(0, cutoffIndex);
     const offsets = { '6m': 183, '1y': 365, '3y': 1095, '5y': 1825 };
     const days = offsets[preset] || 365;
     const target = cutoffTime - days * 24 * 60 * 60 * 1000;
     let bestIndex = 0;
     for (let i = 0; i <= cutoffIndex; i += 1) {
-      const ms = Date.parse(state.fullBars[i].time);
+      const ms = barTimeMs(state.fullBars[i]);
       if (!Number.isFinite(ms)) continue;
       if (ms <= target) bestIndex = i;
       if (ms > target) break;
@@ -360,8 +388,8 @@
     const rect = rects[rects.length - 1];
     const t1 = String(rect.time1 || '');
     const t2 = String(rect.time2 || '');
-    const startTime = Date.parse(t1) <= Date.parse(t2) ? t1 : t2;
-    const endTime = Date.parse(t1) <= Date.parse(t2) ? t2 : t1;
+    const startTime = barTimeMs(t1) <= barTimeMs(t2) ? t1 : t2;
+    const endTime = barTimeMs(t1) <= barTimeMs(t2) ? t2 : t1;
     const top = Math.max(Number(rect.price1), Number(rect.price2));
     const bottom = Math.min(Number(rect.price1), Number(rect.price2));
     if (!startTime || !endTime || !Number.isFinite(top) || !Number.isFinite(bottom)) return null;
@@ -411,11 +439,11 @@
   }
 
   function sliceBarsForBox(startTime, endTime) {
-    const startMs = Date.parse(startTime || '');
-    const endMs = Date.parse(endTime || '');
+    const startMs = toUnixMillis(startTime || '');
+    const endMs = toUnixMillis(endTime || '');
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return [];
     return currentChartBars().filter(function (bar) {
-      const timeMs = Date.parse(bar.time);
+      const timeMs = barTimeMs(bar);
       return Number.isFinite(timeMs) && timeMs >= startMs && timeMs <= endMs;
     });
   }
@@ -426,14 +454,14 @@
 
     const startValue = $('box-start').value;
     const endValue = $('box-end').value;
-    const startMs = Date.parse(startValue);
-    const endMs = Date.parse(endValue);
+    const startMs = toUnixMillis(startValue);
+    const endMs = toUnixMillis(endValue);
 
     let startBar = null;
     let endBar = null;
 
     for (let i = 0; i < bars.length; i += 1) {
-      const barTime = Date.parse(bars[i].time);
+      const barTime = barTimeMs(bars[i]);
       if (!Number.isFinite(barTime)) continue;
       if (startBar == null && (!Number.isFinite(startMs) || barTime >= startMs)) {
         startBar = bars[i];
@@ -446,7 +474,7 @@
     if (!startBar) startBar = bars[0];
     if (!endBar) endBar = bars[bars.length - 1];
 
-    if (Date.parse(startBar.time) > Date.parse(endBar.time)) {
+    if (barTimeMs(startBar) > barTimeMs(endBar)) {
       return { startTime: endBar.time, endTime: startBar.time };
     }
     return { startTime: startBar.time, endTime: endBar.time };
@@ -463,8 +491,10 @@
     } else if (box) {
       return [box];
     }
-    const top = Number($('box-top').value);
-    const bottom = Number($('box-bottom').value);
+    const topRaw = $('box-top').value;
+    const bottomRaw = $('box-bottom').value;
+    const top = parseOptionalNumber(topRaw);
+    const bottom = parseOptionalNumber(bottomRaw);
     const resolved = resolveBoxRangeTimes();
     const startTime = resolved.startTime;
     const endTime = resolved.endTime;
@@ -608,11 +638,13 @@
   function renderContractMeta() {
     const contract = activeContract();
     if (!contract) return;
+    const required = primaryRequiredDrawing();
+    const requiresFib = !!required && required.type === 'fib';
     $('contract-notes').textContent = contract.notes || 'No notes.';
-    $('training-flow-note').innerHTML = contract.id === 'fib_pullback_long_v1'
-      ? 'Pick a historical replay date, draw a <code>Fib</code> from swing high down to swing low, then place <code>Entry</code>, <code>Stop</code>, and <code>Set Take Profit</code>. The entry should sit near the 78.6% retracement. When all three are set, run forward.'
+    $('training-flow-note').innerHTML = requiresFib
+      ? 'Pick a historical replay date, draw a <code>Fib</code> across the swing, then place <code>Entry</code>, <code>Stop</code>, and <code>Set Take Profit</code>. For pullback work, the entry can sit at or beyond the <code>50%</code> retracement. When all three are set, run forward.'
       : 'Pick a historical replay date on the right, draw the base box on the chart, then use the toolbar to place <code>Entry</code>, <code>Stop</code>, and <code>Set Take Profit</code>. When all three are set, run forward. The replay will wait for entry to be touched, then it will continue until stop or take profit is hit.';
-    $('btn-seed-levels').textContent = contract.id === 'fib_pullback_long_v1' ? 'Auto Fill From Fib' : 'Auto Fill From Box';
+    $('btn-seed-levels').textContent = requiresFib ? 'Auto Fill From Fib' : 'Auto Fill From Box';
     const sides = contract.sideScope && contract.sideScope.length ? contract.sideScope : ['long', 'short'];
     if (sides.length === 1) {
       setDirection(sides[0]);
@@ -627,7 +659,7 @@
     select.innerHTML = state.contracts.map(function (contract) {
       return '<option value="' + contract.id + '">' + contract.name + ' [' + contract.version + ']</option>';
     }).join('');
-    const preferredId = priorValue || (state.contractMap.has('fib_pullback_long_v1') ? 'fib_pullback_long_v1' : (state.contracts[0] && state.contracts[0].id));
+    const preferredId = priorValue || (state.contractMap.has('pullback_v1') ? 'pullback_v1' : (state.contracts[0] && state.contracts[0].id));
     if (preferredId) {
       select.value = preferredId;
     }
@@ -666,6 +698,8 @@
     const stats = state.activeSession && state.activeSession.stats ? state.activeSession.stats : null;
     $('kpi-attempts').textContent = stats ? String(stats.attempts) : '0';
     $('kpi-resolved').textContent = stats ? String(stats.resolvedAttempts) : '0';
+    $('kpi-wins').textContent = stats ? String(stats.wins || 0) : '0';
+    $('kpi-losses').textContent = stats ? String(stats.losses || 0) : '0';
     $('kpi-win-rate').textContent = stats ? fmtPct(stats.winRate) : '0%';
     $('kpi-avg-r').textContent = stats ? fmtNumber(stats.avgR, 2) : '0.00';
     $('kpi-expectancy').textContent = stats ? fmtNumber(stats.expectancy, 2) : '0.00';
@@ -709,13 +743,28 @@
       container.innerHTML = '<div class="contract-note">Validate an attempt to see the contract gate list.</div>';
       return;
     }
+    function formatChecklistValue(value) {
+      if (value == null || value === '') return '--';
+      if (typeof value === 'number') return Number.isFinite(value) ? fmtNumber(value, 2) : '--';
+      if (typeof value === 'string') return value;
+      if (Array.isArray(value)) return value.length ? value.join(', ') : '--';
+      if (typeof value === 'object') {
+        try {
+          return JSON.stringify(value);
+        } catch (_error) {
+          return String(value);
+        }
+      }
+      return String(value);
+    }
     container.innerHTML = evaluations.map(function (evaluation) {
       const tone = evaluation.passed ? 'good' : (evaluation.severity === 'warning' ? 'warn' : 'bad');
       return (
         '<div class="rule-item">' +
           '<div>' +
             '<div class="mono">' + sideAwareDescription(evaluation.description) + '</div>' +
-            '<div class="contract-note">Expected: ' + JSON.stringify(evaluation.expected == null ? '' : evaluation.expected) + '</div>' +
+            '<div class="contract-note">Actual: ' + formatChecklistValue(evaluation.actual) + '</div>' +
+            '<div class="contract-note">Expected: ' + formatChecklistValue(evaluation.expected) + '</div>' +
           '</div>' +
           '<span class="tag ' + tone + '">' + (evaluation.passed ? 'PASS' : evaluation.severity.toUpperCase()) + '</span>' +
         '</div>'
@@ -726,19 +775,44 @@
   function renderAttempts() {
     const tbody = $('attempts-table-body');
     if (!state.attempts.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="contract-note">No attempts yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="contract-note">No attempts yet.</td></tr>';
       return;
     }
     tbody.innerHTML = state.attempts
       .slice()
       .sort(function (a, b) { return Date.parse(b.createdAt) - Date.parse(a.createdAt); })
       .map(function (attempt) {
+        var resultLabel = '--';
+        var resultStyle = 'color:var(--color-text-muted);';
+        if (attempt && attempt.resolution) {
+          var rMultiple = Number(attempt.resolution.rMultiple);
+          if (attempt.resolution.exitReason === 'no_fill') {
+            resultLabel = 'NO FILL';
+            resultStyle = 'color:#94a3b8;font-weight:700;';
+          } else if (Number.isFinite(rMultiple) && rMultiple > 0) {
+            resultLabel = 'WIN';
+            resultStyle = 'color:#22c55e;font-weight:700;';
+          } else if (Number.isFinite(rMultiple) && rMultiple < 0) {
+            resultLabel = 'LOSS';
+            resultStyle = 'color:#ef4444;font-weight:700;';
+          } else {
+            resultLabel = 'FLAT';
+            resultStyle = 'color:#f59e0b;font-weight:700;';
+          }
+        } else if (attempt && attempt.status === 'blocked') {
+          resultLabel = 'BLOCKED';
+          resultStyle = 'color:#ef4444;font-weight:700;';
+        } else if (attempt && attempt.status === 'entered') {
+          resultLabel = 'OPEN';
+          resultStyle = 'color:#38bdf8;font-weight:700;';
+        }
         return (
           '<tr>' +
             '<td>' + fmtDate(attempt.createdAt) + '</td>' +
             '<td>' + attempt.symbol + '</td>' +
             '<td>' + attempt.side.toUpperCase() + '</td>' +
             '<td>' + attempt.status.toUpperCase() + '</td>' +
+            '<td><span style="' + resultStyle + '">' + resultLabel + '</span></td>' +
             '<td>' + (attempt.resolution ? attempt.resolution.exitReason : '--') + '</td>' +
             '<td>' + (attempt.resolution ? fmtNumber(attempt.resolution.rMultiple, 2) : '--') + '</td>' +
             '<td>' + (attempt.scoreSnapshot ? fmtNumber(attempt.scoreSnapshot.processScore, 1) : '--') + '</td>' +
@@ -765,13 +839,59 @@
     if (!contract) return;
     try {
       const stats = await api('/api/training/stats?contractId=' + encodeURIComponent(contract.id));
+      const resolved = stats && Number.isFinite(Number(stats.resolvedAttempts)) ? Number(stats.resolvedAttempts) : 0;
       $('aggregate-stats').textContent = 'Contract stats: ' +
         stats.attempts + ' attempts, ' +
         fmtPct(stats.winRate) + ' win rate, ' +
         fmtNumber(stats.avgR, 2) + ' avg R, ' +
         fmtNumber(stats.compositeScoreAvg, 1) + ' composite avg';
+
+      $('contract-kpi-attempts').textContent = String(stats.attempts || 0);
+      $('contract-kpi-resolved').textContent = String(stats.resolvedAttempts || 0);
+      $('contract-kpi-wins').textContent = String(stats.wins || 0);
+      $('contract-kpi-losses').textContent = String(stats.losses || 0);
+      $('contract-kpi-win-rate').textContent = fmtPct(stats.winRate || 0);
+      $('contract-kpi-avg-r').textContent = fmtNumber(stats.avgR || 0, 2);
+      $('contract-kpi-expectancy').textContent = fmtNumber(stats.expectancy || 0, 2);
+      $('contract-kpi-process').textContent = fmtNumber(stats.processAdherence || 0, 1);
+      $('contract-kpi-sessions').textContent = String(stats.sessions || 0);
+      $('contract-kpi-composite').textContent = fmtNumber(stats.compositeScoreAvg || 0, 1);
+      $('contract-stats-badge').textContent = (contract.name || contract.id) + ' · All Sessions';
+
+      const contractConfidenceEl = $('contract-kpi-confidence');
+      if (contractConfidenceEl) {
+        if (resolved >= 200) {
+          contractConfidenceEl.textContent = 'HIGH — statistically meaningful';
+          contractConfidenceEl.style.color = '#22c55e';
+        } else if (resolved >= 50) {
+          contractConfidenceEl.textContent = 'MEDIUM — emerging pattern (' + resolved + '/200)';
+          contractConfidenceEl.style.color = '#f59e0b';
+        } else if (resolved > 0) {
+          contractConfidenceEl.textContent = 'LOW — not yet meaningful (' + resolved + '/50)';
+          contractConfidenceEl.style.color = '#ef4444';
+        } else {
+          contractConfidenceEl.textContent = 'LOW — no resolved trades yet';
+          contractConfidenceEl.style.color = '#ef4444';
+        }
+      }
     } catch (error) {
       $('aggregate-stats').textContent = error.message;
+      [
+        'contract-kpi-attempts',
+        'contract-kpi-resolved',
+        'contract-kpi-wins',
+        'contract-kpi-losses',
+        'contract-kpi-win-rate',
+        'contract-kpi-avg-r',
+        'contract-kpi-expectancy',
+        'contract-kpi-process',
+        'contract-kpi-sessions',
+        'contract-kpi-composite',
+        'contract-kpi-confidence',
+      ].forEach(function (id) {
+        const el = $(id);
+        if (el) el.textContent = '--';
+      });
     }
   }
 
@@ -813,12 +933,53 @@
     input.value = selectedTime ? toDateOnly(selectedTime) : input.max;
   }
 
-  function applyCutoff(time) {
+  function updateReplayProgress() {
+    const el = $('replay-progress');
+    const backButton = $('btn-step-back');
+    const forwardButton = $('btn-step-forward');
+    const forwardFiveButton = $('btn-step-forward-5');
+    const triggerButton = $('btn-step-to-trigger');
+    const endButton = $('btn-step-to-end');
+    const hasBars = !!state.fullBars.length && state.cutoffIndex >= 0;
+
+    if (backButton) backButton.disabled = !hasBars || state.cutoffIndex <= 0;
+    if (forwardButton) forwardButton.disabled = !hasBars || state.cutoffIndex >= state.fullBars.length - 1;
+    if (forwardFiveButton) forwardFiveButton.disabled = !hasBars || state.cutoffIndex >= state.fullBars.length - 1;
+    if (triggerButton) triggerButton.disabled = !hasBars;
+    if (endButton) endButton.disabled = !hasBars || state.cutoffIndex >= state.fullBars.length - 1;
+
+    if (!el) return;
+    if (!hasBars) {
+      el.textContent = 'Load a scenario to begin replay.';
+      return;
+    }
+
+    const currentBar = state.fullBars[state.cutoffIndex];
+    const visibleCount = Math.max(0, state.cutoffIndex - state.startIndex + 1);
+    const hiddenCount = Math.max(0, state.fullBars.length - state.cutoffIndex - 1);
+    const completionPct = state.fullBars.length > 1
+      ? ((state.cutoffIndex + 1) / state.fullBars.length) * 100
+      : 100;
+
+    el.textContent =
+      'Showing through ' + toDateOnly(currentBar && currentBar.time) +
+      ' · ' + visibleCount + ' visible bars' +
+      ' · ' + hiddenCount + ' hidden bars remaining' +
+      ' · ' + fmtNumber(completionPct, 1) + '% through history';
+  }
+
+  function setCutoffIndex(nextIndex, options) {
     if (!state.fullBars.length) return;
-    state.cutoffIndex = nearestBarIndexForDate(time);
+    const opts = options || {};
+    const clampedIndex = Math.max(0, Math.min(Number(nextIndex) || 0, state.fullBars.length - 1));
+    state.cutoffIndex = clampedIndex;
     state.startIndex = contextStartIndexForCutoff(state.cutoffIndex, $('training-scenario-offset').value);
     state.visibleBars = state.fullBars.slice(state.startIndex, state.cutoffIndex + 1);
-    if (state.drawingTools && typeof state.drawingTools.clear === 'function') {
+    populateCutoffSelector(state.fullBars[state.cutoffIndex].time);
+    if ($('training-cutoff')) {
+      $('training-cutoff').value = toDateOnly(state.fullBars[state.cutoffIndex].time);
+    }
+    if (!opts.preserveDrawings && state.drawingTools && typeof state.drawingTools.clear === 'function') {
       state.drawingTools.clear();
     }
     state.latestAttempt = null;
@@ -826,21 +987,125 @@
     updateIndicatorContext();
     renderLatestAttempt();
     renderChart();
-    focusChartOnBaseRange();
+    if (opts.focusMode === 'revealed') {
+      focusChartOnRevealedBars();
+    } else {
+      focusChartOnBaseRange();
+    }
     markValidationDirty();
+    updateReplayProgress();
+  }
+
+  function applyCutoff(time) {
+    if (!state.fullBars.length) return;
+    setCutoffIndex(nearestBarIndexForDate(time));
+  }
+
+  function stepReplay(delta) {
+    if (!state.fullBars.length || state.cutoffIndex < 0) return;
+    const nextIndex = Math.max(0, Math.min(state.fullBars.length - 1, state.cutoffIndex + delta));
+    if (nextIndex === state.cutoffIndex) {
+      updateReplayProgress();
+      return false;
+    }
+    setCutoffIndex(nextIndex, { preserveDrawings: true, focusMode: 'revealed' });
+    return true;
+  }
+
+  function jumpReplayToEnd() {
+    if (!state.fullBars.length) return;
+    if (state.cutoffIndex >= state.fullBars.length - 1) {
+      updateReplayProgress();
+      return false;
+    }
+    setCutoffIndex(state.fullBars.length - 1, { preserveDrawings: true, focusMode: 'revealed' });
+    return true;
+  }
+
+  function activeReplayTriggerConfig() {
+    const entryPrice = parseOptionalNumber($('entry-price').value);
+    if (Number.isFinite(entryPrice)) {
+      return {
+        kind: 'entry',
+        triggerPrice: entryPrice,
+        side: currentSide(),
+      };
+    }
+
+    const contract = activeContract();
+    const fib = normalizedFibDrawing();
+    if (!contract || !fib) return null;
+    const entryRules = Array.isArray(contract.entryRules) ? contract.entryRules : [];
+    const triggerRule = entryRules.find(function (rule) {
+      return rule
+        && (rule.type === 'entry_beyond_fib_level' || rule.type === 'entry_near_fib_level' || rule.type === 'entry_near_fib_retracement');
+    });
+    if (!triggerRule) return null;
+    const level = Number(triggerRule.level != null ? triggerRule.level : 0.5);
+    const triggerPrice = fibLevelPrice(fib, level);
+    if (!Number.isFinite(triggerPrice)) return null;
+    return {
+      kind: 'fib',
+      fib: fib,
+      level: level,
+      triggerPrice: triggerPrice,
+      side: currentSide(),
+    };
+  }
+
+  function findNextReplayTriggerIndex() {
+    const trigger = activeReplayTriggerConfig();
+    if (!trigger || !state.fullBars.length) return -1;
+    for (let i = Math.max(0, state.cutoffIndex + 1); i < state.fullBars.length; i += 1) {
+      const bar = state.fullBars[i];
+      const high = Number(bar.high);
+      const low = Number(bar.low);
+      if (!Number.isFinite(high) || !Number.isFinite(low)) continue;
+      const touched = trigger.side === 'long'
+        ? low <= trigger.triggerPrice
+        : high >= trigger.triggerPrice;
+      if (touched) return i;
+    }
+    return -1;
+  }
+
+  function stepReplayToFibTrigger() {
+    if (!state.fullBars.length || state.cutoffIndex < 0) return { ok: false, message: 'Load a scenario first.' };
+    const trigger = activeReplayTriggerConfig();
+    if (!trigger) {
+      return { ok: false, message: 'Set an entry price or draw a Fib first.' };
+    }
+    const nextIndex = findNextReplayTriggerIndex();
+    if (nextIndex < 0) {
+      const triggerLabel = trigger.kind === 'entry'
+        ? 'entry price'
+        : (fmtNumber(trigger.level * 100, 1) + '% Fib level');
+      return {
+        ok: false,
+        message: 'No future bar reaches the ' + triggerLabel + ' in the remaining replay.',
+      };
+    }
+    setCutoffIndex(nextIndex, { preserveDrawings: true, focusMode: 'revealed' });
+    const triggerLabel = trigger.kind === 'entry'
+      ? ('entry price ' + fmtNumber(trigger.triggerPrice, 2))
+      : (fmtNumber(trigger.level * 100, 1) + '% Fib level');
+    return {
+      ok: true,
+      message: 'Walked forward to the first touch of ' + triggerLabel + ' on ' + formatBarTimeForDisplay(state.fullBars[nextIndex]) + '.',
+    };
   }
 
   function cutoffIndexFromPreset(preset) {
     if (!state.fullBars.length) return -1;
     if (preset === 'all') return state.fullBars.length - 1;
-    const lastTime = Date.parse(state.fullBars[state.fullBars.length - 1].time);
+    const lastTime = barTimeMs(state.fullBars[state.fullBars.length - 1]);
     if (!Number.isFinite(lastTime)) return state.fullBars.length - 1;
     const offsets = { '6m': 183, '1y': 365, '3y': 1095, '5y': 1825 };
     const days = offsets[preset] || 365;
     const target = lastTime - days * 24 * 60 * 60 * 1000;
     let bestIndex = 0;
     for (let i = 0; i < state.fullBars.length; i += 1) {
-      const ms = Date.parse(state.fullBars[i].time);
+      const ms = barTimeMs(state.fullBars[i]);
       if (!Number.isFinite(ms)) continue;
       if (ms <= target) bestIndex = i;
       if (ms > target) break;
@@ -969,11 +1234,27 @@
     renderRecentSessions();
   }
 
+  function latestOpenSessionForContract(contractId) {
+    if (!contractId || !Array.isArray(state.sessions)) return null;
+    return state.sessions.find(function (session) {
+      return session
+        && session.contractId === contractId
+        && !session.endedAt;
+    }) || null;
+  }
+
   async function loadSession(sessionId) {
     const payload = await api('/api/training/sessions/' + encodeURIComponent(sessionId));
     state.activeSession = payload.session;
     state.attempts = payload.attempts || [];
     state.latestAttempt = state.attempts.length ? state.attempts[state.attempts.length - 1] : null;
+    const contractSelect = $('training-contract');
+    if (contractSelect && payload.session && payload.session.contractId && state.contractMap.has(payload.session.contractId)) {
+      contractSelect.value = payload.session.contractId;
+      renderContractMeta();
+    } else {
+      renderAggregateStats();
+    }
     renderSessionStats();
     renderAttempts();
     renderLatestAttempt();
@@ -988,6 +1269,12 @@
   async function startSession() {
     const contract = activeContract();
     if (!contract) throw new Error('Select a contract first.');
+    const existingOpenSession = latestOpenSessionForContract(contract.id);
+    if (existingOpenSession) {
+      await loadSession(existingOpenSession.sessionId);
+      setStatus('Resumed active session for ' + contract.name + '.', 'good');
+      return;
+    }
     const session = await api('/api/training/sessions/start', {
       method: 'POST',
       body: JSON.stringify({ contractId: contract.id }),
@@ -1014,16 +1301,44 @@
     await loadSession(state.activeSession.sessionId);
   }
 
-  async function loadBars() {
+  async function loadBars(options) {
+    const opts = options || {};
     const symbol = $('training-symbol').value.trim().toUpperCase();
     if (!symbol) throw new Error('Enter a symbol first.');
+    const preservedReplayDate = opts.preserveReplayDate === false ? '' : (($('training-cutoff') && $('training-cutoff').value) || '');
+    const preservedReplayMs = preservedReplayDate ? toUnixMillis(preservedReplayDate) : NaN;
     setStatus('Loading bars for ' + symbol + '...', null);
     const data = await api('/api/chart/ohlcv?symbol=' + encodeURIComponent(symbol) + '&interval=' + encodeURIComponent($('training-timeframe').value) + '&period=' + encodeURIComponent($('training-period').value));
-    state.fullBars = Array.isArray(data.chart_data) ? data.chart_data : [];
-    const cutoffIdx = cutoffIndexFromPreset($('training-scenario-offset').value);
-    const cutoffTime = cutoffIdx >= 0 && state.fullBars[cutoffIdx] ? state.fullBars[cutoffIdx].time : '';
+    const nextBars = Array.isArray(data.chart_data) ? data.chart_data : [];
+    const earliestBarMs = nextBars.length ? barTimeMs(nextBars[0]) : NaN;
+    const latestBarMs = nextBars.length ? barTimeMs(nextBars[nextBars.length - 1]) : NaN;
+    const replayOutOfRange = Number.isFinite(preservedReplayMs)
+      && Number.isFinite(earliestBarMs)
+      && Number.isFinite(latestBarMs)
+      && (preservedReplayMs < earliestBarMs || preservedReplayMs > latestBarMs);
+
+    if (opts.requireReplayCoverage && replayOutOfRange) {
+      throw new Error(
+        'No ' + $('training-timeframe').value +
+        ' bars are available near ' + preservedReplayDate +
+        '. Available range is ' + toDateOnly(nextBars[0].time) +
+        ' to ' + toDateOnly(nextBars[nextBars.length - 1].time) + '.'
+      );
+    }
+
+    state.fullBars = nextBars;
+    const desiredCutoffIdx = preservedReplayDate
+      ? nearestBarIndexForDate(preservedReplayDate)
+      : cutoffIndexFromPreset($('training-scenario-offset').value);
+    const cutoffTime = desiredCutoffIdx >= 0 && state.fullBars[desiredCutoffIdx] ? state.fullBars[desiredCutoffIdx].time : '';
     populateCutoffSelector(cutoffTime);
-    applyCutoff($('training-cutoff').value);
+    setCutoffIndex(
+      desiredCutoffIdx >= 0 ? desiredCutoffIdx : nearestBarIndexForDate(cutoffTime),
+      {
+        preserveDrawings: !!opts.preserveDrawings,
+        focusMode: opts.focusMode || 'base',
+      }
+    );
     setStatus('Loaded ' + state.fullBars.length + ' bars for ' + symbol + '. Future bars are hidden until validation passes.', 'good');
   }
 
@@ -1046,7 +1361,7 @@
     var pool = await fetchSymbolPool();
     var symbol = pool[Math.floor(Math.random() * pool.length)];
     $('training-symbol').value = symbol;
-    await loadBars();
+    await loadBars({ preserveReplayDate: false });
     if (!state.fullBars.length || state.fullBars.length < 60) {
       setStatus('Not enough data for ' + symbol + '. Trying another...', null);
       return loadRandomScenario();
@@ -1055,9 +1370,7 @@
     var maxIdx = Math.floor(state.fullBars.length * 0.85);
     var randomIdx = minIdx + Math.floor(Math.random() * (maxIdx - minIdx));
     var randomTime = state.fullBars[randomIdx].time;
-    populateCutoffSelector(randomTime);
-    $('training-cutoff').value = toDateOnly(randomTime);
-    applyCutoff($('training-cutoff').value);
+    setCutoffIndex(randomIdx);
     setStatus('Random scenario: ' + symbol + ' at ' + toDateOnly(randomTime) + '.', 'good');
   }
 
@@ -1155,6 +1468,12 @@
   }
 
   function bindEvents() {
+    const timeframeSelect = $('training-timeframe');
+    const periodSelect = $('training-period');
+
+    if (timeframeSelect) timeframeSelect.dataset.previous = timeframeSelect.value;
+    if (periodSelect) periodSelect.dataset.previous = periodSelect.value;
+
     $('training-contract').addEventListener('change', function () {
       renderContractMeta();
       renderChecklist(null);
@@ -1172,10 +1491,26 @@
       loadBars().catch(function (error) { setStatus(error.message, 'bad'); });
     });
     $('training-period').addEventListener('change', function () {
-      loadBars().catch(function (error) { setStatus(error.message, 'bad'); });
+      const previousValue = this.dataset.previous || this.value;
+      loadBars({ preserveDrawings: true, focusMode: 'revealed', requireReplayCoverage: true })
+        .then(() => {
+          this.dataset.previous = this.value;
+        })
+        .catch((error) => {
+          this.value = previousValue;
+          setStatus(error.message, 'bad');
+        });
     });
     $('training-timeframe').addEventListener('change', function () {
-      loadBars().catch(function (error) { setStatus(error.message, 'bad'); });
+      const previousValue = this.dataset.previous || this.value;
+      loadBars({ preserveDrawings: true, focusMode: 'revealed', requireReplayCoverage: true })
+        .then(() => {
+          this.dataset.previous = this.value;
+        })
+        .catch((error) => {
+          this.value = previousValue;
+          setStatus(error.message, 'bad');
+        });
     });
     $('training-scenario-offset').addEventListener('change', function () {
       if (!state.fullBars.length) return;
@@ -1185,6 +1520,22 @@
     $('training-cutoff').addEventListener('change', function () {
       applyCutoff($('training-cutoff').value);
       setStatus('Replay date set to ' + $('training-cutoff').value + '.', 'good');
+    });
+    $('btn-step-back').addEventListener('click', function () {
+      setStatus(stepReplay(-1) ? 'Stepped back one bar.' : 'Already at the first available bar.', 'good');
+    });
+    $('btn-step-forward').addEventListener('click', function () {
+      setStatus(stepReplay(1) ? 'Stepped forward one bar.' : 'Already at the latest hidden edge.', 'good');
+    });
+    $('btn-step-forward-5').addEventListener('click', function () {
+      setStatus(stepReplay(5) ? 'Stepped forward five bars.' : 'Already at the latest hidden edge.', 'good');
+    });
+    $('btn-step-to-trigger').addEventListener('click', function () {
+      const result = stepReplayToFibTrigger();
+      setStatus(result.message, result.ok ? 'good' : 'bad');
+    });
+    $('btn-step-to-end').addEventListener('click', function () {
+      setStatus(jumpReplayToEnd() ? 'Jumped to the end of the replay.' : 'Already at the end of the replay.', 'good');
     });
     $('btn-fit-chart').addEventListener('click', fitChartToContent);
     $('btn-clear-training').addEventListener('click', clearTrainingChart);
@@ -1238,13 +1589,19 @@
       bindEvents();
       await loadContracts();
       await loadSessions();
+      const initialContract = activeContract();
+      const resumableSession = initialContract ? latestOpenSessionForContract(initialContract.id) : null;
+      if (resumableSession) {
+        await loadSession(resumableSession.sessionId);
+      }
       await loadRandomScenario();
       renderSessionStats();
       renderAttempts();
       renderLatestAttempt();
       updateMarkerButtons();
       updateForwardGate();
-      setStatus('Training module ready.', 'good');
+      updateReplayProgress();
+      setStatus(resumableSession ? 'Training module ready. Resumed your active session.' : 'Training module ready.', 'good');
     } catch (error) {
       setStatus(error.message || String(error), 'bad');
     }

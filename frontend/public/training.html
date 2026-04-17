@@ -31,7 +31,7 @@
     }
     .training-bottom-grid {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-12);
       margin-top: var(--space-12);
       width: 100%;
@@ -100,6 +100,31 @@
       height: 100%;
       overflow: hidden;
       background: var(--color-void);
+    }
+    .chart-replay-dock {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      padding: 8px 0 0;
+      margin-top: 8px;
+      border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+    }
+    .chart-replay-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      flex-wrap: wrap;
+    }
+    .chart-replay-actions .btn {
+      min-width: 0;
+      padding: 6px 10px;
+      font-size: var(--text-caption);
+    }
+    .chart-replay-progress {
+      flex: 1;
+      min-width: 220px;
+      text-align: right;
     }
     .list-box {
       border: 1px solid var(--color-border);
@@ -175,9 +200,20 @@
       .training-layout {
         grid-template-columns: 1fr;
       }
+      .training-bottom-grid {
+        grid-template-columns: 1fr;
+      }
       .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .row { grid-template-columns: 1fr; }
       .result-grid { grid-template-columns: 1fr; }
+      .chart-replay-dock {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .chart-replay-progress {
+        min-width: 0;
+        text-align: left;
+      }
     }
   </style>
 </head>
@@ -265,6 +301,16 @@
                   <div class="dt-chart-stage" style="background:#1e1e1e;">
                     <div id="training-chart"></div>
                   </div>
+                </div>
+                <div class="chart-replay-dock" style="padding:0 12px 12px;">
+                  <div class="chart-replay-actions" aria-label="Replay controls">
+                    <button id="btn-step-back" class="btn btn-ghost">Back 1 Bar</button>
+                    <button id="btn-step-forward" class="btn btn-ghost">Forward 1 Bar</button>
+                    <button id="btn-step-forward-5" class="btn btn-ghost">Forward 5 Bars</button>
+                    <button id="btn-step-to-trigger" class="btn btn-ghost">Walk To Entry</button>
+                    <button id="btn-step-to-end" class="btn btn-ghost">Jump To End</button>
+                  </div>
+                  <div id="replay-progress" class="contract-note chart-replay-progress">Load a scenario to begin replay.</div>
                 </div>
               </div>
             </section>
@@ -387,7 +433,7 @@
         <div style="margin-top:var(--space-12);">
           <section class="panel">
             <div class="panel-header">
-              <span class="panel-header-title">Attempts</span>
+              <span class="panel-header-title">Current Session Attempts</span>
               <span id="aggregate-stats" class="mono text-muted">No aggregate stats yet.</span>
             </div>
             <div class="panel-body" style="padding:0;">
@@ -399,6 +445,7 @@
                       <th>Symbol</th>
                       <th>Side</th>
                       <th>Status</th>
+                      <th>Result</th>
                       <th>Exit</th>
                       <th>R</th>
                       <th>Process</th>
@@ -406,7 +453,7 @@
                     </tr>
                   </thead>
                   <tbody id="attempts-table-body">
-                    <tr><td colspan="8" class="contract-note">No attempts yet.</td></tr>
+                    <tr><td colspan="9" class="contract-note">No attempts yet.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -417,14 +464,16 @@
         <div class="training-bottom-grid">
           <section class="panel">
             <div class="panel-header">
-              <span class="panel-header-title">Session Scoreboard</span>
+              <span class="panel-header-title">Current Session Scoreboard</span>
               <span id="cooldown-badge" class="tag">Idle</span>
             </div>
             <div class="panel-body">
-              <div class="contract-note" style="margin-bottom:var(--space-8);">Session totals and most recent trade result.</div>
+              <div class="contract-note" style="margin-bottom:var(--space-8);">Only the currently open session and its most recent trade.</div>
               <div class="kpi-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
                 <div class="kpi"><div class="label">Attempts</div><div id="kpi-attempts" class="value">0</div></div>
                 <div class="kpi"><div class="label">Resolved</div><div id="kpi-resolved" class="value">0</div></div>
+                <div class="kpi"><div class="label">Wins</div><div id="kpi-wins" class="value">0</div></div>
+                <div class="kpi"><div class="label">Losses</div><div id="kpi-losses" class="value">0</div></div>
                 <div class="kpi"><div class="label">Win Rate</div><div id="kpi-win-rate" class="value">0%</div></div>
                 <div class="kpi"><div class="label">Avg R</div><div id="kpi-avg-r" class="value">0.00</div></div>
                 <div class="kpi"><div class="label">Expectancy</div><div id="kpi-expectancy" class="value">0.00</div></div>
@@ -439,6 +488,29 @@
               </div>
             </div>
           </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <span class="panel-header-title">Selected Contract Scoreboard</span>
+              <span id="contract-stats-badge" class="tag">All Sessions</span>
+            </div>
+            <div class="panel-body">
+              <div class="contract-note" style="margin-bottom:var(--space-8);">All recorded attempts for the selected contract across every session.</div>
+              <div class="kpi-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+                <div class="kpi"><div class="label">Attempts</div><div id="contract-kpi-attempts" class="value">0</div></div>
+                <div class="kpi"><div class="label">Resolved</div><div id="contract-kpi-resolved" class="value">0</div></div>
+                <div class="kpi"><div class="label">Wins</div><div id="contract-kpi-wins" class="value">0</div></div>
+                <div class="kpi"><div class="label">Losses</div><div id="contract-kpi-losses" class="value">0</div></div>
+                <div class="kpi"><div class="label">Win Rate</div><div id="contract-kpi-win-rate" class="value">0%</div></div>
+                <div class="kpi"><div class="label">Avg R</div><div id="contract-kpi-avg-r" class="value">0.00</div></div>
+                <div class="kpi"><div class="label">Expectancy</div><div id="contract-kpi-expectancy" class="value">0.00</div></div>
+                <div class="kpi"><div class="label">Process</div><div id="contract-kpi-process" class="value">0.0</div></div>
+                <div class="kpi"><div class="label">Sessions</div><div id="contract-kpi-sessions" class="value">0</div></div>
+                <div class="kpi"><div class="label">Composite Avg</div><div id="contract-kpi-composite" class="value">0.0</div></div>
+                <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="contract-kpi-confidence" class="value" style="font-size:0.85rem;">LOW - no resolved trades yet</div></div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </main>
@@ -450,5 +522,3 @@
   <script src="training-module.js"></script>
 </body>
 </html>
-
-

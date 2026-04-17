@@ -107,11 +107,13 @@ export async function loadUniverseByKey(key: ScanUniverseKey, assetClass?: strin
   const symbolsPath = path.join(__dirname, '../../data/symbols.json');
 
   if (key === 'full') {
-    return { symbols: await loadUniverseSymbols('clean_stocks'), skipBrokerFilter: true };
+    const tradable = await loadUniverseSymbols('tradable_stock_default');
+    return { symbols: tradable.length > 0 ? tradable : await loadUniverseSymbols('clean_stocks'), skipBrokerFilter: true };
   }
 
   if (key === 'optionable') {
-    return { symbols: await loadUniverseSymbols('optionable_stocks'), skipBrokerFilter: true };
+    const tradableOptionable = await loadUniverseSymbols('tradable_optionable_stocks');
+    return { symbols: tradableOptionable.length > 0 ? tradableOptionable : await loadUniverseSymbols('optionable_stocks'), skipBrokerFilter: true };
   }
 
   if (key === 'largecap') {
@@ -303,7 +305,18 @@ function normalizeSymbols(symbols: unknown): string[] {
 }
 
 export async function loadDefaultUniverseForAssetClass(assetClass?: string): Promise<string[]> {
-  if (!assetClass || assetClass === 'stocks' || assetClass === 'options') {
+  if (!assetClass || assetClass === 'stocks') {
+    const tradableStocks = await loadUniverseSymbols('tradable_stock_default');
+    if (tradableStocks.length > 0) return tradableStocks;
+    const cleanStocks = await loadUniverseSymbols('clean_stocks');
+    if (cleanStocks.length > 0) return cleanStocks;
+  }
+
+  if (assetClass === 'options') {
+    const tradableOptionable = await loadUniverseSymbols('tradable_optionable_stocks');
+    if (tradableOptionable.length > 0) return tradableOptionable;
+    const optionable = await loadUniverseSymbols('optionable_stocks');
+    if (optionable.length > 0) return optionable;
     const cleanStocks = await loadUniverseSymbols('clean_stocks');
     if (cleanStocks.length > 0) return cleanStocks;
   }

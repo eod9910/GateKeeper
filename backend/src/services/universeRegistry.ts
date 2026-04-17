@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
+import { DatabaseSync } from 'node:sqlite';
 
 type UniverseSchema = 'symbols' | 'optionable' | 'source_symbols' | 'stocks';
 
@@ -17,6 +18,38 @@ type UniverseRegistryFile = {
 
 const REGISTRY_PATH = path.join(__dirname, '../../data/universe/registry.json');
 const STOCK_EXCLUSIONS_PATH = path.join(__dirname, '../../data/universe/stock_exclusions.json');
+const SYMBOL_CATALOG_DB_PATH = path.join(__dirname, '../../data/symbol-catalog.sqlite');
+const CATALOG_UNIVERSES = new Set(['tradable_stock_default', 'tradable_optionable_stocks']);
+
+function loadCatalogUniverseSymbolsSync(name: string): string[] {
+  if (!CATALOG_UNIVERSES.has(String(name || '').trim())) return [];
+  if (!fs.existsSync(SYMBOL_CATALOG_DB_PATH)) return [];
+  let db: DatabaseSync | null = null;
+  try {
+    db = new DatabaseSync(SYMBOL_CATALOG_DB_PATH, { readOnly: true });
+    const where = [
+      "s.asset_class = 'stocks'",
+      "m.membership_type = 'eligibility'",
+      "m.membership_value = 'tradable_stock_default'",
+    ];
+    if (name === 'tradable_optionable_stocks') {
+      where.push('s.optionable = 1');
+    }
+    const rows = db.prepare(`
+      SELECT s.symbol
+      FROM symbols s
+      JOIN symbol_memberships m
+        ON m.symbol = s.symbol
+      WHERE ${where.join(' AND ')}
+      ORDER BY s.symbol ASC
+    `).all() as Array<{ symbol?: string }>;
+    return normalizeSymbols(rows.map((row) => row?.symbol));
+  } catch {
+    return [];
+  } finally {
+    try { db?.close(); } catch {}
+  }
+}
 
 function normalizeSymbols(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
@@ -107,6 +140,9 @@ async function loadEntrySymbols(entry: UniverseEntry): Promise<string[]> {
 }
 
 export function loadUniverseSymbolsSync(name: string): string[] {
+  if (CATALOG_UNIVERSES.has(name)) {
+    return applyStockExclusions(loadCatalogUniverseSymbolsSync(name), readExcludedSymbolsSync());
+  }
   const registry = readRegistrySync();
   const entry = registry?.universes?.[name];
   if (!entry) return [];
@@ -114,6 +150,9 @@ export function loadUniverseSymbolsSync(name: string): string[] {
 }
 
 export async function loadUniverseSymbols(name: string): Promise<string[]> {
+  if (CATALOG_UNIVERSES.has(name)) {
+    return applyStockExclusions(loadCatalogUniverseSymbolsSync(name), await readExcludedSymbols());
+  }
   const registry = await readRegistry();
   const entry = registry?.universes?.[name];
   if (!entry) return [];

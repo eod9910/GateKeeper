@@ -6,12 +6,34 @@ let aiAvailable = false;
 let aiStatusProviderLabel = 'Ready';
 const SCANNER_FUNDAMENTALS_TIMEOUT_MS = 10000;
 const SCANNER_ANALYST_STORAGE_KEY = 'scanner.selectedAnalyst';
-const DEFAULT_SCANNER_ANALYST = 'technical_analyst';
+const DEFAULT_SCANNER_ANALYST = 'financial_analyst';
 let scannerAnalystRegistry = [
-  { id: 'pattern_analyst', label: 'Atlas' },
-  { id: 'technical_analyst', label: 'Structure' },
   { id: 'financial_analyst', label: 'Ledger' },
+  { id: 'technical_analyst', label: 'Structure' },
 ];
+const SCANNER_ACTION_BUTTON_IDS = [
+  'btn-ask-ai',
+  'btn-scanner-action-2',
+  'btn-scanner-action-3',
+  'btn-scanner-action-4',
+  'btn-scanner-action-5',
+];
+const SCANNER_ACTIONS_BY_ANALYST = {
+  technical_analyst: [
+    { label: 'Analyze Chart', prefill: 'Analyze this chart.', includeChart: true, analystId: 'technical_analyst' },
+    { label: 'Explain Setup', prefill: 'Explain this setup: what is confirmed, what is only forming, and what would invalidate it.', includeChart: true, analystId: 'technical_analyst' },
+    { label: 'Trend / Risk', prefill: 'Give me the trend, support/resistance, invalidation, and the main tactical risks on this chart.', includeChart: true, analystId: 'technical_analyst' },
+    { label: 'Trade Plan', prefill: 'If I were trading this, where is the clean entry, where is the stop, and what would make you exit early?', includeChart: true, analystId: 'technical_analyst' },
+    { label: 'Pattern Read', prefill: 'Tell me what pattern or structure is actually present here and whether it is confirmed or still forming.', includeChart: true, analystId: 'technical_analyst' },
+  ],
+  financial_analyst: [
+    { label: 'Overview', prefill: 'Tell me about this company. Give me the overall Ledger view of the business, the financial picture, and the valuation posture.', analystId: 'financial_analyst' },
+    { label: 'Financials', prefill: 'Do a full financial analysis of this company. Focus on business quality, financial quality, financial risk, capital allocation, and price versus value.', analystId: 'financial_analyst' },
+    { label: 'Earnings', prefill: 'Do an earnings-quality analysis. Focus on cash conversion, capex burden, dilution, accounting quality, and whether reported earnings reflect economic reality.', analystId: 'financial_analyst' },
+    { label: 'DCF', prefill: 'Do a DCF valuation. Give me the bear, base, and bull cases, the fair value range, and whether the stock looks overvalued or undervalued.', analystId: 'financial_analyst' },
+    { label: 'Hidden Notes', prefill: 'Do a buried-risk note review. Search the filing notes, MD&A, liquidity, risk factors, and legal sections for anything unusual, easy to miss, or potentially downplayed. Separate findings into accounting, balance sheet, legal/regulatory, concentration, and management-language concerns.', analystId: 'financial_analyst' },
+  ],
+};
 const scannerChatAttachments = {
   'scanner-chat-input': null,
   'fundamentals-chat-input': null,
@@ -19,15 +41,14 @@ const scannerChatAttachments = {
 
 function getDefaultScannerAnalysts() {
   return [
-    { id: 'pattern_analyst', label: 'Atlas' },
-    { id: 'technical_analyst', label: 'Structure' },
     { id: 'financial_analyst', label: 'Ledger' },
+    { id: 'technical_analyst', label: 'Structure' },
   ];
 }
 
 function normalizeScannerAnalystId(value) {
   const analystId = String(value || '').trim();
-  if (!analystId || analystId === 'scanner_copilot') {
+  if (!analystId || analystId === 'scanner_copilot' || analystId === 'pattern_analyst') {
     return DEFAULT_SCANNER_ANALYST;
   }
   return analystId;
@@ -83,8 +104,47 @@ function getSelectedScannerAnalyst() {
 function handleScannerAnalystChange(value) {
   const analystId = normalizeScannerAnalystId(value || DEFAULT_SCANNER_ANALYST);
   saveStoredScannerAnalyst(analystId);
+  updateScannerActionButtons();
   setScannerChatStatus(`Analyst: ${getScannerAnalystLabel(analystId)}`, 'ai-status');
   setTimeout(() => setScannerChatStatus('Ready', 'ai-status'), 1200);
+}
+
+function getScannerActionConfig(analystId) {
+  return SCANNER_ACTIONS_BY_ANALYST[normalizeScannerAnalystId(analystId)] || SCANNER_ACTIONS_BY_ANALYST[DEFAULT_SCANNER_ANALYST];
+}
+
+function updateScannerActionButtons() {
+  const selectedAnalyst = getSelectedScannerAnalyst();
+  const actions = getScannerActionConfig(selectedAnalyst);
+  SCANNER_ACTION_BUTTON_IDS.forEach((buttonId, index) => {
+    const button = document.getElementById(buttonId);
+    if (!button) return;
+    const action = actions[index];
+    if (!action) {
+      button.classList.add('hidden');
+      return;
+    }
+    button.classList.remove('hidden');
+    button.textContent = action.label;
+    button.title = action.prefill;
+  });
+}
+
+async function runScannerAction(actionIndex) {
+  const candidate = candidates[currentIndex];
+  if (!candidate) {
+    sendScannerChat('No candidate loaded yet. Tell me what symbol to analyze first.');
+    return;
+  }
+  const selectedAnalyst = getSelectedScannerAnalyst();
+  const actions = getScannerActionConfig(selectedAnalyst);
+  const action = actions[actionIndex];
+  if (!action) return;
+  return sendScannerChatRequest({
+    analystId: action.analystId,
+    prefill: action.prefill,
+    includeChart: Boolean(action.includeChart),
+  });
 }
 
 async function loadScannerAnalysts() {
@@ -106,6 +166,7 @@ async function loadScannerAnalysts() {
     scannerAnalystRegistry = getDefaultScannerAnalysts();
   }
   populateScannerAnalystSelect();
+  updateScannerActionButtons();
 }
 
 function getChatAttachmentContainerId(inputId) {
@@ -815,16 +876,22 @@ function buildFundamentalsMessageBlock(snapshot) {
 
   if (snapshot.socialBuzz && snapshot.socialBuzz.available) {
     const buzz = snapshot.socialBuzz;
-    const messages = Array.isArray(buzz.recent_messages) ? buzz.recent_messages.slice(0, 3) : [];
+    const messages = Array.isArray(buzz.recent_messages) ? buzz.recent_messages.slice(0, 8) : [];
     lines.push(
       `\n[SOCIAL_BUZZ]`,
       `- mood: ${buzz.mood || 'N/A'}`,
       `- watchers: ${buzz.watchlist_count ?? 'N/A'}`,
       `- message_count: ${buzz.message_count ?? 'N/A'}`,
+      `- pages_fetched: ${buzz.pages_fetched ?? 'N/A'}`,
+      `- tagged_message_count: ${buzz.tagged_message_count ?? 'N/A'}`,
       `- bullish: ${buzz.bullish ?? 'N/A'}`,
       `- bearish: ${buzz.bearish ?? 'N/A'}`,
+      `- no_sentiment: ${buzz.no_sentiment ?? 'N/A'}`,
       `- bull_pct: ${buzz.bull_pct ?? 'N/A'}`,
       `- bear_pct: ${buzz.bear_pct ?? 'N/A'}`,
+      `- neutral_pct: ${buzz.neutral_pct ?? 'N/A'}`,
+      `- newest_message_at: ${buzz.newest_message_at ?? 'N/A'}`,
+      `- oldest_message_at: ${buzz.oldest_message_at ?? 'N/A'}`,
     );
     if (messages.length > 0) {
       lines.push(`- recent_messages: ${messages.map((m) => `${m.sentiment || 'Neutral'}:${String(m.body || '').replace(/\s+/g, ' ').trim()}`).join(' | ')}`);
@@ -884,6 +951,16 @@ function appendScannerChatMessage(text, sender = 'ai', containerId = 'scanner-ch
   return animateScannerChatBubble(bubble, container, text).then(function () {
     if (panelId && typeof notifyPopout === 'function') notifyPopout(panelId);
   });
+}
+
+function summarizeRecentScannerChat(containerId = 'scanner-chat-messages', limit = 8) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  const bubbles = Array.from(container.querySelectorAll('.scanner-chat-bubble'));
+  return bubbles.slice(-limit).map((bubble) => ({
+    sender: bubble.classList.contains('user') ? 'user' : 'assistant',
+    text: String(bubble.textContent || '').slice(0, 1200),
+  }));
 }
 
 function setScannerChatStatus(text, statusId = 'ai-status') {
@@ -1155,7 +1232,7 @@ function handleFundamentalsChatKeydown(event) {
   }
 }
 
-function buildScannerChatContext(fundamentals = null) {
+function buildScannerChatContext(fundamentals = null, messagesId = 'scanner-chat-messages') {
   const candidate = candidates[currentIndex] || null;
   const detector = buildDetectorContext(candidate);
   const visual = buildScannerVisualContext();
@@ -1163,6 +1240,7 @@ function buildScannerChatContext(fundamentals = null) {
     symbol: candidate?.symbol || '',
     patternType: candidate?.pattern_type || candidate?.scan_mode || 'wyckoff',
     tradeDirection: 'LONG',
+    chatHistory: summarizeRecentScannerChat(messagesId),
     copilotAnalysis: {
       scanner: true,
       candidate: candidate ? {
@@ -1370,7 +1448,7 @@ async function sendScannerChatRequest(options = {}) {
     const chatRole = shouldUseLiteralChartReader(raw, Boolean(chartImage)) && chatAnalyst !== 'financial_analyst'
       ? 'literal_chart_reader'
       : null;
-    const context = buildScannerChatContext(fundamentals);
+    const context = buildScannerChatContext(fundamentals, messagesId);
     const fetchVisionChat = async (analyst, finalMessage, imagePayload = chartImage, role = chatRole) => {
       const response = await fetch('/api/vision/chat', {
         method: 'POST',
@@ -1436,15 +1514,11 @@ async function sendFundamentalsChatWithChart(prefill) {
 }
 
 function askScannerWhy() {
-  const candidate = candidates[currentIndex];
-  if (!candidate) { sendScannerChat('No candidate loaded yet. Tell me what I should scan first.'); return; }
-  sendScannerChat('Explain this setup: why it might be valid or invalid, what phase is weakest, and what evidence I should verify manually.');
+  return runScannerAction(1);
 }
 
 function askScannerEdits() {
-  const candidate = candidates[currentIndex];
-  if (!candidate) { sendScannerChat('No candidate loaded yet. Give me a checklist to improve scanner quality.'); return; }
-  sendScannerChat('Suggest concrete scanner rule edits or thresholds to reduce false positives for this type of setup.');
+  return runScannerAction(2);
 }
 
 function askFundamentalsQuality() {
@@ -1513,26 +1587,15 @@ async function checkAIStatus() {
 }
 
 async function askAI() {
-  const candidate = candidates[currentIndex];
-  if (!candidate) return;
   const selectedAnalyst = typeof getSelectedScannerAnalyst === 'function'
     ? String(getSelectedScannerAnalyst() || DEFAULT_SCANNER_ANALYST)
     : DEFAULT_SCANNER_ANALYST;
-
-  if (selectedAnalyst === 'financial_analyst') {
-    return sendScannerChatRequest({
-      analystId: 'financial_analyst',
-      prefill: 'Evaluate this company.',
-    });
+  if (selectedAnalyst === 'financial_analyst' || selectedAnalyst === 'technical_analyst') {
+    return runScannerAction(0);
   }
 
-  if (selectedAnalyst === 'technical_analyst') {
-    return sendScannerChatRequest({
-      analystId: 'technical_analyst',
-      includeChart: true,
-      prefill: 'Analyze this chart.',
-    });
-  }
+  const candidate = candidates[currentIndex];
+  if (!candidate) return;
 
   mountScannerReviewWidgets();
   const btn = document.getElementById('btn-ask-ai');

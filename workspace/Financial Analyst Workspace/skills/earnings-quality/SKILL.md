@@ -6,6 +6,21 @@ Judge whether reported earnings reflect durable economic reality.
 
 This skill should normally be entered through the `run_earnings_quality` tool.
 
+## Runtime Contract
+
+This skill is the workspace contract for Ledger's earnings-quality workflow.
+
+- Runtime tool: `run_earnings_quality`
+- Backend engine: `earnings_quality_engine`
+- Normal dependency inputs:
+  - `get_ledger_context`
+
+What this means:
+
+- the workspace defines how Ledger should judge earnings quality
+- the backend engine performs the cash-conversion and distortion analysis
+- Ledger explains the result in plain English
+
 ## Reference Set
 
 Primary references for this skill:

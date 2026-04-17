@@ -5,9 +5,34 @@
 Ledger's active runtime tools are:
 
 - `get_ledger_context`
+- `get_social_buzz`
+- `get_consumer_cycle_context`
+- `screen_clean_universe`
+- `refresh_filing_coverage`
 - `run_financial_analysis`
 - `run_earnings_quality`
 - `run_dcf_valuation`
+
+## Skill To Tool To Engine Map
+
+- `financial-analysis`
+  - runtime tool: `run_financial_analysis`
+  - backend engine: `financial_analysis_engine`
+- `earnings-quality`
+  - runtime tool: `run_earnings_quality`
+  - backend engine: `earnings_quality_engine`
+- `dcf-valuation`
+  - runtime tool: `run_dcf_valuation`
+  - backend engine: `dcf_engine`
+- `buried-risk-review`
+  - runtime tool: `get_ledger_context`
+  - backend implementation: filing-note retrieval plus note classification/filtering
+- `sentiment-context`
+  - runtime tool: `get_social_buzz`
+  - backend implementation: social-buzz fetch plus workspace interpretation rules
+- `consumer-cycle-context`
+  - runtime tool: `get_consumer_cycle_context`
+  - backend implementation: consumer-cycle monitor plus symbol classification from the repo consumer taxonomy
 
 ### 1. `get_ledger_context`
 
@@ -18,11 +43,85 @@ Use it to retrieve the current company-analysis bundle for the active symbol, in
 - retrieved filing-note evidence
 - coverage tier and provenance-aware snapshot context
 
+### 1.5 `get_social_buzz`
+
+Use it when the user asks for:
+
+- social buzz
+- sentiment
+- crowd positioning
+- watcher activity
+- bull / bear balance
+- message tone or hype risk
+
+This tool should:
+
+- return the active symbol's social-buzz snapshot
+- include mood, watchers, message count, bull / bear mix, and recent message samples when available
+- be treated as secondary context rather than proof
+- help frame squeeze risk, hype risk, crowdedness, and mean-reversion risk
+
+### 1.75 `get_consumer_cycle_context`
+
+Use it when the user asks for:
+
+- consumer cycle
+- cyclical demand
+- slowdown risk
+- recession sensitivity
+- defensive vs cyclical exposure
+- whether the company belongs in a highly cyclical, mildly cyclical, or stable bucket
+
+This tool should:
+
+- return the current macro consumer-cycle monitor
+- return the active symbol's cycle bucket, specific category, and slowdown preference when classified
+- use the repo's consumer-cycle taxonomy rather than ad hoc language
+- help frame whether weakness in autos, housing, business equipment, or other cyclical pockets matters for the symbol
+
+### 1.9 `screen_clean_universe`
+
+Use it when the user asks for:
+
+- best 5 stocks to buy
+- best 5 shorts
+- top ideas from the database
+- ranked clean-universe picks
+- stock selection based on valuation, debt, quality, and trend together
+
+This tool should:
+
+- screen only the `tradable_stock_default` clean universe
+- use the symbol catalog as the primary prefilter layer
+- narrow by valuation state, consumer-cycle positioning, optional theme, and optional optionability
+- then rank candidates with fundamentals snapshot checks for liquidity, balance-sheet quality, earnings quality, and technical trend
+- return a ranked list that Ledger can explain rather than inventing picks from one loaded symbol
+
 ### 2. `run_financial_analysis`
 
 Use this when the user wants a full company read.
 
 This tool should be treated as the runtime entrypoint for the `financial-analysis` skill.
+
+### 2.5 `refresh_filing_coverage`
+
+Use this when:
+
+- I do not have strong filing coverage for the company
+- the company is missing from PIT / filing-note retrieval
+- SEC-backed coverage looks stale or incomplete
+
+This tool should:
+
+- repair the symbol in the canonical universe if it was missed there
+- refresh Ledger filing eligibility metadata for that symbol
+- refresh the fundamentals snapshot
+- fetch the latest SEC filing history when available
+- run Docling history ingestion
+- import new filing facts into PIT
+- refresh filing-note retrieval coverage
+
+This is a Ledger recovery tool. Use it before concluding that a company is unavailable if coverage looks fetchable.
 
 ### 3. `run_earnings_quality`
 
@@ -47,6 +146,20 @@ Use this when the user asks for:
 - overvalued vs undervalued judgment
 
 This tool should be treated as the runtime entrypoint for the `dcf-valuation` skill.
+
+## Note Review / Buried Risk Usage
+
+When the user asks for:
+
+- hidden risks
+- buried notes
+- what management may be downplaying
+- note review
+- risk-factor interpretation
+- liquidity language
+- legal or regulatory caveats
+
+Ledger should use `get_ledger_context` as the retrieval tool and follow the `buried-risk-review` skill as the interpretation procedure.
 
 ## Tool Boundaries
 
@@ -73,6 +186,10 @@ If Ledger references chart context at all, it should treat it as secondary timin
 2. Prefer filing-backed evidence over vendor summaries whenever coverage allows.
 3. Keep tool output separate from analyst judgment.
 4. State when coverage is partial, vendor-only, or otherwise limited.
+5. If coverage is missing but likely fetchable, call `refresh_filing_coverage` before concluding that I have no data.
+6. Use `get_social_buzz` for crowd-positioning context, but never let it override filing-backed business evidence.
+7. Use `get_consumer_cycle_context` for business-cycle positioning context, especially when the user asks about slowdown exposure, cyclical demand, or defensive vs cyclical buckets.
+8. Use `screen_clean_universe` when the user asks for database-wide ranking, top longs, top shorts, or best ideas from the clean universe.
 
 ## Planned Future Ledger Data Tools
 

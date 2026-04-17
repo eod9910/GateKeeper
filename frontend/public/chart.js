@@ -30,6 +30,11 @@ function clearChart() {
   const chartSymbol = document.getElementById('chart-symbol');
   if (chartSymbol) chartSymbol.textContent = '';
 
+  _chartCurrentSymbol = '';
+  _chartCurrentInterval = '';
+  _chartCurrentPluginId = '';
+  _updateTfButtonStyles('');
+
   const panelEl = document.getElementById('candidate-info-panel');
   const candDetails = document.getElementById('candidate-details');
   if (panelEl) panelEl.classList.add('hidden');
@@ -902,6 +907,54 @@ function setChartContext(symbol, interval, pluginId) {
   _updateTfButtonStyles(interval);
 }
 
+/** Map scanner candidate timeframe/interval fields to Yahoo-style chart intervals for TF switcher + API. */
+function resolveScannerChartInterval(candidate) {
+  if (!candidate || typeof candidate !== 'object') return '1d';
+  const rawTf = String(candidate.timeframe || '').trim();
+  const rawIv = String(candidate.interval || '').trim();
+  const yahoo = ['1h', '4h', '1d', '1wk', '1mo'];
+  if (yahoo.includes(rawTf)) return rawTf;
+  if (yahoo.includes(rawIv)) return rawIv;
+  const letter = (rawTf || rawIv || '').toUpperCase();
+  const letterMap = {
+    W: '1wk',
+    D: '1d',
+    M: '1mo',
+    '1H': '1h',
+    '4H': '4h',
+  };
+  if (letterMap[letter]) return letterMap[letter];
+  const lower = (rawTf || rawIv || '').toLowerCase();
+  if (lower === '1h' || lower === 'h') return '1h';
+  if (lower === '4h') return '4h';
+  if (lower === '1d' || lower === 'd' || lower === 'day' || lower === 'daily') return '1d';
+  if (lower === '1wk' || lower === '1w' || lower === 'w' || lower === 'week' || lower === 'weekly') return '1wk';
+  if (lower === '1mo' || lower === 'mo' || lower === 'm' || lower === 'month' || lower === 'monthly') return '1mo';
+  return '1d';
+}
+
+/** Recover TF switcher state from the header when internal context was never set (e.g. swing overlay short-circuited showCandidate). */
+function syncChartContextFromDom() {
+  const headerEl = document.getElementById('chart-symbol');
+  const headerText = String(headerEl?.textContent || '').trim();
+  const headMatch = headerText.match(/^([A-Z0-9.\-]+)\s+\(([^)]+)\)/i);
+  let symbol = headMatch ? headMatch[1].trim().toUpperCase() : '';
+  let tfLabel = headMatch ? headMatch[2].trim() : '';
+  if (!symbol) {
+    const symEl = document.getElementById('info-symbol');
+    symbol = String(symEl?.textContent || '').trim().split(/\s+/)[0].toUpperCase();
+  }
+  const fake = tfLabel ? { timeframe: tfLabel, interval: tfLabel } : {};
+  const interval = tfLabel ? resolveScannerChartInterval(fake) : '1d';
+  const indicatorSelect = document.getElementById('scan-indicator-select');
+  const activePluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
+  if (symbol) {
+    setChartContext(symbol, interval, activePluginId);
+    return true;
+  }
+  return false;
+}
+
 function buildChartOnlyCandidate(symbol, timeframe, chartData) {
   return {
     symbol,
@@ -914,35 +967,50 @@ function buildChartOnlyCandidate(symbol, timeframe, chartData) {
 }
 
 async function switchChartTimeframe(newInterval) {
+  if (!_chartCurrentSymbol) {
+    syncChartContextFromDom();
+  }
   if (!_chartCurrentSymbol) return;
   if (newInterval === _chartCurrentInterval) return;
 
+  const prevInterval = _chartCurrentInterval;
   const timeframeMap = { '1h': '1h', '4h': '4h', '1d': 'D', '1wk': 'W', '1mo': 'M' };
   const timeframe = timeframeMap[newInterval] || 'D';
-  const pluginId = _chartCurrentPluginId || (document.getElementById('scan-indicator-select')?.value || '');
+  const pluginId = String(document.getElementById('scan-indicator-select')?.value || '').trim()
+    || (document.getElementById('scan-indicator-select') ? '' : _chartCurrentPluginId);
 
   const statusEl = document.getElementById('scan-status');
   if (statusEl) statusEl.textContent = `Loading ${_chartCurrentSymbol} ${timeframe}...`;
 
-  _chartCurrentInterval = newInterval;
-  if (typeof ciUpdateContextMeta === 'function') {
-    try { ciUpdateContextMeta(_chartCurrentSymbol, newInterval); } catch (e) {}
+  function revertIntervalUi() {
+    _chartCurrentInterval = prevInterval;
+    _updateTfButtonStyles(prevInterval || '');
+    if (prevInterval && typeof ciUpdateContextMeta === 'function') {
+      try { ciUpdateContextMeta(_chartCurrentSymbol, prevInterval); } catch (e) {}
+    }
   }
-  _updateTfButtonStyles(newInterval);
+
+  function commitIntervalUi() {
+    _chartCurrentInterval = newInterval;
+    if (typeof ciUpdateContextMeta === 'function') {
+      try { ciUpdateContextMeta(_chartCurrentSymbol, newInterval); } catch (e) {}
+    }
+    _updateTfButtonStyles(newInterval);
+  }
 
   try {
     const API_URL = window.API_URL || '';
     const periodMap = { '1h': '730d', '4h': '730d', '1d': 'max', '1wk': 'max', '1mo': 'max' };
     const chartPeriod = periodMap[newInterval] || '2y';
     let fullChartBars = [];
-    const preserveSwingDisplay = swingDisplayActive;
+    const preserveSwingDisplay = typeof swingDisplayActive !== 'undefined' ? swingDisplayActive : false;
 
     async function redrawWithCurrentMode(candidate) {
-      swingDisplayActive = false;
+      if (typeof swingDisplayActive !== 'undefined') swingDisplayActive = false;
       try {
         await drawPatternChart(candidate);
       } finally {
-        swingDisplayActive = preserveSwingDisplay;
+        if (typeof swingDisplayActive !== 'undefined') swingDisplayActive = preserveSwingDisplay;
       }
     }
 
@@ -952,15 +1020,12 @@ async function switchChartTimeframe(newInterval) {
       const data = await res.json();
       if (data?.success && data?.chart_data?.length) {
         const candidate = buildChartOnlyCandidate(_chartCurrentSymbol, timeframe, data.chart_data);
+        commitIntervalUi();
         document.getElementById('chart-symbol').textContent = _chartCurrentSymbol + ' (' + timeframe + ')';
         await redrawWithCurrentMode(candidate);
         if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}) — ${data.bars} bars`;
-      } else if (fullChartBars.length > 0) {
-        const candidate = buildChartOnlyCandidate(_chartCurrentSymbol, timeframe, fullChartBars);
-        document.getElementById('chart-symbol').textContent = _chartCurrentSymbol + ' (' + timeframe + ')';
-        await redrawWithCurrentMode(candidate);
-        if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}) - raw chart only (no pattern match)`;
       } else {
+        revertIntervalUi();
         if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}): no data`;
       }
       return;
@@ -999,31 +1064,56 @@ async function switchChartTimeframe(newInterval) {
           id: found[0].id || found[0].candidate_id || 0,
           chart_data: fullChartBars.length > 0 ? fullChartBars : found[0].chart_data,
         };
+        commitIntervalUi();
         document.getElementById('chart-symbol').textContent = _chartCurrentSymbol + ' (' + timeframe + ')';
         await redrawWithCurrentMode(candidate);
         const bars = Array.isArray(candidate.chart_data) ? candidate.chart_data.length : 0;
         if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}) — ${bars} bars`;
-      } else {
-        if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}): no data`;
-      }
-      if (found.length === 0 && fullChartBars.length > 0) {
+      } else if (fullChartBars.length > 0) {
         const candidate = buildChartOnlyCandidate(_chartCurrentSymbol, timeframe, fullChartBars);
+        commitIntervalUi();
         document.getElementById('chart-symbol').textContent = _chartCurrentSymbol + ' (' + timeframe + ')';
         await redrawWithCurrentMode(candidate);
         if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}) - raw chart only (no pattern match)`;
+      } else {
+        revertIntervalUi();
+        if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}): no data`;
       }
+    } else {
+      revertIntervalUi();
+      if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}): scan failed`;
     }
   } catch (err) {
     console.error('Timeframe switch failed:', err);
+    revertIntervalUi();
     if (statusEl) statusEl.textContent = `Failed to load ${timeframe}`;
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.chart-tf-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tf = btn.getAttribute('data-tf');
-      switchChartTimeframe(tf);
-    });
+function wireChartTimeframeButtons() {
+  const wrap = document.getElementById('chart-timeframe-btns');
+  if (!wrap || wrap.dataset.tfWired === '1') return;
+  wrap.dataset.tfWired = '1';
+  wrap.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('.chart-tf-btn');
+    if (!btn || !wrap.contains(btn)) return;
+    e.preventDefault();
+    const tf = btn.getAttribute('data-tf');
+    if (tf) {
+      void switchChartTimeframe(tf).catch((err) => console.error('switchChartTimeframe:', err));
+    }
   });
-});
+}
+
+function initChartTimeframeButtons() {
+  wireChartTimeframeButtons();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initChartTimeframeButtons);
+} else {
+  initChartTimeframeButtons();
+}
+
+window.switchChartTimeframe = switchChartTimeframe;
+window.wireChartTimeframeButtons = wireChartTimeframeButtons;

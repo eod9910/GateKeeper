@@ -22,10 +22,16 @@ const RUN_TIER_HINTS = {
   sp500: 'Broad large-cap benchmark. Use this to confirm a strategy truly generalizes across large caps, not just a curated subset.',
   sp400: 'Mid-cap benchmark. Use this to see whether the edge survives outside large caps or is cap-specific.',
   sp600: 'Small-cap benchmark. Use this to test whether the strategy prefers smaller, noisier, higher-volatility names.',
+  valuation_regime_undervalued_sample100: 'Faster DCF undervalued sample on 100 names. Useful for quicker long/reversal regime tests.',
   regime_expansion: 'Environment diagnosis for trend-friendly conditions. Use this for breakouts, momentum, and pullback-continuation ideas.',
   regime_distribution: 'Environment diagnosis for fading uptrends. Use this to see whether a strategy weakens when momentum rolls over.',
   regime_accumulation: 'Environment diagnosis for bottoming and recovery conditions. Useful for reversal and early-trend strategies.',
   regime_markdown: 'Environment diagnosis for downtrends and deterioration. Use this to test whether a long strategy should be avoided there, or whether a short idea belongs there.',
+  valuation_regime_undervalued: 'DCF valuation regime universe for names screened as undervalued. Best for long and reversal research.',
+  valuation_regime_fair_sample100: 'Faster DCF fair-value sample on 100 names. Useful for quicker continuation regime tests.',
+  valuation_regime_fair: 'DCF valuation regime universe for names screened as roughly fair value. Useful for continuation research.',
+  valuation_regime_overvalued_sample100: 'Faster DCF overvalued sample on 100 names. Useful for quicker short/topping regime tests.',
+  valuation_regime_overvalued: 'DCF valuation regime universe for names screened as overvalued. Best for short and topping research.',
 };
 let runTierConfig = null;
 let collapsedStrategyBuckets = loadCollapsedStrategyBuckets();
@@ -37,7 +43,7 @@ const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
     tier1bs: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
-    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], valuation_regime_undervalued: [], valuation_regime_fair: [], valuation_regime_overvalued: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   stocks: {
     tier1: ['SPY', 'QQQ', 'IWM'],
@@ -56,7 +62,7 @@ const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
       'RVTY','SLB','SOLV','STLD','SWKS','TDY','TJX','TRMB','TTD','UHS',
       'VLO','VST','WBD','WFC','WST','XYL'
     ],
-    sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
+    sp500: [], sp400: [], sp600: [], valuation_regime_undervalued: [], valuation_regime_fair: [], valuation_regime_overvalued: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   options: {
     tier1: ['SPY', 'QQQ'],
@@ -65,7 +71,7 @@ const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
     tier1bs: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
-    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], valuation_regime_undervalued: [], valuation_regime_fair: [], valuation_regime_overvalued: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   forex: {
     tier1: ['EURUSD=X', 'GBPUSD=X'],
@@ -74,7 +80,7 @@ const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
     tier1bs: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
-    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], valuation_regime_undervalued: [], valuation_regime_fair: [], valuation_regime_overvalued: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
   crypto: {
     tier1: ['BTC-USD', 'ETH-USD'],
@@ -83,7 +89,7 @@ const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
     tier1bs: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
-    large_cap_known: [], sp500: [], sp400: [], sp600: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
+    large_cap_known: [], sp500: [], sp400: [], sp600: [], valuation_regime_undervalued: [], valuation_regime_fair: [], valuation_regime_overvalued: [], regime_expansion: [], regime_distribution: [], regime_accumulation: [], regime_markdown: [],
   },
 };
 
@@ -1334,6 +1340,12 @@ function renderInlineStrategyEditor(strategy, mode) {
               <option value="sp600">S&P 600 — ~474 Small Cap Stocks</option>
             </optgroup>
             <optgroup label="Regime Universes">
+              <option value="valuation_regime_undervalued_sample100">DCF: Undervalued Sample 100</option>
+              <option value="valuation_regime_undervalued">DCF: Undervalued</option>
+              <option value="valuation_regime_fair_sample100">DCF: Fair Value Sample 100</option>
+              <option value="valuation_regime_fair">DCF: Fair Value</option>
+              <option value="valuation_regime_overvalued_sample100">DCF: Overvalued Sample 100</option>
+              <option value="valuation_regime_overvalued">DCF: Overvalued</option>
               <option value="regime_expansion">Regime: Expansion (above 200MA, up)</option>
               <option value="regime_distribution">Regime: Distribution (above 200MA, fading)</option>
               <option value="regime_accumulation">Regime: Accumulation (below 200MA, recovering)</option>

@@ -2,18 +2,20 @@
  * Parameter Sweep Engine
  *
  * Runs N backtests varying a single parameter and aggregates results into a
- * ranked comparison table. Pure JSON manipulation — no Python changes needed.
+ * ranked comparison table. Sweep session state is persisted in SQLite, while
+ * validator execution still runs through the existing API/Python path.
  */
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { getAllStrategies, getStrategyOrComposite, saveStrategy, getValidationReport, saveValidationReport, getTradeInstances, saveTradeInstances } from './storageService';
+import { deleteAppRecord, listAppRecords, writeAppRecord } from './appStateDb';
+import { deleteStrategy, getAllStrategies, getStrategy, getStrategyOrComposite, saveStrategy, getValidationReport, saveValidationReport, getTradeInstances, saveTradeInstances, deleteValidationReport } from './storageService';
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const SWEEPS_DIR = path.join(DATA_DIR, 'sweep-results');
-const STRATEGIES_DIR = path.join(DATA_DIR, 'strategies');
 const API_BASE = `http://127.0.0.1:${process.env.PORT || 3002}/api`;
+const SWEEPS_NAMESPACE = 'sweeps';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,7 +80,7 @@ export function getSweep(sweepId: string): SweepReport | undefined {
 }
 
 export function listSweeps(): SweepReport[] {
-  return Array.from(activeSweeps.values()).sort(
+  return Array.from(activeSweeps.values()).filter((sweep) => Array.isArray(sweep.variants) && sweep.variants.length > 0).sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 }
@@ -86,12 +88,40 @@ export function listSweeps(): SweepReport[] {
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 async function persistSweep(sweep: SweepReport): Promise<void> {
-  await fs.mkdir(SWEEPS_DIR, { recursive: true });
-  await fs.writeFile(
-    path.join(SWEEPS_DIR, `${sweep.sweep_id}.json`),
-    JSON.stringify(sweep, null, 2),
-    'utf-8',
-  );
+  writeAppRecord(SWEEPS_NAMESPACE, sweep.sweep_id, sweep, {
+    sortKey: String(sweep.created_at || ''),
+  });
+}
+
+async function deletePersistedSweepFile(sweepId: string): Promise<void> {
+  deleteAppRecord(SWEEPS_NAMESPACE, sweepId);
+  try {
+    await fs.unlink(path.join(SWEEPS_DIR, `${sweepId}.json`));
+  } catch {}
+}
+
+let _legacySweepsMigrated = false;
+
+async function migrateLegacySweepsIfNeeded(): Promise<void> {
+  if (_legacySweepsMigrated) return;
+  _legacySweepsMigrated = true;
+  try {
+    await fs.mkdir(SWEEPS_DIR, { recursive: true });
+    const files = await fs.readdir(SWEEPS_DIR);
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      try {
+        const raw = await fs.readFile(path.join(SWEEPS_DIR, file), 'utf-8');
+        const sweep = JSON.parse(raw) as SweepReport;
+        if (!sweep?.sweep_id) continue;
+        writeAppRecord(SWEEPS_NAMESPACE, sweep.sweep_id, sweep, {
+          sortKey: String(sweep.created_at || ''),
+        });
+      } catch {
+        // Ignore malformed legacy sweep files.
+      }
+    }
+  } catch {}
 }
 
 function metricsNeedBackfill(metrics: SweepVariant['metrics'] | null | undefined): boolean {
@@ -121,14 +151,15 @@ async function backfillSweepMetrics(sweep: SweepReport): Promise<boolean> {
 }
 
 export async function loadAllSweeps(): Promise<void> {
+  await migrateLegacySweepsIfNeeded();
   try {
-    await fs.mkdir(SWEEPS_DIR, { recursive: true });
-    const files = await fs.readdir(SWEEPS_DIR);
-    for (const f of files) {
-      if (!f.endsWith('.json')) continue;
+    const sweeps = listAppRecords<SweepReport>(SWEEPS_NAMESPACE);
+    for (const sweep of sweeps) {
       try {
-        const raw = await fs.readFile(path.join(SWEEPS_DIR, f), 'utf-8');
-        const sweep = JSON.parse(raw) as SweepReport;
+        if (!Array.isArray(sweep.variants) || sweep.variants.length === 0) {
+          await deletePersistedSweepFile(sweep.sweep_id);
+          continue;
+        }
         if (await backfillSweepMetrics(sweep)) {
           await persistSweep(sweep);
         }
@@ -230,15 +261,13 @@ function variantIdSuffix(paramValues: SweepVariantParamValue[]): string {
 }
 
 async function registerTempStrategy(spec: any, variantId: string): Promise<string> {
-  await fs.mkdir(STRATEGIES_DIR, { recursive: true });
-  const filePath = path.join(STRATEGIES_DIR, `${variantId}.json`);
-  await fs.writeFile(filePath, JSON.stringify(spec, null, 2), 'utf-8');
-  return filePath;
+  await saveStrategy(spec, true);
+  return variantId;
 }
 
 async function cleanupTempStrategy(variantId: string): Promise<void> {
   try {
-    await fs.unlink(path.join(STRATEGIES_DIR, `${variantId}.json`));
+    await deleteStrategy(variantId);
   } catch {}
 }
 
@@ -501,8 +530,8 @@ async function executeSweep(
       variant.error = err.message;
     }
 
-    // Remove the temp strategy file — it was only needed during the validation run.
-    // The promoted winner gets a permanent file written by promoteWinner().
+    // Remove the temp strategy record — it was only needed during the validation run.
+    // The promoted winner gets a permanent strategy version written by promoteWinner().
     await cleanupTempStrategy(variant.variant_id);
 
     await persistSweep(sweep);
@@ -567,6 +596,11 @@ export async function deleteSweepVariant(sweepId: string, variantId: string): Pr
     throw new Error('Cannot delete a running variant');
   }
 
+  if (variant.report_id) {
+    await deleteValidationReport(variant.report_id);
+  }
+  await cleanupTempStrategy(variant.variant_id);
+
   sweep.variants = sweep.variants.filter(v => v.variant_id !== variantId);
 
   if (sweep.winner?.variant_id === variantId) {
@@ -578,7 +612,62 @@ export async function deleteSweepVariant(sweepId: string, variantId: string): Pr
     sweep.promoted_at = null;
   }
 
+  if (sweep.variants.length === 0) {
+    activeSweeps.delete(sweepId);
+    await deletePersistedSweepFile(sweepId);
+    return;
+  }
+
   await persistSweep(sweep);
+}
+
+export async function deleteSweep(sweepId: string): Promise<void> {
+  const sweep = activeSweeps.get(sweepId);
+  if (!sweep) throw new Error('Sweep not found');
+  if (sweep.status === 'running') throw new Error('Cannot delete a running sweep');
+
+  for (const variant of sweep.variants) {
+    if (variant.report_id) {
+      await deleteValidationReport(variant.report_id);
+    }
+    await cleanupTempStrategy(variant.variant_id);
+  }
+
+  activeSweeps.delete(sweepId);
+  await deletePersistedSweepFile(sweepId);
+}
+
+export async function pruneSweepVariantsByReportId(reportId: string): Promise<void> {
+  if (!reportId) return;
+
+  for (const [sweepId, sweep] of activeSweeps.entries()) {
+    const matchingVariants = sweep.variants.filter(v => v.report_id === reportId);
+    if (!matchingVariants.length) continue;
+
+    for (const variant of matchingVariants) {
+      await cleanupTempStrategy(variant.variant_id);
+    }
+
+    const deletedVariantIds = new Set(matchingVariants.map(v => v.variant_id));
+    sweep.variants = sweep.variants.filter(v => !deletedVariantIds.has(v.variant_id));
+
+    if (sweep.winner && deletedVariantIds.has(sweep.winner.variant_id)) {
+      sweep.winner = selectSweepWinner(sweep.variants);
+    }
+    if (sweep.promoted_variant_id && deletedVariantIds.has(sweep.promoted_variant_id)) {
+      sweep.promoted_variant_id = null;
+      sweep.promoted_strategy_version_id = null;
+      sweep.promoted_at = null;
+    }
+
+    if (sweep.variants.length === 0) {
+      activeSweeps.delete(sweepId);
+      await deletePersistedSweepFile(sweepId);
+      continue;
+    }
+
+    await persistSweep(sweep);
+  }
 }
 
 // ─── Copy report to promoted strategy ────────────────────────────────────────
@@ -609,14 +698,12 @@ export async function promoteWinner(sweepId: string, baseStrategyVersionId: stri
   if (!variant) throw new Error('No sweep variant selected to promote');
   if (variant.status !== 'completed') throw new Error('Only completed variants can be promoted');
 
-  // Try to read persisted variant file first; if cleaned up already, reconstruct from base + params.
+  // Try to read the persisted temp variant first; if cleaned up already, reconstruct from base + params.
   let spec: any;
-  const winnerFile = path.join(STRATEGIES_DIR, `${variant.variant_id}.json`);
-  try {
-    const raw = await fs.readFile(winnerFile, 'utf-8');
-    spec = JSON.parse(raw);
-    spec = syncRiskExitAliases(spec);
-  } catch {
+  const persistedVariant = await getStrategy(variant.variant_id);
+  if (persistedVariant) {
+    spec = syncRiskExitAliases(JSON.parse(JSON.stringify(persistedVariant)));
+  } else {
     // Temp file was cleaned up after validation — reconstruct from the sweep's base strategy.
     const base = await getStrategyOrComposite(baseStrategyVersionId)
       || await getStrategyOrComposite(sweep.base_strategy_version_id);
@@ -711,25 +798,6 @@ export async function promoteWinner(sweepId: string, baseStrategyVersionId: stri
   sweep.promoted_variant_id = variant.variant_id;
   sweep.promoted_at = new Date().toISOString();
   await persistSweep(sweep);
-
-  // Reject all non-winner temp variant files from this sweep so they don't pile up.
-  // Never reject a file that has already been promoted (status "testing" or higher).
-  const loserVariants = sweep.variants.filter(v => v.variant_id !== variant.variant_id);
-  await Promise.allSettled(loserVariants.map(async loser => {
-    const loserFile = path.join(STRATEGIES_DIR, `${loser.variant_id}.json`);
-    try {
-      const loserRaw = await fs.readFile(loserFile, 'utf-8');
-      const loserSpec = JSON.parse(loserRaw);
-      // Skip if already promoted — don't clobber a prior sweep winner's status
-      const loserStatus = String(loserSpec.status || '').toLowerCase();
-      if (loserStatus === 'testing' || loserStatus === 'approved' || loserStatus === 'active') return;
-      loserSpec.status = 'rejected';
-      loserSpec.updated_at = new Date().toISOString();
-      await fs.writeFile(loserFile, JSON.stringify(loserSpec, null, 2), 'utf-8');
-    } catch {
-      // File may not exist if variant never completed — skip silently
-    }
-  }));
 
   return newId;
 }

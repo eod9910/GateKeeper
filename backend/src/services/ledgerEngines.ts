@@ -1,3 +1,5 @@
+import { classifyCompanyFromSnapshot, getSymbolClassification, upsertSymbolClassification } from './symbolCatalog';
+
 type LedgerMetricEntry = {
   value?: number | null;
   unit?: string | null;
@@ -50,7 +52,61 @@ function trimString(value: unknown): string | null {
 
 function getMetricValue(period: LedgerPeriod | null | undefined, key: string): number | null {
   const entry = period?.metrics?.[key];
-  return entry && typeof entry === 'object' ? toFiniteNumber(entry.value) : null;
+  if (!entry || typeof entry !== 'object') return null;
+  const baseValue = toFiniteNumber(entry.value);
+  if (baseValue == null) return null;
+  const scale = trimString((entry as any).scale)?.toLowerCase();
+  const multiplier =
+    scale === 'billions' ? 1_000_000_000 :
+    scale === 'millions' ? 1_000_000 :
+    scale === 'thousands' ? 1_000 :
+    1;
+  return baseValue * multiplier;
+}
+
+function getFirstMetricValue(period: LedgerPeriod | null | undefined, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = getMetricValue(period, key);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+function resolveAnnualRevenue(period: LedgerPeriod | null | undefined, snapshot: Record<string, any> | null | undefined): number | null {
+  const statementRevenue = getMetricValue(period, 'revenue');
+  const snapshotRevenue = toFiniteNumber(snapshot?.annualRevenue);
+  if (statementRevenue != null && Number.isFinite(Number(statementRevenue))) {
+    if (snapshotRevenue != null && Number.isFinite(Number(snapshotRevenue)) && Number(snapshotRevenue) > 0) {
+      const ratio = Number(statementRevenue) / Number(snapshotRevenue);
+      if (ratio > 5 || ratio < 0.2) {
+        return Number(snapshotRevenue);
+      }
+    }
+    return Number(statementRevenue);
+  }
+
+  if (snapshotRevenue != null && Number.isFinite(Number(snapshotRevenue))) {
+    return Number(snapshotRevenue);
+  }
+
+  const enterpriseValue = toFiniteNumber(snapshot?.enterpriseValue);
+  const enterpriseToSales = toFiniteNumber(snapshot?.enterpriseToSales);
+  if (Number.isFinite(Number(enterpriseValue)) && Number.isFinite(Number(enterpriseToSales)) && Number(enterpriseToSales) > 0) {
+    return Number(enterpriseValue) / Number(enterpriseToSales);
+  }
+
+  return null;
+}
+
+function buildValuationPriceJudgment(currentPrice: number | null, midpointFairValue: number | null): 'undervalued' | 'overvalued' | 'roughly_fair' | 'insufficient_precision' {
+  const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midpointFairValue)) && Number(currentPrice)
+    ? ((Number(midpointFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
+    : null;
+
+  if (!Number.isFinite(Number(upsidePctToMid))) return 'insufficient_precision';
+  if (Number(upsidePctToMid) >= 15) return 'undervalued';
+  if (Number(upsidePctToMid) <= -15) return 'overvalued';
+  return 'roughly_fair';
 }
 
 function classifyCashConversion(ratio: number | null): { label: string; score: number; summary: string } {
@@ -123,6 +179,294 @@ function buildEvidenceRefs(rows: Array<Record<string, any>>, limit: number = 4):
   }));
 }
 
+function buildEvidenceText(row: Record<string, any> | null | undefined): string {
+  return [
+    trimString(row?.section_heading),
+    trimString(row?.text_excerpt),
+  ].filter(Boolean).join('\n');
+}
+
+function parseFirstMatchNumber(text: string, patterns: RegExp[]): number | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match?.[1]) continue;
+    const parsed = toFiniteNumber(match[1].replace(/,/g, ''));
+    if (parsed != null) return parsed;
+  }
+  return null;
+}
+
+function parseFirstMatchText(text: string, patterns: RegExp[]): string | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const parsed = trimString(match?.[1]);
+    if (parsed) return parsed.replace(/[.;,\s]+$/g, '').trim();
+  }
+  return null;
+}
+
+function isFinancialCompanyForDcf(snapshot: Record<string, any> | null | undefined): boolean {
+  const sector = trimString(snapshot?.sector)?.toLowerCase() || '';
+  const industry = trimString(snapshot?.industry)?.toLowerCase() || '';
+  const haystack = `${sector} ${industry}`;
+  return /\bfinancial\b|\bbank\b|\bbanks\b|\binsurance\b|\bcredit\b|\blender\b|\blending\b|\bmortgage\b|\basset management\b|\bcapital markets\b|\bconsumer finance\b/.test(haystack);
+}
+
+function resolveValuationEngineClass(ledgerBase: LedgerContextSummary): string {
+  const symbol = trimString(ledgerBase?.symbol);
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const stored = symbol ? getSymbolClassification(symbol) : null;
+  if (stored?.valuationEngineClass) {
+    return stored.valuationEngineClass;
+  }
+  const inferred = classifyCompanyFromSnapshot(snapshot);
+  if (symbol && inferred) {
+    upsertSymbolClassification(symbol, {
+      sector: inferred.sector,
+      industry: inferred.industry,
+      companyType: inferred.companyType,
+      valuationEngineClass: inferred.valuationEngineClass,
+      classificationSource: inferred.classificationSource,
+      classificationConfidence: inferred.classificationConfidence,
+      lastClassifiedAt: new Date().toISOString(),
+    });
+  }
+  if (inferred?.valuationEngineClass) {
+    return inferred.valuationEngineClass;
+  }
+  return isFinancialCompanyForDcf(snapshot) ? 'roe_book_value' : 'dcf_operating';
+}
+
+export function detectCorporateAction(ledgerBase: LedgerContextSummary): Record<string, any> | null {
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const currentPrice = toFiniteNumber(snapshot.currentPrice);
+  const retrievalResults = Array.isArray(ledgerBase?.evidence_context?.retrieval?.results)
+    ? ledgerBase.evidence_context!.retrieval!.results
+    : [];
+  const recentDocuments = Array.isArray(ledgerBase?.evidence_context?.recent_documents)
+    ? ledgerBase.evidence_context!.recent_documents
+    : [];
+
+  const candidateRows = retrievalResults.filter((row) => {
+    const text = buildEvidenceText(row).toLowerCase();
+    return /\bmerger\b|\bacquisition\b|\bgoing private\b|\btake-private\b|\bdefinitive agreement\b|\bmerger agreement\b|\bstockholders to receive\b|\bcontingent value right\b|\bcvr\b|\bexpected to close\b|\bacquired by\b/.test(text);
+  });
+
+  if (!candidateRows.length) {
+    return null;
+  }
+
+  const combinedText = candidateRows.map((row) => buildEvidenceText(row)).join('\n');
+  const strongSignal = /\bdefinitive agreement\b|\bmerger agreement\b|\bstockholders to receive\b|\bcontingent value right\b|\bacquired by\b|\bgoing private\b|\bexpected to close\b/i.test(combinedText);
+  if (!strongSignal) {
+    return null;
+  }
+
+  const cashDealPrice = parseFirstMatchNumber(combinedText, [
+    /stockholders?\s+to\s+receive[^$]{0,100}\$([0-9]+(?:\.[0-9]+)?)/i,
+    /receive[^$]{0,100}\$([0-9]+(?:\.[0-9]+)?)\s+per share in cash/i,
+    /\$([0-9]+(?:\.[0-9]+)?)\s+per share in cash/i,
+    /cash consideration[^$]{0,60}\$([0-9]+(?:\.[0-9]+)?)/i,
+    /\bacquired\b[^$]{0,80}\$([0-9]+(?:\.[0-9]+)?)\s+per share/i,
+  ]);
+  const cvrMax = parseFirstMatchNumber(combinedText, [
+    /contingent value right[^$]{0,80}up to \$([0-9]+(?:\.[0-9]+)?)/i,
+    /\bcvr\b[^$]{0,80}up to \$([0-9]+(?:\.[0-9]+)?)/i,
+    /up to \$([0-9]+(?:\.[0-9]+)?)\s+per share payable/i,
+  ]);
+  const expectedClose = parseFirstMatchText(combinedText, [
+    /expected to close(?: around| on| in)?\s+([A-Za-z]+ \d{1,2}, \d{4})/i,
+    /expected to close(?: around| on| in)?\s+([A-Za-z]+ \d{4})/i,
+    /expected to close(?: around| on| in)?\s+(Q[1-4]\s+\d{4})/i,
+  ]);
+  const acquirer = parseFirstMatchText(combinedText, [
+    /\bacquired by\s+([A-Z][A-Za-z0-9&.,\- ]{2,80}?)(?:\s+for\b|\.|,|$)/i,
+    /\bto be acquired by\s+([A-Z][A-Za-z0-9&.,\- ]{2,80}?)(?:\s+for\b|\.|,|$)/i,
+  ]);
+
+  const currentToDealSpreadPct = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(cashDealPrice)) && Number(cashDealPrice) !== 0
+    ? ((Number(currentPrice) - Number(cashDealPrice)) / Number(cashDealPrice)) * 100
+    : null;
+
+  const recent8kCount = recentDocuments.filter((doc) => trimString(doc?.form_type)?.toUpperCase() === '8-K').length;
+  const summaryParts = [
+    'The filings indicate this is a pending acquisition / go-private situation, not a normal standalone equity setup.',
+    Number.isFinite(Number(cashDealPrice))
+      ? `Cash consideration appears to be about $${Number(cashDealPrice).toFixed(2)} per share.`
+      : null,
+    Number.isFinite(Number(cvrMax))
+      ? `There is also a contingent value right of up to $${Number(cvrMax).toFixed(2)} per share.`
+      : null,
+    expectedClose ? `Management says the deal is expected to close ${expectedClose}.` : null,
+  ].filter(Boolean);
+
+  return {
+    code: 'pending_acquisition',
+    status: 'pending_acquisition',
+    label: 'Pending acquisition / going-private',
+    severity: 'critical',
+    analysis_mode_override: 'merger_arb',
+    confidence: recent8kCount > 0 && Number.isFinite(Number(cashDealPrice)) ? 'high' : 'moderate',
+    summary: summaryParts.join(' '),
+    acquirer,
+    deal_price_per_share: cashDealPrice,
+    contingent_value_right_max_per_share: cvrMax,
+    expected_close: expectedClose,
+    current_price: currentPrice,
+    current_to_deal_spread_pct: Number.isFinite(Number(currentToDealSpreadPct))
+      ? Number(Number(currentToDealSpreadPct).toFixed(2))
+      : null,
+    short_thesis_warning: Number.isFinite(Number(cashDealPrice))
+      ? 'I would not treat this as a normal short. Once a signed cash deal is live, the stock usually trades around the deal consideration and the real risk becomes deal breakage, timing, and spread compression.'
+      : 'I would not treat this as a normal short. The filing evidence points to a signed corporate-action situation, so the stock is likely trading on deal terms rather than ordinary standalone valuation.',
+    evidence_refs: buildEvidenceRefs(candidateRows, 3),
+  };
+}
+
+function buildSimpleHardFlag(
+  ledgerBase: LedgerContextSummary,
+  code: string,
+  label: string,
+  severity: 'high' | 'critical',
+  analysisModeOverride: string,
+  patterns: RegExp[],
+  summary: string,
+  shortWarning: string,
+): Record<string, any> | null {
+  const retrievalResults = Array.isArray(ledgerBase?.evidence_context?.retrieval?.results)
+    ? ledgerBase.evidence_context!.retrieval!.results
+    : [];
+  const candidateRows = retrievalResults.filter((row) => {
+    const text = buildEvidenceText(row).toLowerCase();
+    return patterns.some((pattern) => pattern.test(text));
+  });
+  if (!candidateRows.length) return null;
+
+  return {
+    code,
+    status: code,
+    label,
+    severity,
+    analysis_mode_override: analysisModeOverride,
+    confidence: candidateRows.length >= 2 ? 'high' : 'moderate',
+    summary,
+    short_thesis_warning: shortWarning,
+    evidence_refs: buildEvidenceRefs(candidateRows, 3),
+  };
+}
+
+function detectLedgerHardFlags(ledgerBase: LedgerContextSummary): Array<Record<string, any>> {
+  const flags: Array<Record<string, any>> = [];
+  const corporateAction = detectCorporateAction(ledgerBase);
+  if (corporateAction) {
+    flags.push(corporateAction);
+  }
+
+  const distressFlag = buildSimpleHardFlag(
+    ledgerBase,
+    'distress_warning',
+    'Distress / restructuring risk',
+    'critical',
+    'distress',
+    [
+      /\bchapter 11\b/i,
+      /\bgoing concern\b/i,
+      /\bsubstantial doubt\b/i,
+      /\bcovenant breach\b/i,
+      /\bevent of default\b/i,
+      /\bforbearance\b/i,
+      /\brestructuring support agreement\b/i,
+      /\bmissed interest\b/i,
+    ],
+    'The filings point to a distress or restructuring situation. This should be analyzed as a survival and capital-structure problem, not a normal valuation setup.',
+    'I would not treat this as a routine valuation short or long. The real issue is liquidity, capital structure, and restructuring risk.',
+  );
+  if (distressFlag) flags.push(distressFlag);
+
+  const delistingFlag = buildSimpleHardFlag(
+    ledgerBase,
+    'listing_risk',
+    'Delisting / trading-status risk',
+    'high',
+    'listing_risk',
+    [
+      /\bdeficiency notice\b/i,
+      /\bminimum bid\b/i,
+      /\bdelist(?:ing)?\b/i,
+      /\bnon-?compliance with (nasdaq|nyse) listing\b/i,
+      /\btrading suspension\b/i,
+      /\bsuspended from trading\b/i,
+    ],
+    'The filings suggest a listing-status or trading-status problem. This changes the setup from normal equity analysis to market-access and listing-risk analysis.',
+    'Before taking a position, I would focus on listing risk and market access. A delisting situation can make normal valuation work far less relevant.',
+  );
+  if (delistingFlag) flags.push(delistingFlag);
+
+  const accountingFlag = buildSimpleHardFlag(
+    ledgerBase,
+    'forensic_accounting',
+    'Restatement / accounting-integrity risk',
+    'critical',
+    'forensic',
+    [
+      /\brestatement\b/i,
+      /\bcannot rely on\b/i,
+      /\bmaterial weakness\b/i,
+      /\bauditor resign/i,
+      /\baccounting irregularit/i,
+      /\bsec investigation\b/i,
+      /\bdoj investigation\b/i,
+    ],
+    'The filings point to a restatement, internal-control, or accounting-integrity problem. This should be analyzed as a forensic situation, not a normal quality read.',
+    'I would slow down here. If the numbers themselves are under question, ordinary valuation and quality conclusions become much less trustworthy.',
+  );
+  if (accountingFlag) flags.push(accountingFlag);
+
+  const financingFlag = buildSimpleHardFlag(
+    ledgerBase,
+    'emergency_financing',
+    'Dilution / financing event risk',
+    'high',
+    'financing_event',
+    [
+      /\bat-the-market\b/i,
+      /\batm program\b/i,
+      /\bregistered direct offering\b/i,
+      /\bpipe\b/i,
+      /\bprivate investment in public equity\b/i,
+      /\bconvertible note/i,
+      /\bwarrant inducement\b/i,
+      /\bequity offering\b/i,
+    ],
+    'The filings suggest a meaningful financing or dilution event. This should be treated as a per-share capital-structure event, not just a routine business-quality update.',
+    'I would not ignore this financing language. A fresh raise or dilution event can overwhelm the normal per-share thesis.',
+  );
+  if (financingFlag) flags.push(financingFlag);
+
+  const legalShockFlag = buildSimpleHardFlag(
+    ledgerBase,
+    'legal_regulatory_shock',
+    'Major legal / regulatory event',
+    'high',
+    'event_risk',
+    [
+      /\bsubpoena\b/i,
+      /\bcivil investigative demand\b/i,
+      /\bconsent decree\b/i,
+      /\bwarning letter\b/i,
+      /\bclinical hold\b/i,
+      /\bproduct recall\b/i,
+      /\bformal investigation\b/i,
+      /\bsettlement agreement\b/i,
+    ],
+    'The filings point to a meaningful legal or regulatory event. This should be treated as event risk, not just a background note disclosure.',
+    'I would treat this as event risk first. Legal or regulatory shocks can dominate the stock before normal valuation matters again.',
+  );
+  if (legalShockFlag) flags.push(legalShockFlag);
+
+  return flags;
+}
+
 function toPctString(value: number | null): string | null {
   return Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)}%` : null;
 }
@@ -182,12 +526,193 @@ function toMoneyString(value: number | null): string | null {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(2) : null;
 }
 
+type LedgerEvidenceAssessment = {
+  sufficient: boolean;
+  status: 'sufficient' | 'no_company_data' | 'not_in_database';
+  message: string;
+  coverageTier: string | null;
+  analysisMode: 'filing_backed' | 'vendor_snapshot_only' | 'insufficient';
+};
+
+function countAvailableMetrics(period: LedgerPeriod | null | undefined): number {
+  const metrics = period?.metrics || {};
+  return Object.values(metrics).filter((entry) => {
+    return entry && typeof entry === 'object' && hasFiniteNumber((entry as LedgerMetricEntry).value);
+  }).length;
+}
+
+function assessLedgerEvidence(ledgerBase: LedgerContextSummary): LedgerEvidenceAssessment {
+  const coverageTier = trimString(ledgerBase?.coverage?.coverage_tier);
+  const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
+  const latestQuarterly = ledgerBase?.annual_context?.latest_quarterly || null;
+  const retrievalResults = Array.isArray(ledgerBase?.evidence_context?.retrieval?.results)
+    ? ledgerBase.evidence_context!.retrieval!.results
+    : [];
+  const recentDocuments = Array.isArray(ledgerBase?.evidence_context?.recent_documents)
+    ? ledgerBase.evidence_context!.recent_documents
+    : [];
+  const snapshot = ledgerBase?.current_snapshot || {};
+
+  const annualMetricCount = countAvailableMetrics(latestAnnual);
+  const quarterlyMetricCount = countAvailableMetrics(latestQuarterly);
+  const snapshotMetricCount = [
+    snapshot.revenueGrowthPct,
+    snapshot.operatingCashFlowTTM,
+    snapshot.freeCashFlowTTM,
+    snapshot.currentRatio,
+    snapshot.enterpriseValue,
+    snapshot.marketCap,
+    snapshot.currentPrice,
+  ].filter((value) => hasFiniteNumber(value)).length;
+
+  const hasStructuredCoverage = annualMetricCount >= 3 || quarterlyMetricCount >= 3;
+  const hasFilingEvidence = retrievalResults.length > 0 || recentDocuments.length > 0;
+  const hasMeaningfulSnapshot = snapshotMetricCount >= 3;
+
+  if (coverageTier === 'full_filing_supported' && (hasStructuredCoverage || hasFilingEvidence)) {
+    return {
+      sufficient: true,
+      status: 'sufficient',
+      message: 'Sufficient filing-backed evidence is available.',
+      coverageTier,
+      analysisMode: 'filing_backed',
+    };
+  }
+
+  if ((coverageTier === 'insufficient_data' || !coverageTier) && !hasStructuredCoverage && !hasFilingEvidence && !hasMeaningfulSnapshot) {
+    return {
+      sufficient: false,
+      status: 'not_in_database',
+      message: 'I have no data on this company. This company is not in our database right now.',
+      coverageTier,
+      analysisMode: 'insufficient',
+    };
+  }
+
+  if (coverageTier === 'foreign_reporting' && !hasStructuredCoverage && !hasFilingEvidence && hasMeaningfulSnapshot) {
+    return {
+      sufficient: true,
+      status: 'sufficient',
+      message: 'I can still give a provisional vendor-backed read from Yahoo and Stockdex, but I do not have the domestic 10-K/10-Q filing coverage Ledger normally relies on for a filing-backed analysis.',
+      coverageTier,
+      analysisMode: 'vendor_snapshot_only',
+    };
+  }
+
+  if (coverageTier === 'foreign_reporting' && !hasStructuredCoverage && !hasFilingEvidence) {
+    return {
+      sufficient: false,
+      status: 'no_company_data',
+      message: hasMeaningfulSnapshot
+        ? 'I have only partial coverage on this company. It appears to be a foreign reporting filer that uses forms like 20-F, 6-K, or 40-F, so I do not have the domestic 10-K/10-Q filing coverage Ledger relies on for a real analysis yet.'
+        : 'I do not have strong Ledger coverage on this company. It appears to be a foreign reporting filer that uses forms like 20-F, 6-K, or 40-F, so the domestic 10-K/10-Q filing path Ledger relies on is not available here.',
+      coverageTier,
+      analysisMode: 'insufficient',
+    };
+  }
+
+  if (!hasStructuredCoverage && !hasFilingEvidence && hasMeaningfulSnapshot) {
+    return {
+      sufficient: true,
+      status: 'sufficient',
+      message: 'I can give a provisional vendor-backed read from Yahoo and Stockdex, but I do not have filing-backed Ledger coverage for this company yet.',
+      coverageTier,
+      analysisMode: 'vendor_snapshot_only',
+    };
+  }
+
+  if (!hasStructuredCoverage && !hasFilingEvidence) {
+    return {
+      sufficient: false,
+      status: 'no_company_data',
+      message: 'I have no information on this company that is strong enough for a real Ledger analysis.',
+      coverageTier,
+      analysisMode: 'insufficient',
+    };
+  }
+
+  return {
+    sufficient: true,
+    status: 'sufficient',
+    message: 'Enough evidence is available for a provisional analysis.',
+    coverageTier,
+    analysisMode: hasStructuredCoverage || hasFilingEvidence ? 'filing_backed' : 'vendor_snapshot_only',
+  };
+}
+
 export function runEarningsQualityEngine(ledgerBase: LedgerContextSummary): Record<string, any> {
   const snapshot = ledgerBase?.current_snapshot || {};
   const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
   const derived = ledgerBase?.annual_context?.derived || {};
   const retrieval = ledgerBase?.evidence_context?.retrieval || {};
   const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
+
+  if (!evidenceAssessment.sufficient) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: ledgerBase?.company_name || null,
+      engine: 'earnings_quality_engine',
+      confidence_level: 'low',
+      status: evidenceAssessment.status,
+      coverage_tier: evidenceAssessment.coverageTier,
+      analysis_mode: evidenceAssessment.analysisMode,
+      earnings_quality_grade: 'insufficient_evidence',
+      earnings_quality_score: null,
+      cash_conversion: {
+        ratio_ocf_to_net_income: null,
+        ratio_display: null,
+        assessment: 'unknown',
+        summary: evidenceAssessment.message,
+        operating_cash_flow: null,
+        net_income: null,
+      },
+      accounting_distortions: {
+        one_time_item_risk_hits: 0,
+        lease_risk_hits: 0,
+        revenue_recognition_risk_hits: 0,
+        potential_distortion_summary: [],
+      },
+      dilution_and_capital_structure: {
+        dilution_risk_hits: 0,
+        debt: null,
+        cash: null,
+        balance_sheet_pressure: 'unknown',
+        summary: evidenceAssessment.message,
+      },
+      balance_sheet_pressure: {
+        current_ratio: null,
+        quick_ratio: null,
+        liquidity_assessment: 'unknown',
+        debt: null,
+        cash: null,
+      },
+      reinvestment_and_free_cash_flow: {
+        revenue: null,
+        free_cash_flow: null,
+        capital_expenditures: null,
+        free_cash_flow_margin_pct: null,
+        free_cash_flow_margin_display: null,
+        capex_as_pct_of_ocf: null,
+        capex_as_pct_of_ocf_display: null,
+        free_cash_flow_assessment: 'unknown',
+        capex_burden_assessment: 'unknown',
+      },
+      earnings_quality_judgment: {
+        summary: evidenceAssessment.message,
+        positives: [],
+        concerns: [],
+      },
+      special_situations: {
+        corporate_action: corporateAction,
+        hard_flags: hardFlags,
+        primary_hard_flag: hardFlags[0] || null,
+      },
+      key_evidence_refs: [],
+    };
+  }
 
   const netIncome = getMetricValue(latestAnnual, 'net_income');
   const operatingCashFlow = getMetricValue(latestAnnual, 'operating_cash_flow') ?? toFiniteNumber(snapshot.operatingCashFlowTTM);
@@ -277,6 +802,7 @@ export function runEarningsQualityEngine(ledgerBase: LedgerContextSummary): Reco
     symbol: ledgerBase?.symbol || null,
     company_name: ledgerBase?.company_name || null,
     engine: 'earnings_quality_engine',
+    analysis_mode: evidenceAssessment.analysisMode,
     confidence_level: confidence,
     earnings_quality_grade: grade,
     earnings_quality_score: normalizedScore,
@@ -336,6 +862,11 @@ export function runEarningsQualityEngine(ledgerBase: LedgerContextSummary): Reco
       positives,
       concerns,
     },
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: hardFlags[0] || null,
+    },
     key_evidence_refs: buildEvidenceRefs([
       ...dilutionRisk.matches,
       ...leaseRisk.matches,
@@ -353,10 +884,97 @@ export function runFinancialAnalysisEngine(ledgerBase: LedgerContextSummary): Re
   const derived = ledgerBase?.annual_context?.derived || {};
   const retrieval = ledgerBase?.evidence_context?.retrieval || {};
   const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+
+  if (!evidenceAssessment.sufficient) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: trimString(ledgerBase?.company_name) || trimString(snapshot.companyName) || null,
+      engine: 'financial_analysis_engine',
+      confidence_level: 'low',
+      status: evidenceAssessment.status,
+      coverage_tier: evidenceAssessment.coverageTier,
+      analysis_mode: evidenceAssessment.analysisMode,
+      business_summary: {
+        company_name: trimString(ledgerBase?.company_name) || trimString(snapshot.companyName) || null,
+        sector: trimString(snapshot.sector),
+        industry: trimString(snapshot.industry),
+        growth_profile: 'unknown',
+        revenue_growth_pct: null,
+        revenue_trend_flag: null,
+        annual_revenue: null,
+        latest_quarter_revenue: null,
+        summary: evidenceAssessment.message,
+      },
+      financial_quality: {
+        earnings_quality_grade: 'insufficient_evidence',
+        revenue_growth_pct: null,
+        gross_margin_pct: null,
+        operating_margin_pct: null,
+        profit_margin_pct: null,
+        return_on_equity_pct: null,
+        cash_conversion_ratio: null,
+        free_cash_flow_margin_pct: null,
+        summary: evidenceAssessment.message,
+      },
+      financial_risk: {
+        current_ratio: null,
+        quick_ratio: null,
+        debt_to_equity: null,
+        cash: null,
+        debt: null,
+        debt_liquidity_evidence_hits: 0,
+        legal_risk_hits: 0,
+        concentration_risk_hits: 0,
+        summary: evidenceAssessment.message,
+      },
+      competitive_advantage: {
+        moat_rating: 'unknown',
+        moat_trend: 'unknown',
+        support_hits: 0,
+        competition_hits: 0,
+        summary: evidenceAssessment.message,
+      },
+      capital_allocation: {
+        posture: 'unknown',
+        operating_cash_flow: null,
+        free_cash_flow: null,
+        capital_expenditures: null,
+        capex_as_pct_of_ocf: null,
+        shares_outstanding_yoy_change_pct: null,
+        recent_financing_flag: null,
+        summary: evidenceAssessment.message,
+      },
+      valuation_method_used: {
+        method: 'insufficient_data',
+        inputs_used: {},
+        summary: evidenceAssessment.message,
+      },
+      intrinsic_value_conclusion: {
+        status: evidenceAssessment.status,
+        summary: evidenceAssessment.message,
+      },
+      price_vs_value_judgment: {
+        judgment: evidenceAssessment.status,
+        enterprise_to_sales: null,
+        enterprise_to_sales_display: null,
+        free_cash_flow_yield_pct: null,
+        summary: evidenceAssessment.message,
+      },
+      main_risks: [],
+      what_would_change_the_view: {
+        more_constructive: [],
+        more_cautious: [],
+      },
+      key_evidence_refs: [],
+    };
+  }
 
   const earningsQuality = runEarningsQualityEngine(ledgerBase);
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
 
-  const annualRevenue = getMetricValue(latestAnnual, 'revenue');
+  const annualRevenue = resolveAnnualRevenue(latestAnnual, snapshot);
   const quarterlyRevenue = getMetricValue(latestQuarterly, 'revenue');
   const operatingIncome = getMetricValue(latestAnnual, 'operating_income');
   const netIncome = getMetricValue(latestAnnual, 'net_income');
@@ -433,6 +1051,11 @@ export function runFinancialAnalysisEngine(ledgerBase: LedgerContextSummary): Re
         : 'unclear_to_fair';
 
   const mainRisks = cleanList([
+    ...hardFlags
+      .filter((flag) => flag?.code !== 'pending_acquisition')
+      .map((flag) => trimString(flag?.summary))
+      .filter(Boolean) as string[],
+    corporateAction?.short_thesis_warning || null,
     competitionRisk.hits ? 'Competition or margin-pressure language appears in the filing evidence.' : null,
     debtRisk.hits ? 'Debt, liquidity, or refinancing language appears in the filing evidence.' : null,
     concentrationRisk.hits ? 'Customer or supplier concentration language appears in the filing evidence.' : null,
@@ -466,6 +1089,7 @@ export function runFinancialAnalysisEngine(ledgerBase: LedgerContextSummary): Re
     symbol: ledgerBase?.symbol || null,
     company_name: companyName,
     engine: 'financial_analysis_engine',
+    analysis_mode: evidenceAssessment.analysisMode,
     confidence_level: confidenceLevel,
     business_summary: {
       company_name: companyName,
@@ -477,7 +1101,7 @@ export function runFinancialAnalysisEngine(ledgerBase: LedgerContextSummary): Re
       annual_revenue: annualRevenue,
       latest_quarter_revenue: quarterlyRevenue,
       summary: companyName && (sector || industry)
-        ? `${companyName} operates in ${industry || sector}${industry && sector ? ` within the broader ${sector} sector` : ''} and currently screens as a ${growthProfile.replace(/_/g, ' ')} business.`
+        ? `${companyName} operates in ${industry || sector}${industry && sector ? ` within the broader ${sector} sector` : ''} and currently screens as a ${growthProfile.replace(/_/g, ' ')} business.${corporateAction ? ` It is also in a ${String(corporateAction.label || 'special situation').toLowerCase()}, so the stock is trading more like a deal spread than a normal standalone equity.` : ''}`
         : 'The loaded context supports a high-level business read, but the profile is still somewhat generic without deeper note-level detail.',
     },
     financial_quality: {
@@ -547,7 +1171,7 @@ export function runFinancialAnalysisEngine(ledgerBase: LedgerContextSummary): Re
     intrinsic_value_conclusion: {
       status: valuationJudgment === 'likely_rich' ? 'preliminarily_rich' : valuationJudgment === 'potentially_attractive' ? 'potentially_attractive' : 'insufficient_precision',
       summary: valuationJudgment === 'likely_rich'
-        ? 'The business may be sound, but the current valuation appears demanding relative to current cash generation.'
+        ? corporateAction?.summary || 'The business may be sound, but the current valuation appears demanding relative to current cash generation.'
         : valuationJudgment === 'potentially_attractive'
           ? 'The current valuation may be attractive relative to current revenue and cash-flow support, though this still needs a real DCF pass.'
           : 'There is not enough precision yet to pin down intrinsic value tightly from this engine alone.',
@@ -558,10 +1182,17 @@ export function runFinancialAnalysisEngine(ledgerBase: LedgerContextSummary): Re
       enterprise_to_sales_display: toMultipleString(enterpriseToSales),
       free_cash_flow_yield_pct: fcfYieldPctDisplay,
       summary: valuationJudgment === 'likely_rich'
-        ? 'Price appears to be demanding more future success than current cash generation alone would justify.'
+        ? corporateAction
+          ? 'Normal price-versus-value framing is secondary here because the stock is trading as a pending acquisition rather than a free standalone business.'
+          : 'Price appears to be demanding more future success than current cash generation alone would justify.'
         : valuationJudgment === 'potentially_attractive'
           ? 'Price may be leaving room for upside if the current cash generation and growth hold up.'
           : 'Price versus value remains somewhat ambiguous without a deeper valuation model.',
+    },
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: hardFlags[0] || null,
     },
     main_risks: mainRisks,
     what_would_change_the_view: {
@@ -587,21 +1218,350 @@ type DcfEngineOptions = {
   forecast_years?: number | null;
 };
 
-export function runDcfValuationEngine(
+export function runFinancialCompanyValuationEngine(
   ledgerBase: LedgerContextSummary,
   options: DcfEngineOptions = {},
 ): Record<string, any> {
   const snapshot = ledgerBase?.current_snapshot || {};
   const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
-  const derived = ledgerBase?.annual_context?.derived || {};
   const retrieval = ledgerBase?.evidence_context?.retrieval || {};
   const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+
+  if (!evidenceAssessment.sufficient) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: trimString(ledgerBase?.company_name) || trimString(snapshot.companyName) || null,
+      engine: 'financial_company_valuation_engine',
+      valuation_method: 'financial_company_roe_book_value',
+      confidence_level: 'low',
+      status: evidenceAssessment.status,
+      coverage_tier: evidenceAssessment.coverageTier,
+      analysis_mode: evidenceAssessment.analysisMode,
+      summary: evidenceAssessment.message,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      price_vs_value_judgment: {
+        judgment: evidenceAssessment.status,
+        summary: evidenceAssessment.message,
+      },
+    };
+  }
 
   const earningsQuality = runEarningsQualityEngine(ledgerBase);
   const financialAnalysis = runFinancialAnalysisEngine(ledgerBase);
-
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
   const companyName = trimString(ledgerBase?.company_name) || trimString(snapshot.companyName);
-  const annualRevenue = getMetricValue(latestAnnual, 'revenue');
+  const currentPrice = toFiniteNumber(snapshot.currentPrice);
+  const marketCap = toFiniteNumber(snapshot.marketCap);
+  const sharesOutstanding = toFiniteNumber(snapshot.sharesOutstanding)
+    ?? (Number.isFinite(Number(marketCap)) && Number.isFinite(Number(currentPrice)) && Number(currentPrice)
+      ? Number(marketCap) / Number(currentPrice)
+      : null);
+  const netIncome = getMetricValue(latestAnnual, 'net_income');
+  const debtToEquity = toFiniteNumber(snapshot.debtToEquity);
+  const revenueGrowthObservedPct = toFiniteNumber(snapshot.revenueGrowthPct) ?? toFiniteNumber(snapshot.revenueYoYGrowthPct);
+  const rawRoePct = toFiniteNumber(snapshot.returnOnEquityPct);
+  const annualEquity = getFirstMetricValue(latestAnnual, [
+    'stockholders_equity',
+    'equity',
+    'common_stock_equity',
+    'total_equity',
+    'stockholders_equity_including_noncontrolling_interest',
+  ]);
+  const totalDebt = toFiniteNumber(snapshot.totalDebt) ?? toFiniteNumber(snapshot.debt);
+  const inferredEquityFromLeverage = Number.isFinite(Number(totalDebt)) && Number.isFinite(Number(debtToEquity)) && Number(debtToEquity) > 0
+    ? Number(totalDebt) / Number(debtToEquity)
+    : null;
+  const inferredEquityFromRoe = Number.isFinite(Number(netIncome)) && Number.isFinite(Number(rawRoePct)) && Number(rawRoePct) > 0
+    ? Number(netIncome) / (Number(rawRoePct) / 100)
+    : null;
+  const totalEquity = [
+    toFiniteNumber((snapshot as any).equity),
+    annualEquity,
+    inferredEquityFromLeverage,
+    inferredEquityFromRoe,
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const bookValuePerShare = [
+    toFiniteNumber((snapshot as any).bookValuePerShare),
+    Number.isFinite(Number(currentPrice)) && Number.isFinite(Number((snapshot as any).priceToBook)) && Number((snapshot as any).priceToBook) > 0
+      ? Number(currentPrice) / Number((snapshot as any).priceToBook)
+      : null,
+    Number.isFinite(Number(totalEquity)) && Number.isFinite(Number(sharesOutstanding)) && Number(sharesOutstanding) > 0
+      ? Number(totalEquity) / Number(sharesOutstanding)
+      : null,
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const normalizedRoePct = [
+    rawRoePct,
+    Number.isFinite(Number(netIncome)) && Number.isFinite(Number(totalEquity)) && Number(totalEquity) > 0
+      ? (Number(netIncome) / Number(totalEquity)) * 100
+      : null,
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const normalizedEps = [
+    toFiniteNumber((snapshot as any).trailingEPS),
+    toFiniteNumber((snapshot as any).earningsPerShare),
+    Number.isFinite(Number(netIncome)) && Number.isFinite(Number(sharesOutstanding)) && Number(sharesOutstanding) > 0
+      ? Number(netIncome) / Number(sharesOutstanding)
+      : null,
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+
+  const qualityGrade = trimString(earningsQuality?.earnings_quality_grade) || 'mixed';
+  const defaultCostOfEquityPct = clamp(
+    9
+      + (Number.isFinite(Number(debtToEquity)) && Number(debtToEquity) >= 10 ? 2.5 : Number.isFinite(Number(debtToEquity)) && Number(debtToEquity) >= 5 ? 1.5 : Number.isFinite(Number(debtToEquity)) && Number(debtToEquity) >= 2 ? 0.75 : 0)
+      + (qualityGrade === 'weak' ? 1 : qualityGrade === 'mixed' ? 0.5 : 0),
+    7.5,
+    16,
+  );
+  const costOfEquityPct = clamp(
+    hasFiniteNumber(options.discount_rate_pct) ? Number(options.discount_rate_pct) : defaultCostOfEquityPct,
+    6,
+    18,
+  );
+  const sustainableGrowthPct = clamp(
+    hasFiniteNumber(options.terminal_growth_pct)
+      ? Number(options.terminal_growth_pct)
+      : Number.isFinite(Number(revenueGrowthObservedPct))
+        ? Number(revenueGrowthObservedPct) * 0.35
+        : 2.5,
+    0.5,
+    Math.max(0.5, costOfEquityPct - 1.5),
+  );
+
+  const missingInputs = cleanList([
+    Number.isFinite(Number(bookValuePerShare)) ? null : 'book value per share',
+    Number.isFinite(Number(normalizedRoePct)) ? null : 'normalized return on equity',
+    Number.isFinite(Number(sharesOutstanding)) ? null : 'shares outstanding',
+  ], 8);
+
+  if (missingInputs.length) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'financial_company_valuation_engine',
+      valuation_method: 'financial_company_roe_book_value',
+      confidence_level: 'low',
+      status: 'insufficient_inputs',
+      missing_inputs: missingInputs,
+      summary: `A financial-company valuation could not be completed because key inputs are missing: ${missingInputs.join(', ')}.`,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      price_vs_value_judgment: {
+        judgment: 'insufficient_inputs',
+        summary: 'There is not enough structured book-value or ROE input to produce a defensible financial-company valuation.',
+      },
+      recommended_methods: [
+        'price_to_book',
+        'normalized_roe_vs_cost_of_equity',
+        'earnings_power',
+        'dividend_or_excess_capital_framework',
+      ],
+      supporting_context: {
+        shares_outstanding: sharesOutstanding,
+        shares_outstanding_source: trimString(snapshot.sharesOutstandingSource),
+        total_equity: totalEquity,
+        normalized_return_on_equity_pct: normalizedRoePct,
+      },
+      special_situations: {
+        corporate_action: corporateAction,
+        hard_flags: hardFlags,
+        primary_hard_flag: hardFlags[0] || null,
+      },
+    };
+  }
+
+  const scenarioConfigs = [
+    {
+      name: 'bear',
+      normalizedRoePct: clamp(Number(normalizedRoePct) - 2.5, 2, 30),
+      costOfEquityPct: clamp(costOfEquityPct + 1, 6, 20),
+      sustainableGrowthPct: clamp(sustainableGrowthPct - 0.5, 0.5, 6),
+    },
+    {
+      name: 'base',
+      normalizedRoePct: Number(normalizedRoePct),
+      costOfEquityPct,
+      sustainableGrowthPct,
+    },
+    {
+      name: 'bull',
+      normalizedRoePct: clamp(Number(normalizedRoePct) + 2.5, 2, 35),
+      costOfEquityPct: clamp(costOfEquityPct - 1, 6, 20),
+      sustainableGrowthPct: clamp(sustainableGrowthPct + 0.5, 0.5, 6),
+    },
+  ] as const;
+
+  const scenarioOutputs = scenarioConfigs.map((scenario) => {
+    const roe = scenario.normalizedRoePct / 100;
+    const growth = scenario.sustainableGrowthPct / 100;
+    const costOfEquity = scenario.costOfEquityPct / 100;
+    const justifiedPriceToBook = costOfEquity > growth
+      ? clamp((roe - growth) / (costOfEquity - growth), 0.25, 4.5)
+      : null;
+    const fairValuePerShare = justifiedPriceToBook != null
+      ? Number(bookValuePerShare) * justifiedPriceToBook
+      : null;
+    const earningsPowerFairValue = Number.isFinite(Number(normalizedEps))
+      ? Number(normalizedEps) * clamp(((roe / costOfEquity) * 12), 5, 20)
+      : null;
+
+    return {
+      scenario: scenario.name,
+      assumptions: {
+        normalized_return_on_equity_pct: scenario.normalizedRoePct,
+        cost_of_equity_pct: scenario.costOfEquityPct,
+        sustainable_growth_pct: scenario.sustainableGrowthPct,
+        book_value_per_share: Number(bookValuePerShare),
+      },
+      justified_price_to_book: justifiedPriceToBook != null ? Number(justifiedPriceToBook.toFixed(2)) : null,
+      fair_value_per_share: fairValuePerShare != null ? Number(fairValuePerShare.toFixed(2)) : null,
+      earnings_power_fair_value_per_share: earningsPowerFairValue != null ? Number(earningsPowerFairValue.toFixed(2)) : null,
+    };
+  });
+
+  const bear = scenarioOutputs.find((row) => row.scenario === 'bear') || null;
+  const base = scenarioOutputs.find((row) => row.scenario === 'base') || null;
+  const bull = scenarioOutputs.find((row) => row.scenario === 'bull') || null;
+  const lowFairValue = bear?.fair_value_per_share ?? null;
+  const midFairValue = base?.fair_value_per_share ?? null;
+  const highFairValue = bull?.fair_value_per_share ?? null;
+  const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midFairValue)) && Number(currentPrice)
+    ? ((Number(midFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
+    : null;
+  const priceVsValueJudgment = buildValuationPriceJudgment(currentPrice, midFairValue);
+
+  return {
+    symbol: ledgerBase?.symbol || null,
+    company_name: companyName,
+    engine: 'financial_company_valuation_engine',
+    valuation_method: 'financial_company_roe_book_value',
+    analysis_mode: evidenceAssessment.analysisMode,
+    confidence_level: buildConfidenceLevel(Boolean(latestAnnual), retrievalResults.length, [
+      bookValuePerShare,
+      normalizedRoePct,
+      currentPrice,
+      sharesOutstanding,
+    ].filter((value) => Number.isFinite(Number(value))).length),
+    normalized_book_value_base: {
+      book_value_per_share: Number(bookValuePerShare),
+      total_equity: totalEquity,
+      normalized_return_on_equity_pct: normalizedRoePct,
+      normalized_eps: normalizedEps,
+      shares_outstanding: sharesOutstanding,
+      current_price: currentPrice,
+    },
+    base_case_assumptions: base?.assumptions || null,
+    bear_case_assumptions: bear?.assumptions || null,
+    bull_case_assumptions: bull?.assumptions || null,
+    scenario_outputs: scenarioOutputs,
+    fair_value_range: {
+      low_per_share: lowFairValue,
+      mid_per_share: midFairValue,
+      high_per_share: highFairValue,
+      current_price: currentPrice,
+      current_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+      low_display: toMoneyString(lowFairValue),
+      mid_display: toMoneyString(midFairValue),
+      high_display: toMoneyString(highFairValue),
+    },
+    key_sensitivities: [
+      `Book value per share of about ${toMoneyString(bookValuePerShare)}.`,
+      `Normalized ROE of about ${toPctString(normalizedRoePct)} versus cost of equity of about ${toPctString(costOfEquityPct)}.`,
+      'Funding structure, credit quality, and capital strength matter more here than industrial free cash flow.',
+    ],
+    sensitivity_notes: [
+      'Small changes in normalized ROE and cost of equity can move justified price-to-book materially.',
+      'Financial-company valuation is more sensitive to book value quality, credit losses, and capital strength than to reported free cash flow.',
+    ],
+    price_vs_value_judgment: {
+      judgment: priceVsValueJudgment,
+      summary: priceVsValueJudgment === 'undervalued'
+        ? 'The financial-company engine suggests the stock is trading below a reasonable book-value / ROE-based estimate.'
+        : priceVsValueJudgment === 'overvalued'
+          ? 'The stock is trading above what the current book value and normalized ROE appear to justify.'
+          : priceVsValueJudgment === 'roughly_fair'
+            ? 'The current price is in the same rough neighborhood as a book-value / ROE-based estimate.'
+            : 'Price versus value could not be judged cleanly from the current financial-company inputs.',
+      current_price: currentPrice,
+      midpoint_fair_value: midFairValue,
+      upside_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    supporting_context: {
+      earnings_quality_grade: earningsQuality?.earnings_quality_grade || null,
+      financial_analysis_value_view: financialAnalysis?.price_vs_value_judgment?.judgment || null,
+      sector: trimString(snapshot.sector),
+      industry: trimString(snapshot.industry),
+      shares_outstanding: sharesOutstanding,
+      shares_outstanding_source: trimString(snapshot.sharesOutstandingSource),
+      book_value_per_share: bookValuePerShare,
+      total_equity: totalEquity,
+      normalized_return_on_equity_pct: normalizedRoePct,
+      normalized_eps: normalizedEps,
+    },
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: hardFlags[0] || null,
+    },
+    recommended_methods: [
+      'price_to_book',
+      'normalized_roe_vs_cost_of_equity',
+      'earnings_power',
+      'dividend_or_excess_capital_framework',
+    ],
+  };
+}
+
+export function runDcfValuationEngine(
+  ledgerBase: LedgerContextSummary,
+  options: DcfEngineOptions = {},
+): Record<string, any> {
+  if (resolveValuationEngineClass(ledgerBase) === 'roe_book_value') {
+    return runFinancialCompanyValuationEngine(ledgerBase, options);
+  }
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
+  const derived = ledgerBase?.annual_context?.derived || {};
+  const retrieval = ledgerBase?.evidence_context?.retrieval || {};
+  const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+
+  if (!evidenceAssessment.sufficient) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: trimString(ledgerBase?.company_name) || trimString(snapshot.companyName) || null,
+      engine: 'dcf_engine',
+      valuation_method: 'simplified_fcfe_dcf',
+      confidence_level: 'low',
+      status: evidenceAssessment.status,
+      coverage_tier: evidenceAssessment.coverageTier,
+      analysis_mode: evidenceAssessment.analysisMode,
+      summary: evidenceAssessment.message,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      fair_value_range: null,
+      price_vs_value_judgment: {
+        judgment: evidenceAssessment.status,
+        summary: evidenceAssessment.message,
+      },
+    };
+  }
+
+  const earningsQuality = runEarningsQualityEngine(ledgerBase);
+  const financialAnalysis = runFinancialAnalysisEngine(ledgerBase);
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
+  const companyName = trimString(ledgerBase?.company_name) || trimString(snapshot.companyName);
+
+  const annualRevenue = resolveAnnualRevenue(latestAnnual, snapshot);
   const operatingMarginPct = [
     toFiniteNumber(derived?.operating_margin_pct),
     toFiniteNumber(snapshot.operatingMarginPct),
@@ -817,15 +1777,14 @@ export function runDcfValuationEngine(
     ? ((Number(midFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
     : null;
 
-  const priceVsValueJudgment = !Number.isFinite(Number(upsidePctToMid))
-    ? 'insufficient_price_context'
-    : Number(upsidePctToMid) >= 20
-      ? 'undervalued'
-      : Number(upsidePctToMid) <= -20
-        ? 'overvalued'
-        : 'roughly_fair';
+  const priceVsValueJudgment = buildValuationPriceJudgment(currentPrice, midFairValue);
 
   const sensitivityNotes = cleanList([
+    ...hardFlags
+      .filter((flag) => flag?.code !== 'pending_acquisition')
+      .map((flag) => trimString(flag?.summary))
+      .filter(Boolean) as string[],
+    corporateAction?.summary || null,
     'Fair value is highly sensitive to the target free cash flow margin.',
     'Near-term revenue growth assumptions materially affect the valuation range.',
     qualityGrade === 'mixed' || qualityGrade === 'weak'
@@ -850,6 +1809,7 @@ export function runDcfValuationEngine(
     company_name: companyName,
     engine: 'dcf_engine',
     valuation_method: 'simplified_fcfe_dcf',
+    analysis_mode: evidenceAssessment.analysisMode,
     confidence_level: confidenceLevel,
     normalized_cash_flow_base: {
       reported_free_cash_flow: freeCashFlow,
@@ -880,9 +1840,13 @@ export function runDcfValuationEngine(
     price_vs_value_judgment: {
       judgment: priceVsValueJudgment,
       summary: priceVsValueJudgment === 'undervalued'
-        ? 'The DCF midpoint sits materially above the current price.'
+        ? corporateAction
+          ? `Standalone DCF suggests upside, but the stock is currently governed primarily by pending acquisition terms rather than ordinary standalone valuation. ${corporateAction.summary}`
+          : 'The DCF midpoint sits materially above the current price.'
         : priceVsValueJudgment === 'overvalued'
-          ? 'The DCF midpoint sits materially below the current price.'
+          ? corporateAction
+            ? `Standalone DCF sits below the current price, but the more important reality is that this stock is trading against a signed acquisition. ${corporateAction.short_thesis_warning}`
+            : 'The DCF midpoint sits materially below the current price.'
           : priceVsValueJudgment === 'roughly_fair'
             ? 'The current price is in the same rough neighborhood as the DCF midpoint.'
             : 'Price versus value could not be judged cleanly from the current context.',
@@ -896,5 +1860,17 @@ export function runDcfValuationEngine(
       sector: trimString(snapshot.sector),
       industry: trimString(snapshot.industry),
     },
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: hardFlags[0] || null,
+    },
   };
+}
+
+export function runValuationEngine(
+  ledgerBase: LedgerContextSummary,
+  options: DcfEngineOptions = {},
+): Record<string, any> {
+  return runDcfValuationEngine(ledgerBase, options);
 }

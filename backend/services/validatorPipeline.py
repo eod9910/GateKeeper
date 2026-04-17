@@ -643,6 +643,10 @@ _TIER_TRADE_THRESHOLDS: Dict[str, Dict[str, int]] = {
     "regime_distribution": {"min_trades_pass": 150, "min_trades_fail": 50},
     "regime_accumulation": {"min_trades_pass": 150, "min_trades_fail": 50},
     "regime_markdown":     {"min_trades_pass": 150, "min_trades_fail": 50},
+    # DCF sample universes - exploratory 100-name slices, baseline only.
+    "valuation_regime_undervalued_sample100": {"min_trades_pass": 60, "min_trades_fail": 25},
+    "valuation_regime_fair_sample100":        {"min_trades_pass": 60, "min_trades_fail": 25},
+    "valuation_regime_overvalued_sample100":  {"min_trades_pass": 60, "min_trades_fail": 25},
 }
 
 # Reference universe size for the stock tiers that define the standard thresholds.
@@ -1249,14 +1253,25 @@ def run_pipeline(
 
     tier_key = str(validation_tier or "tier3").strip().lower()
     _REGIME_TIERS = ("regime_expansion", "regime_distribution", "regime_accumulation", "regime_markdown")
+    _VALUATION_SAMPLE_TIERS = (
+        "valuation_regime_undervalued_sample100",
+        "valuation_regime_fair_sample100",
+        "valuation_regime_overvalued_sample100",
+    )
     _VALID_TIERS = ("tier1", "tier1b", "tier1s", "tier1bs", "tier2", "tier3",
-                    "large_cap_known", "sp500", "sp400", "sp600") + _REGIME_TIERS
+                    "large_cap_known", "sp500", "sp400", "sp600") + _REGIME_TIERS + _VALUATION_SAMPLE_TIERS
     if tier_key not in _VALID_TIERS:
         tier_key = "tier3"
     thresholds = _validator_thresholds(spec, tier_key, universe_size=len(symbols))
-    is_tier1_fast = tier_key in ("tier1", "tier1b", "tier1s", "tier1bs", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS
-    tier1_skip_sensitivity = tier_key in ("tier1", "tier1b", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS
-    evidence_tier_label = "Tier 1S" if tier_key == "tier1s" else "Tier 1BS" if tier_key == "tier1bs" else "Tier 1B" if tier_key == "tier1b" else "Tier 1"
+    is_tier1_fast = tier_key in ("tier1", "tier1b", "tier1s", "tier1bs", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS or tier_key in _VALUATION_SAMPLE_TIERS
+    tier1_skip_sensitivity = tier_key in ("tier1", "tier1b", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS or tier_key in _VALUATION_SAMPLE_TIERS
+    evidence_tier_label = (
+        "Tier 1S" if tier_key == "tier1s"
+        else "Tier 1BS" if tier_key == "tier1bs"
+        else "Tier 1B" if tier_key == "tier1b"
+        else "Sample 100" if tier_key in _VALUATION_SAMPLE_TIERS
+        else "Tier 1"
+    )
     extra_passes_after_baseline = 0 if is_tier1_fast else 6
     baseline_progress_span = 0.60 if is_tier1_fast else 0.25
 

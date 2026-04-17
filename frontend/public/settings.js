@@ -49,6 +49,8 @@ const BACKEND_PROMPT_FIELD_MAP = {
   's-validator-analyst-system-prompt': 'validator_analyst',
 };
 
+let hydrationStatusPoll = null;
+
 function loadSettings() {
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); } catch(e) {}
@@ -70,6 +72,46 @@ function setBackendAIStatus(text, tone) {
   if (tone === 'error') el.style.color = 'var(--color-danger)';
   else if (tone === 'success') el.style.color = 'var(--color-positive)';
   else el.style.color = 'var(--color-text-muted)';
+}
+
+function setHydrationStatus(text, tone) {
+  const el = document.getElementById('s-ledger-hydration-status');
+  if (!el) return;
+  el.textContent = text;
+  if (tone === 'error') el.style.color = 'var(--color-danger)';
+  else if (tone === 'success') el.style.color = 'var(--color-positive)';
+  else el.style.color = 'var(--color-text-muted)';
+}
+
+function setHydrationMeta(text) {
+  const el = document.getElementById('s-ledger-hydration-meta');
+  if (!el) return;
+  el.textContent = text || '';
+}
+
+function setConsumerCycleStatus(text, tone) {
+  const el = document.getElementById('s-consumer-cycle-status');
+  if (!el) return;
+  el.textContent = text;
+  if (tone === 'error') el.style.color = 'var(--color-danger)';
+  else if (tone === 'success') el.style.color = 'var(--color-positive)';
+  else el.style.color = 'var(--color-text-muted)';
+}
+
+function setConsumerCycleMeta(text) {
+  const el = document.getElementById('s-consumer-cycle-meta');
+  if (!el) return;
+  el.textContent = text || '';
+}
+
+function formatHydrationEta(seconds, fallbackDisplay) {
+  if (fallbackDisplay) return fallbackDisplay;
+  const total = Number(seconds);
+  if (!Number.isFinite(total) || total <= 0) return '';
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 async function loadBackendAISettings() {
@@ -179,6 +221,222 @@ async function testBackendAISettings() {
   }
 }
 
+function toggleHydrationScheduleFields() {
+  const enabled = !!document.getElementById('s-ledger-hydration-enabled')?.checked;
+  const frequency = document.getElementById('s-ledger-hydration-frequency')?.value || 'manual';
+  const weeklyField = document.getElementById('ledger-hydration-day-field');
+  if (weeklyField) weeklyField.style.display = frequency === 'weekly' && enabled ? '' : 'none';
+
+  [
+    's-ledger-hydration-frequency',
+    's-ledger-hydration-day-of-week',
+    's-ledger-hydration-time',
+    's-ledger-hydration-timezone',
+    's-ledger-hydration-workers',
+    's-ledger-hydration-limit',
+    's-ledger-hydration-annual-count',
+    's-ledger-hydration-quarterly-count',
+    's-ledger-hydration-current-count',
+    's-ledger-hydration-write-report',
+    's-ledger-hydration-refresh-valuations',
+    's-ledger-hydration-refresh-consumer-cycle',
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const isManualOnly = frequency === 'manual';
+    el.disabled = !enabled && id !== 's-ledger-hydration-frequency' ? true : false;
+    if (id === 's-ledger-hydration-day-of-week') {
+      el.disabled = !enabled || isManualOnly || frequency !== 'weekly';
+    }
+    if (id === 's-ledger-hydration-time' || id === 's-ledger-hydration-timezone') {
+      el.disabled = !enabled || isManualOnly;
+    }
+  });
+}
+
+function collectHydrationScheduleSettings() {
+  return {
+    enabled: !!document.getElementById('s-ledger-hydration-enabled')?.checked,
+    frequency: document.getElementById('s-ledger-hydration-frequency')?.value || 'manual',
+    day_of_week: document.getElementById('s-ledger-hydration-day-of-week')?.value || '0',
+    time_of_day: document.getElementById('s-ledger-hydration-time')?.value || '02:00',
+    timezone: (document.getElementById('s-ledger-hydration-timezone')?.value || 'America/Los_Angeles').trim(),
+    workers: Number(document.getElementById('s-ledger-hydration-workers')?.value || 3),
+    limit: Number(document.getElementById('s-ledger-hydration-limit')?.value || 0),
+    annual_count: Number(document.getElementById('s-ledger-hydration-annual-count')?.value || 1),
+    quarterly_count: Number(document.getElementById('s-ledger-hydration-quarterly-count')?.value || 2),
+    current_count: Number(document.getElementById('s-ledger-hydration-current-count')?.value || 6),
+    write_report: !!document.getElementById('s-ledger-hydration-write-report')?.checked,
+    refresh_valuations: !!document.getElementById('s-ledger-hydration-refresh-valuations')?.checked,
+    refresh_yahoo_identity_metadata: !!document.getElementById('s-ledger-hydration-refresh-yahoo-identity')?.checked,
+    refresh_consumer_cycle_classifications: !!document.getElementById('s-ledger-hydration-refresh-consumer-cycle')?.checked,
+  };
+}
+
+function applyHydrationScheduleSettings(data) {
+  const config = data?.config || {};
+  const runtime = data?.runtime || {};
+  const consumerRuntime = data?.consumer_cycle_runtime || {};
+  const latestJob = data?.latest_job || null;
+  const setValue = (id, value, isCheckbox = false) => {
+    const el = document.getElementById(id);
+    if (!el || value === undefined || value === null) return;
+    if (isCheckbox) el.checked = !!value;
+    else el.value = String(value);
+  };
+
+  setValue('s-ledger-hydration-enabled', config.enabled, true);
+  setValue('s-ledger-hydration-frequency', config.frequency || 'manual');
+  setValue('s-ledger-hydration-day-of-week', config.day_of_week || '0');
+  setValue('s-ledger-hydration-time', config.time_of_day || '02:00');
+  setValue('s-ledger-hydration-timezone', config.timezone || 'America/Los_Angeles');
+  setValue('s-ledger-hydration-workers', config.workers ?? 3);
+  setValue('s-ledger-hydration-limit', config.limit ?? 0);
+  setValue('s-ledger-hydration-annual-count', config.annual_count ?? 1);
+  setValue('s-ledger-hydration-quarterly-count', config.quarterly_count ?? 2);
+  setValue('s-ledger-hydration-current-count', config.current_count ?? 6);
+  setValue('s-ledger-hydration-write-report', config.write_report !== false, true);
+  setValue('s-ledger-hydration-refresh-valuations', config.refresh_valuations !== false, true);
+  setValue('s-ledger-hydration-refresh-yahoo-identity', config.refresh_yahoo_identity_metadata !== false, true);
+  setValue('s-ledger-hydration-refresh-consumer-cycle', config.refresh_consumer_cycle_classifications !== false, true);
+
+  const scheduleDescription = data?.schedule_description || 'Manual only';
+  const etaText = formatHydrationEta(latestJob?.eta_seconds, latestJob?.eta_display);
+  const runningProgressText = latestJob && runtime?.running
+    ? [
+        Number.isFinite(Number(latestJob.completed_count)) && Number.isFinite(Number(latestJob.candidate_count))
+          ? `${latestJob.completed_count}/${latestJob.candidate_count} complete`
+          : null,
+        Number.isFinite(Number(latestJob.symbols_per_hour))
+          ? `${Number(latestJob.symbols_per_hour).toFixed(1)} symbols/hour`
+          : null,
+        etaText ? `ETA ${etaText}` : null,
+      ].filter(Boolean).join(' · ')
+    : '';
+  const statusText = runtime?.running
+    ? `Running now. ${runningProgressText || runtime.last_message || ''}`.trim()
+    : `Idle. ${scheduleDescription}`;
+  setHydrationStatus(statusText, runtime?.running ? 'success' : 'muted');
+
+  const metaBits = [
+    runtime?.last_started_at ? `Last started: ${new Date(runtime.last_started_at).toLocaleString()}` : null,
+    runtime?.last_finished_at ? `Last finished: ${new Date(runtime.last_finished_at).toLocaleString()}` : null,
+    runtime?.last_exit_code !== undefined && runtime?.last_exit_code !== null ? `Exit: ${runtime.last_exit_code}` : null,
+    runtime?.last_source ? `Source: ${runtime.last_source}` : null,
+  ].filter(Boolean);
+  if (latestJob) {
+    if (Number.isFinite(Number(latestJob.progress_pct))) {
+      metaBits.push(`Progress: ${Number(latestJob.progress_pct).toFixed(1)}%`);
+    }
+    if (Number.isFinite(Number(latestJob.completed_count)) && Number.isFinite(Number(latestJob.candidate_count))) {
+      metaBits.push(`Completed: ${latestJob.completed_count}/${latestJob.candidate_count}`);
+    }
+    if (Number.isFinite(Number(latestJob.failed_count)) && Number(latestJob.failed_count) > 0) {
+      metaBits.push(`Failed: ${latestJob.failed_count}`);
+    }
+    if (Number.isFinite(Number(latestJob.symbols_per_hour))) {
+      metaBits.push(`Throughput: ${Number(latestJob.symbols_per_hour).toFixed(1)}/hr`);
+    }
+    if (etaText) metaBits.push(`ETA: ${etaText}`);
+  }
+  if (runtime?.last_error) metaBits.push(`Error: ${runtime.last_error}`);
+  if (runtime?.last_report_path) metaBits.push(`Report: ${runtime.last_report_path}`);
+  if (latestJob?.report_path && latestJob.report_path !== runtime?.last_report_path) {
+    metaBits.push(`Job report: ${latestJob.report_path}`);
+  }
+  setHydrationMeta(metaBits.join(' • '));
+
+  const consumerStatusText = consumerRuntime?.running
+    ? `Running now. ${consumerRuntime.last_message || 'Refreshing consumer-cycle classifications...'}`.trim()
+    : `Idle.${consumerRuntime?.last_message ? ` ${consumerRuntime.last_message}` : ''}`;
+  setConsumerCycleStatus(consumerStatusText, consumerRuntime?.running ? 'success' : 'muted');
+  const consumerMetaBits = [
+    consumerRuntime?.last_started_at ? `Last started: ${new Date(consumerRuntime.last_started_at).toLocaleString()}` : null,
+    consumerRuntime?.last_finished_at ? `Last finished: ${new Date(consumerRuntime.last_finished_at).toLocaleString()}` : null,
+    consumerRuntime?.last_exit_code !== undefined && consumerRuntime?.last_exit_code !== null ? `Exit: ${consumerRuntime.last_exit_code}` : null,
+    consumerRuntime?.last_source ? `Source: ${consumerRuntime.last_source}` : null,
+    consumerRuntime?.last_error ? `Error: ${consumerRuntime.last_error}` : null,
+  ].filter(Boolean);
+  setConsumerCycleMeta(consumerMetaBits.join(' • '));
+  toggleHydrationScheduleFields();
+
+  if (hydrationStatusPoll) {
+    clearInterval(hydrationStatusPoll);
+    hydrationStatusPoll = null;
+  }
+  if (runtime?.running || consumerRuntime?.running) {
+    hydrationStatusPoll = setInterval(() => loadHydrationScheduleSettings(true), 10000);
+  }
+}
+
+async function loadHydrationScheduleSettings(silent) {
+  if (!silent) setHydrationStatus('Loading hydration settings...', 'muted');
+  try {
+    const res = await fetch(`${API_URL}/api/ledger-hydration/settings`);
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    applyHydrationScheduleSettings(data.data);
+  } catch (err) {
+    setHydrationStatus(`Failed to load hydration settings: ${err.message}`, 'error');
+  }
+}
+
+async function saveHydrationScheduleSettings() {
+  setHydrationStatus('Saving hydration schedule...', 'muted');
+  try {
+    const res = await fetch(`${API_URL}/api/ledger-hydration/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collectHydrationScheduleSettings()),
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    applyHydrationScheduleSettings(data.data);
+    setHydrationStatus('Hydration schedule saved.', 'success');
+  } catch (err) {
+    setHydrationStatus(`Failed to save hydration schedule: ${err.message}`, 'error');
+  }
+}
+
+async function runHydrationNow() {
+  setHydrationStatus('Starting hydration job...', 'muted');
+  try {
+    const res = await fetch(`${API_URL}/api/ledger-hydration/run`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    applyHydrationScheduleSettings(data.data);
+    setHydrationStatus(data.data?.started ? 'Hydration job started.' : (data.data?.message || 'Hydration job already running.'), data.data?.started ? 'success' : 'muted');
+  } catch (err) {
+    setHydrationStatus(`Failed to start hydration job: ${err.message}`, 'error');
+  }
+}
+
+async function runConsumerCycleClassificationNow() {
+  setConsumerCycleStatus('Starting consumer-cycle classification refresh...', 'muted');
+  try {
+    const res = await fetch(`${API_URL}/api/ledger-hydration/run-consumer-cycle-classification`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    applyHydrationScheduleSettings(data.data);
+    setConsumerCycleStatus(
+      data.data?.started
+        ? 'Consumer-cycle classification refresh started.'
+        : (data.data?.message || 'Consumer-cycle classification refresh already running.'),
+      data.data?.started ? 'success' : 'muted'
+    );
+  } catch (err) {
+    setConsumerCycleStatus(`Failed to start consumer-cycle classification refresh: ${err.message}`, 'error');
+  }
+}
+
 function updateTempLabel() {
   const slider = document.getElementById('s-ai-temperature');
   const label  = document.getElementById('s-temp-value');
@@ -224,9 +482,15 @@ window.saveBackendAISettings = saveBackendAISettings;
 window.testBackendAISettings = testBackendAISettings;
 window.updateTempLabel = updateTempLabel;
 window.toggleStopFields = toggleStopFields;
+window.toggleHydrationScheduleFields = toggleHydrationScheduleFields;
+window.loadHydrationScheduleSettings = loadHydrationScheduleSettings;
+window.saveHydrationScheduleSettings = saveHydrationScheduleSettings;
+window.runHydrationNow = runHydrationNow;
+window.runConsumerCycleClassificationNow = runConsumerCycleClassificationNow;
 
 document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   loadBackendAISettings();
+  loadHydrationScheduleSettings();
   toggleStopFields();
 });

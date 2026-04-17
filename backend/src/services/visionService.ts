@@ -996,6 +996,7 @@ export interface TradingContext {
   leverage?: number;
   exchangeFee?: number;
   tradeDirection?: 'LONG' | 'SHORT';
+  chatHistory?: Array<{ sender?: string; text?: string }>;
   copilotAnalysis?: any;
 }
 
@@ -1019,7 +1020,6 @@ export type AIRole =
 
 const WORKSPACE_ANALYST_IDS: WorkspaceAnalystId[] = [
   'scanner_copilot',
-  'pattern_analyst',
   'technical_analyst',
   'financial_analyst',
 ];
@@ -1032,16 +1032,10 @@ export function listWorkspaceAnalysts(): Array<{
 }> {
   return [
     {
-      id: 'pattern_analyst',
-      label: 'Atlas',
-      workspaceName: 'Pattern Analyst Workspace',
-      description: 'Focuses on pattern completion, confirmation quality, and structural failure conditions.',
-    },
-    {
       id: 'technical_analyst',
       label: 'Structure',
       workspaceName: 'Technical Analyst Workspace',
-      description: 'Focuses on regime, trend structure, invalidation, and trade location.',
+      description: 'Focuses on pattern analysis, regime, trend structure, invalidation, and trade location.',
     },
     {
       id: 'financial_analyst',
@@ -1076,20 +1070,41 @@ function summarizeOpenAIChatContent(content: any): string {
   return typeof content;
 }
 
+function extractOpenAIChatText(content: any): string {
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => {
+        if (!part) return '';
+        if (typeof part === 'string') return part;
+        if (typeof part?.text === 'string') return part.text;
+        if (part?.type === 'output_text' && typeof part?.text === 'string') return part.text;
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  return '';
+}
+
 export async function chatWithCopilot(message: string, context: TradingContext, chartImage?: string, role?: string, chatModelOverride?: string, pluginEngineerModelOverride?: string): Promise<string> {
   console.log('chatWithCopilot called, analystOrRole:', role || 'copilot', 'chartImage:', chartImage ? `present (${chartImage.length} chars)` : 'not provided');
   console.log('Context has copilotAnalysis:', !!context?.copilotAnalysis, 'symbol:', context?.symbol);
 
-  const workspaceAnalyst = isWorkspaceAnalystId(role) ? role : null;
+  const normalizedRole = role === 'pattern_analyst' ? 'technical_analyst' : role;
+  const workspaceAnalyst = isWorkspaceAnalystId(normalizedRole) ? normalizedRole : null;
   const aiRole = workspaceAnalyst
     ? (workspaceAnalyst === 'scanner_copilot' ? 'contextual_ranker' : workspaceAnalyst)
-    : ((role as AIRole) || 'copilot');
+    : ((normalizedRole as AIRole) || 'copilot');
   
   const openaiApiKey = getConfiguredOpenAIKey();
   if (VISION_PROVIDER !== 'openai' || !openaiApiKey) {
     console.log('Falling back to local response - provider:', VISION_PROVIDER, 'has key:', !!openaiApiKey);
     // Fallback to local response
-    return generateLocalResponseForRole(aiRole, message, context);
+    return generateAsyncFallbackForRole(aiRole, message, context);
   }
 
   const systemPrompt = buildSystemPromptForRole(workspaceAnalyst || aiRole, context, !!chartImage, message);
@@ -1127,8 +1142,10 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
       ? 1200
       : (aiRole === 'plugin_engineer' || aiRole === 'composite_architect')
         ? 10000
-        : (aiRole === 'pattern_analyst' || aiRole === 'contextual_ranker' || aiRole === 'literal_chart_reader' || aiRole === 'technical_analyst' || aiRole === 'financial_analyst')
-          ? 1600
+        : aiRole === 'financial_analyst'
+          ? 2600
+          : (aiRole === 'pattern_analyst' || aiRole === 'contextual_ranker' || aiRole === 'literal_chart_reader' || aiRole === 'technical_analyst')
+            ? 1600
           : 800;
     const temperature = aiRole === 'statistical_interpreter'
       ? 0.35
@@ -1176,6 +1193,8 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
       baseBody.tool_choice = 'auto';
     }
 
+    let continuedText = '';
+
     for (let round = 0; round < 3; round += 1) {
       const body: Record<string, any> = {
         ...baseBody,
@@ -1195,7 +1214,7 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
       if (!response.ok) {
         const error = await response.text();
         console.error('[VisionChat] OpenAI chat error:', error.slice(0, 2000));
-        return generateLocalResponseForRole(aiRole, message, context);
+        return generateAsyncFallbackForRole(aiRole, message, context);
       }
 
       const data = await response.json() as any;
@@ -1248,36 +1267,35 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
         continue;
       }
 
-      if (typeof content === 'string' && content.trim()) {
-        return content;
-      }
-      if (Array.isArray(content)) {
-        const text = content
-          .map((part: any) => {
-            if (!part) return '';
-            if (typeof part === 'string') return part;
-            if (typeof part?.text === 'string') return part.text;
-            if (part?.type === 'output_text' && typeof part?.text === 'string') return part.text;
-            return '';
-          })
-          .filter(Boolean)
-          .join('\n')
-          .trim();
-        if (text) return text;
+      const text = extractOpenAIChatText(content);
+      if (text) {
+        if (finishReason === 'length' && round < 2) {
+          continuedText = continuedText ? `${continuedText}\n${text}` : text;
+          messages.push({
+            role: 'assistant',
+            content: text,
+          });
+          messages.push({
+            role: 'user',
+            content: 'Continue exactly where you left off. Do not repeat prior lines. Finish the answer cleanly.',
+          });
+          continue;
+        }
+        return continuedText ? `${continuedText}\n${text}` : text;
       }
       console.warn('[VisionChat] empty content after parse:', JSON.stringify({
         finishReason,
         contentSummary: summarizeOpenAIChatContent(content),
         rawKeys: data && typeof data === 'object' ? Object.keys(data).slice(0, 12) : [],
       }));
-      return generateLocalResponseForRole(aiRole, message, context);
+      return generateAsyncFallbackForRole(aiRole, message, context);
     }
 
     console.warn('[VisionChat] tool rounds exhausted without final answer');
-    return generateLocalResponseForRole(aiRole, message, context);
+    return generateAsyncFallbackForRole(aiRole, message, context);
   } catch (error) {
     console.error('[VisionChat] Chat error:', error);
-    return generateLocalResponseForRole(aiRole, message, context);
+    return generateAsyncFallbackForRole(aiRole, message, context);
   }
 }
 
@@ -1386,7 +1404,7 @@ function buildSystemPromptForRole(role: AIRole | WorkspaceAnalystId, context: Tr
       prompt = buildCompositeArchitectWorkspacePrompt(context, userMessage);
       break;
     case 'pattern_analyst':
-      prompt = buildPatternAnalystPrompt(context, userMessage, hasImage);
+      prompt = buildTechnicalAnalystPrompt(context, userMessage, hasImage);
       overrideRole = null;
       break;
     case 'technical_analyst':
@@ -1613,6 +1631,7 @@ function buildWorkspacePrompt(options: {
     options.liveInstructions.length
       ? `LIVE INSTRUCTIONS:\n${options.liveInstructions.map((line) => `- ${line}`).join('\n')}`
       : '',
+    'VOICE RULES:\n- Speak in first person as the active analyst.\n- Do not refer to yourself in third person.\n- Do not say that the analyst "has" or "thinks" something as if you are describing someone else.',
     `IDENTITY BEHAVIOR:\n- If the user asks who you are, whether this is ${options.roleLabel}, or which analyst is speaking, answer directly and plainly that you are the ${options.roleLabel} operating from the ${options.workspaceName}.`,
     `USER QUESTION:\n${options.rawUserMessage || '(no explicit question supplied)'}`,
     toolAppendix,
@@ -1653,6 +1672,24 @@ function summarizeChatHistory(chatHistory: any[], limit: number = 10): Array<{ s
     sender: String(entry?.sender || 'user'),
     text: String(entry?.text || '').slice(0, 1200),
   }));
+}
+
+function buildWorkspaceWorkingMemoryBlock(context: TradingContext): string {
+  const chatHistory = Array.isArray(context?.chatHistory) ? summarizeChatHistory(context.chatHistory, 8) : [];
+  if (!chatHistory.length) return '';
+  const activeSymbol = context?.symbol || context?.copilotAnalysis?.candidate?.symbol || null;
+  const lastUserTurn = [...chatHistory].reverse().find((entry) => entry.sender === 'user');
+  const conversation = chatHistory
+    .map((entry) => `${entry.sender === 'assistant' ? 'Assistant' : 'User'}: ${entry.text}`)
+    .join('\n');
+
+  return `WORKING MEMORY:
+- Active symbol: ${activeSymbol || 'N/A'}
+- Last user turn: ${lastUserTurn?.text || 'N/A'}
+- Treat pronouns and phrases like "that number", "that valuation", "why", and "how did you get there" as referring to this recent conversation unless the user clearly changes topics.
+
+RECENT CONVERSATION:
+${conversation}`;
 }
 
 function resolveContextualRankerWorkspaceSkills(skillContext: ScannerPromptSkillContext): WorkspaceSkillId[] {
@@ -1707,12 +1744,21 @@ function resolveTechnicalAnalystWorkspaceSkills(skillContext: ScannerPromptSkill
 
 function resolveFinancialAnalystWorkspaceSkills(skillContext: ScannerPromptSkillContext): WorkspaceSkillId[] {
   const skills: WorkspaceSkillId[] = ['financial-analysis'];
+  if (skillContext.socialBuzz?.available) {
+    skills.push('sentiment-context');
+  }
   const question = skillContext.rawUserMessage.toLowerCase();
+  if (/\b(consumer cycle|cyclical demand|cycle bucket|recession sensitivity|slowdown risk|defensive bucket|highly cyclical|mildly cyclical|stable bucket|business equipment investment|residential investment)\b/i.test(question)) {
+    skills.push('consumer-cycle-context');
+  }
   if (/\b(valuation|intrinsic value|fair value|dcf|discount rate|terminal value|multiple)\b/i.test(question)) {
     skills.push('dcf-valuation');
   }
   if (/\b(earnings|cash flow|cash conversion|accrual|margin|quality of earnings|distortion|balance sheet|dilution|liquidity|debt|notes|covenant)\b/i.test(question)) {
     skills.push('earnings-quality');
+  }
+  if (/\b(buried risk|hidden risk|downplay|soft[- ]pedal|notes review|note review|risk factors|md&a|management language|legal|regulatory|liquidity|caveat|contingenc)\b/i.test(question)) {
+    skills.push('buried-risk-review');
   }
   return skills;
 }
@@ -1726,9 +1772,10 @@ function buildScannerWorkspaceContextBlock(context: TradingContext): string {
   const levels = aiAnalysis?.levels || null;
   const fundamentals = scanner?.fundamentals || null;
   const socialBuzz = fundamentals?.socialBuzz || null;
+  const workingMemory = buildWorkspaceWorkingMemoryBlock(context);
 
-  if (!(candidate || detector || review || levels || fundamentals)) return '';
-  return `CURRENT SCANNER CONTEXT:
+  if (!(candidate || detector || review || levels || fundamentals || workingMemory)) return '';
+  const scannerContext = `CURRENT SCANNER CONTEXT:
 - Symbol: ${candidate?.symbol || context.symbol || 'N/A'}
 - Pattern Type: ${candidate?.pattern_type || context.patternType || 'N/A'}
 - Candidate Role: ${candidate?.candidate_role_label || candidate?.candidate_role || 'N/A'}
@@ -1755,6 +1802,8 @@ function buildScannerWorkspaceContextBlock(context: TradingContext): string {
 - Social Buzz Watchers: ${socialBuzz?.available ? socialBuzz?.watchlist_count ?? 'N/A' : 'N/A'}
 - Social Buzz Message Count: ${socialBuzz?.available ? socialBuzz?.message_count ?? 'N/A' : 'N/A'}
 - Social Buzz Bull / Bear %: ${socialBuzz?.available ? `${socialBuzz?.bull_pct ?? 'N/A'} / ${socialBuzz?.bear_pct ?? 'N/A'}` : 'N/A'}`;
+
+  return [scannerContext, workingMemory].filter(Boolean).join('\n\n');
 }
 
 function buildScannerWorkspaceSkillContext(context: TradingContext, userMessage: string, hasImage: boolean): ScannerPromptSkillContext {
@@ -1860,6 +1909,12 @@ function buildFinancialAnalystPrompt(context: TradingContext, userMessage: strin
     liveInstructions: [
       'Use filing-backed Ledger context as the primary financial truth layer whenever available.',
       'Call get_ledger_context before making specific claims about business quality, balance sheet risk, dilution, liquidity, or note-level issues.',
+      'If social buzz is available or the user asks about crowd positioning, use it as secondary context rather than primary evidence.',
+      'If the user asks about consumer cycle, cyclical demand, slowdown exposure, defensive vs cyclical positioning, or how the company fits the business cycle, call get_consumer_cycle_context and use the repo consumer-cycle taxonomy rather than improvising your own labels.',
+      'If the user asks for database-wide picks, top longs, top shorts, or a ranked clean-universe buy or short list, call screen_clean_universe before answering.',
+      'If local filing evidence points to a pending acquisition, merger, or go-private situation but the buyer or deal terms still look incomplete, call verify_special_situation_web before treating the name like a normal standalone equity.',
+      'For overviews, answer in facts -> interpretation -> judgment order. Show the numbers before the conclusion.',
+      'If filing evidence shows a signed acquisition, merger agreement, go-private transaction, cash deal price, or CVR, stop treating the stock like a normal standalone equity. Explain the deal terms, spread, closing or break risk, and do not recommend a normal short against a stock already pinned to deal value.',
       skillContext.hasImage
         ? 'If a chart image is attached, treat it as secondary context for timing and setup location, not as the primary basis for business judgment.'
         : 'No image is attached. Focus on the business, filing, and capital-structure read.',
@@ -3943,6 +3998,764 @@ function generateLocalResponseForRole(role: AIRole, message: string, context: Tr
     return generateLocalContextualRankerResponse(message, context);
   }
   return generateLocalResponse(message, context);
+}
+
+async function generateAsyncFallbackForRole(role: AIRole, message: string, context: TradingContext): Promise<string> {
+  if (role === 'financial_analyst') {
+    return generateToolBackedLocalFinancialAnalystResponse(message, context);
+  }
+  return generateLocalResponseForRole(role, message, context);
+}
+
+function isLedgerBuriedRiskRequest(message: string): boolean {
+  const lower = extractPrimaryUserMessage(message).toLowerCase();
+  return /\bburied[- ]risk\b|\bhidden risk\b|\bsketchy\b|\bunusual\b|\bweird\b|\bdownplayed\b|\beasy to miss\b|\bnotes\b|\bmd&a\b|\bmanagement discussion\b|\brisk factors\b|\blegal sections?\b|\blease\b|\bcovenant\b|\bcontingen/i.test(lower);
+}
+
+function isLedgerOverviewRequest(message: string): boolean {
+  const lower = extractPrimaryUserMessage(message).toLowerCase();
+  return /\btell me about this company\b|\boverall ledger view\b|\boverall view\b|\bcompany overview\b|\bfull company read\b|\bfull company review\b|\bevaluate this company\b|\bbusiness, the financial picture, and the valuation posture\b/.test(lower);
+}
+
+function isLedgerShortQuestion(message: string): boolean {
+  const lower = extractPrimaryUserMessage(message).toLowerCase();
+  return /\bshort(?:ing)?\b|\bbet against\b|\bputs?\b|\bbearish bet\b/.test(lower);
+}
+
+function classifyLedgerFinding(row: any): string {
+  const text = `${String(row?.section_heading || '')}\n${String(row?.text_excerpt || '')}`.toLowerCase();
+  if (/\blease\b|\bright-of-use\b|\bdebt\b|\bcovenant\b|\bliquidity\b|\bcapital resources\b|\bworking capital\b|\bcommitments?\b/.test(text)) {
+    return 'balance_sheet';
+  }
+  if (/\blegal\b|\blitigation\b|\bregulatory\b|\binvestigation\b|\bcompliance\b|\bcontingenc/i.test(text)) {
+    return 'legal_regulatory';
+  }
+  if (/\bcustomer concentration\b|\bmajor customer\b|\bsupplier concentration\b|\bdependence\b/.test(text)) {
+    return 'concentration';
+  }
+  if (/\bstock-based compensation\b|\bshare-based compensation\b|\bdilution\b|\brevenue recognition\b|\bdeferred revenue\b|\bcontract asset\b|\bnon-recurring\b|\bone-time\b|\brestructuring\b|\bimpairment\b|\baccounting\b|\btax\b|\baccrual/i.test(text)) {
+    return 'accounting';
+  }
+  return 'management_language';
+}
+
+function formatLedgerEvidenceLine(row: any): string {
+  const heading = String(row?.section_heading || 'Unknown section').trim();
+  const form = String(row?.form || '').trim();
+  const filingDate = String(row?.filing_date || '').trim();
+  const excerpt = String(row?.text_excerpt || '').replace(/\s+/g, ' ').trim();
+  const shortExcerpt = excerpt.length > 220 ? `${excerpt.slice(0, 217).trim()}...` : excerpt;
+  const meta = [heading, form, filingDate].filter(Boolean).join(' | ');
+  return shortExcerpt ? `${meta}: ${shortExcerpt}` : meta;
+}
+
+function isLedgerGenericRiskBoilerplate(row: any): boolean {
+  const text = `${String(row?.section_heading || '')}\n${String(row?.text_excerpt || '')}`
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+  return [
+    /you should carefully consider the following risk factors/,
+    /as well as the other information set forth in this annual report/,
+    /management's discussion and analysis of financial condition and results of operations/,
+    /the risks and uncertainties described below are not the only ones/,
+    /additional risks and uncertainties not presently known to us/,
+    /could materially adversely affect our business/,
+  ].some((pattern) => pattern.test(text));
+}
+
+function inferLedgerSoftPedaledMeaning(row: any): string {
+  const text = `${String(row?.section_heading || '')}\n${String(row?.text_excerpt || '')}`
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+  if (isLedgerGenericRiskBoilerplate(row)) {
+    return "I'm not seeing a specific buried issue in this excerpt. This reads like standard risk-factor boilerplate, not actionable signal by itself.";
+  }
+  if (/reimbursement|coverage|payer|medicare|medicaid/.test(text)) {
+    return 'I think management may be framing reimbursement or payer pressure carefully here. If that pressure is real, margins or volume can weaken before the headline story makes it obvious.';
+  }
+  if (/competition|competitive|pricing pressure|price pressure/.test(text)) {
+    return 'I think management may be softening competitive or pricing pressure. That matters because the business can still sound healthy while the economics quietly get worse.';
+  }
+  if (/supply chain|supplier|inventory|manufactur|component shortage/.test(text)) {
+    return 'I think management may be hinting at supply-chain or production friction. If that is building, revenue quality and margin stability can deteriorate faster than the headline numbers suggest.';
+  }
+  if (/litigation|legal|investigation|regulatory|compliance/.test(text)) {
+    return 'I think management may be carefully framing legal or regulatory exposure. These issues matter because they can stay buried in narrative language before they become an obvious financial hit.';
+  }
+  if (/cyber|security|privacy|data breach/.test(text)) {
+    return 'I think management may be signaling cyber or privacy exposure. Those risks are easy to understate in polished language and can become expensive very quickly.';
+  }
+  if (/restructuring|impairment|goodwill|integration|acquisition/.test(text)) {
+    return 'I think management may be softening an integration, restructuring, or asset-quality issue. That matters because it can point to a business that is less clean than the headline narrative implies.';
+  }
+  if (/demand|volume|utilization|slowdown|macroeconomic|consumer/.test(text)) {
+    return 'I think management may be carefully framing a demand or volume issue. If demand is wobbling, the company will usually describe it gently before admitting the slowdown outright.';
+  }
+  if (/may|could|subject to|uncertaint|adverse|materially/.test(text)) {
+    return "I think management is signaling some real uncertainty here, but I can't tell from this excerpt alone what the exact buried problem is. The wording is cautious enough to keep me alert, but not specific enough to act on by itself.";
+  }
+  return "I think management is framing this carefully, but I can't pin down the exact issue from this excerpt alone. I would want a more specific note passage before treating it as actionable intelligence.";
+}
+
+function inferLedgerFindingSignificance(category: string, row: any): string | null {
+  const excerpt = String(row?.text_excerpt || '').replace(/\s+/g, ' ').trim();
+  const text = `${String(row?.section_heading || '')}\n${excerpt}`.toLowerCase();
+  const cashDecreaseMatch = excerpt.match(/decreased by \$?([\d,.]+)\s*million/i);
+
+  if (cashDecreaseMatch) {
+    return `Cash declined by about $${cashDecreaseMatch[1]}M. That matters only if the decline reflects weaker flexibility rather than intentional uses like buybacks, debt paydown, or acquisitions.`;
+  }
+
+  if (category === 'balance_sheet') {
+    if (/working capital/.test(text) && /cash and cash equivalents/.test(text)) {
+      return 'This is mainly a liquidity-flexibility clue. I care less about the raw cash balance than whether the company still has comfortable room after the cash movement.';
+    }
+    if (/debt|covenant|credit facility|notes payable/.test(text)) {
+      return 'Debt and covenant language matters because financial flexibility can deteriorate before the headline income statement looks weak.';
+    }
+    if (/lease|right-of-use|commitments?/.test(text)) {
+      return 'Lease and commitment language matters because economic obligations are often heavier than the simple debt number suggests.';
+    }
+    return 'This is balance-sheet context. I use it to judge hidden obligations and true liquidity strength.';
+  }
+
+  if (category === 'accounting') {
+    if (/stock-based compensation|share-based compensation/.test(text)) {
+      return 'Stock-based compensation matters because it can make cash flow look cleaner than true owner economics while still diluting shareholders over time.';
+    }
+    if (/restructuring|impairment|one-time|non-recurring/.test(text)) {
+      return 'So-called one-time charges matter because they can flatter normalized earnings if similar adjustments keep recurring.';
+    }
+    if (/revenue recognition|deferred revenue|contract asset|contract liability/.test(text)) {
+      return 'Revenue-recognition language matters because it can change how clean or recurring the reported revenue really is.';
+    }
+    return 'This is accounting-quality context. I use it to decide whether reported earnings are cleaner than the underlying economics.';
+  }
+
+  if (category === 'legal_regulatory') {
+    return 'Legal and regulatory language matters because contingent liabilities often show up here before they become obvious in the statements.';
+  }
+
+  if (category === 'concentration') {
+    return 'Concentration matters because dependence on a customer, supplier, or channel can make the business look more diversified than it really is.';
+  }
+
+  return inferLedgerSoftPedaledMeaning(row);
+}
+
+function buildLedgerCategorySection(title: string, category: string, rows: any[], emptyText?: string): string[] {
+  const lines = [`${title}:`];
+  if (!rows.length) {
+    lines.push(`- ${emptyText || 'nothing specifically surfaced in this run'}`);
+    return lines;
+  }
+
+  rows.slice(0, 3).forEach((row) => {
+    lines.push(`- ${formatLedgerEvidenceLine(row)}`);
+    const significance = inferLedgerFindingSignificance(category, row);
+    if (significance) {
+      lines.push(`  Significance: ${significance}`);
+    }
+  });
+
+  return lines;
+}
+
+function isLedgerNoDataStatus(data: any): boolean {
+  return data?.status === 'no_company_data' || data?.status === 'not_in_database';
+}
+
+function buildLedgerNoDataMessage(data: any, hydrationData?: any): string {
+  const baseMessage =
+    data?.business_summary?.summary
+    || data?.earnings_quality_judgment?.summary
+    || data?.summary
+    || data?.price_vs_value_judgment?.summary
+    || 'I have no data on this company.';
+  const hydrationMessage = hydrationData?.message
+    ? `I also tried to refresh coverage: ${hydrationData.message}`
+    : null;
+  return [
+    `I’m Ledger.`,
+    '',
+    baseMessage,
+    hydrationMessage || '',
+  ].filter(Boolean).join('\n');
+}
+
+function buildLedgerWorkflowLead(toolLabel: string, companyName: string, data: any, hydrationData?: any): string[] {
+  const analysisMode = String(data?.analysis_mode || 'filing_backed').toLowerCase();
+  const lead = analysisMode === 'vendor_snapshot_only'
+    ? `I’m Ledger. I ran a provisional vendor-backed ${toolLabel} workflow for ${companyName}.`
+    : `I’m Ledger. I ran the filing-backed ${toolLabel} workflow for ${companyName}.`;
+  const caveat = analysisMode === 'vendor_snapshot_only'
+    ? 'This is coming from Yahoo/Stockdex-style market and fundamentals coverage, not SEC filing-backed Ledger coverage.'
+    : '';
+  const hydration = hydrationData
+    ? `I refreshed coverage first: ${hydrationData.message || hydrationData.status || 'coverage update attempted.'}`
+    : '';
+  return [lead, hydration, caveat].filter(Boolean);
+}
+
+function ledgerDisplayNumber(value: unknown, digits: number = 1): string {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(digits) : 'N/A';
+}
+
+function ledgerDisplayMoney(value: unknown): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 'N/A';
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `$${(num / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `$${(num / 1_000).toFixed(1)}K`;
+  return `$${num.toFixed(2)}`;
+}
+
+function ledgerDisplayPct(value: unknown): string {
+  const num = Number(value);
+  return Number.isFinite(num) ? `${num.toFixed(1)}%` : 'N/A';
+}
+
+function ledgerScaleNumber(value: unknown, scale?: unknown): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const normalizedScale = String(scale || '').toLowerCase();
+  if (normalizedScale === 'thousands') return num * 1_000;
+  if (normalizedScale === 'millions') return num * 1_000_000;
+  if (normalizedScale === 'billions') return num * 1_000_000_000;
+  return num;
+}
+
+function ledgerMetricValue(metric: any): number | null {
+  if (metric && typeof metric === 'object' && 'value' in metric) {
+    return ledgerScaleNumber(metric.value, metric.scale);
+  }
+  return ledgerScaleNumber(metric);
+}
+
+function ledgerFirstFiniteNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    const num = Number(value);
+    if (Number.isFinite(num)) {
+      return num;
+    }
+  }
+  return null;
+}
+
+function getLedgerCorporateAction(data: any): any | null {
+  return data?.special_situations?.corporate_action || null;
+}
+
+function getLedgerHardFlags(data: any): any[] {
+  return Array.isArray(data?.special_situations?.hard_flags) ? data.special_situations.hard_flags : [];
+}
+
+function buildLedgerHardFlagLines(data: any): string[] {
+  const action = getLedgerCorporateAction(data);
+  const hardFlags = getLedgerHardFlags(data);
+  if (!action && !hardFlags.length) return [];
+
+  const lines = ['Hard flags:'];
+
+  if (action) {
+    const spreadPct = ledgerFirstFiniteNumber(action?.current_to_deal_spread_pct);
+    lines.push(`- ${action.summary || 'The filings point to a pending acquisition / go-private situation.'}`);
+    if (Number.isFinite(Number(action?.deal_price_per_share))) {
+      let terms = `- Deal cash consideration: ${ledgerDisplayMoney(action.deal_price_per_share)} per share`;
+      if (Number.isFinite(Number(action?.contingent_value_right_max_per_share))) {
+        terms += ` plus a CVR of up to ${ledgerDisplayMoney(action.contingent_value_right_max_per_share)} per share`;
+      }
+      lines.push(`${terms}.`);
+    }
+    if (action?.expected_close) {
+      lines.push(`- Expected close: ${action.expected_close}.`);
+    }
+    if (Number.isFinite(Number(spreadPct))) {
+      const relation = Math.abs(Number(spreadPct)) < 2
+        ? 'roughly in line with'
+        : Number(spreadPct) > 0
+          ? 'trading above'
+          : 'trading below';
+      lines.push(`- Current price is ${relation} the cash deal price by about ${ledgerDisplayPct(Math.abs(Number(spreadPct)))}.`);
+    }
+    lines.push(`- ${action.short_thesis_warning || 'This is a merger-arbitrage situation, not a normal valuation short.'}`);
+  }
+
+  hardFlags
+    .filter((flag) => flag?.code !== 'pending_acquisition')
+    .slice(0, 4)
+    .forEach((flag) => {
+      lines.push(`- ${flag?.label || 'Hard flag'}: ${flag?.summary || 'The filing evidence suggests a major regime-change event.'}`);
+    });
+
+  return lines;
+}
+
+function isLedgerDcfExplanationRequest(question: string): boolean {
+  return /(\bwhy\b.*\b(overvalued|undervalued)\b)|(\bexplain\b.*\b(how|number|valuation|dcf)\b)|(\bhow did you get\b)|(\bhow you got\b)|(\bhow did you arrive\b)|(\bwalk me through\b)|(\bwhat would justify\b)|(\bjustify that valuation\b)|(\bcurrent earnings\b)|(\bwhat are (its|the) current earnings\b)/i.test(question);
+}
+
+function buildLedgerDcfExplanationResponse(
+  companyName: string,
+  dcfData: any,
+  financialData?: any,
+  hydrationData?: any,
+): string {
+  if (String(dcfData?.valuation_method || '').toLowerCase() === 'financial_company_roe_book_value') {
+    const snapshot = financialData?.current_snapshot || {};
+    const currentPrice = ledgerFirstFiniteNumber(snapshot?.currentPrice, dcfData?.price_vs_value_judgment?.current_price);
+    const bookValuePerShare = ledgerFirstFiniteNumber(
+      dcfData?.supporting_context?.book_value_per_share,
+      dcfData?.normalized_book_value_base?.book_value_per_share,
+    );
+    const normalizedRoePct = ledgerFirstFiniteNumber(
+      dcfData?.supporting_context?.normalized_return_on_equity_pct,
+      dcfData?.normalized_book_value_base?.normalized_return_on_equity_pct,
+    );
+    const sharesOutstanding = ledgerFirstFiniteNumber(
+      dcfData?.supporting_context?.shares_outstanding,
+      snapshot?.sharesOutstanding,
+    );
+    const sharesSource = String(
+      dcfData?.supporting_context?.shares_outstanding_source
+      || snapshot?.sharesOutstandingSource
+      || 'vendor snapshot'
+    ).trim();
+    const base = dcfData?.base_case_assumptions || {};
+    const range = dcfData?.fair_value_range || {};
+    return [
+      ...buildLedgerWorkflowLead('valuation', companyName, dcfData, hydrationData),
+      '',
+      `I valued ${companyName} with the financial-company engine, not a standard industrial DCF.`,
+      `- Sector / industry: ${snapshot?.sector || 'N/A'} / ${snapshot?.industry || 'N/A'}`,
+      `- Current price: ${ledgerDisplayMoney(currentPrice)}`,
+      `- Book value per share anchor: ${ledgerDisplayMoney(bookValuePerShare)}`,
+      `- Normalized ROE anchor: ${ledgerDisplayPct(normalizedRoePct)}`,
+      `- Shares outstanding snapshot: ${ledgerDisplayNumber(sharesOutstanding, 2)} (source: ${sharesSource})`,
+      '',
+      'How I got there:',
+      `- Base case uses roughly ${ledgerDisplayPct(base?.normalized_return_on_equity_pct)} normalized ROE, ${ledgerDisplayPct(base?.cost_of_equity_pct)} cost of equity, and ${ledgerDisplayPct(base?.sustainable_growth_pct)} sustainable growth.`,
+      '- I translate that into a justified price-to-book multiple, then apply it to book value per share.',
+      '- I also carry earnings-power support in the scenario outputs as a sanity check, but the primary anchor is book value plus normalized profitability.',
+      '',
+      'Valuation range:',
+      `- Bear / base / bull fair values: ${range?.low_display || 'N/A'} / ${range?.mid_display || 'N/A'} / ${range?.high_display || 'N/A'}.`,
+      `- Judgment: ${dcfData?.price_vs_value_judgment?.summary || 'Price versus value could not be judged cleanly.'}`,
+    ].join('\n');
+  }
+
+  if (String(dcfData?.status || '').toLowerCase() === 'model_mismatch_financial_company') {
+    const snapshot = financialData?.current_snapshot || {};
+    const currentPrice = ledgerFirstFiniteNumber(snapshot?.currentPrice, dcfData?.price_vs_value_judgment?.current_price);
+    const sharesOutstanding = ledgerFirstFiniteNumber(
+      dcfData?.supporting_context?.shares_outstanding,
+      snapshot?.sharesOutstanding,
+    );
+    const sharesSource = String(
+      dcfData?.supporting_context?.shares_outstanding_source
+      || snapshot?.sharesOutstandingSource
+      || 'vendor snapshot'
+    ).trim();
+    return [
+      ...buildLedgerWorkflowLead('DCF', companyName, dcfData, hydrationData),
+      '',
+      `I am not treating this as a normal DCF because ${companyName} is a leveraged financial company.`,
+      `- Sector / industry: ${snapshot?.sector || 'N/A'} / ${snapshot?.industry || 'N/A'}`,
+      `- Current price: ${ledgerDisplayMoney(currentPrice)}`,
+      `- Shares outstanding snapshot: ${ledgerDisplayNumber(sharesOutstanding, 2)} (source: ${sharesSource})`,
+      '',
+      'Why I am blocking the standard DCF:',
+      '- For lenders and credit institutions, debt and funding are part of operations, not just financing.',
+      '- Reported operating cash flow and free cash flow are not reliable primary anchors for an industrial-style DCF here.',
+      '- A numeric FCFE-style output would look more precise than it really is.',
+      '',
+      'What I would use instead:',
+      '- Book value and tangible/common equity per share',
+      '- Normalized ROE versus cost of equity',
+      '- Earnings power and dividend/excess capital capacity',
+      '',
+      `Bottom line: ${dcfData?.summary || 'The simplified DCF is a model mismatch for this business.'}`,
+    ].join('\n');
+  }
+
+  const hardFlagLines = buildLedgerHardFlagLines(dcfData);
+  const range = dcfData?.fair_value_range || {};
+  const judgment = dcfData?.price_vs_value_judgment || {};
+  const baseCashFlow = dcfData?.normalized_cash_flow_base || {};
+  const base = dcfData?.base_case_assumptions || {};
+  const bear = dcfData?.bear_case_assumptions || {};
+  const bull = dcfData?.bull_case_assumptions || {};
+  const annualMetrics = financialData?.annual_context?.latest_annual?.metrics || {};
+  const snapshot = financialData?.current_snapshot || {};
+
+  const annualRevenue = ledgerFirstFiniteNumber(
+    baseCashFlow?.annual_revenue,
+    ledgerMetricValue(annualMetrics?.revenue),
+    financialData?.business_summary?.annual_revenue,
+  );
+  const operatingIncome = ledgerFirstFiniteNumber(
+    ledgerMetricValue(annualMetrics?.operating_income),
+    financialData?.capital_allocation?.operating_cash_flow,
+  );
+  const netIncome = ledgerMetricValue(annualMetrics?.net_income);
+  const reportedFcf = ledgerFirstFiniteNumber(
+    baseCashFlow?.reported_free_cash_flow,
+    financialData?.capital_allocation?.free_cash_flow,
+    snapshot?.freeCashFlowTTM,
+  );
+  const adjustedFcf = ledgerFirstFiniteNumber(baseCashFlow?.quality_adjusted_free_cash_flow, reportedFcf);
+  const sharesOutstanding = ledgerFirstFiniteNumber(baseCashFlow?.shares_outstanding);
+  const currentPrice = ledgerFirstFiniteNumber(range?.current_price, baseCashFlow?.current_price, judgment?.current_price);
+  const midpoint = ledgerFirstFiniteNumber(range?.mid_per_share, judgment?.midpoint_fair_value);
+  const bullValue = ledgerFirstFiniteNumber(range?.high_per_share);
+  const premiumToMidPct = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midpoint)) && Number(midpoint) !== 0
+    ? ((Number(currentPrice) - Number(midpoint)) / Number(midpoint)) * 100
+    : null;
+  const premiumToBullPct = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(bullValue)) && Number(bullValue) !== 0
+    ? ((Number(currentPrice) - Number(bullValue)) / Number(bullValue)) * 100
+    : null;
+
+  return [
+    ...buildLedgerWorkflowLead('DCF', companyName, dcfData, hydrationData),
+    ...(hardFlagLines.length ? ['', ...hardFlagLines] : []),
+    '',
+    'Here is how I got there:',
+    `- I started with about ${ledgerDisplayMoney(annualRevenue)} of annual revenue and ${ledgerDisplayMoney(reportedFcf)} of reported free cash flow.`,
+    `- Because the current quality read is ${dcfData?.supporting_context?.earnings_quality_grade || 'mixed'}, I normalized that to about ${ledgerDisplayMoney(adjustedFcf)} of quality-adjusted free cash flow.`,
+    `- I used roughly ${ledgerDisplayNumber(sharesOutstanding, 1)} million shares outstanding and a current price of ${ledgerDisplayMoney(currentPrice)}.`,
+    Number.isFinite(Number(operatingIncome)) || Number.isFinite(Number(netIncome))
+      ? `- Current earnings on the loaded annual base are about ${ledgerDisplayMoney(operatingIncome)} of operating income and ${ledgerDisplayMoney(netIncome)} of net income.`
+      : '- I do not have a clean annual operating-income and net-income pair loaded in this branch, so I am leaning more heavily on cash-flow evidence than earnings presentation.',
+    '',
+    'Scenario assumptions:',
+    `- Bear: ${ledgerDisplayPct(bear?.revenue_growth_near_term_pct)} near-term growth, ${ledgerDisplayPct(bear?.target_free_cash_flow_margin_pct)} target FCF margin, ${ledgerDisplayPct(bear?.discount_rate_pct)} discount rate, ${ledgerDisplayPct(bear?.terminal_growth_pct)} terminal growth.`,
+    `- Base: ${ledgerDisplayPct(base?.revenue_growth_near_term_pct)} near-term growth, ${ledgerDisplayPct(base?.target_free_cash_flow_margin_pct)} target FCF margin, ${ledgerDisplayPct(base?.discount_rate_pct)} discount rate, ${ledgerDisplayPct(base?.terminal_growth_pct)} terminal growth.`,
+    `- Bull: ${ledgerDisplayPct(bull?.revenue_growth_near_term_pct)} near-term growth, ${ledgerDisplayPct(bull?.target_free_cash_flow_margin_pct)} target FCF margin, ${ledgerDisplayPct(bull?.discount_rate_pct)} discount rate, ${ledgerDisplayPct(bull?.terminal_growth_pct)} terminal growth.`,
+    '',
+    'Why I call it overvalued:',
+    `- My fair value range is ${range?.low_display || 'N/A'} to ${range?.high_display || 'N/A'} per share, with a midpoint of ${range?.mid_display || 'N/A'}.`,
+    Number.isFinite(Number(premiumToMidPct))
+      ? `- At ${ledgerDisplayMoney(currentPrice)}, the stock is trading about ${ledgerDisplayPct(premiumToMidPct)} above my base-case value.`
+      : '- The current price is materially above my base-case value.',
+    Number.isFinite(Number(premiumToBullPct))
+      ? `- Even versus my bull case, the stock is still trading about ${ledgerDisplayPct(premiumToBullPct)} above what I can justify from the current inputs.`
+      : '- Even my bull case does not get close enough to support the current price from the current inputs.',
+    '- That tells me the market is already pricing in stronger growth, cleaner cash conversion, or lower risk than I am willing to underwrite from the current evidence.',
+    '',
+    'What would justify the current valuation:',
+    `- To justify roughly ${ledgerDisplayMoney(currentPrice)}, I would need something stronger than my current bull case of ${ledgerDisplayPct(bull?.revenue_growth_near_term_pct)} near-term growth, ${ledgerDisplayPct(bull?.target_free_cash_flow_margin_pct)} target FCF margin, and a ${ledgerDisplayPct(bull?.discount_rate_pct)} discount rate.`,
+    '- In plain English, I would need to believe this business can keep compounding revenue at a very high rate, hold unusually strong cash-flow margins, and deserve a premium risk discount for longer than I currently think is prudent.',
+    '',
+    `Bottom line: ${judgment?.summary || 'The DCF still points to a demanding valuation.'}`,
+  ].join('\n');
+}
+
+function buildLedgerOverviewResponse(companyName: string, data: any, hydrationData?: any): string {
+  const hardFlagLines = buildLedgerHardFlagLines(data);
+  const snapshot = data?.current_snapshot || {};
+  const annual = data?.annual_context?.latest_annual || {};
+  const quarter = data?.annual_context?.latest_quarterly || {};
+  const annualMetrics = annual?.metrics || {};
+  const quarterMetrics = quarter?.metrics || {};
+
+  const annualRevenue = ledgerFirstFiniteNumber(ledgerMetricValue(annualMetrics?.revenue), data?.business_summary?.annual_revenue);
+  const quarterlyRevenue = ledgerFirstFiniteNumber(ledgerMetricValue(quarterMetrics?.revenue), data?.business_summary?.latest_quarter_revenue);
+  const operatingIncome = ledgerMetricValue(annualMetrics?.operating_income);
+  const netIncome = ledgerMetricValue(annualMetrics?.net_income);
+  const operatingCashFlow = ledgerFirstFiniteNumber(ledgerMetricValue(annualMetrics?.operating_cash_flow), snapshot.operatingCashFlowTTM, data?.capital_allocation?.operating_cash_flow);
+  const freeCashFlow = ledgerFirstFiniteNumber(ledgerMetricValue(annualMetrics?.free_cash_flow), snapshot.freeCashFlowTTM, data?.capital_allocation?.free_cash_flow);
+  const capex = ledgerFirstFiniteNumber(ledgerMetricValue(annualMetrics?.capital_expenditures), data?.capital_allocation?.capital_expenditures);
+  const cash = ledgerFirstFiniteNumber(data?.financial_risk?.cash, snapshot.totalCash, snapshot.cash);
+  const debt = ledgerFirstFiniteNumber(data?.financial_risk?.debt, snapshot.totalDebt, snapshot.debt);
+
+  return [
+    ...buildLedgerWorkflowLead('financial-analysis', companyName, data, hydrationData),
+    ...(hardFlagLines.length ? ['', ...hardFlagLines] : []),
+    '',
+    'Financial facts:',
+    `- Revenue: ${ledgerDisplayMoney(annualRevenue)} annual | ${ledgerDisplayMoney(quarterlyRevenue)} latest quarter | Growth: ${ledgerDisplayPct(data?.business_summary?.revenue_growth_pct ?? snapshot.revenueGrowthPct)}`,
+    `- Profitability: Gross margin ${ledgerDisplayPct(data?.financial_quality?.gross_margin_pct ?? snapshot.grossMarginPct)} | Operating margin ${ledgerDisplayPct(data?.financial_quality?.operating_margin_pct ?? snapshot.operatingMarginPct)} | Net margin ${ledgerDisplayPct(data?.financial_quality?.profit_margin_pct ?? snapshot.profitMarginPct)}`,
+    `- Earnings and cash flow: Operating income ${ledgerDisplayMoney(operatingIncome)} | Net income ${ledgerDisplayMoney(netIncome)} | OCF ${ledgerDisplayMoney(operatingCashFlow)} | Capex ${ledgerDisplayMoney(capex)} | FCF ${ledgerDisplayMoney(freeCashFlow)}`,
+    `- Balance sheet: Cash ${ledgerDisplayMoney(cash)} | Debt ${ledgerDisplayMoney(debt)} | Current ratio ${ledgerDisplayNumber(data?.financial_risk?.current_ratio ?? snapshot.currentRatio)} | Quick ratio ${ledgerDisplayNumber(data?.financial_risk?.quick_ratio ?? snapshot.quickRatio)}`,
+    `- Capital structure and valuation: Shares YoY ${ledgerDisplayPct(data?.capital_allocation?.shares_outstanding_yoy_change_pct ?? snapshot.sharesOutstandingYoYChangePct)} | Market cap ${ledgerDisplayMoney(snapshot.marketCap)} | Enterprise value ${ledgerDisplayMoney(snapshot.enterpriseValue)} | EV/Sales ${ledgerDisplayNumber(data?.price_vs_value_judgment?.enterprise_to_sales ?? snapshot.enterpriseToSales, 2)}x | FCF yield ${String(data?.price_vs_value_judgment?.free_cash_flow_yield_pct || 'N/A')}`,
+    '',
+    'What the numbers mean:',
+    `- Business quality: ${data?.business_summary?.summary || 'N/A'}`,
+    `- Financial quality: ${data?.financial_quality?.summary || 'N/A'}`,
+    `- Financial risk: ${data?.financial_risk?.summary || 'N/A'}`,
+    `- Competitive advantage: ${data?.competitive_advantage?.summary || 'N/A'}`,
+    `- Capital allocation: ${data?.capital_allocation?.summary || 'N/A'}`,
+    '',
+    'Ledger verdict:',
+    `- Valuation posture: ${data?.price_vs_value_judgment?.summary || 'N/A'}`,
+    `- Intrinsic value framing: ${data?.intrinsic_value_conclusion?.summary || 'N/A'}`,
+    `- Main risks: ${Array.isArray(data?.main_risks) && data.main_risks.length ? data.main_risks.join(' | ') : 'N/A'}`,
+    `- What would change my view: ${Array.isArray(data?.what_would_change_the_view?.more_constructive) && data.what_would_change_the_view.more_constructive.length ? data.what_would_change_the_view.more_constructive.slice(0, 3).join(' | ') : 'N/A'}`,
+    `- Confidence: ${data?.confidence_level || 'unknown'}`,
+  ].join('\n');
+}
+
+function buildLedgerShortRiskResponse(companyName: string, data: any, hydrationData?: any): string | null {
+  const action = getLedgerCorporateAction(data);
+  const primaryHardFlag = data?.special_situations?.primary_hard_flag || null;
+  if (!action && !primaryHardFlag) return null;
+
+  const primaryLabel = action?.label || primaryHardFlag?.label || 'hard flag';
+  const primarySummary = action?.summary || primaryHardFlag?.summary || 'The filings point to a major event-driven situation.';
+  const primaryWarning = action?.short_thesis_warning || primaryHardFlag?.short_thesis_warning || 'This is not a normal short thesis anymore.';
+
+  const lines = [
+    ...buildLedgerWorkflowLead('financial-analysis', companyName, data, hydrationData),
+    '',
+    'Before you short this:',
+    `- ${primarySummary}`,
+    action && Number.isFinite(Number(action?.deal_price_per_share))
+      ? `- Cash deal price: ${ledgerDisplayMoney(action.deal_price_per_share)} per share${Number.isFinite(Number(action?.contingent_value_right_max_per_share)) ? ` plus a CVR of up to ${ledgerDisplayMoney(action.contingent_value_right_max_per_share)} per share` : ''}.`
+      : `- Ledger is treating this as ${String(primaryLabel).toLowerCase()}, not a routine standalone valuation setup.`,
+    action?.expected_close ? `- Expected close: ${action.expected_close}.` : null,
+    `- ${primaryWarning}`,
+    action
+      ? '- Once a cash deal is signed, the real question is deal spread and break risk, not whether the standalone company deserves a lower multiple.'
+      : '- Before taking a directional short, I would first understand the event regime that is dominating the stock, because these hard flags often overwhelm ordinary quality or valuation logic.',
+    '',
+    'Bottom line:',
+    action
+      ? '- I would not frame this as a standard short here. If you want to bet against it, you need a view that the deal breaks or reprices, not just that the business is mature or expensive.'
+      : '- I would not size this like a normal short until the hard flag is understood. Event, distress, forensic, listing, or financing risk can dominate the path from here.',
+  ].filter(Boolean);
+
+  return lines.join('\n');
+}
+
+async function executeLedgerWorkflowWithHydrationRetry(
+  toolName: 'run_financial_analysis' | 'run_earnings_quality' | 'run_dcf_valuation',
+  context: TradingContext
+): Promise<{ result: any; hydration: any | null }> {
+  let result = await executeCopilotToolCall(toolName, {}, context);
+  if (!(result.ok && result.data && typeof result.data === 'object' && isLedgerNoDataStatus(result.data))) {
+    return { result, hydration: null };
+  }
+
+  const hydration = await executeCopilotToolCall('refresh_filing_coverage', {}, context);
+  if (!(hydration.ok && hydration.data && typeof hydration.data === 'object')) {
+    return { result, hydration: null };
+  }
+
+  const hydrationData = hydration.data as any;
+  const status = String(hydrationData?.status || '').toLowerCase();
+  if (!['full_filing_supported', 'partial_hydration'].includes(status)) {
+    return { result, hydration: hydrationData };
+  }
+
+  result = await executeCopilotToolCall(toolName, {}, context);
+  return { result, hydration: hydrationData };
+}
+
+async function generateToolBackedLocalFinancialAnalystResponse(message: string, context: TradingContext): Promise<string> {
+  const rawMessage = extractPrimaryUserMessage(message);
+  const lower = rawMessage.toLowerCase();
+  const scanner = context?.copilotAnalysis || {};
+  const fundamentals = scanner?.fundamentals || null;
+  const symbol = context?.symbol || scanner?.candidate?.symbol || 'this company';
+  const companyName = fundamentals?.companyName || symbol;
+
+  try {
+    if (isLedgerShortQuestion(rawMessage)) {
+      const { result, hydration } = await executeLedgerWorkflowWithHydrationRetry('run_financial_analysis', context);
+      if (result.ok && result.data && typeof result.data === 'object') {
+        const data = result.data as any;
+        if (isLedgerNoDataStatus(data)) {
+          return buildLedgerNoDataMessage(data, hydration);
+        }
+        const shortRiskResponse = buildLedgerShortRiskResponse(companyName, data, hydration);
+        if (shortRiskResponse) {
+          return shortRiskResponse;
+        }
+      }
+    }
+
+    if (isLedgerBuriedRiskRequest(rawMessage)) {
+      const result = await executeCopilotToolCall('get_ledger_context', {
+        query: rawMessage || 'buried risks notes md&a liquidity risk factors legal accounting unusual downplayed',
+        top_k: 8,
+      }, context);
+      if (result.ok && result.data && typeof result.data === 'object') {
+        const data = result.data as any;
+        const retrieval = data.retrieval || {};
+        const rows = Array.isArray(retrieval.results) ? retrieval.results : [];
+        const grouped: Record<string, any[]> = {
+          accounting: [],
+          balance_sheet: [],
+          legal_regulatory: [],
+          concentration: [],
+          management_language: [],
+        };
+        rows.forEach((row: any) => {
+          grouped[classifyLedgerFinding(row)].push(row);
+        });
+        const genericManagementRows = grouped.management_language.filter((row: any) => isLedgerGenericRiskBoilerplate(row));
+        grouped.management_language = grouped.management_language.filter((row: any) => !isLedgerGenericRiskBoilerplate(row));
+        const parts = [
+          `I’m Ledger. I ran a filing-backed note retrieval review for ${companyName}.`,
+          '',
+          `Coverage: ${data?.coverage?.coverage_tier || 'unknown'}`,
+          `Retrieval mode: ${retrieval?.meta?.retrieval_mode || 'unknown'}`,
+          '',
+        ];
+        if (!rows.length) {
+          parts.push(
+            'I have filing-backed statement coverage, but this note search did not surface supporting excerpts in the current run.',
+            'That is a retrieval miss, not proof that the filing has no notes.'
+          );
+          return parts.join('\n');
+        }
+        parts.push(
+          'My read:',
+          grouped.balance_sheet.length
+            ? '- The strongest evidence in this run is balance-sheet and liquidity oriented, so the main question is whether note language changes my view of financial flexibility.'
+            : '- This run did not surface strong balance-sheet note evidence.',
+          grouped.accounting.length
+            ? '- I also surfaced accounting-oriented note support, which helps me judge whether the headline earnings are cleaner than reality.'
+            : '- I did not surface much accounting-specific note evidence in this run, so accounting caveats may still be understated.',
+          ''
+        );
+        buildLedgerCategorySection(
+          'Accounting concerns',
+          'accounting',
+          grouped.accounting,
+          'I did not surface a clear accounting-note warning in this run.'
+        ).forEach((line) => parts.push(line));
+        parts.push('');
+        buildLedgerCategorySection(
+          'Balance sheet concerns',
+          'balance_sheet',
+          grouped.balance_sheet,
+          'I did not surface a clear balance-sheet note warning in this run.'
+        ).forEach((line) => parts.push(line));
+        parts.push('');
+        buildLedgerCategorySection(
+          'Legal / regulatory concerns',
+          'legal_regulatory',
+          grouped.legal_regulatory,
+          'I did not surface a clear legal or regulatory note warning in this run.'
+        ).forEach((line) => parts.push(line));
+        parts.push('');
+        buildLedgerCategorySection(
+          'Concentration concerns',
+          'concentration',
+          grouped.concentration,
+          'I did not surface a clear customer or supplier concentration warning in this run.'
+        ).forEach((line) => parts.push(line));
+        parts.push('');
+        buildLedgerCategorySection(
+          'What management may be soft-pedaling',
+          'management_language',
+          grouped.management_language,
+          genericManagementRows.length
+            ? "I only surfaced generic risk-factor boilerplate in this run. I'm not seeing a specific soft-pedaled issue from that language alone."
+            : 'I did not surface obvious soft language or carefully framed caveats in this run.'
+        ).forEach((line) => parts.push(line));
+        parts.push(
+          '',
+          'Bottom line:',
+          '- These findings come from filing-note retrieval, not just the snapshot layer.',
+          '- A cash decline by itself is not a red flag. It matters only if the note context suggests weaker liquidity, hidden obligations, or lower flexibility than the headline balance sheet implies.'
+        );
+        return parts.join('\n');
+      }
+    }
+
+    if (isLedgerOverviewRequest(rawMessage)) {
+      const { result, hydration } = await executeLedgerWorkflowWithHydrationRetry('run_financial_analysis', context);
+      if (result.ok && result.data && typeof result.data === 'object') {
+        const data = result.data as any;
+        if (isLedgerNoDataStatus(data)) {
+          return buildLedgerNoDataMessage(data, hydration);
+        }
+        return buildLedgerOverviewResponse(companyName, data, hydration);
+      }
+    }
+
+    if (isLedgerDcfExplanationRequest(rawMessage)) {
+      const { result, hydration } = await executeLedgerWorkflowWithHydrationRetry('run_dcf_valuation', context);
+      if (result.ok && result.data && typeof result.data === 'object') {
+        const data = result.data as any;
+        if (isLedgerNoDataStatus(data)) {
+          return buildLedgerNoDataMessage(data, hydration);
+        }
+        const financialResult = await executeCopilotToolCall('run_financial_analysis', {}, context);
+        const financialData = financialResult.ok && financialResult.data && typeof financialResult.data === 'object'
+          ? financialResult.data as any
+          : null;
+        return buildLedgerDcfExplanationResponse(companyName, data, financialData, hydration);
+      }
+    }
+
+    if (/\bdcf\b|discounted cash flow|fair value|intrinsic value|overvalued|undervalued|valuation/.test(lower)) {
+      const { result, hydration } = await executeLedgerWorkflowWithHydrationRetry('run_dcf_valuation', context);
+      if (result.ok && result.data && typeof result.data === 'object') {
+        const data = result.data as any;
+        if (isLedgerNoDataStatus(data)) {
+          return buildLedgerNoDataMessage(data, hydration);
+        }
+        const range = data.fair_value_range || {};
+        const judgment = data.price_vs_value_judgment || {};
+        return [
+          ...buildLedgerWorkflowLead('DCF', companyName, data, hydration),
+          ...(buildLedgerHardFlagLines(data).length ? ['', ...buildLedgerHardFlagLines(data)] : []),
+          '',
+          `Method: ${data.valuation_method || 'dcf_engine'}`,
+          `Confidence: ${data.confidence_level || 'unknown'}`,
+          `Fair value range: ${range.low_display || 'N/A'} to ${range.high_display || 'N/A'} per share`,
+          `Midpoint: ${range.mid_display || 'N/A'} per share`,
+          `Current price: ${range.current_price ?? 'N/A'}`,
+          `Judgment: ${judgment.judgment || 'unknown'}`,
+          '',
+          `${judgment.summary || 'No valuation summary returned.'}`,
+        ].join('\n');
+      }
+    }
+
+    if (/\bearnings quality\b|\baccounting quality\b|\bcash conversion\b|\bdilution\b|\bcapex burden\b|\bdistortion/i.test(lower)) {
+      const { result, hydration } = await executeLedgerWorkflowWithHydrationRetry('run_earnings_quality', context);
+      if (result.ok && result.data && typeof result.data === 'object') {
+        const data = result.data as any;
+        if (isLedgerNoDataStatus(data)) {
+          return buildLedgerNoDataMessage(data, hydration);
+        }
+        const judgment = data.earnings_quality_judgment || {};
+        return [
+          ...buildLedgerWorkflowLead('earnings-quality', companyName, data, hydration),
+          '',
+          `Grade: ${data.earnings_quality_grade || 'unknown'}`,
+          `Score: ${data.earnings_quality_score ?? 'N/A'}`,
+          `Confidence: ${data.confidence_level || 'unknown'}`,
+          `Cash conversion: ${data.cash_conversion?.ratio_display || 'N/A'}x OCF / net income`,
+          `Free cash flow margin: ${data.reinvestment_and_free_cash_flow?.free_cash_flow_margin_display || 'N/A'}`,
+          `Capex as % of OCF: ${data.reinvestment_and_free_cash_flow?.capex_as_pct_of_ocf_display || 'N/A'}`,
+          '',
+          `${judgment.summary || 'No earnings-quality summary returned.'}`,
+        ].join('\n');
+      }
+    }
+
+    const { result, hydration } = await executeLedgerWorkflowWithHydrationRetry('run_financial_analysis', context);
+    if (result.ok && result.data && typeof result.data === 'object') {
+      const data = result.data as any;
+      if (isLedgerNoDataStatus(data)) {
+        return buildLedgerNoDataMessage(data, hydration);
+      }
+      return buildLedgerOverviewResponse(companyName, data, hydration);
+    }
+  } catch (error: any) {
+    console.error('[VisionChat] local Ledger tool-backed fallback failed:', error?.message || error);
+  }
+
+  return generateLocalFinancialAnalystResponse(message, context);
 }
 
 function generateLocalStatisticalInterpreterResponse(message: string, context: TradingContext): string {

@@ -71,6 +71,13 @@ DURATION_CONCEPTS: Dict[str, Sequence[str]] = {
         "SalesRevenueNet",
         "Revenues",
     ),
+    "operating_income": (
+        "OperatingIncomeLoss",
+    ),
+    "net_income": (
+        "NetIncomeLoss",
+        "ProfitLoss",
+    ),
     "operating_cash_flow": (
         "NetCashProvidedByUsedInOperatingActivities",
     ),
@@ -271,6 +278,15 @@ def _calc_quarterly_burn(fcf_rows: Sequence[FactRow], ocf_rows: Sequence[FactRow
     return 0.0
 
 
+def _ratio_percent(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
+    if numerator is None or denominator in (None, 0):
+        return None
+    ratio = (numerator / denominator) * 100.0
+    if ratio < -100.0 or ratio > 100.0:
+        return None
+    return ratio
+
+
 def resolve_sec_first_financials(
     symbol: str,
     *,
@@ -324,18 +340,31 @@ def resolve_sec_first_financials(
         debt_to_equity = total_debt / equity
 
     revenue_annual_rows = _select_period_series(payload, DURATION_CONCEPTS["revenue"], "annual")
+    operating_income_annual_rows = _select_period_series(payload, DURATION_CONCEPTS["operating_income"], "annual")
+    net_income_annual_rows = _select_period_series(payload, DURATION_CONCEPTS["net_income"], "annual")
     operating_cash_flow_quarterly_rows = _select_period_series(payload, DURATION_CONCEPTS["operating_cash_flow"], "quarterly")
     capital_expenditures_quarterly_rows = _select_period_series(payload, DURATION_CONCEPTS["capital_expenditures"], "quarterly")
     operating_cash_flow_annual_rows = _select_period_series(payload, DURATION_CONCEPTS["operating_cash_flow"], "annual")
     capital_expenditures_annual_rows = _select_period_series(payload, DURATION_CONCEPTS["capital_expenditures"], "annual")
 
-    operating_cash_flow_ttm = _sum_recent_values(operating_cash_flow_quarterly_rows, 4)
-    if operating_cash_flow_ttm is None and operating_cash_flow_annual_rows:
-        operating_cash_flow_ttm = operating_cash_flow_annual_rows[0].value
+    annual_revenue = revenue_annual_rows[0].value if revenue_annual_rows else None
+    annual_operating_income = operating_income_annual_rows[0].value if operating_income_annual_rows else None
+    annual_net_income = net_income_annual_rows[0].value if net_income_annual_rows else None
 
-    capital_expenditures_ttm = _sum_recent_values(capital_expenditures_quarterly_rows, 4)
-    if capital_expenditures_ttm is None and capital_expenditures_annual_rows:
+    # Prefer the latest annual filing-backed cash-flow base for the dashboard snapshot.
+    # The quarterly companyfacts rows can be noisy for some issuers and have been the
+    # main source of sign-flip mismatches versus the filing-backed Ledger view.
+    operating_cash_flow_ttm = None
+    if operating_cash_flow_annual_rows:
+        operating_cash_flow_ttm = operating_cash_flow_annual_rows[0].value
+    if operating_cash_flow_ttm is None:
+        operating_cash_flow_ttm = _sum_recent_values(operating_cash_flow_quarterly_rows, 4)
+
+    capital_expenditures_ttm = None
+    if capital_expenditures_annual_rows:
         capital_expenditures_ttm = capital_expenditures_annual_rows[0].value
+    if capital_expenditures_ttm is None:
+        capital_expenditures_ttm = _sum_recent_values(capital_expenditures_quarterly_rows, 4)
 
     free_cash_flow_ttm = None
     if operating_cash_flow_ttm is not None and capital_expenditures_ttm is not None:
@@ -379,12 +408,15 @@ def resolve_sec_first_financials(
 
     enterprise_to_sales = None
     if enterprise_value not in (None, 0) and revenue_annual_rows:
-        annual_revenue = revenue_annual_rows[0].value
         if annual_revenue:
             enterprise_to_sales = enterprise_value / annual_revenue
 
+    operating_margin_pct = _ratio_percent(annual_operating_income, annual_revenue)
+    profit_margin_pct = _ratio_percent(annual_net_income, annual_revenue)
+
     result: Dict[str, float] = {}
     for key, value in (
+        ("annualRevenue", annual_revenue),
         ("totalCash", total_cash),
         ("totalDebt", total_debt),
         ("currentRatio", current_ratio),
@@ -392,6 +424,8 @@ def resolve_sec_first_financials(
         ("debtToEquity", debt_to_equity),
         ("operatingCashFlowTTM", operating_cash_flow_ttm),
         ("freeCashFlowTTM", free_cash_flow_ttm),
+        ("operatingMarginPct", operating_margin_pct),
+        ("profitMarginPct", profit_margin_pct),
         ("quarterlyCashBurn", quarterly_cash_burn),
         ("cashRunwayQuarters", cash_runway_quarters),
         ("netCash", net_cash),

@@ -234,6 +234,101 @@
       overflow-y: auto;
     }
 
+    .option-chain-board {
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-surface) 82%, black 18%);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .option-chain-board__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .option-chain-board__price {
+      color: var(--color-text);
+      font-family: var(--font-mono);
+      text-transform: none;
+      letter-spacing: normal;
+    }
+
+    .option-chain-board__table-wrap {
+      overflow-x: auto;
+    }
+
+    .option-chain-board__table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-caption);
+    }
+
+    .option-chain-board__table th,
+    .option-chain-board__table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent 25%);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .option-chain-board__table th {
+      color: var(--color-text-muted);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+    }
+
+    .option-chain-board__table tbody tr {
+      transition: background 0.15s ease;
+    }
+
+    .option-chain-board__table tbody tr:hover {
+      background: color-mix(in srgb, var(--color-surface) 86%, black 14%);
+    }
+
+    .option-chain-board__table tbody tr.is-selected {
+      background: color-mix(in srgb, #16a34a 14%, var(--color-surface) 86%);
+    }
+
+    .option-chain-board__strike {
+      font-weight: 700;
+      color: var(--color-text);
+    }
+
+    .option-chain-board__metric--positive {
+      color: #22c55e;
+    }
+
+    .option-chain-board__metric--negative {
+      color: #ef4444;
+    }
+
+    .option-chain-board__metric--muted {
+      color: var(--color-text-muted);
+    }
+
+    .option-chain-board__ask-btn {
+      min-width: 96px;
+      justify-content: center;
+      padding-inline: 12px;
+      font-weight: 700;
+    }
+
+    .option-chain-board__empty {
+      text-align: center;
+      color: var(--color-text-muted);
+      padding: 18px 12px;
+    }
+
     @media (min-width: 1100px) {
       .trade-actions-card--route {
         grid-column: 1 / span 6;
@@ -693,22 +788,22 @@
                       <div id="instrument-pnl-summary" style="display:none;margin-top:var(--space-8);padding-top:var(--space-8);border-top:1px solid var(--color-border);">
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6) var(--space-12);">
                           <div>
-                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Stop @ Price</div>
+                            <div id="ipnl-stop-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Stop @ Price</div>
                             <div id="ipnl-stop-price" style="font-size:var(--text-small);font-weight:600;color:#ef4444;">--</div>
                             <div id="ipnl-stop-dist" style="font-size:10px;color:var(--color-text-subtle);">--</div>
                           </div>
                           <div>
-                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Target @ Price</div>
+                            <div id="ipnl-target-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Target @ Price</div>
                             <div id="ipnl-tp-price" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
                             <div id="ipnl-gain-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
                           </div>
                           <div>
-                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Loss</div>
+                            <div id="ipnl-loss-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Loss</div>
                             <div id="ipnl-loss" style="font-size:var(--text-small);font-weight:600;color:#ef4444;">--</div>
                             <div id="ipnl-loss-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
                           </div>
                           <div>
-                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Gain</div>
+                            <div id="ipnl-gain-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Gain</div>
                             <div id="ipnl-gain" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
                             <div id="ipnl-rr" style="font-size:10px;font-weight:600;color:var(--color-text-subtle);">--</div>
                           </div>
@@ -822,11 +917,51 @@
                         <div class="sidebar-field-row">
                           <div class="sidebar-field">
                             <label class="sidebar-field-label" for="option-strike">Strike ($)</label>
-                            <input type="number" id="option-strike" value="0" step="0.50" class="input input-sm" onchange="saveSettings()" placeholder="e.g. 2.50">
+                            <select id="option-strike" class="select select-sm" onchange="saveSettings()">
+                              <option value="">Select strike</option>
+                            </select>
                           </div>
                           <div class="sidebar-field">
                             <label class="sidebar-field-label" for="option-expiry">Expiration</label>
-                            <input type="text" id="option-expiry" value="" class="input input-sm" onchange="saveSettings()" placeholder="e.g. 7/17">
+                            <select id="option-expiry" class="select select-sm" onchange="saveSettings()">
+                              <option value="">Select expiry</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="sidebar-field-row">
+                          <div class="sidebar-field" style="flex:1 1 auto;">
+                            <label class="sidebar-field-label" for="option-contract-select">Contract Chain</label>
+                            <select id="option-contract-select" class="select select-sm">
+                              <option value="">Load a symbol and choose an expiry</option>
+                            </select>
+                          </div>
+                          <div class="sidebar-field" style="width:112px;">
+                            <label class="sidebar-field-label" for="option-chain-refresh">Chain</label>
+                            <button type="button" id="option-chain-refresh" class="btn btn-secondary btn-sm" style="width:100%;">Refresh</button>
+                          </div>
+                        </div>
+                        <div id="option-chain-status" class="sidebar-field-hint">Select a real option contract so premium, max loss, and target estimates use the actual chain quote.</div>
+                        <div class="option-chain-board">
+                          <div class="option-chain-board__header">
+                            <span id="option-chain-board-title">Chain Snapshot</span>
+                            <span id="option-chain-board-price" class="option-chain-board__price">--</span>
+                          </div>
+                          <div class="option-chain-board__table-wrap">
+                            <table class="option-chain-board__table">
+                              <thead>
+                                <tr>
+                                  <th>Strike</th>
+                                  <th>Breakeven</th>
+                                  <th>To B/E</th>
+                                  <th>% Change</th>
+                                  <th>Change</th>
+                                  <th>Ask</th>
+                                </tr>
+                              </thead>
+                              <tbody id="option-chain-board-body">
+                                <tr><td colspan="6" class="option-chain-board__empty">Load a symbol and choose an expiry.</td></tr>
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                         <div class="sidebar-field-row">

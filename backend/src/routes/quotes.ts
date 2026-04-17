@@ -8,36 +8,31 @@
 import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import * as path from 'path';
-import { createHash } from 'crypto';
 import { normalizeMarketDataSymbol } from '../services/marketSymbols';
 import {
   CacheEnvelope,
   buildBatchFreshnessInfo,
   createCacheEnvelope,
   isFreshTimestamp,
-  readCacheEnvelope,
-  writeCacheEnvelope,
 } from '../services/cacheService';
+import { readAppCacheEnvelope, writeAppCacheEnvelope } from '../services/appStateDb';
 
 const router = Router();
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
-const QUOTE_CACHE_DIR = path.join(DATA_DIR, 'quote-cache');
-const OPTION_QUOTE_CACHE_DIR = path.join(DATA_DIR, 'option-quote-cache');
 const QUOTE_TTL_MS = 5 * 60 * 1000;
 const OPTION_QUOTE_TTL_MS = 10 * 60 * 1000;
+const OPTION_CHAIN_TTL_MS = 10 * 60 * 1000;
+const QUOTE_CACHE_NAMESPACE = 'quotes';
+const OPTION_QUOTE_CACHE_NAMESPACE = 'option_quotes';
+const OPTION_CHAIN_CACHE_NAMESPACE = 'option_chains';
 
 const quoteMemoryCache = new Map<string, CacheEnvelope<unknown>>();
 const optionQuoteMemoryCache = new Map<string, CacheEnvelope<unknown>>();
-
-function cacheFilePath(cacheDir: string, key: string): string {
-  const digest = createHash('sha1').update(key).digest('hex');
-  return path.join(cacheDir, `${digest}.json`);
-}
+const optionChainMemoryCache = new Map<string, CacheEnvelope<unknown>>();
 
 async function loadQuoteEntry(key: string): Promise<{ entry: CacheEnvelope<unknown> | null; layer: 'memory' | 'disk' | null }> {
   const cached = quoteMemoryCache.get(key) || null;
   if (cached) return { entry: cached, layer: 'memory' };
-  const persisted = await readCacheEnvelope<unknown>(cacheFilePath(QUOTE_CACHE_DIR, key));
+  const persisted = readAppCacheEnvelope<unknown>(QUOTE_CACHE_NAMESPACE, key);
   if (persisted) quoteMemoryCache.set(key, persisted);
   return { entry: persisted, layer: persisted ? 'disk' : null };
 }
@@ -45,13 +40,13 @@ async function loadQuoteEntry(key: string): Promise<{ entry: CacheEnvelope<unkno
 async function saveQuoteEntry(key: string, data: unknown): Promise<void> {
   const entry = createCacheEnvelope(key, data, QUOTE_TTL_MS, 'quoteService');
   quoteMemoryCache.set(key, entry);
-  await writeCacheEnvelope(cacheFilePath(QUOTE_CACHE_DIR, key), entry);
+  writeAppCacheEnvelope(QUOTE_CACHE_NAMESPACE, entry);
 }
 
 async function loadOptionQuoteEntry(key: string): Promise<{ entry: CacheEnvelope<unknown> | null; layer: 'memory' | 'disk' | null }> {
   const cached = optionQuoteMemoryCache.get(key) || null;
   if (cached) return { entry: cached, layer: 'memory' };
-  const persisted = await readCacheEnvelope<unknown>(cacheFilePath(OPTION_QUOTE_CACHE_DIR, key));
+  const persisted = readAppCacheEnvelope<unknown>(OPTION_QUOTE_CACHE_NAMESPACE, key);
   if (persisted) optionQuoteMemoryCache.set(key, persisted);
   return { entry: persisted, layer: persisted ? 'disk' : null };
 }
@@ -59,7 +54,21 @@ async function loadOptionQuoteEntry(key: string): Promise<{ entry: CacheEnvelope
 async function saveOptionQuoteEntry(key: string, data: unknown): Promise<void> {
   const entry = createCacheEnvelope(key, data, OPTION_QUOTE_TTL_MS, 'quoteService');
   optionQuoteMemoryCache.set(key, entry);
-  await writeCacheEnvelope(cacheFilePath(OPTION_QUOTE_CACHE_DIR, key), entry);
+  writeAppCacheEnvelope(OPTION_QUOTE_CACHE_NAMESPACE, entry);
+}
+
+async function loadOptionChainEntry(key: string): Promise<{ entry: CacheEnvelope<unknown> | null; layer: 'memory' | 'disk' | null }> {
+  const cached = optionChainMemoryCache.get(key) || null;
+  if (cached) return { entry: cached, layer: 'memory' };
+  const persisted = readAppCacheEnvelope<unknown>(OPTION_CHAIN_CACHE_NAMESPACE, key);
+  if (persisted) optionChainMemoryCache.set(key, persisted);
+  return { entry: persisted, layer: persisted ? 'disk' : null };
+}
+
+async function saveOptionChainEntry(key: string, data: unknown): Promise<void> {
+  const entry = createCacheEnvelope(key, data, OPTION_CHAIN_TTL_MS, 'quoteService');
+  optionChainMemoryCache.set(key, entry);
+  writeAppCacheEnvelope(OPTION_CHAIN_CACHE_NAMESPACE, entry);
 }
 
 function optionCacheKey(option: any): string {
@@ -68,6 +77,15 @@ function optionCacheKey(option: any): string {
     String(option?.expiry || '').trim(),
     String(option?.type || '').trim().toLowerCase(),
     String(option?.strike ?? ''),
+  ].join('|');
+}
+
+function optionChainCacheKey(request: any): string {
+  return [
+    String(request?.symbol || '').trim().toUpperCase(),
+    String(request?.expiry || '').trim(),
+    String(request?.type || '').trim().toLowerCase(),
+    String(request?.maxContracts || ''),
   ].join('|');
 }
 
@@ -296,6 +314,93 @@ router.post('/options', async (req: Request, res: Response) => {
       }),
     });
     
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/quotes/options/chain - Get option chain for a symbol/expiry/type
+ * Body: { symbol: "AAPL", expiry?: "2026-07-17", type?: "call", maxContracts?: 120 }
+ */
+router.post('/options/chain', async (req: Request, res: Response) => {
+  try {
+    const forceRefresh = req.body?.force_refresh === true;
+    const symbol = String(req.body?.symbol || '').trim().toUpperCase();
+    const expiry = String(req.body?.expiry || '').trim();
+    const type = String(req.body?.type || 'call').trim().toLowerCase();
+    const maxContracts = Math.max(10, Math.min(parseInt(String(req.body?.maxContracts || '120'), 10) || 120, 250));
+
+    if (!symbol) {
+      return res.status(400).json({ success: false, error: 'symbol required' });
+    }
+
+    const requestPayload = { symbol, expiry, type, maxContracts };
+    const cacheKey = optionChainCacheKey(requestPayload);
+
+    if (!forceRefresh) {
+      const cached = await loadOptionChainEntry(cacheKey);
+      if (cached.entry?.data != null && isFreshTimestamp(cached.entry.fetchedAt, cached.entry.ttlMs)) {
+        return res.json({
+          success: true,
+          data: cached.entry.data,
+          freshness: buildBatchFreshnessInfo({
+            ttlMs: OPTION_CHAIN_TTL_MS,
+            memoryHits: cached.layer === 'memory' ? 1 : 0,
+            diskHits: cached.layer === 'disk' ? 1 : 0,
+            refreshedCount: 0,
+            totalCount: 1,
+          }),
+        });
+      }
+    }
+
+    const quotePath = path.join(__dirname, '..', '..', 'services', 'quoteService.py');
+    const proc = spawn('py', [quotePath, '--option-chain', JSON.stringify(requestPayload)]);
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    const chainData = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      proc.on('close', (code: number) => {
+        if (code !== 0) {
+          console.error('[QuoteService:OptionChain] stderr:', stderr);
+          reject(new Error(`Option chain service exited with code ${code}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(stdout));
+        } catch {
+          console.error('[QuoteService:OptionChain] Failed to parse output:', stdout);
+          reject(new Error('Failed to parse option chain data'));
+        }
+      });
+
+      setTimeout(() => {
+        proc.kill();
+        reject(new Error('Option chain service timed out'));
+      }, 20000);
+    });
+
+    await saveOptionChainEntry(cacheKey, chainData);
+    return res.json({
+      success: true,
+      data: chainData,
+      freshness: buildBatchFreshnessInfo({
+        ttlMs: OPTION_CHAIN_TTL_MS,
+        memoryHits: 0,
+        diskHits: 0,
+        refreshedCount: 1,
+        totalCount: 1,
+      }),
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

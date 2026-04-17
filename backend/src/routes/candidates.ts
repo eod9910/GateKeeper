@@ -567,19 +567,34 @@ router.get('/symbols', async (req: Request, res: Response) => {
       ).sort((a, b) => a.localeCompare(b));
     };
 
-    const optionable = await loadUniverseSymbols('optionable_stocks');
-    const sourceAll = await loadUniverseSymbols('clean_stocks');
+    const intersectSymbols = (base: string[], filter: string[]): string[] => {
+      const filterSet = new Set(normalizeSymbols(filter));
+      return normalizeSymbols(base).filter((symbol) => filterSet.has(symbol));
+    };
+
+    const optionable = await loadUniverseSymbols('tradable_optionable_stocks');
+    const sourceAll = await loadUniverseSymbols('tradable_stock_default');
+    const sp500 = await loadUniverseSymbols('sp500');
+    const largeCapKnown = await loadUniverseSymbols('large_cap_known');
+    const undervalued = await loadUniverseSymbols('valuation_regime_undervalued');
+    const fairValue = await loadUniverseSymbols('valuation_regime_fair');
+    const overvalued = await loadUniverseSymbols('valuation_regime_overvalued');
 
     const data = {
       ...symbols,
+      stocks: sourceAll,
       commodities: normalizeSymbols(symbols.commodities),
       futures: normalizeSymbols(symbols.futures),
       indices: normalizeSymbols(symbols.indices),
       sectors: normalizeSymbols(symbols.sectors),
       international: normalizeSymbols(symbols.international),
       bonds: normalizeSymbols(symbols.bonds),
-      smallcaps: normalizeSymbols(symbols.smallcaps),
+      smallcaps: intersectSymbols(sourceAll, symbols.smallcaps),
+      largecaps: intersectSymbols(sourceAll, [...sp500, ...largeCapKnown]),
       crypto: normalizeSymbols(symbols.crypto),
+      undervalued: intersectSymbols(sourceAll, undervalued),
+      fairvalue: intersectSymbols(sourceAll, fairValue),
+      overvalued: intersectSymbols(sourceAll, overvalued),
       optionable,
       source_all: sourceAll,
       all: sourceAll.length > 0

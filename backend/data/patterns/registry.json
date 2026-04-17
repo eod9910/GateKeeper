@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated_at": "2026-03-18T06:26:41.108Z",
+  "updated_at": "2026-04-10T21:05:00.000Z",
   "categories": [
     {
       "id": "chart_patterns",
@@ -131,6 +131,22 @@
       "state_compatible": true,
       "cost_class": "moderate",
       "search_tags": ["fundamental", "quality", "survivability", "growth", "filter"],
+      "source_kind": "custom"
+    },
+    {
+      "pattern_id": "valuation_state_primitive",
+      "name": "Valuation State (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "valuation_state_primitive.json",
+      "status": "active",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "regime_state",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": false,
+      "state_compatible": true,
+      "cost_class": "moderate",
+      "search_tags": ["valuation", "dcf", "undervalued", "overvalued", "fair_value", "fundamental", "ledger"],
       "source_kind": "custom"
     },
     {

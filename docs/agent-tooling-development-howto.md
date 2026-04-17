@@ -7,6 +7,10 @@ Status: Reusable internal playbook
 
 This document captures the development patterns worth reusing from the Claude Code architecture material we reviewed, but translated into the actual needs of this repo.
 
+For workspace-specific construction rules, use:
+
+- `workspace/WORKSPACE_ARCHITECTURE.md`
+
 This is not a generic multi-agent manifesto.
 
 It is a practical guide for building and evolving:
