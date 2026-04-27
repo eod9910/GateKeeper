@@ -40,7 +40,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import re
 import sqlite3
 import sys
 import time
@@ -49,12 +51,12 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Pattern, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-EXPECTED_SCHEMA_VERSION = 4
+EXPECTED_SCHEMA_VERSION = 5
 
 # Algolia HN. No auth, no rate-limit headers — be polite anyway.
 HN_API_BASE = "https://hn.algolia.com/api/v1/search_by_date"
@@ -69,6 +71,79 @@ HN_PAIRS: List[Tuple[str, str]] = [
     ("story", "hackernews_story"),
     ("comment", "hackernews_comment"),
 ]
+
+
+# ============================================================================
+# Word-boundary post-filter
+# ----------------------------------------------------------------------------
+# Algolia's HN search API is high-recall by design: it tokenizes, applies
+# typo-tolerance, and matches term prefixes. Searching "RIF" returns posts
+# containing "rifle", "rifling", "Riff Raff" etc.; searching "GPT-4" returns
+# posts mentioning "GPT" alone. That noise floor is fatal for our z-score
+# engine — it inflates daily counts with off-topic posts and makes legitimate
+# spikes indistinguishable from baseline drift.
+#
+# Defense: every Algolia hit gets a second-pass word-boundary regex check
+# against the term we queried with. If the title/body don't actually contain
+# the term as a standalone token, we drop the attribution. Mirrors the same
+# logic used in the 4chan collector (which has the same problem because /biz/
+# posts often contain unrelated tickers/terms in the same paragraph).
+# ============================================================================
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def _compile_term_pattern(term: str) -> Pattern[str]:
+    """Case-insensitive word-boundary regex for a single search term.
+
+    Multi-word terms become ordered phrases with flexible internal whitespace
+    (matches "AI compute capacity" written as "AI  compute capacity" or
+    "AI\tcompute capacity" alike). \\b would be wrong here because some search
+    terms contain non-word chars (e.g. "C++"); we use lookaround on \\w which
+    correctly treats "+" / "-" as boundaries.
+    """
+    cleaned = term.strip()
+    parts = re.split(r"\s+", cleaned)
+    parts_escaped = [re.escape(p) for p in parts if p]
+    if not parts_escaped:
+        return re.compile(r"(?!x)x")  # match-nothing sentinel
+    inner = r"\s+".join(parts_escaped)
+    pattern = rf"(?<!\w){inner}(?!\w)"
+    return re.compile(pattern, re.IGNORECASE)
+
+
+def _strip_html(text: Optional[str]) -> str:
+    """HN comment_text and story_text come back with embedded <p>, <a>, <i>,
+    and HTML entities. Flatten to plain text so word-boundary regex behaves
+    predictably (otherwise "<p>RIF</p>" word-boundaries get eaten by tags)."""
+    if not text:
+        return ""
+    flat = (
+        text.replace("<p>", " ")
+        .replace("</p>", " ")
+        .replace("<br>", " ")
+        .replace("<br/>", " ")
+        .replace("<br />", " ")
+    )
+    flat = _HTML_TAG_RE.sub(" ", flat)
+    flat = html.unescape(flat)
+    return _WS_RE.sub(" ", flat).strip()
+
+
+def _hit_matches_term(
+    title: Optional[str],
+    body_text: Optional[str],
+    term_pattern: Pattern[str],
+) -> bool:
+    """True iff the term appears as a standalone token in title OR body."""
+    title_clean = _strip_html(title)
+    body_clean = _strip_html(body_text)
+    if title_clean and term_pattern.search(title_clean):
+        return True
+    if body_clean and term_pattern.search(body_clean):
+        return True
+    return False
 
 
 # ============================================================================
@@ -109,7 +184,9 @@ def _load_active_concepts(
     *,
     only_keys: Optional[Set[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Return [{id, concept_key, target_key, search_terms}, ...] for active concepts."""
+    """Return [{id, concept_key, target_key, search_terms, term_patterns}, ...]
+    for active concepts. term_patterns is the precompiled word-boundary regex
+    list (same index as search_terms) used to post-filter Algolia hits."""
     rows = conn.execute(
         """
         SELECT id, concept_key, target_key, display_label, metadata_json
@@ -132,6 +209,7 @@ def _load_active_concepts(
             "target_key": target_key,
             "display_label": display_label,
             "search_terms": terms,
+            "term_patterns": [_compile_term_pattern(t) for t in terms],
         })
     return out
 
@@ -455,13 +533,17 @@ def collect(
         per_concept_counts: List[Dict[str, Any]] = []
         total_api_calls = 0
 
+        total_filter_rejects = 0
+
         for concept in concepts:
             concept_id = concept["id"]
             concept_key = concept["concept_key"]
             terms = concept["search_terms"]
+            term_patterns = concept["term_patterns"]
 
             concept_total_hits = 0
-            for term in terms:
+            concept_filter_rejects = 0
+            for term, term_pattern in zip(terms, term_patterns):
                 for tag, source_type in HN_PAIRS:
                     total_api_calls += 1
                     for hit in _iter_hn_pages(
@@ -475,6 +557,18 @@ def collect(
                     ):
                         normalized = _normalize_hit(hit, source_type)
                         if normalized is None:
+                            continue
+                        # Word-boundary post-filter (see header comment for
+                        # rationale). Algolia returns prefix/typo-tolerant
+                        # matches; we want only standalone-token matches so
+                        # the z-score baselines stay meaningful.
+                        if not _hit_matches_term(
+                            normalized.get("title"),
+                            normalized.get("body_text"),
+                            term_pattern,
+                        ):
+                            concept_filter_rejects += 1
+                            total_filter_rejects += 1
                             continue
                         key = (
                             normalized["source_type"],
@@ -494,6 +588,7 @@ def collect(
                 "concept_key": concept_key,
                 "terms": terms,
                 "raw_hits_observed": concept_total_hits,
+                "filter_rejects": concept_filter_rejects,
             })
 
         upsert_report = _upsert_hits(
@@ -518,6 +613,7 @@ def collect(
         "concepts_processed": len(concepts),
         "api_calls": total_api_calls,
         "raw_hits_seen": sum(p["raw_hits_observed"] for p in per_concept_counts),
+        "filter_rejects": total_filter_rejects,
         "unique_posts": len(rows_with_concepts),
         "affected_buckets": len(affected_buckets),
         "daily_counts_refreshed": refreshed,

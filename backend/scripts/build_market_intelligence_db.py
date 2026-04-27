@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 # Each entry is (table_name, CREATE TABLE statement). Ordered so foreign-key
@@ -732,6 +732,29 @@ def build(db_path: Path, *, reset: bool, dry_run: bool) -> Dict[str, Any]:
                 "emerging_topics_relax_resolved_target_type"
             )
 
+        # v4 -> v5: repairs a latent FK bug introduced by the v3 -> v4
+        # rename. SQLite's ALTER TABLE RENAME automatically rewrites all FK
+        # references to the renamed table, so when v3 -> v4 renamed
+        # emerging_topics -> emerging_topics__v3, authenticity_signals'
+        # FK got rewritten to point at __v3. When __v3 was then dropped at
+        # the end of the migration, the FK became dangling — any DELETE on
+        # authenticity_signals (and any FK enforcement) silently breaks.
+        # Fix: rename + recreate authenticity_signals so its FK points at
+        # the current emerging_topics table again. Same drop-and-recreate
+        # pattern as the prior migrations.
+        if (
+            not dry_run
+            and previous_version is not None
+            and previous_version < 5
+            and _table_exists(conn, "authenticity_signals")
+        ):
+            conn.execute(
+                "ALTER TABLE authenticity_signals RENAME TO authenticity_signals__v4"
+            )
+            summary["migrations_applied"].append(
+                "authenticity_signals_repair_fk"
+            )
+
         for name, ddl in TABLES:
             existed = _table_exists(conn, name)
             conn.executescript(ddl)
@@ -794,6 +817,29 @@ def build(db_path: Path, *, reset: bool, dry_run: bool) -> Dict[str, Any]:
                 """
             )
             conn.execute("DROP TABLE emerging_topics__v3")
+
+        # Finish v4 -> v5 migration: copy rows back, drop the rename stub.
+        # Recreated authenticity_signals now has its FK pointing at the
+        # current emerging_topics table (not the dropped __v3 stub).
+        if (
+            not dry_run
+            and "authenticity_signals_repair_fk"
+            in summary["migrations_applied"]
+            and _table_exists(conn, "authenticity_signals__v4")
+        ):
+            conn.execute(
+                """
+                INSERT INTO authenticity_signals (
+                    id, emerging_topic_id, as_of, signal_type,
+                    signal_value, weight, notes
+                )
+                SELECT
+                    id, emerging_topic_id, as_of, signal_type,
+                    signal_value, weight, notes
+                FROM authenticity_signals__v4
+                """
+            )
+            conn.execute("DROP TABLE authenticity_signals__v4")
 
         for name, ddl in INDEXES:
             existed = _index_exists(conn, name)
