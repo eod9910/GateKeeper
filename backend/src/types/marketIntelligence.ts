@@ -23,7 +23,7 @@
 // ============================================================================
 
 /** Bump in lockstep with backend/scripts/build_market_intelligence_db.py. */
-export const MARKET_INTELLIGENCE_SCHEMA_VERSION = 2;
+export const MARKET_INTELLIGENCE_SCHEMA_VERSION = 3;
 
 // ============================================================================
 // CORE ENUMS

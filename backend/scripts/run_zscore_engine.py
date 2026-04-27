@@ -65,7 +65,7 @@ BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)
 PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, os.pardir))
 DEFAULT_DB_PATH = os.path.join(BACKEND_DIR, "data", "market-intelligence.sqlite")
 
-EXPECTED_SCHEMA_VERSION = 2
+EXPECTED_SCHEMA_VERSION = 3
 
 DAY_SECONDS = 86_400
 

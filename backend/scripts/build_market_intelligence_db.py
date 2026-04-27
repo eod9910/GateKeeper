@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 # Each entry is (table_name, CREATE TABLE statement). Ordered so foreign-key
@@ -484,12 +484,13 @@ TABLES: List[Tuple[str, str]] = [
         """
         CREATE TABLE IF NOT EXISTS mi_raw_hits (
             id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_type             TEXT NOT NULL CHECK (
-                source_type IN (
-                    'hackernews_story', 'hackernews_comment',
-                    'discord', 'fourchan_biz', 'bluesky', 'forum'
-                )
-            ),
+            -- source_type is free-form TEXT (no CHECK whitelist) so new
+            -- collectors can ship without a schema migration. Convention is
+            -- '<platform>_<kind>', e.g. hackernews_story, hackernews_comment,
+            -- fourchan_op, fourchan_reply, discord_message, bluesky_post,
+            -- forum_post. source_community carries the per-board / per-server
+            -- detail (e.g. /biz/, /g/).
+            source_type             TEXT NOT NULL,
             source_post_id          TEXT NOT NULL,
             source_thread_id        TEXT,
             source_url              TEXT,
@@ -696,6 +697,20 @@ def build(db_path: Path, *, reset: bool, dry_run: bool) -> Dict[str, Any]:
     try:
         previous_version = _read_schema_version(conn)
         summary["previous_schema_version"] = previous_version
+        summary["migrations_applied"] = []
+
+        # v2 -> v3: relaxed mi_raw_hits.source_type CHECK constraint (the
+        # whitelist forced a schema bump every time a new collector shipped).
+        # SQLite can't ALTER a CHECK constraint, so the migration drops and
+        # recreates the table. Existing rows are preserved.
+        if (
+            not dry_run
+            and previous_version is not None
+            and previous_version < 3
+            and _table_exists(conn, "mi_raw_hits")
+        ):
+            conn.execute("ALTER TABLE mi_raw_hits RENAME TO mi_raw_hits__v2")
+            summary["migrations_applied"].append("mi_raw_hits_drop_check_constraint")
 
         for name, ddl in TABLES:
             existed = _table_exists(conn, name)
@@ -704,6 +719,30 @@ def build(db_path: Path, *, reset: bool, dry_run: bool) -> Dict[str, Any]:
                 summary["tables_existing"].append(name)
             else:
                 summary["tables_created"].append(name)
+
+        # Finish v2 -> v3 migration: copy rows back, drop the rename stub.
+        if (
+            not dry_run
+            and "mi_raw_hits_drop_check_constraint" in summary["migrations_applied"]
+            and _table_exists(conn, "mi_raw_hits__v2")
+        ):
+            conn.execute(
+                """
+                INSERT INTO mi_raw_hits (
+                    id, source_type, source_post_id, source_thread_id,
+                    source_url, source_community, author, title,
+                    body_text, posted_at, fetched_at, score,
+                    comment_count, matched_concept_ids_json, raw_payload_json
+                )
+                SELECT
+                    id, source_type, source_post_id, source_thread_id,
+                    source_url, source_community, author, title,
+                    body_text, posted_at, fetched_at, score,
+                    comment_count, matched_concept_ids_json, raw_payload_json
+                FROM mi_raw_hits__v2
+                """
+            )
+            conn.execute("DROP TABLE mi_raw_hits__v2")
 
         for name, ddl in INDEXES:
             existed = _index_exists(conn, name)

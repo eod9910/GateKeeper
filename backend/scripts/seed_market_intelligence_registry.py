@@ -34,7 +34,7 @@ DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 THEME_TAXONOMY_PATH = ROOT / "backend" / "data" / "scenarios" / "theme-taxonomy.json"
 BRAND_TO_TICKER_PATH = ROOT / "backend" / "data" / "scenarios" / "brand-to-ticker.json"
 
-EXPECTED_SCHEMA_VERSION = 2
+EXPECTED_SCHEMA_VERSION = 3
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:

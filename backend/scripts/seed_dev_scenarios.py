@@ -44,7 +44,7 @@ DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 NOW = int(time.time())
 DAY = 86400
 
-EXPECTED_SCHEMA_VERSION = 2
+EXPECTED_SCHEMA_VERSION = 3
 
 
 # Tables this script writes to. `--reset` deletes from these in FK-safe order.

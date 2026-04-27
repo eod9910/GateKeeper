@@ -86,6 +86,12 @@ const COLLECTOR_SCRIPTS: Record<string, string> = {
     'scripts',
     'collect_hackernews_intraday.py',
   ),
+  fourchan: path.join(
+    PROJECT_ROOT,
+    'backend',
+    'scripts',
+    'collect_fourchan_intraday.py',
+  ),
 };
 
 const COLLECTOR_TIMEOUT_MS = 90_000;
@@ -672,6 +678,8 @@ interface CollectorRunBody {
   dry_run?: unknown;
   request_timeout?: unknown;
   sleep_ms?: unknown;
+  // 4chan-specific
+  boards?: unknown;
 }
 
 function asTruthy(value: unknown): boolean {
@@ -718,6 +726,89 @@ function buildHackerNewsCliArgs(body: CollectorRunBody): string[] {
       );
     }
     args.push('--hits-per-page', String(Math.trunc(n)));
+  }
+
+  if (body.request_timeout !== undefined && body.request_timeout !== null) {
+    const n = Number(body.request_timeout);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'request_timeout must be a positive number',
+      );
+    }
+    args.push('--request-timeout', String(n));
+  }
+
+  if (body.sleep_ms !== undefined && body.sleep_ms !== null) {
+    const n = Number(body.sleep_ms);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'sleep_ms must be a non-negative number',
+      );
+    }
+    args.push('--sleep-ms', String(Math.trunc(n)));
+  }
+
+  if (body.concept_keys !== undefined && body.concept_keys !== null) {
+    let keys: string;
+    if (Array.isArray(body.concept_keys)) {
+      keys = body.concept_keys
+        .map((k) => String(k).trim())
+        .filter((k) => k.length > 0)
+        .join(',');
+    } else if (typeof body.concept_keys === 'string') {
+      keys = body.concept_keys.trim();
+    } else {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'concept_keys must be an array of strings or a comma-separated string',
+      );
+    }
+    if (keys.length > 0) {
+      args.push('--concept-keys', keys);
+    }
+  }
+
+  if (asTruthy(body.dry_run)) {
+    args.push('--dry-run');
+  }
+
+  return args;
+}
+
+function buildFourchanCliArgs(body: CollectorRunBody): string[] {
+  const args: string[] = [];
+
+  if (body.since_hours !== undefined && body.since_hours !== null) {
+    const n = Number(body.since_hours);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'since_hours must be a positive number',
+      );
+    }
+    args.push('--since-hours', String(Math.trunc(n)));
+  }
+
+  if (body.boards !== undefined && body.boards !== null) {
+    let boards: string;
+    if (Array.isArray(body.boards)) {
+      boards = body.boards
+        .map((b) => String(b).trim().replace(/^\/+|\/+$/g, ''))
+        .filter((b) => b.length > 0)
+        .join(',');
+    } else if (typeof body.boards === 'string') {
+      boards = body.boards.trim();
+    } else {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'boards must be an array of strings or a comma-separated string',
+      );
+    }
+    if (boards.length > 0) {
+      args.push('--boards', boards);
+    }
   }
 
   if (body.request_timeout !== undefined && body.request_timeout !== null) {
@@ -855,7 +946,7 @@ router.post(
         'NOT_IMPLEMENTED',
         `Collector '${sourceType}' not implemented. Available: ` +
           `${Object.keys(COLLECTOR_SCRIPTS).join(', ') || '(none)'}. ` +
-          `Phase 2 will add Discord + 4chan/biz + Bluesky + forums; ` +
+          `Phase 2 will add Discord + Bluesky + forums; ` +
           `Phase 3 will wire Macro RSS feeds.`,
       );
       return;
@@ -878,10 +969,14 @@ router.post(
     const startedAt = Date.now();
     try {
       ensureDbReady();
-      const cliArgs =
-        sourceType === 'hackernews'
-          ? buildHackerNewsCliArgs(body)
-          : [];
+      let cliArgs: string[];
+      if (sourceType === 'hackernews') {
+        cliArgs = buildHackerNewsCliArgs(body);
+      } else if (sourceType === 'fourchan') {
+        cliArgs = buildFourchanCliArgs(body);
+      } else {
+        cliArgs = [];
+      }
       const result = await spawnCollector(scriptPath, cliArgs);
       res.json({
         success: true,

@@ -104,6 +104,23 @@ const JOB_REGISTRY: readonly JobDefinition[] = [
     defaultArgs: ['--since-hours', '6', '--max-pages', '5'],
   },
   {
+    name: 'fourchan_collector',
+    kind: 'collector',
+    scriptPath: path.join(
+      COLLECTOR_SCRIPTS_DIR,
+      'collect_fourchan_intraday.py',
+    ),
+    // Stagger 5 minutes off HN so we don't pound both APIs at the same
+    // wall-clock minute. /biz/ + /g/ catalogs roll fast enough that
+    // every 30 min is plenty of resolution.
+    defaultCronExpression: '5,35 * * * *',
+    defaultTimezone: 'America/Los_Angeles',
+    description:
+      'Collect 4chan /biz/ + /g/ catalog OPs and last_replies for tracked concepts. ' +
+      'Provides cross-platform corroboration alongside the HN collector (PRD D29).',
+    defaultArgs: ['--since-hours', '6', '--boards', 'biz,g'],
+  },
+  {
     name: 'zscore_engine',
     kind: 'engine',
     scriptPath: path.join(COLLECTOR_SCRIPTS_DIR, 'run_zscore_engine.py'),
