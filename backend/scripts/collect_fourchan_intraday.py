@@ -72,7 +72,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-EXPECTED_SCHEMA_VERSION = 3
+EXPECTED_SCHEMA_VERSION = 4
 
 # 4chan publishes its API contract here:
 #   https://github.com/4chan/4chan-API

@@ -37,7 +37,7 @@ DEFAULT_CONCEPTS_PATH = (
     ROOT / "backend" / "data" / "scenarios" / "tracked-concepts.json"
 )
 
-EXPECTED_SCHEMA_VERSION = 3
+EXPECTED_SCHEMA_VERSION = 4
 
 # tracked_concepts.target_type CHECK constraint (must match build script).
 ALLOWED_TARGET_TYPES = {

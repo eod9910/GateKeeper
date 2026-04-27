@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 # Each entry is (table_name, CREATE TABLE statement). Ordered so foreign-key
@@ -417,7 +417,8 @@ TABLES: List[Tuple[str, str]] = [
             authenticity_signals_json       TEXT,
             resolved_target_type            TEXT CHECK (
                 resolved_target_type IS NULL OR resolved_target_type IN (
-                    'brand', 'product', 'category', 'behavior'
+                    'brand', 'product', 'category',
+                    'behavior', 'keyword', 'event_type'
                 )
             ),
             resolved_tickers_json           TEXT,
@@ -712,6 +713,25 @@ def build(db_path: Path, *, reset: bool, dry_run: bool) -> Dict[str, Any]:
             conn.execute("ALTER TABLE mi_raw_hits RENAME TO mi_raw_hits__v2")
             summary["migrations_applied"].append("mi_raw_hits_drop_check_constraint")
 
+        # v3 -> v4: emerging_topics.resolved_target_type was missing 'keyword'
+        # and 'event_type' even though tracked_concepts.target_type already
+        # accepted them. The promoter mirrors the source concept's target_type
+        # into resolved_target_type, so any 'event_type' concept (e.g.
+        # tech_layoffs) failed promotion with CHECK violation. Same drop-and-
+        # recreate pattern as v3.
+        if (
+            not dry_run
+            and previous_version is not None
+            and previous_version < 4
+            and _table_exists(conn, "emerging_topics")
+        ):
+            conn.execute(
+                "ALTER TABLE emerging_topics RENAME TO emerging_topics__v3"
+            )
+            summary["migrations_applied"].append(
+                "emerging_topics_relax_resolved_target_type"
+            )
+
         for name, ddl in TABLES:
             existed = _table_exists(conn, name)
             conn.executescript(ddl)
@@ -743,6 +763,37 @@ def build(db_path: Path, *, reset: bool, dry_run: bool) -> Dict[str, Any]:
                 """
             )
             conn.execute("DROP TABLE mi_raw_hits__v2")
+
+        # Finish v3 -> v4 migration: copy rows back, drop the rename stub.
+        if (
+            not dry_run
+            and "emerging_topics_relax_resolved_target_type"
+            in summary["migrations_applied"]
+            and _table_exists(conn, "emerging_topics__v3")
+        ):
+            conn.execute(
+                """
+                INSERT INTO emerging_topics (
+                    id, concept_id, seed_community, peak_z_score, current_z_score,
+                    corroborating_communities_json, cross_platform_corroboration,
+                    migration_to_ticker_indexed, migrated_at,
+                    first_anomaly_at, last_anomaly_at, total_mentions, unique_authors,
+                    authenticity_score, authenticity_signals_json,
+                    resolved_target_type, resolved_tickers_json, seeded_situation_id,
+                    suppression_reason, created_at, updated_at
+                )
+                SELECT
+                    id, concept_id, seed_community, peak_z_score, current_z_score,
+                    corroborating_communities_json, cross_platform_corroboration,
+                    migration_to_ticker_indexed, migrated_at,
+                    first_anomaly_at, last_anomaly_at, total_mentions, unique_authors,
+                    authenticity_score, authenticity_signals_json,
+                    resolved_target_type, resolved_tickers_json, seeded_situation_id,
+                    suppression_reason, created_at, updated_at
+                FROM emerging_topics__v3
+                """
+            )
+            conn.execute("DROP TABLE emerging_topics__v3")
 
         for name, ddl in INDEXES:
             existed = _index_exists(conn, name)

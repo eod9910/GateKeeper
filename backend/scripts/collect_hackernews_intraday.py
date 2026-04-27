@@ -54,7 +54,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-EXPECTED_SCHEMA_VERSION = 3
+EXPECTED_SCHEMA_VERSION = 4
 
 # Algolia HN. No auth, no rate-limit headers — be polite anyway.
 HN_API_BASE = "https://hn.algolia.com/api/v1/search_by_date"
