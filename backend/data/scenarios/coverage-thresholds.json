@@ -1,0 +1,157 @@
+{
+  "_meta": {
+    "schema_version": 1,
+    "prd_reference": "market-intelligence-scenario-engine-prd-pdr.md §Coverage Filter (D22)",
+    "purpose": "Tier definitions, composite-score formula, edge multipliers, and untradable hard rules for the per-symbol coverage classifier. Read at startup by the coverage tier service. Refreshed weekly per-symbol; persists rows to the `coverage_tiers` table.",
+    "philosophy": "The system's job is to find UNCOVERED companies receiving organic attention. High buzz on AAPL is not actionable — it's already priced. Coverage filter enforces this at the infrastructure level, not as a guideline.",
+    "review_checklist_for_user": [
+      "Are the 4 tier bands at the right cutoffs? (e.g. is sweet-spot really $1B-$20B market cap, or should we extend to $40B?)",
+      "Is the edge_multiplier ratio aggressive enough? (mega 0.4x vs barely 1.5x = 3.75x asymmetry)",
+      "Should untradable be raised from $300M / $1M ADV to e.g. $500M / $2M ADV to widen the actionable funnel?",
+      "Are the composite_score weights right? (analyst count weighted 40% — should institutional ownership matter more?)",
+      "Should mainstream mention thresholds be data-driven from your own RSS volume, or hand-set?"
+    ]
+  },
+
+  "composite_score": {
+    "formula": "0.40 * normalize(sellside_analyst_count, log_scale, 0..30) + 0.30 * normalize(log10(market_cap_usd), 8..12) + 0.20 * normalize(log1p(mainstream_mention_count_90d), 0..6) + 0.10 * normalize(institutional_ownership_pct, 0..100)",
+    "scale": "0-100, lower = more uncovered",
+    "weights": {
+      "sellside_analyst_count": {
+        "weight": 0.40,
+        "normalization": "log_scale",
+        "range": [0, 30],
+        "rationale": "Most direct measure of professional coverage."
+      },
+      "market_cap_usd": {
+        "weight": 0.30,
+        "normalization": "log10",
+        "range": [8, 12],
+        "rationale": "log10($100M) = 8, log10($1T) = 12. Megacaps are by definition over-discovered."
+      },
+      "mainstream_mention_count_90d": {
+        "weight": 0.20,
+        "normalization": "log1p",
+        "range": [0, 6],
+        "rationale": "log1p suppresses noise from one-off articles; saturates around 400 mentions/90d."
+      },
+      "institutional_ownership_pct": {
+        "weight": 0.10,
+        "normalization": "linear",
+        "range": [0, 100],
+        "rationale": "13F coverage; lowest weight because high-quality smallcaps can have high institutional ownership."
+      }
+    }
+  },
+
+  "tier_bands": [
+    {
+      "tier": "barely_covered",
+      "score_range": [0, 20],
+      "score_range_inclusive": "[0, 20)",
+      "guidance": {
+        "sellside_analysts": "0-2",
+        "market_cap_usd": "$300M - $1B",
+        "mainstream_mentions_90d": "rare"
+      },
+      "edge_multiplier": 1.5,
+      "asymmetric_edge": "Maximum edge potential. Sweet spot for the Social Arbitrage Engine."
+    },
+    {
+      "tier": "lightly_covered",
+      "score_range": [20, 45],
+      "score_range_inclusive": "[20, 45)",
+      "guidance": {
+        "sellside_analysts": "3-9",
+        "market_cap_usd": "$1B - $20B",
+        "mainstream_mentions_90d": "occasional"
+      },
+      "edge_multiplier": 1.2,
+      "asymmetric_edge": "Sweet spot. Enough liquidity to trade comfortably; still room for the asymmetry."
+    },
+    {
+      "tier": "well_covered",
+      "score_range": [45, 70],
+      "score_range_inclusive": "[45, 70)",
+      "guidance": {
+        "sellside_analysts": "10-24",
+        "market_cap_usd": "$20B - $200B",
+        "mainstream_mentions_90d": "regular"
+      },
+      "edge_multiplier": 1.0,
+      "asymmetric_edge": "Marginal. Buzz must be exceptional to clear the consensus baseline."
+    },
+    {
+      "tier": "mega_covered",
+      "score_range": [70, 100],
+      "score_range_inclusive": "[70, 100]",
+      "guidance": {
+        "sellside_analysts": ">=25",
+        "market_cap_usd": ">=$200B",
+        "mainstream_mentions_90d": ">=5/day average"
+      },
+      "edge_multiplier": 0.4,
+      "asymmetric_edge": "No. Buzz here is consensus. Heavy penalty in Social Arbitrage scoring; no penalty in Macro scoring."
+    }
+  ],
+
+  "untradable_rules": {
+    "_note": "Untradable is a HARD RULE applied independent of composite_score. Any of these conditions sets coverage_tier='untradable' and excludes the symbol from candidate ranking entirely.",
+    "rules": [
+      {
+        "rule_id": "UNTRADABLE_MARKET_CAP",
+        "description": "market_cap_usd < $300M",
+        "rationale": "Below threshold for institutional liquidity / shortable inventory."
+      },
+      {
+        "rule_id": "UNTRADABLE_LIQUIDITY",
+        "description": "30-day average daily dollar volume < $1M",
+        "rationale": "Cannot enter/exit position size without market impact."
+      }
+    ],
+    "edge_multiplier": 0.0,
+    "behavior": "Excluded from `situation_exposure` candidate ranking. Symbol still tracked in coverage_tiers for audit / future re-eligibility."
+  },
+
+  "validity_flag_triggers": {
+    "MEGA_COVERAGE_PENALTY": {
+      "fires_when": "All top-3 candidates for a Social Arbitrage scenario are mega_covered",
+      "engine_scope": "social_arbitrage_only",
+      "behavior": "Heavy composite_rank penalty (edge_multiplier 0.4 already applied per-candidate); UI shows 'no edge' badge.",
+      "rationale": "The scenario is real but the trade is structurally crowded. Macro Engine never fires this — mega-coverage is a feature for Macro, not a failure."
+    }
+  },
+
+  "refresh_cadence": {
+    "sellside_analyst_count": {
+      "source": "Yahoo Finance recommendation summary scrape",
+      "cadence": "weekly"
+    },
+    "market_cap_usd": {
+      "source": "Yahoo Finance / existing chart cache",
+      "cadence": "daily"
+    },
+    "mainstream_mention_count_90d": {
+      "source": "Internal — count of tier-1-source situation_signals per entity over 90d",
+      "cadence": "nightly"
+    },
+    "institutional_ownership_pct": {
+      "source": "Most recent 13F aggregation",
+      "cadence": "weekly"
+    },
+    "daily_dollar_volume_avg": {
+      "source": "OHLCV cache",
+      "cadence": "daily"
+    },
+    "tier_recompute": {
+      "cadence": "weekly (Saturday overnight)",
+      "rationale": "All inputs stabilize over a week; daily recompute would churn tier assignments without changing edge_multiplier outputs."
+    }
+  },
+
+  "default_filters": {
+    "_note": "Surfaced via /api/market-intelligence/scenarios. Defaults differ by engine per PRD D22.",
+    "social_arbitrage_default_tiers": ["barely_covered", "lightly_covered", "well_covered"],
+    "macro_default_tiers": ["barely_covered", "lightly_covered", "well_covered", "mega_covered"]
+  }
+}

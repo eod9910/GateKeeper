@@ -1,0 +1,630 @@
+{
+  "_meta": {
+    "schema_version": 1,
+    "prd_reference": "market-intelligence-scenario-engine-prd-pdr.md D28 + D29",
+    "purpose": "v1 starter list of topic-indexed communities for the Social Arbitrage Engine. Each community gets per-(concept, community, day) z-score baselines per D21 S3.",
+    "philosophy": "broad-based, holistic — favor communities where most participants don't know or care that the brand is publicly traded (Camillo principle). Skew away from investing-flavored communities; favor hobby/passion/lifestyle/product verticals.",
+    "tier_definitions": {
+      "niche": "small, topic-focused community. Z-score thresholds tightest here. Highest signal/noise.",
+      "general": "mid-size, partially-topical. Z-score thresholds normal.",
+      "mega": "large, broad-topic. Z-score thresholds loosest. Lowest signal/noise but high coverage of behavior shifts."
+    },
+    "status_definitions": {
+      "seed": "endpoint identifier is stable and known; collector can be wired without further operator input.",
+      "tbd": "operator must fill in specific endpoint, server invite, or forum URL before collector can be wired."
+    },
+    "auth_required_definitions": {
+      "none": "fully public, no auth, no rate-limit-driving headers",
+      "bot_invite": "operator must register a bot account and obtain per-server invite (Discord)",
+      "scrape_only": "no public API; HTML scrape required (respect robots.txt; rate-limit conservatively)"
+    },
+    "totals": {
+      "hackernews": 6,
+      "fourchan": 4,
+      "bluesky": 13,
+      "discord_public": 10,
+      "forums": 20,
+      "grand_total": 53,
+      "by_status": {"seed": 36, "tbd": 17},
+      "by_tier": {"niche": 46, "general": 6, "mega": 1}
+    },
+    "phase_1_7_future_add": "Reddit communities (deferred per D29). When unlocked, add reddit_* entries here without code changes.",
+    "review_checklist_for_user": [
+      "Are the 5 source types correct, or swap one?",
+      "Do the Bluesky hashtags cover the verticals you care about?",
+      "Are the Discord categories the right ones (or add/remove)?",
+      "Are any of the placeholder forum URLs wrong / better alternatives known?",
+      "Tier assignments — anything that should shift niche↔general↔mega?"
+    ]
+  },
+
+  "communities": [
+    {
+      "source_type": "hackernews",
+      "community_id": "hn:frontpage",
+      "display_name": "Hacker News — Front Page",
+      "community_tier": "mega",
+      "themes": ["tech", "ai", "startups", "general"],
+      "endpoint_hint": "https://hn.algolia.com/api/v1/search?tags=front_page",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Catch-all stream; high volume, broad. Use as 'mega tier' for baseline comparison. Z-score threshold should be highest here."
+    },
+    {
+      "source_type": "hackernews",
+      "community_id": "hn:show",
+      "display_name": "Hacker News — Show HN",
+      "community_tier": "niche",
+      "themes": ["tech", "startups", "products"],
+      "endpoint_hint": "https://hn.algolia.com/api/v1/search?tags=show_hn",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Founders/devs showing new products — early-stage product launches and adoption signals. High Camillo-relevance for tech/dev tooling category leaders."
+    },
+    {
+      "source_type": "hackernews",
+      "community_id": "hn:ask",
+      "display_name": "Hacker News — Ask HN",
+      "community_tier": "niche",
+      "themes": ["tech", "behavior_shift"],
+      "endpoint_hint": "https://hn.algolia.com/api/v1/search?tags=ask_hn",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Questions reveal pain points and tool-switching behavior; useful for 'people are abandoning X for Y' signals."
+    },
+    {
+      "source_type": "hackernews",
+      "community_id": "hn:topic:ai",
+      "display_name": "Hacker News — AI/ML thread filter",
+      "community_tier": "niche",
+      "themes": ["ai", "tech_disruption"],
+      "endpoint_hint": "https://hn.algolia.com/api/v1/search?query=AI+OR+LLM+OR+machine+learning",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Keyword-filtered slice of HN. Signals about which AI providers/products are getting traction or losing it."
+    },
+    {
+      "source_type": "hackernews",
+      "community_id": "hn:topic:hardware",
+      "display_name": "Hacker News — Hardware/Devices thread filter",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "tech_disruption"],
+      "endpoint_hint": "https://hn.algolia.com/api/v1/search?query=hardware+OR+chip+OR+device",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Captures discussions about specific hardware launches, chip vendors, device adoption."
+    },
+    {
+      "source_type": "hackernews",
+      "community_id": "hn:topic:fintech",
+      "display_name": "Hacker News — Fintech/Finance thread filter",
+      "community_tier": "niche",
+      "themes": ["fintech", "behavior_shift"],
+      "endpoint_hint": "https://hn.algolia.com/api/v1/search?query=fintech+OR+payments+OR+banking",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Behavior shifts in payments, banking, fintech adoption."
+    },
+
+    {
+      "source_type": "fourchan_biz",
+      "community_id": "4chan:/biz/",
+      "display_name": "4chan /biz/ — Business & Finance",
+      "community_tier": "general",
+      "themes": ["crypto", "micro_caps", "contrarian"],
+      "endpoint_hint": "https://a.4cdn.org/biz/catalog.json (then per-thread /biz/thread/{id}.json)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Crypto and micro-cap chatter. High noise but occasionally early on cryptos and small-caps. Authenticity-Layer hard-limits will need to be aggressive here (low account-history visibility)."
+    },
+    {
+      "source_type": "fourchan_biz",
+      "community_id": "4chan:/biz/:ticker-threads",
+      "display_name": "4chan /biz/ — Threads with ticker mentions",
+      "community_tier": "niche",
+      "themes": ["micro_caps", "tickers"],
+      "endpoint_hint": "Filter /biz/ catalog for thread subjects matching $TICKER pattern",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Slice of /biz/ filtered to threads explicitly tagged with tickers. These are ticker-indexed enough that StockTwits cross-check has high relevance."
+    },
+    {
+      "source_type": "fourchan_g",
+      "community_id": "4chan:/g/",
+      "display_name": "4chan /g/ — Technology",
+      "community_tier": "general",
+      "themes": ["tech", "consumer_strength", "tech_disruption"],
+      "endpoint_hint": "https://a.4cdn.org/g/catalog.json",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Tech/hardware/software discussion. Useful for early consumer-tech adoption shifts (e.g., GPU brand preferences, OS migration patterns)."
+    },
+    {
+      "source_type": "fourchan_g",
+      "community_id": "4chan:/g/:hardware-threads",
+      "display_name": "4chan /g/ — Hardware-specific threads",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Filter /g/ catalog for hardware/chip-vendor thread subjects",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Slice of /g/ for hardware-vendor-specific threads. Useful for detecting consumer hardware brand momentum."
+    },
+
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#ai",
+      "display_name": "Bluesky — #ai hashtag stream",
+      "community_tier": "general",
+      "themes": ["ai", "tech_disruption"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #ai",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Broad AI chatter. Bluesky user base is tech/journalist-skewed so signal is reasonable. Lower volume than HN."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#tech",
+      "display_name": "Bluesky — #tech hashtag stream",
+      "community_tier": "general",
+      "themes": ["tech", "tech_disruption"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #tech",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "General tech industry chatter."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#crypto",
+      "display_name": "Bluesky — #crypto hashtag stream",
+      "community_tier": "niche",
+      "themes": ["crypto"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #crypto",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Crypto chatter. Cross-check against 4chan /biz/ for cross-platform corroboration."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#beauty",
+      "display_name": "Bluesky — #beauty/#skincare hashtag stream",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "behavior_shift"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #beauty OR #skincare OR #makeup",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Camillo's lane. Beauty/skincare brand mentions and dupe discussions."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#fashion",
+      "display_name": "Bluesky — #fashion hashtag stream",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "behavior_shift"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #fashion OR #ootd",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Apparel brand momentum and category shifts (e.g., athleisure vs casual)."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#gaming",
+      "display_name": "Bluesky — #gaming hashtag stream",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #gaming OR #videogames",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Game-launch reception, console/platform momentum."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#cooking",
+      "display_name": "Bluesky — #cooking/#food hashtag stream",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "behavior_shift"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #cooking OR #food OR #recipe",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Food brand mentions, ingredient trend shifts."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#fitness",
+      "display_name": "Bluesky — #fitness hashtag stream",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #fitness OR #gym OR #running",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Athletic apparel, supplement brands, fitness-tech adoption."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#climate",
+      "display_name": "Bluesky — #climate hashtag stream",
+      "community_tier": "niche",
+      "themes": ["energy", "policy"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #climate OR #renewables",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Energy/climate chatter — feeds Macro Engine corroboration as well."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#science",
+      "display_name": "Bluesky — #science hashtag stream",
+      "community_tier": "niche",
+      "themes": ["biotech", "tech_disruption"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #science OR #biology",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Scientific/biotech chatter. Biotech category leader signals."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#finance",
+      "display_name": "Bluesky — #finance/#economy hashtag stream",
+      "community_tier": "general",
+      "themes": ["macro", "policy"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #finance OR #economy",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Lower priority for Social Arbitrage (people here may already be ticker-aware), but useful for behavior-shift chatter."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#books",
+      "display_name": "Bluesky — #books hashtag stream",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #books OR #booktok",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Publisher and platform momentum (e.g., Booktok-driven sales waves)."
+    },
+    {
+      "source_type": "bluesky",
+      "community_id": "bluesky:#music",
+      "display_name": "Bluesky — #music hashtag stream",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "AT Protocol firehose, filter posts tagged #music OR #vinyl",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Music platform/streaming preferences, audio gear chatter."
+    },
+
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:audio-gear",
+      "display_name": "Discord — Audio Gear (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Operator must obtain bot invite to a public audio-gear server (e.g. Audio Science Review-style)",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Audio enthusiasts discussing speakers/headphones/DACs. Brand-specific momentum signals."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:sneakerheads",
+      "display_name": "Discord — Sneaker community (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "behavior_shift"],
+      "endpoint_hint": "Operator must obtain bot invite to a public sneakerhead server",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Sneaker resale + new release reception. Direct read on Nike/Adidas/Puma/On momentum."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:beauty-skincare",
+      "display_name": "Discord — Beauty/Skincare community (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Operator must obtain bot invite to a public beauty server",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Camillo's lane. Beauty brand discussions, dupes, K-beauty adoption."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:indie-gaming",
+      "display_name": "Discord — Indie gaming community (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Operator must obtain bot invite to a public indie-game-dev or gaming community",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Game-launch reception. Indie or AA titles before mainstream coverage."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:crypto-research",
+      "display_name": "Discord — Crypto research community (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["crypto"],
+      "endpoint_hint": "Operator must obtain bot invite to a research-focused crypto server (NOT pump-and-dump groups)",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Carefully scoped to research/analysis communities. Authenticity Layer hard-limits especially important here — pump-and-dump risk is high."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:home-coffee",
+      "display_name": "Discord — Specialty coffee community (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Operator must obtain bot invite to a specialty-coffee server",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Coffee equipment/bean brand momentum. Niche but high signal density."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:mech-keyboards",
+      "display_name": "Discord — Mechanical keyboards (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Operator must obtain bot invite to a mech-keyboard server",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Keyboard maker brand momentum. Niche product vertical with brand-loyalty culture."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:woodworking-diy",
+      "display_name": "Discord — Woodworking/DIY (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Operator must obtain bot invite to a woodworking/DIY server",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Tool brand momentum (Festool/DeWalt/Milwaukee/Makita/etc.)."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:photography-hobbyist",
+      "display_name": "Discord — Photography hobbyist (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "Operator must obtain bot invite to a photo-hobbyist server",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Camera/lens brand momentum. Sony/Canon/Nikon/Fuji adoption shifts."
+    },
+    {
+      "source_type": "discord_public",
+      "community_id": "discord:home-cooks",
+      "display_name": "Discord — Home cooks community (TBD: pick specific server)",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "behavior_shift"],
+      "endpoint_hint": "Operator must obtain bot invite to a cooking-focused server",
+      "auth_required": "bot_invite",
+      "status": "tbd",
+      "notes": "Food brand and ingredient-trend signals."
+    },
+
+    {
+      "source_type": "forum_audio",
+      "community_id": "forum:audiosciencereview",
+      "display_name": "Audio Science Review forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.audiosciencereview.com/forum/ (RSS available; HTML scrape fallback)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Engineering-focused audio gear reviews. Brand momentum signal high quality."
+    },
+    {
+      "source_type": "forum_audio",
+      "community_id": "forum:head-fi",
+      "display_name": "Head-Fi forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.head-fi.org/forums/ (RSS per-board)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Headphones community. Brand and product launch reception."
+    },
+    {
+      "source_type": "forum_sneakers",
+      "community_id": "forum:niketalk",
+      "display_name": "NikeTalk forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://niketalk.com/ (verify RSS; scrape fallback)",
+      "auth_required": "scrape_only",
+      "status": "tbd",
+      "notes": "Long-running sneaker forum. Verify scrape ToS before wiring."
+    },
+    {
+      "source_type": "forum_sneakers",
+      "community_id": "forum:sole-collector",
+      "display_name": "Sole Collector forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://forums.solecollector.com/ (verify still active)",
+      "auth_required": "scrape_only",
+      "status": "tbd",
+      "notes": "Sneaker-resale and review community. Confirm forum is still active."
+    },
+    {
+      "source_type": "forum_beauty",
+      "community_id": "forum:makeupalley",
+      "display_name": "MakeupAlley forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.makeupalley.com/ (RSS per-board if available; scrape fallback)",
+      "auth_required": "scrape_only",
+      "status": "seed",
+      "notes": "Long-tail beauty product discussion. Camillo-relevance high."
+    },
+    {
+      "source_type": "forum_beauty",
+      "community_id": "forum:fragrantica",
+      "display_name": "Fragrantica forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.fragrantica.com/board/ (verify RSS)",
+      "auth_required": "scrape_only",
+      "status": "seed",
+      "notes": "Fragrance discussion and brand reviews. Useful for luxury/beauty parent companies."
+    },
+    {
+      "source_type": "forum_watches",
+      "community_id": "forum:watchuseek",
+      "display_name": "Watchuseek forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.watchuseek.com/ (RSS available)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Watch enthusiast forum. Brand momentum (Swatch Group, Movado, Citizen, etc.)."
+    },
+    {
+      "source_type": "forum_watches",
+      "community_id": "forum:timezone",
+      "display_name": "TimeZone forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://forums.timezone.com/ (verify still active)",
+      "auth_required": "scrape_only",
+      "status": "tbd",
+      "notes": "Long-running watch forum. Confirm activity level."
+    },
+    {
+      "source_type": "forum_photo",
+      "community_id": "forum:dpreview",
+      "display_name": "DPReview forums",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.dpreview.com/forums (note: DPReview's future has been uncertain since 2023; verify still operational)",
+      "auth_required": "scrape_only",
+      "status": "tbd",
+      "notes": "Camera enthusiast forum. Confirm ownership/access status."
+    },
+    {
+      "source_type": "forum_photo",
+      "community_id": "forum:fred-miranda",
+      "display_name": "Fred Miranda forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.fredmiranda.com/forum/",
+      "auth_required": "scrape_only",
+      "status": "seed",
+      "notes": "Photography brand discussions, lens/body adoption signals."
+    },
+    {
+      "source_type": "forum_pcbuild",
+      "community_id": "forum:tomshardware",
+      "display_name": "Tom's Hardware forums",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "tech_disruption"],
+      "endpoint_hint": "https://forums.tomshardware.com/ (RSS per-section)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "PC hardware brand momentum (NVIDIA/AMD/Intel/etc.)."
+    },
+    {
+      "source_type": "forum_pcbuild",
+      "community_id": "forum:linustechtips",
+      "display_name": "Linus Tech Tips forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "tech_disruption"],
+      "endpoint_hint": "https://linustechtips.com/forum/ (RSS available)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "PC hardware enthusiast community."
+    },
+    {
+      "source_type": "forum_audio",
+      "community_id": "forum:gearspace",
+      "display_name": "Gearspace (formerly Gearslutz) forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://gearspace.com/board/ (RSS per-section)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Pro audio gear discussion. Music production hardware/software brand momentum."
+    },
+    {
+      "source_type": "forum_beauty",
+      "community_id": "forum:long-hair-community",
+      "display_name": "The Long Hair Community forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://forums.longhaircommunity.com/ (verify still active)",
+      "auth_required": "scrape_only",
+      "status": "tbd",
+      "notes": "Hair-care product community. Niche but high signal."
+    },
+    {
+      "source_type": "forum_pcbuild",
+      "community_id": "forum:overclock-net",
+      "display_name": "Overclock.net forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.overclock.net/forums/ (RSS available)",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Hardware enthusiast forum. GPU/CPU/cooling brand discussions."
+    },
+    {
+      "source_type": "forum_pcbuild",
+      "community_id": "forum:guru3d",
+      "display_name": "Guru3D forum",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://forums.guru3d.com/",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Graphics card and hardware discussion."
+    },
+    {
+      "source_type": "forum_audio",
+      "community_id": "forum:steve-hoffman-music",
+      "display_name": "Steve Hoffman Music Forums",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://forums.stevehoffman.tv/",
+      "auth_required": "none",
+      "status": "seed",
+      "notes": "Music/audio enthusiast forum. Vinyl, streaming services, gear discussion."
+    },
+    {
+      "source_type": "forum_sneakers",
+      "community_id": "forum:hypebeast",
+      "display_name": "Hypebeast forum / community pages",
+      "community_tier": "general",
+      "themes": ["consumer_strength", "behavior_shift"],
+      "endpoint_hint": "https://hypebeast.com/ (community/comments; verify RSS)",
+      "auth_required": "scrape_only",
+      "status": "tbd",
+      "notes": "Streetwear / sneaker culture. Confirm scrape feasibility."
+    },
+    {
+      "source_type": "forum_pcbuild",
+      "community_id": "forum:anandtech",
+      "display_name": "AnandTech forums",
+      "community_tier": "niche",
+      "themes": ["consumer_strength", "tech_disruption"],
+      "endpoint_hint": "https://forums.anandtech.com/ (note: AnandTech editorial shut down 2024; forum may persist; verify)",
+      "auth_required": "scrape_only",
+      "status": "tbd",
+      "notes": "Long-running tech forum. Confirm forum status post-editorial-shutdown."
+    },
+    {
+      "source_type": "forum_watches",
+      "community_id": "forum:omegaforums",
+      "display_name": "OmegaForums.net",
+      "community_tier": "niche",
+      "themes": ["consumer_strength"],
+      "endpoint_hint": "https://www.omegaforums.net/",
+      "auth_required": "scrape_only",
+      "status": "seed",
+      "notes": "Brand-specific watch forum. Useful for parent-co (Swatch Group) sentiment."
+    }
+  ]
+}

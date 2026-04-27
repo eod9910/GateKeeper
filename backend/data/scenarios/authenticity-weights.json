@@ -1,0 +1,159 @@
+{
+  "_meta": {
+    "schema_version": 1,
+    "prd_reference": "market-intelligence-scenario-engine-prd-pdr.md §Authenticity Layer (D23)",
+    "purpose": "Per-signal weights and hard-limit rules for the Authenticity Layer scorer. Read at startup by the authenticity service; persisted per-emerging-topic to the `authenticity_signals` audit table at scoring time so weights can be tuned without losing history.",
+    "calibration_status": "PLACEHOLDER — v1 weights are heuristic. Phase 5 backtest will replay 2022-2025 data against known pump-and-dump events to recalibrate. Open Question #5.",
+    "score_formula": "authenticity_score = clamp01(sum(signal_value * weight))",
+    "value_normalization": "Each signal_value is normalized to [0, 1] where 1 = looks fully organic, 0 = looks fully orchestrated.",
+    "review_checklist_for_user": [
+      "Are the 10 signals' relative weights sensible to your intuition?",
+      "account_age_distribution + cross_platform_signature both at 0.15 — should one dominate?",
+      "Are the hard-limit thresholds tight enough? (loose = misses pumps; tight = false positives on real virality)",
+      "Should suppression cutoff stay at 0.5, or shift to 0.45 (more permissive) / 0.55 (stricter)?",
+      "Should borderline range stay at [0.5, 0.65), or widen to [0.5, 0.7)?"
+    ],
+    "totals": {
+      "weighted_signals": 10,
+      "weight_sum": 1.00,
+      "hard_limit_rules": 4
+    }
+  },
+
+  "weighted_signals": [
+    {
+      "signal_type": "account_age_distribution",
+      "weight": 0.15,
+      "phony_pattern": "Heavy skew to <90-day accounts",
+      "organic_pattern": "Long-tail of established accounts",
+      "rationale": "Highest weight — coordinated buy-rates always rely on bulk-created accounts. Real consumer adoption draws from a mix of long-tenured users."
+    },
+    {
+      "signal_type": "cross_platform_signature",
+      "weight": 0.15,
+      "phony_pattern": "Concentrated in one platform / few communities",
+      "organic_pattern": "Spreads naturally across communities and source-types",
+      "rationale": "Joint highest — pumps are platform-bound (paid one shop). Real virality leaks across platforms within days."
+    },
+    {
+      "signal_type": "posting_cadence",
+      "weight": 0.10,
+      "phony_pattern": "Burst-then-silence; many similar timestamps",
+      "organic_pattern": "Distributed across timezones over weeks",
+      "rationale": "Strong signal but easier to fake with scheduling tools."
+    },
+    {
+      "signal_type": "account_history_diversity",
+      "weight": 0.10,
+      "phony_pattern": "All accounts only post about this one thing",
+      "organic_pattern": "Accounts have varied posting history across topics",
+      "rationale": "Per-account topic-diversity proxy. Real adopters have lives."
+    },
+    {
+      "signal_type": "comment_depth",
+      "weight": 0.10,
+      "phony_pattern": "All top-level, no replies, no back-and-forth",
+      "organic_pattern": "Real discussion threads, replies, disagreements",
+      "rationale": "Reply ratio + nested-reply depth. Pumps don't argue with themselves."
+    },
+    {
+      "signal_type": "account_quality",
+      "weight": 0.10,
+      "phony_pattern": "Low quality, new accounts, no relevant community history",
+      "organic_pattern": "Established accounts in subject-matter communities",
+      "rationale": "Per-source quality proxy: HN karma, Discord roles/age, forum post-count, Bluesky handle age."
+    },
+    {
+      "signal_type": "linguistic_similarity",
+      "weight": 0.10,
+      "phony_pattern": "Comments cluster suspiciously close in embedding space (LLM-generated or copy-paste)",
+      "organic_pattern": "Linguistic diversity; varied phrasing",
+      "rationale": "Mean pairwise embedding cosine. AI-pumped content collapses into a tight cluster."
+    },
+    {
+      "signal_type": "promoter_co_occurrence",
+      "weight": 0.10,
+      "phony_pattern": "Same usernames pushing across multiple 'trending' tickers in last 90 days",
+      "organic_pattern": "Each ticker has a different population",
+      "rationale": "Network signal — flags professional pumpers running multiple campaigns."
+    },
+    {
+      "signal_type": "sentiment_shape",
+      "weight": 0.05,
+      "phony_pattern": "Uniformly positive, scripted",
+      "organic_pattern": "Mixed sentiment with reasoning",
+      "rationale": "Lower weight — easy to fake by varying phrasing without changing intent."
+    },
+    {
+      "signal_type": "mod_flag_rate",
+      "weight": 0.05,
+      "phony_pattern": "High removed-comment rate, ban patterns",
+      "organic_pattern": "Normal moderation profile",
+      "rationale": "Lower weight — only useful where moderation is observable (HN, Discord, forums). Bluesky / 4chan effectively unmoderated."
+    }
+  ],
+
+  "hard_limit_rules": [
+    {
+      "rule_id": "HL_NEW_ACCOUNT_DOMINANCE",
+      "description": ">=80% of mentioning accounts have age < 30 days",
+      "force_authenticity_score": 0.0,
+      "force_suppression_reason": "LIKELY_INAUTHENTIC",
+      "rationale": "Statistically impossible for organic emerging trend; signature of bulk account farming."
+    },
+    {
+      "rule_id": "HL_BURST_CONCENTRATION",
+      "description": ">=50% of mentions occur within a single 4-hour window",
+      "force_authenticity_score": 0.0,
+      "force_suppression_reason": "LIKELY_INAUTHENTIC",
+      "rationale": "Coordinated activation. Real virality builds across days."
+    },
+    {
+      "rule_id": "HL_LOW_QUALITY_DOMINANCE",
+      "description": ">=70% of mentioning accounts fail the per-source quality threshold (HN karma < 50; Discord age < 30d with no role; forum post-count < 5; Bluesky handle age < 30d)",
+      "force_authenticity_score": 0.0,
+      "force_suppression_reason": "LIKELY_INAUTHENTIC",
+      "rationale": "Per-source quality floor. Real subject-matter communities have established voices."
+    },
+    {
+      "rule_id": "HL_SERIAL_PUMPER",
+      "description": "The same username appears as a top mentioner across >=5 'emerging' microcap tickers in the last 90 days",
+      "force_authenticity_score": 0.0,
+      "force_suppression_reason": "LIKELY_INAUTHENTIC",
+      "rationale": "Single-account signature of a paid promoter rotating campaigns."
+    }
+  ],
+
+  "thresholds": {
+    "suppression_cutoff": {
+      "value": 0.5,
+      "behavior": "authenticity_score < 0.5 -> suppression_reason='LIKELY_INAUTHENTIC'; emerging_topic persisted, market_situation NOT created; visible only with ?include_suppressed=true",
+      "reference": "PRD §Authenticity Layer 'What LIKELY_INAUTHENTIC does'"
+    },
+    "borderline_range": {
+      "lower_inclusive": 0.5,
+      "upper_exclusive": 0.65,
+      "behavior": "Scenario surfaces but with AUTHENTICITY_BORDERLINE validity flag (yellow chip; operator review recommended before sizing)",
+      "reference": "PRD §Validity flag triggers — AUTHENTICITY_BORDERLINE"
+    },
+    "trusted_floor": {
+      "value": 0.65,
+      "behavior": "authenticity_score >= 0.65 surfaces without warning"
+    }
+  },
+
+  "per_source_quality_thresholds": {
+    "_note": "Used by HL_LOW_QUALITY_DOMINANCE and account_quality signal value computation. Per-source because quality proxies vary by platform.",
+    "hackernews": { "min_karma": 50 },
+    "fourchan_biz": { "_note": "anonymous; quality proxy = posting history within thread + tripcode reputation if present", "min_in_thread_posts": 3 },
+    "fourchan_g": { "min_in_thread_posts": 3 },
+    "bluesky": { "min_handle_age_days": 30, "min_followers": 10 },
+    "discord_public": { "min_account_age_days": 30, "requires_any_role": true },
+    "forum_audio": { "min_post_count": 5 },
+    "forum_sneakers": { "min_post_count": 5 },
+    "forum_beauty": { "min_post_count": 5 },
+    "forum_watches": { "min_post_count": 5 },
+    "forum_photo": { "min_post_count": 5 },
+    "forum_pcbuild": { "min_post_count": 5 }
+  }
+}

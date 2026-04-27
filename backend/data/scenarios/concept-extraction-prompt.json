@@ -1,0 +1,373 @@
+{
+  "_meta": {
+    "schema_version": 1,
+    "prompt_version": "2026-04-25-v1",
+    "prd_reference": "market-intelligence-scenario-engine-prd-pdr.md \u00a7Engine 2 \u2014 Social Arbitrage Engine (D21 S2 Concept extraction) and \u00a7LLM Usage And Cost Profile (D14)",
+    "purpose": "Versioned LLM prompt template + JSON output schema for the dominant Social Arbitrage Engine cost center: concept extraction from comments and posts (D21 S2). Output rows hydrate `concept_mentions` and grow the `tracked_concepts` registry. Schema fields are pinned 1:1 to the SQLite CHECK constraints in `backend/scripts/build_market_intelligence_db.py`.",
+    "philosophy": "High precision, low recall. The Social Arbitrage Engine survives on signal density, not coverage. When the model is unsure, it returns an empty `extractions` array \u2014 the comment becomes a no-op. False extractions corrupt baselines and waste downstream LLM budget on phantom topics; missed extractions just mean the same concept gets caught in the next comment that mentions it.",
+    "model_tier_required": "cheap",
+    "model_assumptions": {
+      "model_family": "openai",
+      "candidate_models": ["gpt-4o-mini", "gpt-5-mini", "gpt-5.4-mini"],
+      "must_support_json_mode": true,
+      "min_context_tokens": 32000,
+      "rationale": "Existing copilot infra (backend/src/services/visionService.ts, strategyGenService.ts) is OpenAI-native; reuse the same tier per PRD \u00a7Model choice (v1)."
+    },
+    "batching_target": {
+      "comments_per_call_min": 50,
+      "comments_per_call_target": 80,
+      "comments_per_call_max": 120,
+      "rationale": "Amortizes the ~1100-token system prompt + few-shot fixed overhead across many short comments. Anything < 50 fails the PRD cost discipline rule."
+    },
+    "cost_target": {
+      "daily_corpus_min_comments": 30000,
+      "daily_corpus_max_comments": 150000,
+      "daily_llm_calls_target_max": 15000,
+      "daily_usd_target_min": 4.0,
+      "daily_usd_target_max": 12.0,
+      "source": "PRD \u00a7Concept extraction cost discipline"
+    },
+    "review_checklist_for_user": [
+      "Confirm `intent` enum (7 values) and `target_type` enum (6 values) exactly match `concept_mentions.intent` and `tracked_concepts.target_type` CHECK constraints \u2014 if either drifts, the inserter will reject every extraction.",
+      "Confirm few-shot examples cover the actual community styles you expect (HN tech debate, Bluesky beauty/fashion chatter, 4chan biz crypto/stock takes, Discord product channels, niche forum reviews). Add platform-specific examples if the v1 detection corpus skews to one platform.",
+      "Confirm `pre_filter_rules` are language-correct \u2014 v1 is English-only; if you intend to track non-English communities, set `english_only_skip` to false and add per-language examples.",
+      "Confirm the model assumption (OpenAI cheap-tier) matches what you actually want to deploy. Anthropic Haiku class would also fit; switch by editing `_meta.model_assumptions` and re-running estimate_concept_extraction_cost.py.",
+      "Confirm `extraction_confidence_guidance` thresholds line up with the downstream z-score floor \u2014 v1 default discards confidence < 0.4 before insert.",
+      "Confirm the `target_key` normalization rules (lowercase, snake_case, no diacritics) match how you seeded brand-to-ticker.json \u2014 mismatched keys will silently fail to resolve to tickers."
+    ],
+    "downstream_contract": {
+      "writes_to_tables": ["tracked_concepts", "concept_mentions"],
+      "tracked_concepts_columns": ["concept_key", "target_type", "target_key", "display_label", "created_by"],
+      "concept_mentions_columns": ["concept_id", "signal_id", "community", "community_tier", "polarity", "intent", "mentioned_at", "extraction_confidence"],
+      "non_llm_columns": {
+        "signal_id": "supplied by the ingestion pipeline (FK to situation_signals)",
+        "community": "supplied by the collector (e.g. 'bluesky:#fashion', 'hn:all', '4chan:/biz/')",
+        "community_tier": "looked up from tracked-sources.json",
+        "mentioned_at": "supplied by the collector (epoch seconds)",
+        "concept_id": "resolved by the inserter via UPSERT on (concept_key, target_key)",
+        "created_by": "always 'llm_extractor' for this prompt"
+      }
+    }
+  },
+
+  "system_prompt": "You are a concept-extraction engine for a market-intelligence system. You read short user-generated comments and posts from public communities (Hacker News, 4chan, Bluesky, Discord, niche product forums) and extract structured (concept, target, intent) tuples that describe what the author is talking about and how they feel about it.\n\nYou must obey ALL of the following rules:\n\n1. OUTPUT FORMAT: respond with exactly one JSON object: `{ \"results\": [ { \"input_id\": \"<echoed>\", \"extractions\": [ ... ] }, ... ] }`. The `results` array must have exactly the same length as the input `batch` array, in the same order. Each `extractions` array contains zero or more extraction objects (most comments have 0 or 1; rarely 2-3).\n\n2. ENUMS ARE CLOSED. You may ONLY use these values:\n   - target_type \u2208 { \"brand\", \"product\", \"category\", \"behavior\", \"keyword\", \"event_type\" }\n   - intent     \u2208 { \"adoption\", \"abandonment\", \"complaint\", \"praise\", \"comparison\", \"question\", \"prediction\" }\n   - polarity   \u2208 { -1, 0, 1 }\n   If a comment doesn't fit one of these enums, return zero extractions for it. NEVER invent a new enum value.\n\n3. PRECISION OVER RECALL. If you are not confident the comment is about a specific brand, product, category, behavior, keyword, or event-type, return an empty `extractions` array for that comment. False extractions are worse than missed extractions \u2014 they corrupt downstream baselines.\n\n4. KEY NORMALIZATION. `target_key` and `concept_key` MUST be lowercase ASCII snake_case, no diacritics, no punctuation other than underscore. \"Victoria's Secret\" \u2192 `victorias_secret`. \"Stanley cup mug\" \u2192 `stanley_quencher` (use the canonical product key, not the literal phrase). \"L\u2019Or\u00e9al\" \u2192 `loreal`.\n\n5. CONCEPT vs TARGET. `concept` describes WHAT the user is doing/saying (\"switching away\", \"frame primer dupe\", \"sold position\"). `target` is the entity it acts on (`brand:victorias_secret`, `product:dior_forever_skin_glow`, `category:bralettes`, `behavior:cancelled_streaming`). Same target can host many concepts; same concept can apply to many targets.\n\n6. INTENT GUIDANCE:\n   - `adoption`     = author is starting to use, buying, switching to, recommending\n   - `abandonment`  = author is stopping, switching away, cancelling, returning\n   - `complaint`    = author dislikes, is frustrated by, reports defect or shrinkflation\n   - `praise`       = author endorses without an explicit purchase signal\n   - `comparison`   = author is weighing X vs Y, asking for dupes, asking for alternatives\n   - `question`     = author is asking for help, opinions, recommendations\n   - `prediction`   = author is forecasting price, popularity, success, failure\n\n7. POLARITY: -1 = negative sentiment toward target, 0 = neutral / informational / question, +1 = positive sentiment toward target. Polarity is about the TARGET, not the post in general. \"X is dead, Y is the new hotness\" yields TWO extractions: target=X polarity=-1 intent=abandonment, target=Y polarity=+1 intent=adoption.\n\n8. EXTRACTION_CONFIDENCE \u2208 [0, 1]:\n   - 0.9-1.0 = explicit, unambiguous (\"I just bought a Stanley quencher and love it\")\n   - 0.7-0.89 = clear from context but slang/abbreviated (\"stanleys are over, owalas now\")\n   - 0.5-0.69 = inferred from product attribute, not name (\"the green tumbler everyone has\")\n   - 0.3-0.49 = ambiguous; downstream will likely drop these\n   - < 0.3   = do NOT emit; return zero extractions instead\n\n9. NEVER fabricate a ticker, company name, or product that isn't directly suggested by the comment text. The system has a separate ticker-resolution step (D21 S6); your job is to identify the brand/product/category/behavior, not to map it to a ticker.\n\n10. NO CHAIN-OF-THOUGHT in output. No prose, no explanations, no markdown. JSON only.\n\n11. IF input is non-English, return zero extractions \u2014 v1 is English-only.\n\n12. IF input is < 20 characters, links-only, single-emoji, or pure quote-reply with no commentary, return zero extractions \u2014 these should have been filtered upstream but you are the safety net.",
+
+  "user_prompt_template": "Extract concepts from the following batch of {{N}} comments. Each comment has an `input_id` (you must echo it back) and a `text`.\n\nReturn a JSON object matching this exact schema:\n```\n{\n  \"results\": [\n    {\n      \"input_id\": \"<echoed string>\",\n      \"extractions\": [\n        {\n          \"concept_key\": \"<lowercase_snake_case>\",\n          \"display_label\": \"<short human-readable phrase, max 60 chars>\",\n          \"target_type\": \"brand|product|category|behavior|keyword|event_type\",\n          \"target_key\": \"<lowercase_snake_case>\",\n          \"intent\": \"adoption|abandonment|complaint|praise|comparison|question|prediction\",\n          \"polarity\": -1 | 0 | 1,\n          \"extraction_confidence\": <float 0..1>\n        }\n      ]\n    }\n  ]\n}\n```\n\nBatch:\n{{batch_json}}",
+
+  "output_schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["results"],
+    "properties": {
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input_id", "extractions"],
+          "properties": {
+            "input_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "extractions": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "concept_key",
+                  "display_label",
+                  "target_type",
+                  "target_key",
+                  "intent",
+                  "polarity",
+                  "extraction_confidence"
+                ],
+                "properties": {
+                  "concept_key": { "type": "string", "pattern": "^[a-z0-9_]{2,64}$" },
+                  "display_label": { "type": "string", "minLength": 1, "maxLength": 60 },
+                  "target_type": {
+                    "type": "string",
+                    "enum": ["brand", "product", "category", "behavior", "keyword", "event_type"]
+                  },
+                  "target_key": { "type": "string", "pattern": "^[a-z0-9_]{2,64}$" },
+                  "intent": {
+                    "type": "string",
+                    "enum": ["adoption", "abandonment", "complaint", "praise", "comparison", "question", "prediction"]
+                  },
+                  "polarity": { "type": "integer", "enum": [-1, 0, 1] },
+                  "extraction_confidence": { "type": "number", "minimum": 0.3, "maximum": 1.0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "pre_filter_rules": {
+    "_purpose": "Comments matching ANY of these rules are dropped BEFORE the LLM call. PRD-mandated cost discipline rule #2 (D14).",
+    "rules": [
+      {
+        "rule_id": "PF_TOO_SHORT",
+        "description": "Strip whitespace; if length < 20 characters, skip.",
+        "implementation_hint": "len(text.strip()) < 20"
+      },
+      {
+        "rule_id": "PF_LINK_ONLY",
+        "description": "After stripping URLs, if remaining alphanumeric character count < 10, skip.",
+        "implementation_hint": "regex: ^\\s*(https?://\\S+\\s*)+$  OR  len(re.sub(r'https?://\\S+', '', text).strip()) < 10"
+      },
+      {
+        "rule_id": "PF_SINGLE_EMOJI",
+        "description": "If non-emoji character count < 5, skip (covers single-emoji, lol-only, +1, this, etc.).",
+        "implementation_hint": "len([c for c in text if not unicodedata.category(c).startswith('So')]) < 5"
+      },
+      {
+        "rule_id": "PF_QUOTE_REPLY_ONLY",
+        "description": "If text is only a > quoted block + < 10 chars of new commentary, skip.",
+        "implementation_hint": "regex: ^(\\s*>.*\\n?)+\\s*\\S{0,10}\\s*$"
+      },
+      {
+        "rule_id": "PF_BOT_BOILERPLATE",
+        "description": "Skip known bot patterns (automod, deleted-by-mod, [removed], [deleted], 'I am a bot...').",
+        "implementation_hint": "regex: ^(\\[removed\\]|\\[deleted\\]|I am a bot|This action was performed automatically)"
+      },
+      {
+        "rule_id": "PF_NON_ENGLISH_HINT",
+        "description": "If FAST language detector flags as non-English with confidence > 0.85, skip (v1 English-only). Optional in v1; safety net is rule #11 in system prompt.",
+        "english_only_skip": true,
+        "implementation_hint": "fasttext lid.176 model OR cheap heuristic on script/character distribution"
+      }
+    ],
+    "expected_drop_rate_pct": 30,
+    "rationale_for_drop_rate": "Empirical estimate from sampling Hacker News + Bluesky + 4chan corpora: ~30% of raw comments are too short, link-only, emoji-only, quote-reply, or bot output. Calibrated in Phase 5 backtest."
+  },
+
+  "tracked_concept_match_rules": {
+    "_purpose": "Comments that match ONLY known concept-keys via cheap regex/keyword pre-pass have LLM extraction skipped \u2014 the inserter directly increments concept_mentions for the matched concepts. PRD-mandated cost discipline rule #3 (D14).",
+    "match_strategy": "boundary-aware case-insensitive substring match against tracked_concepts.display_label (and tracked_concepts.metadata_json.aliases[]). Match the longest alias first.",
+    "skip_llm_when": "All matched aliases have extraction_confidence_floor >= 0.7 AND no candidate phrase outside the matched spans appears to introduce a new concept (heuristic: remaining tokens are stopwords, punctuation, or already-mapped aliases).",
+    "always_call_llm_when": [
+      "Comment contains a phrase that looks like a brand/product (capitalized multi-word, or '@brand' mention) AND that phrase is NOT in the registry",
+      "Comment contains an explicit comparison conjunction ('vs', 'instead of', 'switched to', 'replaced with') AND only one side resolves to the registry",
+      "Comment contains an explicit purchase/abandonment verb ('bought', 'cancelled', 'returned', 'ditched') near an unresolved capitalized phrase"
+    ],
+    "expected_skip_rate_pct_of_post_filter": 40,
+    "rationale_for_skip_rate": "Once the registry has ~5000 entries (estimated steady-state by week 4), most comments mention concepts already known. Calibrated in Phase 5; v1 starts at 0% skip and ramps as registry grows."
+  },
+
+  "few_shot_examples": [
+    {
+      "_purpose": "Single-brand abandonment + adoption pair (canonical Camillo-style topic anomaly).",
+      "input": {
+        "input_id": "ex_001",
+        "text": "VS bras are giving me a rash again. switched to the bralette from skims, way more comfy and no underwire digging in",
+        "community": "bluesky:#fashion"
+      },
+      "expected_output": [
+        {
+          "concept_key": "switching_away_from_underwire",
+          "display_label": "switching away from underwire bras",
+          "target_type": "brand",
+          "target_key": "victorias_secret",
+          "intent": "abandonment",
+          "polarity": -1,
+          "extraction_confidence": 0.85
+        },
+        {
+          "concept_key": "switching_to_bralettes",
+          "display_label": "switching to bralettes",
+          "target_type": "brand",
+          "target_key": "skims",
+          "intent": "adoption",
+          "polarity": 1,
+          "extraction_confidence": 0.9
+        }
+      ]
+    },
+    {
+      "_purpose": "Behavior target (not a brand) \u2014 captures a consumer cycle shift the system needs to surface.",
+      "input": {
+        "input_id": "ex_002",
+        "text": "third month in a row I'm just not eating out. between gas and rent I literally can't justify a $20 burrito",
+        "community": "hn:all"
+      },
+      "expected_output": [
+        {
+          "concept_key": "stopped_eating_out",
+          "display_label": "stopped eating out",
+          "target_type": "behavior",
+          "target_key": "stopped_eating_out",
+          "intent": "abandonment",
+          "polarity": -1,
+          "extraction_confidence": 0.85
+        }
+      ]
+    },
+    {
+      "_purpose": "Product comparison / dupe culture (beauty + sneakers idiom).",
+      "input": {
+        "input_id": "ex_003",
+        "text": "honest opinion: is the elf halo glow primer actually a charlotte tilbury flawless filter dupe or am I coping",
+        "community": "discord:beauty-uncovered"
+      },
+      "expected_output": [
+        {
+          "concept_key": "dupe_request_flawless_filter",
+          "display_label": "dupe request: Flawless Filter",
+          "target_type": "product",
+          "target_key": "elf_halo_glow_primer",
+          "intent": "comparison",
+          "polarity": 1,
+          "extraction_confidence": 0.9
+        },
+        {
+          "concept_key": "dupe_request_flawless_filter",
+          "display_label": "dupe request: Flawless Filter",
+          "target_type": "product",
+          "target_key": "ct_flawless_filter",
+          "intent": "comparison",
+          "polarity": 0,
+          "extraction_confidence": 0.9
+        }
+      ]
+    },
+    {
+      "_purpose": "Category-level signal (no specific brand) \u2014 maps to a sector via taxonomy, not brand-to-ticker.",
+      "input": {
+        "input_id": "ex_004",
+        "text": "the entire mid-tier gym wear category is dead. lululemon is too pricey, target's brand looks cheap, nobody wants the in-between anymore",
+        "community": "forum:gear-patrol"
+      },
+      "expected_output": [
+        {
+          "concept_key": "midtier_athleisure_squeeze",
+          "display_label": "midtier athleisure squeeze",
+          "target_type": "category",
+          "target_key": "midtier_athleisure",
+          "intent": "complaint",
+          "polarity": -1,
+          "extraction_confidence": 0.7
+        }
+      ]
+    },
+    {
+      "_purpose": "Event-type / catalyst speculation (no specific brand or product yet).",
+      "input": {
+        "input_id": "ex_005",
+        "text": "if the FOMC actually cuts 50bps next week the long-duration tech names are gonna rip 10%+ in a day",
+        "community": "4chan:/biz/"
+      },
+      "expected_output": [
+        {
+          "concept_key": "fomc_50bps_cut_speculation",
+          "display_label": "FOMC 50bps cut speculation",
+          "target_type": "event_type",
+          "target_key": "fomc_rate_cut",
+          "intent": "prediction",
+          "polarity": 1,
+          "extraction_confidence": 0.85
+        }
+      ]
+    },
+    {
+      "_purpose": "Question / weak-signal example. Polarity neutral; extraction_confidence low-mid because intent is shopping research, not commitment.",
+      "input": {
+        "input_id": "ex_006",
+        "text": "anyone here actually used a stanley quencher for hot drinks? does the lid leak when it's actually hot",
+        "community": "discord:r-hydroflask-replacement"
+      },
+      "expected_output": [
+        {
+          "concept_key": "stanley_quencher_hot_drink_use",
+          "display_label": "Stanley Quencher for hot drinks",
+          "target_type": "product",
+          "target_key": "stanley_quencher",
+          "intent": "question",
+          "polarity": 0,
+          "extraction_confidence": 0.7
+        }
+      ]
+    },
+    {
+      "_purpose": "Praise intent \u2014 author endorses a product without an explicit purchase verb. Distinguishes from adoption.",
+      "input": {
+        "input_id": "ex_007",
+        "text": "the framework laptop is genuinely the best laptop hardware decision the industry has made in a decade. modular, repairable, and the keyboard actually feels good",
+        "community": "hn:all"
+      },
+      "expected_output": [
+        {
+          "concept_key": "framework_laptop_endorsement",
+          "display_label": "Framework Laptop endorsement",
+          "target_type": "brand",
+          "target_key": "framework",
+          "intent": "praise",
+          "polarity": 1,
+          "extraction_confidence": 0.9
+        }
+      ]
+    },
+    {
+      "_purpose": "Keyword target \u2014 emerging slang/meme/hashtag where there is no real-world product or brand yet, but the term itself is what's spreading. Use sparingly; most extractions should resolve to a brand/product/category.",
+      "input": {
+        "input_id": "ex_008",
+        "text": "everyone in this discord keeps saying \"goblin mode\" about not wanting to leave the house this winter. it's a whole vibe shift",
+        "community": "discord:general-vibes"
+      },
+      "expected_output": [
+        {
+          "concept_key": "goblin_mode_term_spreading",
+          "display_label": "'goblin mode' term spreading",
+          "target_type": "keyword",
+          "target_key": "goblin_mode",
+          "intent": "adoption",
+          "polarity": 1,
+          "extraction_confidence": 0.7
+        }
+      ]
+    },
+    {
+      "_purpose": "Negative example #1 \u2014 too short / no signal. Returns zero extractions.",
+      "input": {
+        "input_id": "ex_009",
+        "text": "lol same",
+        "community": "hn:all"
+      },
+      "expected_output": []
+    },
+    {
+      "_purpose": "Negative example #2 \u2014 looks like a brand mention but the comment is a meta-joke, not a consumer signal. The model should resist extracting.",
+      "input": {
+        "input_id": "ex_010",
+        "text": "AAPL to the moon \ud83d\ude80\ud83d\ude80\ud83d\ude80",
+        "community": "4chan:/biz/"
+      },
+      "expected_output": []
+    }
+  ],
+
+  "extraction_confidence_guidance": {
+    "downstream_default_floor": 0.4,
+    "downstream_floor_rationale": "concept_mentions inserter discards rows with extraction_confidence < 0.4. Below this floor, false-positive rate from manual review of v0 sample exceeded 25%.",
+    "z_score_input_weight": "Each concept_mention contributes weight = extraction_confidence to the daily mention_count used in z-score. Low-confidence mentions count fractionally."
+  },
+
+  "key_normalization_rules": {
+    "lowercase": true,
+    "strip_diacritics": true,
+    "replace_with_underscore": "[^a-z0-9]+",
+    "max_length": 64,
+    "examples": {
+      "Victoria's Secret": "victorias_secret",
+      "L'Or\u00e9al": "loreal",
+      "e.l.f.": "elf",
+      "Charlotte Tilbury Flawless Filter": "ct_flawless_filter",
+      "Drunk Elephant": "drunk_elephant",
+      "FOMC rate cut": "fomc_rate_cut"
+    },
+    "_note_for_user": "When seeding brand-to-ticker.json by hand, use the SAME normalization. Mismatched keys silently fail to resolve to tickers \u2014 the emerging topic still detects but lands with `resolved_target_type=brand, resolved_tickers_json=[]` and gets the suppression_reason=NO_COVERAGE_ELIGIBLE_TICKERS."
+  }
+}
