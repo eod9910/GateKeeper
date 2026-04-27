@@ -38,7 +38,6 @@
       "large": "≥ 15% expected single-name move"
     }
   },
-
   "themes": [
     {
       "theme_key": "energy_supply",
@@ -46,429 +45,1332 @@
       "category": "commodity",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "CL", "direction": "up", "magnitude": "large" },
-        { "asset_type": "commodity", "asset_key": "BZ", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "energy", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "CL",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "commodity",
+          "asset_key": "BZ",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "energy",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "transports_airlines", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "transports_truckers", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "defense", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "discount_retail", "direction": "down", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "transports_airlines",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "transports_truckers",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "defense",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "discount_retail",
+          "direction": "down",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "energy": ["XOM", "CVX", "COP", "OXY", "EOG", "HAL", "SLB"],
-        "transports_airlines": ["DAL", "UAL", "AAL", "LUV"],
-        "transports_truckers": ["JBHT", "KNX", "ODFL", "XPO"],
-        "defense": ["LMT", "RTX", "NOC", "GD", "LHX"],
-        "discount_retail": ["DG", "DLTR", "WMT", "FIVE"]
+        "energy": [
+          "XOM",
+          "CVX",
+          "COP",
+          "OXY",
+          "EOG",
+          "HAL",
+          "SLB"
+        ],
+        "transports_airlines": [
+          "DAL",
+          "UAL",
+          "AAL",
+          "LUV"
+        ],
+        "transports_truckers": [
+          "JBHT",
+          "KNX",
+          "ODFL",
+          "XPO"
+        ],
+        "defense": [
+          "LMT",
+          "RTX",
+          "NOC",
+          "GD",
+          "LHX"
+        ],
+        "discount_retail": [
+          "DG",
+          "DLTR",
+          "WMT",
+          "FIVE"
+        ]
       }
     },
-
     {
       "theme_key": "energy_demand",
       "display_name": "Energy Demand Surge (Datacenter / Electrification)",
       "category": "commodity",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "NG", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "utilities", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "grid_equipment", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "NG",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "utilities",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "grid_equipment",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "uranium", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "natural_gas_pipelines", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "energy_efficiency_services", "direction": "up", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "uranium",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "natural_gas_pipelines",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "energy_efficiency_services",
+          "direction": "up",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "utilities": ["NEE", "SO", "DUK", "AEP", "VST", "CEG"],
-        "grid_equipment": ["ETN", "GEV", "PWR", "MYRG", "AYI"],
-        "uranium": ["CCJ", "DNN", "URA"],
-        "natural_gas_pipelines": ["WMB", "ET", "KMI", "OKE"]
+        "utilities": [
+          "NEE",
+          "SO",
+          "DUK",
+          "AEP",
+          "VST",
+          "CEG"
+        ],
+        "grid_equipment": [
+          "ETN",
+          "GEV",
+          "PWR",
+          "MYRG",
+          "AYI"
+        ],
+        "uranium": [
+          "CCJ",
+          "DNN",
+          "URA"
+        ],
+        "natural_gas_pipelines": [
+          "WMB",
+          "ET",
+          "KMI",
+          "OKE"
+        ]
       }
     },
-
     {
       "theme_key": "dollar_strength",
       "display_name": "USD Strength",
       "category": "macro",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "fx", "asset_key": "DXY", "direction": "up", "magnitude": "large" },
-        { "asset_type": "commodity", "asset_key": "GC", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "fx",
+          "asset_key": "DXY",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "commodity",
+          "asset_key": "GC",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "us_multinationals", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "emerging_markets", "direction": "down", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "us_domestic_smallcap", "direction": "up", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "us_multinationals",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "emerging_markets",
+          "direction": "down",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "us_domestic_smallcap",
+          "direction": "up",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "us_multinationals": ["AAPL", "MSFT", "PG", "KO", "JNJ", "MMM"],
-        "emerging_markets": ["EEM", "EWZ", "EWW", "INDA"],
-        "us_domestic_smallcap": ["IWM"]
+        "us_multinationals": [
+          "AAPL",
+          "MSFT",
+          "PG",
+          "KO",
+          "JNJ",
+          "MMM"
+        ],
+        "emerging_markets": [
+          "EEM",
+          "EWZ",
+          "EWW",
+          "INDA"
+        ],
+        "us_domestic_smallcap": [
+          "IWM"
+        ]
       }
     },
-
     {
       "theme_key": "rates_higher",
       "display_name": "Rates Higher / Hawkish Pivot",
       "category": "macro",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "rate", "asset_key": "US10Y", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "regional_banks", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "rate",
+          "asset_key": "US10Y",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "regional_banks",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "homebuilders", "direction": "down", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "longduration_tech", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "reits", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "auto_loans_subprime", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "homebuilders",
+          "direction": "down",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "longduration_tech",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "reits",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "auto_loans_subprime",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "regional_banks": ["KRE", "CMA", "ZION", "RF", "FITB"],
-        "homebuilders": ["DHI", "LEN", "PHM", "TOL", "ITB"],
-        "longduration_tech": ["ARKK", "PLTR", "CRWD", "SNOW"],
-        "reits": ["VNQ", "O", "SPG", "AMT"],
-        "auto_loans_subprime": ["ALLY", "CACC", "OMF"]
+        "regional_banks": [
+          "KRE",
+          "CMA",
+          "ZION",
+          "RF",
+          "FITB"
+        ],
+        "homebuilders": [
+          "DHI",
+          "LEN",
+          "PHM",
+          "TOL",
+          "ITB"
+        ],
+        "longduration_tech": [
+          "ARKK",
+          "PLTR",
+          "CRWD",
+          "SNOW"
+        ],
+        "reits": [
+          "VNQ",
+          "O",
+          "SPG",
+          "AMT"
+        ],
+        "auto_loans_subprime": [
+          "ALLY",
+          "CACC",
+          "OMF"
+        ]
       }
     },
-
     {
       "theme_key": "rates_lower",
       "display_name": "Rates Lower / Dovish Pivot",
       "category": "macro",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "rate", "asset_key": "US10Y", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "longduration_tech", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "rate",
+          "asset_key": "US10Y",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "longduration_tech",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "homebuilders", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "reits", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "regional_banks", "direction": "down", "magnitude": "small" },
-        { "asset_type": "sector", "asset_key": "high_yield_credit", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "homebuilders",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "reits",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "regional_banks",
+          "direction": "down",
+          "magnitude": "small"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "high_yield_credit",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "longduration_tech": ["ARKK", "QQQ", "SMH"],
-        "homebuilders": ["DHI", "LEN", "PHM", "ITB"],
-        "reits": ["VNQ", "O", "SPG"],
-        "high_yield_credit": ["HYG", "JNK"]
+        "longduration_tech": [
+          "ARKK",
+          "QQQ",
+          "SMH"
+        ],
+        "homebuilders": [
+          "DHI",
+          "LEN",
+          "PHM",
+          "ITB"
+        ],
+        "reits": [
+          "VNQ",
+          "O",
+          "SPG"
+        ],
+        "high_yield_credit": [
+          "HYG",
+          "JNK"
+        ]
       }
     },
-
     {
       "theme_key": "inflation_rising",
       "display_name": "Inflation Re-acceleration",
       "category": "macro",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "GC", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "rate", "asset_key": "US10Y_BREAKEVEN", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "GC",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "rate",
+          "asset_key": "US10Y_BREAKEVEN",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "consumer_staples_pricing_power", "direction": "up", "magnitude": "small" },
-        { "asset_type": "sector", "asset_key": "discount_retail", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "longduration_tech", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "consumer_staples_pricing_power",
+          "direction": "up",
+          "magnitude": "small"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "discount_retail",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "longduration_tech",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "consumer_staples_pricing_power": ["PG", "KO", "PEP", "CL", "MO"],
-        "discount_retail": ["DG", "DLTR", "WMT", "BJ"]
+        "consumer_staples_pricing_power": [
+          "PG",
+          "KO",
+          "PEP",
+          "CL",
+          "MO"
+        ],
+        "discount_retail": [
+          "DG",
+          "DLTR",
+          "WMT",
+          "BJ"
+        ]
       }
     },
-
     {
       "theme_key": "inflation_falling",
       "display_name": "Disinflation Confirmed",
       "category": "macro",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "rate", "asset_key": "US10Y_BREAKEVEN", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "rate",
+          "asset_key": "US10Y_BREAKEVEN",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "consumer_discretionary_premium", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "longduration_tech", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "discount_retail", "direction": "down", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "consumer_discretionary_premium",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "longduration_tech",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "discount_retail",
+          "direction": "down",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "consumer_discretionary_premium": ["LULU", "RH", "TPR", "DECK"]
+        "consumer_discretionary_premium": [
+          "LULU",
+          "RH",
+          "TPR",
+          "DECK"
+        ]
       }
     },
-
     {
       "theme_key": "china_growth",
       "display_name": "China Growth Re-acceleration",
       "category": "geopolitical",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "HG", "direction": "up", "magnitude": "large" },
-        { "asset_type": "commodity", "asset_key": "CL", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "HG",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "commodity",
+          "asset_key": "CL",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "global_miners", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "luxury_goods_china_exposed", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "machinery_industrials", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "global_miners",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "luxury_goods_china_exposed",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "machinery_industrials",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "global_miners": ["FCX", "RIO", "BHP", "VALE"],
-        "luxury_goods_china_exposed": ["LVMUY", "TPR", "EL"],
-        "machinery_industrials": ["CAT", "DE"]
+        "global_miners": [
+          "FCX",
+          "RIO",
+          "BHP",
+          "VALE"
+        ],
+        "luxury_goods_china_exposed": [
+          "LVMUY",
+          "TPR",
+          "EL"
+        ],
+        "machinery_industrials": [
+          "CAT",
+          "DE"
+        ]
       }
     },
-
     {
       "theme_key": "china_slowdown",
       "display_name": "China Slowdown / Property Stress",
       "category": "geopolitical",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "HG", "direction": "down", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "global_miners", "direction": "down", "magnitude": "large" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "HG",
+          "direction": "down",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "global_miners",
+          "direction": "down",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "luxury_goods_china_exposed", "direction": "down", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "semiconductor_china_exposed", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "luxury_goods_china_exposed",
+          "direction": "down",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "semiconductor_china_exposed",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "global_miners": ["FCX", "RIO", "BHP", "VALE"],
-        "luxury_goods_china_exposed": ["LVMUY", "TPR", "EL"],
-        "semiconductor_china_exposed": ["AMAT", "LRCX", "QCOM"]
+        "global_miners": [
+          "FCX",
+          "RIO",
+          "BHP",
+          "VALE"
+        ],
+        "luxury_goods_china_exposed": [
+          "LVMUY",
+          "TPR",
+          "EL"
+        ],
+        "semiconductor_china_exposed": [
+          "AMAT",
+          "LRCX",
+          "QCOM"
+        ]
       }
     },
-
     {
       "theme_key": "geopolitical_escalation_mideast",
       "display_name": "Middle East Geopolitical Escalation",
       "category": "geopolitical",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "CL", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "commodity", "asset_key": "GC", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "defense", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "CL",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "commodity",
+          "asset_key": "GC",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "defense",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "shipping_tankers", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "transports_airlines", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "insurance_marine", "direction": "down", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "shipping_tankers",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "transports_airlines",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "insurance_marine",
+          "direction": "down",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "defense": ["LMT", "RTX", "NOC", "GD", "LHX", "HII"],
-        "shipping_tankers": ["FRO", "STNG", "DHT", "EURN"],
-        "transports_airlines": ["DAL", "UAL", "AAL"]
+        "defense": [
+          "LMT",
+          "RTX",
+          "NOC",
+          "GD",
+          "LHX",
+          "HII"
+        ],
+        "shipping_tankers": [
+          "FRO",
+          "STNG",
+          "DHT",
+          "EURN"
+        ],
+        "transports_airlines": [
+          "DAL",
+          "UAL",
+          "AAL"
+        ]
       }
     },
-
     {
       "theme_key": "geopolitical_escalation_eu",
       "display_name": "European Conflict / Energy Crisis",
       "category": "geopolitical",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "NG", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "defense", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "NG",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "defense",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "european_industrials", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "fertilizers", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "us_lng_export", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "sector",
+          "asset_key": "european_industrials",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "fertilizers",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "us_lng_export",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "ticker_seeds": {
-        "defense": ["LMT", "RTX", "NOC", "GD"],
-        "fertilizers": ["NTR", "MOS", "CF"],
-        "us_lng_export": ["LNG", "TELL", "VG"]
+        "defense": [
+          "LMT",
+          "RTX",
+          "NOC",
+          "GD"
+        ],
+        "fertilizers": [
+          "NTR",
+          "MOS",
+          "CF"
+        ],
+        "us_lng_export": [
+          "LNG",
+          "TELL",
+          "VG"
+        ]
       }
     },
-
     {
       "theme_key": "ai_capex_acceleration",
       "display_name": "AI Capex Acceleration",
       "category": "tech",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "ai_chips", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "datacenter_reits", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "ai_chips",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "datacenter_reits",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "grid_equipment", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "utilities_datacenter_exposed", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "uranium", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "specialty_cooling", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "sector",
+          "asset_key": "grid_equipment",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "utilities_datacenter_exposed",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "uranium",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "specialty_cooling",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "ticker_seeds": {
-        "ai_chips": ["NVDA", "AMD", "AVGO", "TSM", "MRVL"],
-        "datacenter_reits": ["EQIX", "DLR"],
-        "grid_equipment": ["ETN", "GEV", "PWR", "VRT"],
-        "utilities_datacenter_exposed": ["CEG", "VST", "TLN"],
-        "specialty_cooling": ["VRT", "CARR", "MOD"]
+        "ai_chips": [
+          "NVDA",
+          "AMD",
+          "AVGO",
+          "TSM",
+          "MRVL"
+        ],
+        "datacenter_reits": [
+          "EQIX",
+          "DLR"
+        ],
+        "grid_equipment": [
+          "ETN",
+          "GEV",
+          "PWR",
+          "VRT"
+        ],
+        "utilities_datacenter_exposed": [
+          "CEG",
+          "VST",
+          "TLN"
+        ],
+        "specialty_cooling": [
+          "VRT",
+          "CARR",
+          "MOD"
+        ]
       }
     },
-
     {
       "theme_key": "ai_capex_pullback",
       "display_name": "AI Capex Digestion / Pullback",
       "category": "tech",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "ai_chips", "direction": "down", "magnitude": "large" }
+        {
+          "asset_type": "sector",
+          "asset_key": "ai_chips",
+          "direction": "down",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "grid_equipment", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "datacenter_reits", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "specialty_cooling", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "grid_equipment",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "datacenter_reits",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "specialty_cooling",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "ai_chips": ["NVDA", "AMD", "AVGO", "MRVL"]
+        "ai_chips": [
+          "NVDA",
+          "AMD",
+          "AVGO",
+          "MRVL"
+        ]
       }
     },
-
     {
       "theme_key": "semis_supply_shock",
       "display_name": "Semiconductor Supply Shock (Taiwan / Equipment)",
       "category": "sector",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "semis_capital_equipment", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "fabless_semis", "direction": "down", "magnitude": "large" }
+        {
+          "asset_type": "sector",
+          "asset_key": "semis_capital_equipment",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "fabless_semis",
+          "direction": "down",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "auto_oems", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "consumer_electronics", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "us_domestic_fabs", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "auto_oems",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "consumer_electronics",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "us_domestic_fabs",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "semis_capital_equipment": ["AMAT", "LRCX", "KLAC", "ASML"],
-        "fabless_semis": ["NVDA", "AMD", "QCOM", "AVGO"],
-        "auto_oems": ["F", "GM", "TM", "STLA"],
-        "us_domestic_fabs": ["INTC", "GFS", "MU"]
+        "semis_capital_equipment": [
+          "AMAT",
+          "LRCX",
+          "KLAC",
+          "ASML"
+        ],
+        "fabless_semis": [
+          "NVDA",
+          "AMD",
+          "QCOM",
+          "AVGO"
+        ],
+        "auto_oems": [
+          "F",
+          "GM",
+          "TM",
+          "STLA"
+        ],
+        "us_domestic_fabs": [
+          "INTC",
+          "GFS",
+          "MU"
+        ]
       }
     },
-
     {
       "theme_key": "healthcare_policy_change",
       "display_name": "Healthcare Policy / Drug Pricing Shift",
       "category": "policy",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "pharma_large_cap", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "managed_care", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "pharma_large_cap",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "managed_care",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "biotech_innovation", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "generics_manufacturers", "direction": "up", "magnitude": "small" },
-        { "asset_type": "sector", "asset_key": "healthcare_services", "direction": "down", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "biotech_innovation",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "generics_manufacturers",
+          "direction": "up",
+          "magnitude": "small"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "healthcare_services",
+          "direction": "down",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "pharma_large_cap": ["PFE", "MRK", "BMY", "LLY", "ABBV"],
-        "managed_care": ["UNH", "ELV", "CI", "HUM", "CNC"],
-        "biotech_innovation": ["VRTX", "REGN", "GILD", "AMGN"]
+        "pharma_large_cap": [
+          "PFE",
+          "MRK",
+          "BMY",
+          "LLY",
+          "ABBV"
+        ],
+        "managed_care": [
+          "UNH",
+          "ELV",
+          "CI",
+          "HUM",
+          "CNC"
+        ],
+        "biotech_innovation": [
+          "VRTX",
+          "REGN",
+          "GILD",
+          "AMGN"
+        ]
       }
     },
-
     {
       "theme_key": "defense_spending_up",
       "display_name": "Defense Spending Acceleration",
       "category": "policy",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "defense", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "sector",
+          "asset_key": "defense",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "defense_electronics", "direction": "up", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "shipbuilding", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "specialty_metals_titanium", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "defense_electronics",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "shipbuilding",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "specialty_metals_titanium",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "defense": ["LMT", "RTX", "NOC", "GD", "LHX", "HII"],
-        "defense_electronics": ["LHX", "BWXT", "HEI", "TDG"],
-        "shipbuilding": ["HII", "GD"],
-        "specialty_metals_titanium": ["ATI", "HAYN"]
+        "defense": [
+          "LMT",
+          "RTX",
+          "NOC",
+          "GD",
+          "LHX",
+          "HII"
+        ],
+        "defense_electronics": [
+          "LHX",
+          "BWXT",
+          "HEI",
+          "TDG"
+        ],
+        "shipbuilding": [
+          "HII",
+          "GD"
+        ],
+        "specialty_metals_titanium": [
+          "ATI",
+          "HAYN"
+        ]
       }
     },
-
     {
       "theme_key": "consumer_weakness",
       "display_name": "Consumer Weakness / Discretionary Pullback",
       "category": "consumer",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "consumer_discretionary_premium", "direction": "down", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "restaurants_full_service", "direction": "down", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "consumer_discretionary_premium",
+          "direction": "down",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "restaurants_full_service",
+          "direction": "down",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "discount_retail", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "consumer_credit_subprime", "direction": "down", "magnitude": "large" },
-        { "asset_type": "sector", "asset_key": "buy_now_pay_later", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "discount_retail",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "consumer_credit_subprime",
+          "direction": "down",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "buy_now_pay_later",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "consumer_discretionary_premium": ["LULU", "RH", "TPR", "DECK", "WMT"],
-        "restaurants_full_service": ["DRI", "TXRH", "BJRI"],
-        "discount_retail": ["DG", "DLTR", "WMT", "BJ", "FIVE"],
-        "consumer_credit_subprime": ["ALLY", "CACC", "OMF", "LC"]
+        "consumer_discretionary_premium": [
+          "LULU",
+          "RH",
+          "TPR",
+          "DECK",
+          "WMT"
+        ],
+        "restaurants_full_service": [
+          "DRI",
+          "TXRH",
+          "BJRI"
+        ],
+        "discount_retail": [
+          "DG",
+          "DLTR",
+          "WMT",
+          "BJ",
+          "FIVE"
+        ],
+        "consumer_credit_subprime": [
+          "ALLY",
+          "CACC",
+          "OMF",
+          "LC"
+        ]
       }
     },
-
     {
       "theme_key": "consumer_strength",
       "display_name": "Consumer Strength / Discretionary Beat",
       "category": "consumer",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "consumer_discretionary_premium", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "restaurants_full_service", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "consumer_discretionary_premium",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "restaurants_full_service",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "experiences_travel", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "discount_retail", "direction": "down", "magnitude": "small" },
-        { "asset_type": "sector", "asset_key": "luxury_goods_china_exposed", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "sector",
+          "asset_key": "experiences_travel",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "discount_retail",
+          "direction": "down",
+          "magnitude": "small"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "luxury_goods_china_exposed",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "ticker_seeds": {
-        "consumer_discretionary_premium": ["LULU", "RH", "TPR", "DECK"],
-        "restaurants_full_service": ["DRI", "TXRH", "EAT"],
-        "experiences_travel": ["MAR", "HLT", "CCL", "RCL", "BKNG"]
+        "consumer_discretionary_premium": [
+          "LULU",
+          "RH",
+          "TPR",
+          "DECK"
+        ],
+        "restaurants_full_service": [
+          "DRI",
+          "TXRH",
+          "EAT"
+        ],
+        "experiences_travel": [
+          "MAR",
+          "HLT",
+          "CCL",
+          "RCL",
+          "BKNG"
+        ]
       }
     },
-
+    {
+      "theme_key": "consumer_dupe_culture",
+      "display_name": "Consumer Dupe Culture (Premium-to-Value Substitution)",
+      "category": "consumer",
+      "taxonomy_version": 1,
+      "first_order": [
+        {
+          "asset_type": "sector",
+          "asset_key": "premium_discretionary_at_risk",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "discount_retail",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "mass_market_beauty",
+          "direction": "up",
+          "magnitude": "small"
+        }
+      ],
+      "second_order": [
+        {
+          "asset_type": "sector",
+          "asset_key": "off_price_retail",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "private_label_grocers",
+          "direction": "up",
+          "magnitude": "small"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "luxury_goods_china_exposed",
+          "direction": "down",
+          "magnitude": "small"
+        }
+      ],
+      "ticker_seeds": {
+        "premium_discretionary_at_risk": [
+          "LULU",
+          "NKE",
+          "EL",
+          "TPR",
+          "ULTA",
+          "DECK"
+        ],
+        "discount_retail": [
+          "TJX",
+          "ROST",
+          "BURL",
+          "OLLI",
+          "DG"
+        ],
+        "mass_market_beauty": [
+          "ELF",
+          "COTY"
+        ],
+        "off_price_retail": [
+          "TJX",
+          "ROST",
+          "BURL"
+        ],
+        "private_label_grocers": [
+          "COST",
+          "WMT",
+          "TGT"
+        ]
+      }
+    },
     {
       "theme_key": "housing_demand_change",
       "display_name": "Housing Demand Inflection",
       "category": "sector",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "sector", "asset_key": "homebuilders", "direction": "up", "magnitude": "large" }
+        {
+          "asset_type": "sector",
+          "asset_key": "homebuilders",
+          "direction": "up",
+          "magnitude": "large"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "building_products", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "home_improvement_retail", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "appliances", "direction": "up", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "title_insurance", "direction": "up", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "building_products",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "home_improvement_retail",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "appliances",
+          "direction": "up",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "title_insurance",
+          "direction": "up",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "homebuilders": ["DHI", "LEN", "PHM", "TOL", "NVR", "ITB"],
-        "building_products": ["BLDR", "EXP", "MAS"],
-        "home_improvement_retail": ["HD", "LOW"],
-        "appliances": ["WHR"],
-        "title_insurance": ["FNF", "FAF"]
+        "homebuilders": [
+          "DHI",
+          "LEN",
+          "PHM",
+          "TOL",
+          "NVR",
+          "ITB"
+        ],
+        "building_products": [
+          "BLDR",
+          "EXP",
+          "MAS"
+        ],
+        "home_improvement_retail": [
+          "HD",
+          "LOW"
+        ],
+        "appliances": [
+          "WHR"
+        ],
+        "title_insurance": [
+          "FNF",
+          "FAF"
+        ]
       }
     },
-
     {
       "theme_key": "commodity_supply_shock_softs",
       "display_name": "Soft Commodity Supply Shock (Cocoa / Coffee / Sugar)",
       "category": "commodity",
       "taxonomy_version": 1,
       "first_order": [
-        { "asset_type": "commodity", "asset_key": "CC", "direction": "up", "magnitude": "large" },
-        { "asset_type": "commodity", "asset_key": "KC", "direction": "up", "magnitude": "large" },
-        { "asset_type": "commodity", "asset_key": "SB", "direction": "up", "magnitude": "moderate" }
+        {
+          "asset_type": "commodity",
+          "asset_key": "CC",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "commodity",
+          "asset_key": "KC",
+          "direction": "up",
+          "magnitude": "large"
+        },
+        {
+          "asset_type": "commodity",
+          "asset_key": "SB",
+          "direction": "up",
+          "magnitude": "moderate"
+        }
       ],
       "second_order": [
-        { "asset_type": "sector", "asset_key": "packaged_food_chocolate_exposed", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "coffee_chains", "direction": "down", "magnitude": "moderate" },
-        { "asset_type": "sector", "asset_key": "discount_grocery", "direction": "up", "magnitude": "small" }
+        {
+          "asset_type": "sector",
+          "asset_key": "packaged_food_chocolate_exposed",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "coffee_chains",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "discount_grocery",
+          "direction": "up",
+          "magnitude": "small"
+        }
       ],
       "ticker_seeds": {
-        "packaged_food_chocolate_exposed": ["HSY", "MDLZ", "K"],
-        "coffee_chains": ["SBUX", "DNUT", "BROS"],
-        "discount_grocery": ["KR", "ACI", "WMT"]
+        "packaged_food_chocolate_exposed": [
+          "HSY",
+          "MDLZ",
+          "K"
+        ],
+        "coffee_chains": [
+          "SBUX",
+          "DNUT",
+          "BROS"
+        ],
+        "discount_grocery": [
+          "KR",
+          "ACI",
+          "WMT"
+        ]
       }
     }
   ]

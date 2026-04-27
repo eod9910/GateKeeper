@@ -23,7 +23,7 @@
 // ============================================================================
 
 /** Bump in lockstep with backend/scripts/build_market_intelligence_db.py. */
-export const MARKET_INTELLIGENCE_SCHEMA_VERSION = 1;
+export const MARKET_INTELLIGENCE_SCHEMA_VERSION = 2;
 
 // ============================================================================
 // CORE ENUMS
@@ -604,6 +604,13 @@ export interface ApiScenarioListItem {
   time_horizon: TimeHorizon;
   /** Per-engine scoring profile output (PRD §Proposed Scoring Framework). */
   scenario_score: number;
+  /**
+   * Aggregate breadth of distinct sources backing the scenario (0..1). Null
+   * until the collector pipeline has run and `situation_signals` rolls up.
+   * UI surfaces this so analysts can distinguish single-source rows from
+   * cross-platform corroborated rows at a glance.
+   */
+  source_breadth_score: number | null;
   started_at: number;
   last_updated_at: number;
   expires_at: number | null;

@@ -468,6 +468,11 @@
     } else {
       meta.appendChild(el('span', null, s.source_count + ' sources / ' + s.source_type_count + ' source_types'));
     }
+    if (s.source_breadth_score != null) {
+      var breadthChip = el('span', 'mi-card-breadth', 'breadth=' + s.source_breadth_score.toFixed(2));
+      breadthChip.title = 'source_breadth_score: aggregate distinct-source coverage (0..1)';
+      meta.appendChild(breadthChip);
+    }
     meta.appendChild(el('span', null, 'updated ' + fmtAge(s.last_updated_at) + (isStale(s) ? ' (stale)' : '')));
     card.appendChild(meta);
 
@@ -698,10 +703,7 @@
       authenticity_score: api.authenticity_score == null ? null : Number(api.authenticity_score),
       peak_z_score: api.peak_z_score == null ? null : Number(api.peak_z_score),
       cross_platform_corroboration: !!api.cross_platform_corroboration,
-      // Source breadth fields aren't on the list response yet — Phase 2
-      // collectors will populate situation_signals and we'll compute these
-      // server-side. Defaulting to 0 keeps the drawer copy clean.
-      source_breadth_score: 0,
+      source_breadth_score: api.source_breadth_score == null ? null : Number(api.source_breadth_score),
       source_count: 0,
       source_type_count: 0,
       validity_flags: Array.isArray(api.validity_flags) ? api.validity_flags : [],
@@ -746,14 +748,40 @@
     };
   }
 
-  function setDataSourceLabel(label) {
-    var el2 = document.getElementById('mi-last-updated');
-    if (!el2) return;
-    el2.textContent = new Date().toLocaleTimeString() + ' · ' + label;
+  // Data-source pill labels (visible). Tooltips hover-state.
+  var DATA_SOURCE_LABELS = {
+    'loading':       { label: 'loading',       title: 'Fetching scenarios from the API…' },
+    'live':          { label: 'live',          title: 'Connected to /api/market-intelligence — showing real DB rows.' },
+    'live-empty':    { label: 'live · empty',  title: 'API healthy but the DB has no scenarios. Run scripts/seed_dev_scenarios.py or wait for collectors.' },
+    'mock-fallback': { label: 'MOCK',          title: 'API unavailable; falling back to in-memory sample fixtures.' }
+  };
+
+  // setDataSource updates the data-source pill + the timestamp. Detail is
+  // optional and rendered as a small inline-faded suffix inside the pill.
+  function setDataSource(state, detail) {
+    var pill = document.getElementById('mi-data-source-pill');
+    var ts = document.getElementById('mi-last-updated');
+    var preset = DATA_SOURCE_LABELS[state] || { label: state, title: '' };
+    if (pill) {
+      pill.setAttribute('data-state', state);
+      pill.textContent = '';
+      pill.appendChild(document.createTextNode(preset.label));
+      if (detail) {
+        var span = document.createElement('span');
+        span.className = 'mi-data-source-detail';
+        span.textContent = '· ' + detail;
+        pill.appendChild(span);
+      }
+      var fullTitle = preset.title + (detail ? '  (' + detail + ')' : '');
+      pill.title = fullTitle;
+    }
+    if (ts && state !== 'loading') {
+      ts.textContent = new Date().toLocaleTimeString();
+    }
   }
 
   function loadFromApi() {
-    setDataSourceLabel('loading…');
+    setDataSource('loading');
     return fetch(API_BASE + '/scenarios?limit=200', { headers: { 'Accept': 'application/json' } })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -773,13 +801,13 @@
           SCENARIOS = [];
           STATE.dataSource = 'live-empty';
           render();
-          setDataSourceLabel('live · 0 scenarios in DB (run seed_dev_scenarios.py or wait for collectors)');
+          setDataSource('live-empty', '0 scenarios');
           return { source: 'live-empty', total: 0 };
         }
         SCENARIOS = items.map(apiToCard);
         STATE.dataSource = 'live';
         render();
-        setDataSourceLabel('live · ' + SCENARIOS.length + ' scenarios');
+        setDataSource('live', SCENARIOS.length + ' scenarios');
         return { source: 'live', total: SCENARIOS.length };
       })
       .catch(function (err) {
@@ -787,7 +815,7 @@
         STATE.dataSource = 'mock-fallback';
         SCENARIOS = SAMPLE_SCENARIOS.slice();
         render();
-        setDataSourceLabel('MOCK · API unavailable (' + STATE.apiError + ')');
+        setDataSource('mock-fallback', STATE.apiError);
         // Surface to the console so devs notice during local work.
         if (typeof console !== 'undefined' && console.warn) {
           console.warn('[market-intelligence] API load failed; using mock data:', err);

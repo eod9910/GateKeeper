@@ -422,6 +422,32 @@
     .mi-confidence-pill.medium { background: rgba(196, 168, 84, 0.18); color: #c8b878; }
     .mi-confidence-pill.high   { background: rgba(79, 170, 114, 0.18); color: #79c79a; }
 
+    .mi-data-source-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+      border: 1px solid transparent;
+      background: var(--color-surface-hover);
+      color: var(--color-text-subtle);
+      cursor: help;
+      white-space: nowrap;
+    }
+    .mi-data-source-pill[data-state="loading"]       { background: var(--color-surface-hover); color: var(--color-text-muted); }
+    .mi-data-source-pill[data-state="live"]          { background: rgba(79, 170, 114, 0.18);  color: #79c79a; border-color: rgba(79, 170, 114, 0.4); }
+    .mi-data-source-pill[data-state="live-empty"]    { background: rgba(196, 168, 84, 0.18);  color: #c8b878; border-color: rgba(196, 168, 84, 0.4); }
+    .mi-data-source-pill[data-state="mock-fallback"] { background: rgba(176, 84, 84, 0.18);   color: #c87878; border-color: rgba(176, 84, 84, 0.4); }
+    .mi-data-source-pill .mi-data-source-detail {
+      margin-left: 6px;
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+      opacity: 0.85;
+    }
+
     .mi-card-flags {
       display: flex; gap: 4px; flex-wrap: wrap;
     }
@@ -658,6 +684,7 @@
           </span>
         </div>
         <div style="display:flex;gap:var(--space-8);align-items:center;">
+          <span class="mi-data-source-pill" id="mi-data-source-pill" data-state="loading" title="Data source state">loading</span>
           <span class="text-muted" style="font-size:var(--text-caption);">Last updated <span id="mi-last-updated">&mdash;</span></span>
           <button class="btn btn-sm" id="mi-refresh-btn">Refresh</button>
         </div>

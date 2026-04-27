@@ -44,7 +44,7 @@ DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 NOW = int(time.time())
 DAY = 86400
 
-EXPECTED_SCHEMA_VERSION = 1
+EXPECTED_SCHEMA_VERSION = 2
 
 
 # Tables this script writes to. `--reset` deletes from these in FK-safe order.
@@ -73,6 +73,7 @@ def _fixture_macro_energy() -> Dict[str, Any]:
         "scenario_type": "geopolitical",
         "status": "DEVELOPING",
         "signal_strength": 78,
+        "source_breadth_score": 0.85,
         "confidence_score": 0.62,
         "confidence_level": "medium",
         "time_horizon": "weeks",
@@ -232,6 +233,7 @@ def _fixture_macro_rates() -> Dict[str, Any]:
         "scenario_type": "macro",
         "status": "CONFIRMED",
         "signal_strength": 64,
+        "source_breadth_score": 0.92,
         "confidence_score": 0.71,
         "confidence_level": "high",
         "time_horizon": "days",
@@ -357,13 +359,11 @@ def _fixture_social_beauty() -> Dict[str, Any]:
             "Concept 'frame_primer_dupe' spiked z=4.6 in r/MakeupAddiction, then "
             "corroborated within 36h in #beauty Bluesky and Discord beauty-uncovered."
         ),
-        # 'consumer_strength' is the closest match in the seeded registry; we'll
-        # add a 'consumer_dupe_culture' theme to the registry in Phase 2 once the
-        # social-arbitrage detector is online.
-        "primary_theme": "consumer_strength",
+        "primary_theme": "consumer_dupe_culture",
         "scenario_type": "consumer_cycle",
         "status": "EARLY",
         "signal_strength": 67,
+        "source_breadth_score": 0.55,
         "confidence_score": 0.54,
         "confidence_level": "medium",
         "time_horizon": "weeks",
@@ -504,6 +504,7 @@ def _fixture_mixed_china() -> Dict[str, Any]:
         "scenario_type": "geopolitical",
         "status": "DEVELOPING",
         "signal_strength": 70,
+        "source_breadth_score": 0.78,
         "confidence_score": 0.66,
         "confidence_level": "high",
         "time_horizon": "months",
@@ -630,10 +631,11 @@ def _fixture_invalidated_social() -> Dict[str, Any]:
             "cadence and account-age distribution scored 0.18 authenticity. "
             "Suppressed."
         ),
-        "primary_theme": "consumer_strength",
+        "primary_theme": "consumer_dupe_culture",
         "scenario_type": "single_company_catalyst",
         "status": "INVALIDATED",
         "signal_strength": 22,
+        "source_breadth_score": 0.18,
         "confidence_score": 0.14,
         "confidence_level": "low",
         "time_horizon": "days",
@@ -741,10 +743,10 @@ def _insert_situation(conn: sqlite3.Connection, fx: Dict[str, Any], now: int) ->
             first_order_effects_json, second_order_effects_json,
             validity_flags_json, confidence_reasons_json,
             detection_path, coverage_tier, authenticity_score, peak_z_score,
-            cross_platform_corroboration, edge_multiplier,
+            cross_platform_corroboration, edge_multiplier, source_breadth_score,
             schema_version, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             fx["slug"],
@@ -772,6 +774,7 @@ def _insert_situation(conn: sqlite3.Connection, fx: Dict[str, Any], now: int) ->
             fx.get("peak_z_score"),
             1 if fx.get("cross_platform_corroboration") else 0,
             float(fx.get("edge_multiplier", 1.0)),
+            fx.get("source_breadth_score"),
             EXPECTED_SCHEMA_VERSION,
             now,
             now,

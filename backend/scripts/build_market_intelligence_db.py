@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 # Each entry is (table_name, CREATE TABLE statement). Ordered so foreign-key
@@ -466,6 +466,47 @@ TABLES: List[Tuple[str, str]] = [
         )
         """,
     ),
+
+    # ------------------------------------------------------------------
+    # mi_raw_hits (Phase 2 collector staging — added in schema_version 2)
+    #
+    # Concept-keyed raw post storage for the Market Intelligence collectors.
+    # Distinct from social-intelligence.sqlite/social_posts_raw, which is
+    # symbol-keyed. Lets us catch chatter BEFORE it gets ticker-indexed
+    # (the whole social-arbitrage thesis).
+    #
+    # The Phase 2.x detector reads from here to compute concept_daily_counts
+    # rollups. concept_mentions stays empty until a scenario materializes
+    # (it requires signal_id + situation_id, which only exist post-detection).
+    # ------------------------------------------------------------------
+    (
+        "mi_raw_hits",
+        """
+        CREATE TABLE IF NOT EXISTS mi_raw_hits (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_type             TEXT NOT NULL CHECK (
+                source_type IN (
+                    'hackernews_story', 'hackernews_comment',
+                    'discord', 'fourchan_biz', 'bluesky', 'forum'
+                )
+            ),
+            source_post_id          TEXT NOT NULL,
+            source_thread_id        TEXT,
+            source_url              TEXT,
+            source_community        TEXT NOT NULL,
+            author                  TEXT,
+            title                   TEXT,
+            body_text               TEXT,
+            posted_at               INTEGER NOT NULL,
+            fetched_at              INTEGER NOT NULL,
+            score                   INTEGER,
+            comment_count           INTEGER,
+            matched_concept_ids_json TEXT,
+            raw_payload_json        TEXT,
+            UNIQUE (source_type, source_post_id)
+        )
+        """,
+    ),
 ]
 
 
@@ -554,6 +595,17 @@ INDEXES: List[Tuple[str, str]] = [
     ("idx_authenticity_signals_topic_time",
      "CREATE INDEX IF NOT EXISTS idx_authenticity_signals_topic_time "
      "ON authenticity_signals (emerging_topic_id, as_of DESC)"),
+
+    # mi_raw_hits (schema_version 2): time-windowed and community-scoped reads.
+    ("idx_mi_raw_hits_posted_at",
+     "CREATE INDEX IF NOT EXISTS idx_mi_raw_hits_posted_at "
+     "ON mi_raw_hits (posted_at DESC)"),
+    ("idx_mi_raw_hits_community_time",
+     "CREATE INDEX IF NOT EXISTS idx_mi_raw_hits_community_time "
+     "ON mi_raw_hits (source_community, posted_at DESC)"),
+    ("idx_mi_raw_hits_source_type_time",
+     "CREATE INDEX IF NOT EXISTS idx_mi_raw_hits_source_type_time "
+     "ON mi_raw_hits (source_type, posted_at DESC)"),
 ]
 
 
