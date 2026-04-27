@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en" data-page-id="market-intelligence">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market Intelligence - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* =========================================================
+       Market-Intelligence page — Phase 0 mockup (no data wired)
+       Spec: .planning/plans/ACTIVE/market-intelligence-scenario-engine-prd-pdr.md §UI Contract
+       Sample data: market-intelligence.js
+       ========================================================= */
+
+    .mi-page {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+      padding: var(--space-16) var(--space-24) var(--space-32);
+      overflow-y: auto;
+      height: calc(100vh - 80px);
+    }
+
+    .mi-banner {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-12);
+      background: rgba(176, 84, 84, 0.10);
+      border: 1px solid rgba(176, 84, 84, 0.35);
+      border-radius: var(--radius);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+    }
+    .mi-banner-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--color-negative);
+      flex-shrink: 0;
+    }
+
+    /* ---------- Top summary strip ---------- */
+    .mi-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-12);
+    }
+    @media (max-width: 1280px) { .mi-summary { grid-template-columns: repeat(2, 1fr); } }
+    .mi-summary-tile {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      min-height: 92px;
+    }
+    .mi-summary-tile-label {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+    .mi-summary-tile-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-h3);
+      color: var(--color-text);
+      font-weight: 600;
+    }
+    .mi-summary-tile-detail {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+    }
+    .mi-summary-tile.engine-macro { border-left: 3px solid var(--engine-macro); }
+    .mi-summary-tile.engine-social { border-left: 3px solid var(--engine-social); }
+    .mi-summary-tile.engine-mixed { border-left: 3px solid var(--engine-mixed); }
+
+    .mi-summary-headline {
+      grid-column: span 2;
+      min-height: 92px;
+      gap: var(--space-6);
+    }
+    .mi-summary-headline-name {
+      font-size: var(--text-small);
+      color: var(--color-text);
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .mi-summary-headline-tickers {
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+    }
+    .mi-summary-headline-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-8);
+    }
+    .mi-summary-headline-score {
+      font-family: var(--font-mono);
+      font-size: var(--text-large);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    /* ---------- Engine selector + global filters ---------- */
+    .mi-controls {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+    }
+    .mi-engine-tabs {
+      display: flex;
+      gap: 2px;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 2px;
+      width: fit-content;
+    }
+    .mi-engine-tab {
+      padding: var(--space-6) var(--space-12);
+      font-size: var(--text-small);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-radius: var(--radius);
+      transition: background var(--transition), color var(--transition);
+      font-family: var(--font-sans);
+    }
+    .mi-engine-tab:hover { color: var(--color-text); background: var(--color-surface-hover); }
+    .mi-engine-tab.active { color: var(--color-text); background: var(--color-surface-hover); font-weight: 600; }
+    .mi-engine-tab .mi-tab-count {
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      margin-left: var(--space-4);
+    }
+
+    .mi-global-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-12);
+      font-size: var(--text-small);
+    }
+    .mi-filter {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      color: var(--color-text-muted);
+    }
+    .mi-filter label { font-size: var(--text-caption); }
+    .mi-filter select,
+    .mi-filter input[type="number"],
+    .mi-filter input[type="range"] {
+      padding: 4px 8px;
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      color: var(--color-text);
+    }
+    .mi-filter input[type="number"] { width: 60px; }
+    .mi-filter input[type="range"] { width: 110px; padding: 0; }
+    .mi-filter-toggle {
+      display: flex; align-items: center; gap: 4px; cursor: pointer;
+      user-select: none;
+    }
+
+    /* ---------- Two-panel layout ---------- */
+    .mi-panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-16);
+    }
+    .mi-panels.macro-only  { grid-template-columns: 1fr; }
+    .mi-panels.social-only { grid-template-columns: 1fr; }
+    /* mixed-only keeps both columns visible but each panel is filtered to mixed_* rows only */
+    .mi-panels.macro-only  .mi-panel-social,
+    .mi-panels.social-only .mi-panel-macro { display: none; }
+
+    @media (max-width: 1100px) { .mi-panels { grid-template-columns: 1fr; } }
+
+    .mi-panel {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      min-height: 400px;
+    }
+    .mi-panel-header {
+      padding: var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .mi-panel-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+    }
+    .mi-panel-title {
+      font-size: var(--text-body);
+      font-weight: 600;
+      display: flex; align-items: center; gap: var(--space-8);
+    }
+    .mi-panel-title .mi-engine-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .mi-panel-macro .mi-panel-title .mi-engine-dot { background: var(--engine-macro); }
+    .mi-panel-social .mi-panel-title .mi-engine-dot { background: var(--engine-social); }
+    .mi-panel-subtitle {
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+    }
+    .mi-panel-collapse {
+      background: none; border: none; cursor: pointer;
+      color: var(--color-text-subtle); font-size: var(--text-small);
+    }
+    .mi-panel-collapse:hover { color: var(--color-text); }
+
+    .mi-panel-filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-8);
+    }
+    .mi-status-tabs {
+      display: flex; gap: 2px;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 2px;
+    }
+    .mi-status-tab {
+      padding: 3px 8px;
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      color: var(--color-text-subtle);
+      cursor: pointer;
+      border: none; background: none;
+      border-radius: var(--radius);
+    }
+    .mi-status-tab.active { color: var(--color-text); background: var(--color-surface-hover); font-weight: 600; }
+    .mi-status-tab .mi-tab-count {
+      color: var(--color-text-subtle);
+      margin-left: 3px;
+    }
+    .mi-status-tab.active .mi-tab-count { color: var(--color-text-muted); }
+
+    .mi-coverage-chips {
+      display: flex; gap: 4px;
+    }
+    .mi-coverage-chip {
+      padding: 2px 6px;
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      color: var(--color-text-subtle);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      background: var(--color-bg);
+      user-select: none;
+    }
+    .mi-coverage-chip.active {
+      color: var(--color-text);
+      background: var(--color-surface-hover);
+      border-color: var(--color-text-subtle);
+    }
+    .mi-coverage-chip.disabled-default {
+      opacity: 0.45;
+    }
+
+    .mi-panel-body {
+      flex: 1;
+      padding: var(--space-12);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+    }
+    .mi-panel-empty {
+      padding: var(--space-32);
+      text-align: center;
+      color: var(--color-text-subtle);
+      font-size: var(--text-small);
+      font-style: italic;
+    }
+
+    /* ---------- Scenario card ---------- */
+    .mi-card {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+      transition: border-color var(--transition), background var(--transition);
+      position: relative;
+    }
+    .mi-card:hover { border-color: var(--color-text-subtle); background: var(--color-surface-alt); }
+    .mi-card.stale { opacity: 0.55; }
+
+    .mi-card-top {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-8);
+    }
+    .mi-card-engine {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      color: var(--color-bg);
+      flex-shrink: 0;
+    }
+    .mi-card-engine.macro  { background: var(--engine-macro); }
+    .mi-card-engine.social { background: var(--engine-social); }
+    .mi-card-engine.mixed-news    { background: linear-gradient(90deg, var(--engine-macro), var(--engine-mixed)); }
+    .mi-card-engine.mixed-anomaly { background: linear-gradient(90deg, var(--engine-social), var(--engine-mixed)); }
+
+    .mi-card-coverage {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      flex-shrink: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .mi-card-coverage.tier-barely     { background: rgba(79, 170, 114, 0.18); color: #79c79a; border-color: rgba(79, 170, 114, 0.4); }
+    .mi-card-coverage.tier-lightly    { background: rgba(86, 168, 168, 0.18); color: #79b8b8; border-color: rgba(86, 168, 168, 0.4); }
+    .mi-card-coverage.tier-well       { background: var(--color-surface-hover); color: var(--color-text-muted); }
+    .mi-card-coverage.tier-mega       { background: rgba(176, 84, 84, 0.18); color: #c87878; border-color: rgba(176, 84, 84, 0.4); }
+    .mi-card-coverage.tier-untradable { background: var(--color-disabled-bg); color: var(--color-text-subtle); }
+    .mi-card-coverage.macro-neutral   { background: var(--color-surface-hover); color: var(--color-text-subtle); }
+
+    .mi-card-ribbon {
+      position: absolute;
+      top: -1px; right: -1px;
+      background: var(--engine-mixed);
+      color: var(--color-bg);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 0 0 0 var(--radius);
+      font-weight: 600;
+    }
+
+    .mi-card-name {
+      font-size: var(--text-small);
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--color-text);
+    }
+    .mi-card-summary {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      line-height: 1.45;
+    }
+    .mi-card-meta {
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      display: flex; gap: var(--space-12); flex-wrap: wrap;
+    }
+
+    .mi-card-bars {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-8);
+      align-items: center;
+    }
+    .mi-strength-bar {
+      background: var(--color-surface-hover);
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+    .mi-strength-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-accent), #8aa3b9);
+      transition: width var(--transition);
+    }
+    .mi-strength-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-subtle);
+      margin-top: 2px;
+    }
+
+    .mi-confidence-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+    .mi-confidence-pill.low    { background: rgba(176, 84, 84, 0.18); color: #c87878; }
+    .mi-confidence-pill.medium { background: rgba(196, 168, 84, 0.18); color: #c8b878; }
+    .mi-confidence-pill.high   { background: rgba(79, 170, 114, 0.18); color: #79c79a; }
+
+    .mi-card-flags {
+      display: flex; gap: 4px; flex-wrap: wrap;
+    }
+    .mi-flag-chip {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 2px 5px;
+      border-radius: var(--radius);
+      background: var(--color-surface-hover);
+      color: var(--color-text-subtle);
+      text-transform: uppercase;
+    }
+    .mi-flag-chip.severity-warn { background: rgba(196, 168, 84, 0.16); color: #c8b878; }
+    .mi-flag-chip.severity-bad  { background: rgba(176, 84, 84, 0.16); color: #c87878; }
+
+    .mi-card-candidates {
+      border-top: 1px solid var(--color-border-subtle);
+      padding-top: var(--space-8);
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .mi-card-candidate-row {
+      display: grid;
+      grid-template-columns: 60px 1fr auto;
+      gap: var(--space-8);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      align-items: center;
+    }
+    .mi-card-candidate-symbol { font-weight: 600; color: var(--color-text); }
+    .mi-card-candidate-meta   { color: var(--color-text-subtle); font-size: 10px; }
+    .mi-card-candidate-rank   { color: var(--color-text-muted); }
+
+    /* ---------- Detail drawer ---------- */
+    .mi-drawer-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(2px);
+      z-index: 50;
+      display: none;
+    }
+    .mi-drawer-backdrop.open { display: block; }
+    .mi-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: min(720px, 90vw);
+      background: var(--color-surface);
+      border-left: 1px solid var(--color-border);
+      z-index: 60;
+      transform: translateX(100%);
+      transition: transform 200ms ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .mi-drawer.open { transform: translateX(0); }
+    .mi-drawer-header {
+      padding: var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+    .mi-drawer-close {
+      align-self: flex-end;
+      background: none; border: none; cursor: pointer;
+      color: var(--color-text-subtle); font-size: 18px; padding: 0 6px;
+      margin-top: -8px;
+    }
+    .mi-drawer-close:hover { color: var(--color-text); }
+    .mi-drawer-engine-row {
+      display: flex; align-items: center; gap: var(--space-8); flex-wrap: wrap;
+    }
+    .mi-drawer-name { font-size: var(--text-h3); font-weight: 600; line-height: 1.25; }
+    .mi-drawer-summary { font-size: var(--text-small); color: var(--color-text-muted); line-height: 1.5; }
+    .mi-drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-16);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-24);
+    }
+    .mi-drawer-section-title {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      margin-bottom: var(--space-8);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .mi-drawer-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+
+    .mi-stat {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-8) var(--space-12);
+    }
+    .mi-stat-label { font-size: var(--text-caption); color: var(--color-text-subtle); text-transform: uppercase; letter-spacing: 0.06em; }
+    .mi-stat-value { font-family: var(--font-mono); font-size: var(--text-body); color: var(--color-text); margin-top: 2px; }
+
+    .mi-evidence-row {
+      display: grid;
+      grid-template-columns: 88px 1fr auto;
+      gap: var(--space-8);
+      padding: var(--space-8) 0;
+      border-bottom: 1px solid var(--color-border-subtle);
+      font-size: var(--text-small);
+      align-items: start;
+    }
+    .mi-evidence-row:last-child { border-bottom: none; }
+    .mi-evidence-time { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--color-text-subtle); }
+    .mi-evidence-source { font-family: var(--font-mono); font-size: 10px; color: var(--color-text-muted); }
+    .mi-evidence-text { color: var(--color-text); line-height: 1.4; }
+
+    .mi-consequence-chain {
+      display: flex; flex-direction: column; gap: var(--space-12);
+    }
+    .mi-consequence-row {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding-left: var(--space-12);
+      border-left: 2px solid var(--color-border);
+    }
+    .mi-consequence-row-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      color: var(--color-text-subtle);
+      text-transform: uppercase;
+      width: 100%;
+      margin-bottom: 2px;
+    }
+    .mi-consequence-chip {
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      padding: 3px 8px;
+      border-radius: var(--radius);
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+    }
+    .mi-consequence-chip.dir-up   { border-left: 2px solid var(--color-positive); }
+    .mi-consequence-chip.dir-down { border-left: 2px solid var(--color-negative); }
+    .mi-consequence-chip.llm-assist::after {
+      content: 'AI';
+      font-size: 8px;
+      margin-left: 4px;
+      padding: 1px 3px;
+      background: var(--color-surface-hover);
+      color: var(--color-text-subtle);
+      border-radius: 2px;
+    }
+
+    .mi-authenticity-bar {
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .mi-auth-row {
+      display: grid;
+      grid-template-columns: 220px 1fr 50px;
+      gap: var(--space-8);
+      font-size: var(--text-caption);
+      align-items: center;
+    }
+    .mi-auth-row-label { color: var(--color-text-muted); font-family: var(--font-mono); font-size: 10px; }
+    .mi-auth-bar-track { background: var(--color-surface-hover); height: 4px; border-radius: 2px; overflow: hidden; }
+    .mi-auth-bar-fill  { height: 100%; background: var(--engine-social); }
+    .mi-auth-row-value { font-family: var(--font-mono); font-size: 10px; color: var(--color-text-muted); text-align: right; }
+
+    .mi-candidates-table { width: 100%; border-collapse: collapse; font-size: var(--text-caption); }
+    .mi-candidates-table th, .mi-candidates-table td {
+      padding: var(--space-6) var(--space-8);
+      text-align: left;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .mi-candidates-table th { color: var(--color-text-subtle); font-family: var(--font-mono); font-weight: 500; text-transform: uppercase; font-size: 10px; }
+    .mi-candidates-table td { font-family: var(--font-mono); color: var(--color-text); }
+    .mi-candidates-table tr.candidate-row { cursor: pointer; }
+    .mi-candidates-table tr.candidate-row:hover { background: var(--color-surface-alt); }
+    .mi-open-scanner-link { color: var(--color-accent); text-decoration: none; font-size: 10px; }
+    .mi-open-scanner-link:hover { text-decoration: underline; }
+
+    /* ---------- Engine color tokens ---------- */
+    :root {
+      --engine-macro:  #5d7a92;   /* blue (matches --color-accent) */
+      --engine-social: #4faa72;   /* green (matches --color-positive) */
+      --engine-mixed:  #9b6dc8;   /* purple */
+    }
+
+    /* ---------- Sample-data badge ---------- */
+    .mi-mock-badge {
+      position: fixed;
+      bottom: var(--space-12);
+      right: var(--space-12);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid #c8b878;
+      border-radius: var(--radius);
+      padding: var(--space-6) var(--space-12);
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      z-index: 30;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar (matches existing pages) -->
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+        <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+        <a href="/market-intelligence.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Market Intelligence</span></a>
+        <a href="/validator" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:auto;"><span class="nav-dot"></span><span class="sidebar-label-text">&#9881; Settings</span></a>
+      </nav>
+    </aside>
+
+    <div class="app-main" id="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Market Intelligence</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">
+            Dual-engine scenario detection &mdash;
+            <span style="color:var(--engine-macro);font-weight:600;">Macro</span>
+            +
+            <span style="color:var(--engine-social);font-weight:600;">Social Arbitrage</span>
+          </span>
+        </div>
+        <div style="display:flex;gap:var(--space-8);align-items:center;">
+          <span class="text-muted" style="font-size:var(--text-caption);">Last updated <span id="mi-last-updated">&mdash;</span></span>
+          <button class="btn btn-sm" id="mi-refresh-btn">Refresh</button>
+        </div>
+      </div>
+
+      <div class="mi-page" id="mi-page">
+
+        <!-- Calibration banner (PRD §UI Contract: shown until Phase 5 calibration ships) -->
+        <div class="mi-banner">
+          <span class="mi-banner-dot"></span>
+          <span><strong>Calibration in progress.</strong> v1 weights are placeholders &mdash; treat scenario_score and confidence_score as relative ranks, not probabilities. Phase 5 ships calibrated weights.</span>
+        </div>
+
+        <!-- Top summary strip -->
+        <section class="mi-summary" id="mi-summary"></section>
+
+        <!-- Engine selector + global filters -->
+        <section class="mi-controls">
+          <div class="mi-engine-tabs" role="tablist" aria-label="Engine view">
+            <button class="mi-engine-tab active" data-engine-view="both"   role="tab">Both <span class="mi-tab-count" id="mi-count-both">0</span></button>
+            <button class="mi-engine-tab"        data-engine-view="macro"  role="tab">Macro Only <span class="mi-tab-count" id="mi-count-macro">0</span></button>
+            <button class="mi-engine-tab"        data-engine-view="social" role="tab">Social Arb Only <span class="mi-tab-count" id="mi-count-social">0</span></button>
+            <button class="mi-engine-tab"        data-engine-view="mixed"  role="tab">Mixed Only <span class="mi-tab-count" id="mi-count-mixed">0</span></button>
+          </div>
+
+          <div class="mi-global-filters">
+            <div class="mi-filter">
+              <label for="mi-time-horizon">time_horizon</label>
+              <select id="mi-time-horizon">
+                <option value="">any</option>
+                <option value="hours">hours</option>
+                <option value="days">days</option>
+                <option value="weeks">weeks</option>
+                <option value="months">months</option>
+              </select>
+            </div>
+            <div class="mi-filter">
+              <label for="mi-min-strength">min signal_strength</label>
+              <input type="range" id="mi-min-strength" min="0" max="100" value="0" step="5">
+              <span class="text-mono" id="mi-min-strength-val" style="font-size:10px;width:24px;">0</span>
+            </div>
+            <div class="mi-filter">
+              <label for="mi-min-confidence">min confidence</label>
+              <input type="range" id="mi-min-confidence" min="0" max="100" value="0" step="5">
+              <span class="text-mono" id="mi-min-confidence-val" style="font-size:10px;width:24px;">0</span>
+            </div>
+            <label class="mi-filter-toggle">
+              <input type="checkbox" id="mi-include-invalidated">
+              <span class="text-mono" style="font-size:10px;">include INVALIDATED</span>
+            </label>
+            <label class="mi-filter-toggle">
+              <input type="checkbox" id="mi-include-suppressed">
+              <span class="text-mono" style="font-size:10px;">include LIKELY_INAUTHENTIC</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Two-panel scenario stream -->
+        <section class="mi-panels" id="mi-panels">
+
+          <!-- Macro panel -->
+          <div class="mi-panel mi-panel-macro">
+            <div class="mi-panel-header">
+              <div class="mi-panel-title-row">
+                <div class="mi-panel-title">
+                  <span class="mi-engine-dot"></span>
+                  Macro Engine
+                </div>
+                <button class="mi-panel-collapse" data-collapse-target="macro" title="Collapse">&times;</button>
+              </div>
+              <div class="mi-panel-subtitle">broad-based scenarios &mdash; news / filings / RSS / macro releases</div>
+              <div class="mi-panel-filters">
+                <div class="mi-status-tabs" id="mi-macro-status-tabs">
+                  <button class="mi-status-tab active" data-status="ALL">ALL <span class="mi-tab-count" id="mi-macro-count-ALL">0</span></button>
+                  <button class="mi-status-tab" data-status="EARLY">EARLY <span class="mi-tab-count" id="mi-macro-count-EARLY">0</span></button>
+                  <button class="mi-status-tab" data-status="DEVELOPING">DEV <span class="mi-tab-count" id="mi-macro-count-DEVELOPING">0</span></button>
+                  <button class="mi-status-tab" data-status="CONFIRMED">CONF <span class="mi-tab-count" id="mi-macro-count-CONFIRMED">0</span></button>
+                  <button class="mi-status-tab" data-status="CROWDED">CROWD <span class="mi-tab-count" id="mi-macro-count-CROWDED">0</span></button>
+                  <button class="mi-status-tab" data-status="FADING">FADE <span class="mi-tab-count" id="mi-macro-count-FADING">0</span></button>
+                </div>
+                <div class="mi-coverage-chips" id="mi-macro-coverage-chips" data-engine="macro">
+                  <button class="mi-coverage-chip active" data-tier="barely_covered">barely</button>
+                  <button class="mi-coverage-chip active" data-tier="lightly_covered">lightly</button>
+                  <button class="mi-coverage-chip active" data-tier="well_covered">well</button>
+                  <button class="mi-coverage-chip active" data-tier="mega_covered">mega</button>
+                </div>
+              </div>
+            </div>
+            <div class="mi-panel-body" id="mi-macro-body">
+              <div class="mi-panel-empty">Loading sample scenarios&hellip;</div>
+            </div>
+          </div>
+
+          <!-- Social Arbitrage panel -->
+          <div class="mi-panel mi-panel-social">
+            <div class="mi-panel-header">
+              <div class="mi-panel-title-row">
+                <div class="mi-panel-title">
+                  <span class="mi-engine-dot"></span>
+                  Social Arbitrage Engine
+                </div>
+                <button class="mi-panel-collapse" data-collapse-target="social" title="Collapse">&times;</button>
+              </div>
+              <div class="mi-panel-subtitle">uncovered names with organic, authenticated attention spikes</div>
+              <div class="mi-panel-filters">
+                <div class="mi-status-tabs" id="mi-social-status-tabs">
+                  <button class="mi-status-tab active" data-status="ALL">ALL <span class="mi-tab-count" id="mi-social-count-ALL">0</span></button>
+                  <button class="mi-status-tab" data-status="EARLY">EARLY <span class="mi-tab-count" id="mi-social-count-EARLY">0</span></button>
+                  <button class="mi-status-tab" data-status="DEVELOPING">DEV <span class="mi-tab-count" id="mi-social-count-DEVELOPING">0</span></button>
+                  <button class="mi-status-tab" data-status="CONFIRMED">CONF <span class="mi-tab-count" id="mi-social-count-CONFIRMED">0</span></button>
+                  <button class="mi-status-tab" data-status="CROWDED">CROWD <span class="mi-tab-count" id="mi-social-count-CROWDED">0</span></button>
+                  <button class="mi-status-tab" data-status="FADING">FADE <span class="mi-tab-count" id="mi-social-count-FADING">0</span></button>
+                </div>
+                <div class="mi-coverage-chips" id="mi-social-coverage-chips" data-engine="social">
+                  <!-- mega excluded by default per D22 -->
+                  <button class="mi-coverage-chip active" data-tier="barely_covered">barely</button>
+                  <button class="mi-coverage-chip active" data-tier="lightly_covered">lightly</button>
+                  <button class="mi-coverage-chip active" data-tier="well_covered">well</button>
+                  <button class="mi-coverage-chip disabled-default" data-tier="mega_covered">mega</button>
+                </div>
+              </div>
+              <div class="mi-panel-filters">
+                <div class="mi-filter">
+                  <label for="mi-social-auth">auth ≥</label>
+                  <input type="range" id="mi-social-auth" min="0" max="100" value="65" step="5">
+                  <span class="text-mono" id="mi-social-auth-val" style="font-size:10px;width:30px;">0.65</span>
+                </div>
+                <div class="mi-filter">
+                  <label for="mi-social-min-z">peak z ≥</label>
+                  <input type="number" id="mi-social-min-z" min="0" max="10" step="0.5" value="3.0">
+                </div>
+                <label class="mi-filter-toggle">
+                  <input type="checkbox" id="mi-social-cross-platform">
+                  <span class="text-mono" style="font-size:10px;">cross-platform only</span>
+                </label>
+              </div>
+            </div>
+            <div class="mi-panel-body" id="mi-social-body">
+              <div class="mi-panel-empty">Loading sample scenarios&hellip;</div>
+            </div>
+          </div>
+
+        </section>
+
+      </div>
+
+      <span class="mi-mock-badge" title="Phase 0 mock — sample data only">PHASE 0 MOCK &middot; sample data, no API wired</span>
+
+      <!-- Detail drawer -->
+      <div class="mi-drawer-backdrop" id="mi-drawer-backdrop"></div>
+      <aside class="mi-drawer" id="mi-drawer" role="dialog" aria-modal="true" aria-labelledby="mi-drawer-name">
+        <div class="mi-drawer-header">
+          <button class="mi-drawer-close" id="mi-drawer-close" aria-label="Close">&times;</button>
+          <div class="mi-drawer-engine-row" id="mi-drawer-engine-row"></div>
+          <div class="mi-drawer-name" id="mi-drawer-name">&mdash;</div>
+          <div class="mi-drawer-summary" id="mi-drawer-summary">&mdash;</div>
+        </div>
+        <div class="mi-drawer-body" id="mi-drawer-body"></div>
+      </aside>
+
+    </div>
+  </div>
+
+  <script src="market-intelligence.js"></script>
+</body>
+</html>
