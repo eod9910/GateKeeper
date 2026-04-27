@@ -32,6 +32,7 @@ import sweepRouter from './routes/sweep';
 import executionRouter from './routes/execution';
 import aiSettingsRouter from './routes/aiSettings';
 import ledgerHydrationRouter from './routes/ledgerHydration';
+import socialIntelligenceRouter from './routes/socialIntelligence';
 import audioRouter from './routes/audio';
 import mlRouter from './routes/ml';
 import autoLabelRouter from './routes/autoLabel';
@@ -40,6 +41,7 @@ import referenceRouter from './routes/reference';
 import consumerCycleRouter from './routes/consumerCycle';
 import * as executionBridge from './services/executionBridge';
 import * as ledgerHydrationScheduler from './services/ledgerHydrationScheduler';
+import * as socialIntelligenceScheduler from './services/socialIntelligenceScheduler';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -225,6 +227,7 @@ app.use('/api/sweep', sweepRouter);
 app.use('/api/execution', executionRouter);
 app.use('/api/ai', aiSettingsRouter);
 app.use('/api/ledger-hydration', ledgerHydrationRouter);
+app.use('/api/social-intelligence', socialIntelligenceRouter);
 app.use('/api/audio', audioRouter);
 app.use('/api/ml', mlRouter);
 app.use('/api/auto-label', autoLabelRouter);
@@ -355,6 +358,9 @@ app.listen(PORT, () => {
     console.log('[LedgerSync] resumed persisted hydration schedule');
   } else if (!ledgerHydrationScheduler.hasPersistedLedgerHydrationSchedulePreference()) {
     runLedgerCoverageSyncOnStartup();
+  }
+  if (socialIntelligenceScheduler.resumeSocialIntelligenceSchedulerFromDisk()) {
+    console.log('[SocialIntel] resumed persisted social-intelligence schedule');
   }
 
   void executionBridge.resumeBridgeFromDisk()
