@@ -15,9 +15,16 @@
  *   GET    /settings                     read settings JSON file
  *   PUT    /settings                     write settings JSON file
  *
- * Phase-1 stubs (return 501 with a clear message; wired in Phase 2+):
- *   POST   /scheduler/start
- *   POST   /scheduler/stop
+ * Scheduler (Phase 1 build target — generic job registry):
+ *   GET    /scheduler/status                 list jobs + cron + runtime state
+ *   POST   /scheduler/config                 update master + per-job config
+ *   POST   /scheduler/jobs/:name/run         async fire-and-forget run
+ *   POST   /scheduler/jobs/:name/enable      enable a single job (master stays as-is)
+ *   POST   /scheduler/jobs/:name/disable     disable a single job
+ *   POST   /scheduler/start                  master enable
+ *   POST   /scheduler/stop                   master disable
+ *
+ * Synchronous ad-hoc collector run (kept for dev-only one-shot testing):
  *   POST   /collectors/:source_type/run
  *
  * Response envelope: { success: true, data: ... } or
@@ -26,6 +33,7 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
+import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -40,6 +48,15 @@ import {
 } from '../services/marketIntelligenceDb';
 
 import {
+  getMarketIntelligenceJobDefinition,
+  getMarketIntelligenceScheduleStatus,
+  listMarketIntelligenceJobs,
+  runMarketIntelligenceJobNow,
+  saveMarketIntelligenceScheduleConfig,
+  setMarketIntelligenceJobEnabled,
+} from '../services/marketIntelligenceScheduler';
+
+import {
   CoverageTier,
   DetectionPath,
   EngineFilter,
@@ -51,6 +68,27 @@ import {
 } from '../types/marketIntelligence';
 
 const router = Router();
+
+// ============================================================================
+// Collector spawn config (Phase 2)
+// ============================================================================
+
+const PYTHON_BIN =
+  process.env.MI_PYTHON_BIN ||
+  (process.platform === 'win32' ? 'py' : 'python3');
+
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
+
+const COLLECTOR_SCRIPTS: Record<string, string> = {
+  hackernews: path.join(
+    PROJECT_ROOT,
+    'backend',
+    'scripts',
+    'collect_hackernews_intraday.py',
+  ),
+};
+
+const COLLECTOR_TIMEOUT_MS = 90_000;
 
 // ============================================================================
 // Error envelope helpers
@@ -506,30 +544,366 @@ router.put('/settings', (req: Request, res: Response) => {
 });
 
 // ============================================================================
-// SCHEDULER + COLLECTORS — Phase-1 stubs (no-op until Phase 2 wires them)
+// SCHEDULER — generic multi-job registry (PRD §Operational Architecture)
 // ============================================================================
 
-const SCHEDULER_NOT_WIRED_MSG =
-  'Scheduler not wired in Phase 1. Phase 2 will implement collectors + cron loop. ' +
-  'Use POST /api/market-intelligence/collectors/:source_type/run for ad-hoc runs once collectors land.';
+router.get('/scheduler/status', (_req: Request, res: Response) => {
+  try {
+    const status = getMarketIntelligenceScheduleStatus();
+    res.json({
+      success: true,
+      data: {
+        ...status,
+        registry: listMarketIntelligenceJobs(),
+      },
+    });
+  } catch (e) {
+    sendError(
+      res,
+      'INTERNAL',
+      e instanceof Error ? e.message : 'Failed to read scheduler status',
+    );
+  }
+});
+
+router.post('/scheduler/config', (req: Request, res: Response) => {
+  try {
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const next = saveMarketIntelligenceScheduleConfig({
+      enabled: typeof body.enabled === 'boolean' ? body.enabled : undefined,
+      jobs: (body.jobs && typeof body.jobs === 'object') ? body.jobs : undefined,
+    });
+    res.json({ success: true, data: { config: next } });
+  } catch (e) {
+    sendError(
+      res,
+      'VALIDATION_ERROR',
+      e instanceof Error ? e.message : 'Failed to update scheduler config',
+    );
+  }
+});
 
 router.post('/scheduler/start', (_req: Request, res: Response) => {
-  sendError(res, 'NOT_IMPLEMENTED', SCHEDULER_NOT_WIRED_MSG);
+  try {
+    const next = saveMarketIntelligenceScheduleConfig({ enabled: true });
+    res.json({ success: true, data: { config: next } });
+  } catch (e) {
+    sendError(
+      res,
+      'INTERNAL',
+      e instanceof Error ? e.message : 'Failed to start scheduler',
+    );
+  }
 });
 
 router.post('/scheduler/stop', (_req: Request, res: Response) => {
-  sendError(res, 'NOT_IMPLEMENTED', SCHEDULER_NOT_WIRED_MSG);
+  try {
+    const next = saveMarketIntelligenceScheduleConfig({ enabled: false });
+    res.json({ success: true, data: { config: next } });
+  } catch (e) {
+    sendError(
+      res,
+      'INTERNAL',
+      e instanceof Error ? e.message : 'Failed to stop scheduler',
+    );
+  }
 });
 
-router.post('/collectors/:source_type/run', (req: Request, res: Response) => {
-  const sourceType = String(req.params.source_type || '').trim();
-  sendError(
-    res,
-    'NOT_IMPLEMENTED',
-    `Collector '${sourceType}' not implemented. Phase 2 will wire HN + Discord ` +
-      '+ 4chan/biz + Bluesky + forums; Phase 3 will wire Macro RSS feeds.',
-  );
+router.post('/scheduler/jobs/:name/run', (req: Request, res: Response) => {
+  const name = String(req.params.name || '').trim();
+  if (!getMarketIntelligenceJobDefinition(name)) {
+    return sendError(res, 'NOT_FOUND', `Unknown scheduler job: ${name}`);
+  }
+  try {
+    const result = runMarketIntelligenceJobNow(name, 'manual');
+    res.json({ success: true, data: { job_name: name, ...result } });
+  } catch (e) {
+    sendError(
+      res,
+      'INTERNAL',
+      e instanceof Error ? e.message : `Failed to run job ${name}`,
+    );
+  }
 });
+
+router.post('/scheduler/jobs/:name/enable', (req: Request, res: Response) => {
+  const name = String(req.params.name || '').trim();
+  if (!getMarketIntelligenceJobDefinition(name)) {
+    return sendError(res, 'NOT_FOUND', `Unknown scheduler job: ${name}`);
+  }
+  try {
+    const next = setMarketIntelligenceJobEnabled(name, true);
+    res.json({ success: true, data: { config: next } });
+  } catch (e) {
+    sendError(
+      res,
+      'INTERNAL',
+      e instanceof Error ? e.message : `Failed to enable job ${name}`,
+    );
+  }
+});
+
+router.post('/scheduler/jobs/:name/disable', (req: Request, res: Response) => {
+  const name = String(req.params.name || '').trim();
+  if (!getMarketIntelligenceJobDefinition(name)) {
+    return sendError(res, 'NOT_FOUND', `Unknown scheduler job: ${name}`);
+  }
+  try {
+    const next = setMarketIntelligenceJobEnabled(name, false);
+    res.json({ success: true, data: { config: next } });
+  } catch (e) {
+    sendError(
+      res,
+      'INTERNAL',
+      e instanceof Error ? e.message : `Failed to disable job ${name}`,
+    );
+  }
+});
+
+// ----------------------------------------------------------------------------
+// Collector run helpers
+// ----------------------------------------------------------------------------
+
+interface CollectorRunBody {
+  since_hours?: unknown;
+  max_pages?: unknown;
+  hits_per_page?: unknown;
+  concept_keys?: unknown;
+  dry_run?: unknown;
+  request_timeout?: unknown;
+  sleep_ms?: unknown;
+}
+
+function asTruthy(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase();
+    return v !== '' && v !== '0' && v !== 'false';
+  }
+  return Boolean(value);
+}
+
+function buildHackerNewsCliArgs(body: CollectorRunBody): string[] {
+  const args: string[] = [];
+
+  if (body.since_hours !== undefined && body.since_hours !== null) {
+    const n = Number(body.since_hours);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'since_hours must be a positive number',
+      );
+    }
+    args.push('--since-hours', String(Math.trunc(n)));
+  }
+
+  if (body.max_pages !== undefined && body.max_pages !== null) {
+    const n = Number(body.max_pages);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'max_pages must be a positive number',
+      );
+    }
+    args.push('--max-pages', String(Math.trunc(n)));
+  }
+
+  if (body.hits_per_page !== undefined && body.hits_per_page !== null) {
+    const n = Number(body.hits_per_page);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'hits_per_page must be a positive number <= 1000',
+      );
+    }
+    args.push('--hits-per-page', String(Math.trunc(n)));
+  }
+
+  if (body.request_timeout !== undefined && body.request_timeout !== null) {
+    const n = Number(body.request_timeout);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'request_timeout must be a positive number',
+      );
+    }
+    args.push('--request-timeout', String(n));
+  }
+
+  if (body.sleep_ms !== undefined && body.sleep_ms !== null) {
+    const n = Number(body.sleep_ms);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'sleep_ms must be a non-negative number',
+      );
+    }
+    args.push('--sleep-ms', String(Math.trunc(n)));
+  }
+
+  if (body.concept_keys !== undefined && body.concept_keys !== null) {
+    let keys: string;
+    if (Array.isArray(body.concept_keys)) {
+      keys = body.concept_keys
+        .map((k) => String(k).trim())
+        .filter((k) => k.length > 0)
+        .join(',');
+    } else if (typeof body.concept_keys === 'string') {
+      keys = body.concept_keys.trim();
+    } else {
+      throw new HttpError(
+        'VALIDATION_ERROR',
+        'concept_keys must be an array of strings or a comma-separated string',
+      );
+    }
+    if (keys.length > 0) {
+      args.push('--concept-keys', keys);
+    }
+  }
+
+  if (asTruthy(body.dry_run)) {
+    args.push('--dry-run');
+  }
+
+  return args;
+}
+
+function spawnCollector(
+  scriptPath: string,
+  args: string[],
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(PYTHON_BIN, [scriptPath, ...args], {
+      cwd: PROJECT_ROOT,
+      env: process.env,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGTERM');
+    }, COLLECTOR_TIMEOUT_MS);
+
+    proc.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8');
+    });
+    proc.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8');
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      reject(
+        new HttpError(
+          'INTERNAL',
+          `Failed to spawn ${PYTHON_BIN}: ${err.message}. ` +
+            `Ensure '${PYTHON_BIN}' is on PATH (or set MI_PYTHON_BIN).`,
+        ),
+      );
+    });
+
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        reject(
+          new HttpError(
+            'INTERNAL',
+            `Collector timed out after ${COLLECTOR_TIMEOUT_MS}ms. ` +
+              `stderr tail: ${stderr.slice(-500)}`,
+          ),
+        );
+        return;
+      }
+      if (code !== 0) {
+        reject(
+          new HttpError(
+            'INTERNAL',
+            `Collector exited non-zero (code=${code}). ` +
+              `stderr tail: ${stderr.slice(-500)}`,
+          ),
+        );
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(
+          new HttpError(
+            'INTERNAL',
+            `Collector did not produce valid JSON on stdout. ` +
+              `stdout head: ${stdout.slice(0, 500)}`,
+          ),
+        );
+      }
+    });
+  });
+}
+
+router.post(
+  '/collectors/:source_type/run',
+  async (req: Request, res: Response) => {
+    const sourceType = String(req.params.source_type || '').trim();
+
+    const scriptPath = COLLECTOR_SCRIPTS[sourceType];
+    if (!scriptPath) {
+      sendError(
+        res,
+        'NOT_IMPLEMENTED',
+        `Collector '${sourceType}' not implemented. Available: ` +
+          `${Object.keys(COLLECTOR_SCRIPTS).join(', ') || '(none)'}. ` +
+          `Phase 2 will add Discord + 4chan/biz + Bluesky + forums; ` +
+          `Phase 3 will wire Macro RSS feeds.`,
+      );
+      return;
+    }
+
+    const rawBody = req.body;
+    let body: CollectorRunBody = {};
+    if (rawBody !== undefined && rawBody !== null) {
+      if (typeof rawBody !== 'object' || Array.isArray(rawBody)) {
+        sendError(
+          res,
+          'VALIDATION_ERROR',
+          'Request body must be a JSON object or empty.',
+        );
+        return;
+      }
+      body = rawBody as CollectorRunBody;
+    }
+
+    const startedAt = Date.now();
+    try {
+      ensureDbReady();
+      const cliArgs =
+        sourceType === 'hackernews'
+          ? buildHackerNewsCliArgs(body)
+          : [];
+      const result = await spawnCollector(scriptPath, cliArgs);
+      res.json({
+        success: true,
+        data: {
+          collector: sourceType,
+          duration_ms: Date.now() - startedAt,
+          result,
+        },
+      });
+    } catch (err) {
+      if (err instanceof HttpError) {
+        sendError(res, err.code, err.message);
+        return;
+      }
+      sendError(
+        res,
+        'INTERNAL',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  },
+);
 
 // ============================================================================
 // 404 fallback inside the router (lets server.ts mount cleanly)

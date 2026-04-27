@@ -43,6 +43,7 @@ import consumerCycleRouter from './routes/consumerCycle';
 import * as executionBridge from './services/executionBridge';
 import * as ledgerHydrationScheduler from './services/ledgerHydrationScheduler';
 import * as socialIntelligenceScheduler from './services/socialIntelligenceScheduler';
+import * as marketIntelligenceScheduler from './services/marketIntelligenceScheduler';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -163,10 +164,13 @@ function runLedgerCoverageSyncOnStartup(): void {
   });
 
   child.on('error', (err) => {
+    // Do not set last_finished_at here: spawn never started. Cooldown is based on
+    // last_finished_at; setting it would suppress startup sync for cooldownHours after
+    // a misconfiguration (e.g. Python launcher missing) even after the user fixes it.
     writeLedgerCoverageSyncState({
       ...(readLedgerCoverageSyncState() || {}),
-      last_finished_at: new Date().toISOString(),
       last_exit_code: -1,
+      last_error: err?.message || String(err),
     });
     console.warn('[LedgerSync] failed to start startup sync:', err?.message || String(err));
   });
@@ -327,6 +331,10 @@ app.get('/consumer-cycle', (req, res) => {
   res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'consumer-cycle.html'));
 });
 
+app.get('/market-intelligence', (req, res) => {
+  res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'market-intelligence.html'));
+});
+
 // Serve frontend for all other routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(FRONTEND_PUBLIC_DIR, 'index.html'));
@@ -363,6 +371,9 @@ app.listen(PORT, () => {
   }
   if (socialIntelligenceScheduler.resumeSocialIntelligenceSchedulerFromDisk()) {
     console.log('[SocialIntel] resumed persisted social-intelligence schedule');
+  }
+  if (marketIntelligenceScheduler.resumeMarketIntelligenceSchedulerFromDisk()) {
+    console.log('[MarketIntel] resumed persisted market-intelligence schedule');
   }
 
   void executionBridge.resumeBridgeFromDisk()
