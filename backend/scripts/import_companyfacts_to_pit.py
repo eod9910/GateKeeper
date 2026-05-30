@@ -21,9 +21,17 @@ import fundamentals_pit_store as pit_store  # noqa: E402
 DEFAULT_COMPANYFACTS_DIR = ROOT / "Financial data" / "docling_probe" / "raw" / "sec" / "bulk" / "companyfacts"
 DEFAULT_ELIGIBILITY_REPORT = ROOT / "backend" / "data" / "ledger_filing_eligibility_report.json"
 DEFAULT_UNIVERSE = ROOT / "backend" / "data" / "ledger_filing_eligible.json"
+DEFAULT_SYMBOL_CATALOG_DB = ROOT / "backend" / "data" / "symbol-catalog.sqlite"
 
 SOURCE_TYPE = "sec_companyfacts_bulk"
-ALLOWED_FORMS = {"10-K", "10-K/A", "10-Q", "10-Q/A"}
+ALLOWED_FORMS = {"10-K", "10-K/A", "10-Q", "10-Q/A", "20-F", "20-F/A", "40-F", "40-F/A"}
+SHARES_OUTSTANDING_CONCEPTS = (
+    ("dei", "EntityCommonStockSharesOutstanding"),
+    ("us-gaap", "CommonStockSharesOutstanding"),
+    ("us-gaap", "WeightedAverageNumberOfSharesOutstandingBasic"),
+    ("us-gaap", "WeightedAverageNumberOfShareOutstandingBasicAndDiluted"),
+    ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding"),
+)
 CORE_METRICS = (
     "revenue",
     "operating_income",
@@ -41,6 +49,30 @@ COMPANYFACTS_CONCEPTS: Dict[str, List[str]] = {
         "RevenueFromContractWithCustomerIncludingAssessedTax",
         "SalesRevenueNet",
         "Revenues",
+        "RevenuesNetOfInterestExpense",
+        "RealEstateRevenueNet",
+        "OperatingLeasesIncomeStatementLeaseRevenue",
+        "UtilityRevenue",
+        "RegulatedAndUnregulatedOperatingRevenue",
+        "RegulatedOperatingRevenue",
+        "RegulatedOperatingRevenueGas",
+        "ElectricDomesticRegulatedRevenue",
+        "GasDomesticRegulatedRevenue",
+        "UnregulatedOperatingRevenue",
+        "RevenueMineralSales",
+        "OilAndGasRevenue",
+        "OilAndGasSalesRevenue",
+        "NaturalGasProductionRevenue",
+        "NaturalGasMidstreamRevenue",
+        "OilAndCondensateRevenue",
+        "RevenueOilAndGasServices",
+        "ResultsOfOperationsRevenueFromOilAndGasProducingActivities",
+        "OtherSalesRevenueNet",
+        "SalesRevenueGoodsNet",
+        "SalesRevenueServicesNet",
+        "TechnologyServicesRevenue",
+        "NoninterestIncome",
+        "InterestIncomeExpenseNet",
     ],
     "operating_income": ["OperatingIncomeLoss"],
     "net_income": ["NetIncomeLoss", "ProfitLoss"],
@@ -50,10 +82,61 @@ COMPANYFACTS_CONCEPTS: Dict[str, List[str]] = {
         "StockholdersEquity",
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
     ],
-    "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities"],
+    "operating_cash_flow": [
+        "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    ],
     "capital_expenditures": [
         "PaymentsToAcquirePropertyPlantAndEquipment",
+        "PaymentsToAcquireProductiveAssets",
+        "PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets",
+        "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+        "PaymentsToAcquireOtherProductiveAssets",
+        "PaymentsForProceedsFromProductiveAssets",
+        "PaymentsToAcquireOilAndGasProperty",
+        "PaymentsToAcquireOilAndGasPropertyAndEquipment",
+        "PaymentsToAcquireMiningAssets",
+        "PaymentsToAcquireMineralRights",
+        "PaymentsToAcquireAssetsInvestingActivities",
+        "PaymentsForCapitalImprovements",
+        "SegmentExpenditureAdditionToLongLivedAssets",
+        "PropertyPlantAndEquipmentAdditions",
         "CapitalExpendituresIncurredButNotYetPaid",
+    ],
+}
+
+IFRS_COMPANYFACTS_CONCEPTS: Dict[str, List[str]] = {
+    "revenue": [
+        "RevenueFromContractsWithCustomers",
+        "Revenue",
+        "OtherRevenue",
+        "RevenueFromSaleOfGoods",
+        "RevenueFromRenderingOfServices",
+    ],
+    "operating_income": [
+        "ProfitLossFromOperatingActivities",
+    ],
+    "net_income": [
+        "ProfitLoss",
+    ],
+    "current_assets": [
+        "CurrentAssets",
+    ],
+    "current_liabilities": [
+        "CurrentLiabilities",
+    ],
+    "shareholders_equity": [
+        "Equity",
+        "EquityAttributableToOwnersOfParent",
+    ],
+    "operating_cash_flow": [
+        "CashFlowsFromUsedInOperatingActivities",
+        "CashFlowsFromUsedInOperations",
+    ],
+    "capital_expenditures": [
+        "PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets",
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        "AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipment",
     ],
 }
 
@@ -103,9 +186,27 @@ class FactCandidate:
     concept_priority: int
 
 
+@dataclass(frozen=True)
+class FundamentalCandidate:
+    symbol: str
+    cik: str
+    metric: str
+    concept_namespace: str
+    concept: str
+    unit: str
+    form: str
+    accession_number: str
+    filing_date: str
+    period_end: str
+    value: Any
+    source_path: str
+    concept_priority: int
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Import SEC companyfacts JSON into PIT statement/document tables.")
     parser.add_argument("--symbol", help="Import a single symbol, e.g. AAPL.")
+    parser.add_argument("--symbols", help="Import a comma-separated symbol list, e.g. AAPL,MSFT,NVDA.")
     parser.add_argument(
         "--limit",
         type=int,
@@ -138,6 +239,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Parse and summarize without writing to PIT.",
     )
+    parser.add_argument(
+        "--fundamentals-only",
+        action="store_true",
+        help="Only import PIT fundamental facts such as sharesOutstanding; skip documents and statement facts.",
+    )
     return parser.parse_args()
 
 
@@ -156,7 +262,7 @@ def _normalize_form(value: Any) -> str:
 
 
 def _period_type_for_form(form: str) -> Optional[str]:
-    if form.startswith("10-K"):
+    if form.startswith("10-K") or form.startswith("20-F") or form.startswith("40-F"):
         return "annual"
     if form.startswith("10-Q"):
         return "quarterly"
@@ -209,8 +315,22 @@ def _load_eligible_symbols(report_path: Path) -> List[EligibleSymbol]:
     return out
 
 
-def _select_symbols(all_symbols: List[EligibleSymbol], symbol: Optional[str], offset: int, limit: int) -> List[EligibleSymbol]:
+def _select_symbols(
+    all_symbols: List[EligibleSymbol],
+    symbol: Optional[str],
+    symbols: Optional[str],
+    offset: int,
+    limit: int,
+) -> List[EligibleSymbol]:
     selected = all_symbols
+    if symbols:
+        wanted_symbols = {item.strip().upper() for item in symbols.split(",") if item.strip()}
+        selected = [item for item in all_symbols if item.symbol in wanted_symbols]
+        selected_symbols = {item.symbol for item in selected}
+        for wanted in sorted(wanted_symbols - selected_symbols):
+            fallback = _load_symbol_from_catalog(wanted)
+            if fallback is not None:
+                selected.append(fallback)
     if symbol:
         wanted = symbol.strip().upper()
         selected = [item for item in all_symbols if item.symbol == wanted]
@@ -221,23 +341,63 @@ def _select_symbols(all_symbols: List[EligibleSymbol], symbol: Optional[str], of
     return selected
 
 
+def _load_symbol_from_catalog(symbol: str, db_path: Path = DEFAULT_SYMBOL_CATALOG_DB) -> Optional[EligibleSymbol]:
+    wanted = str(symbol or "").strip().upper()
+    if not wanted or not db_path.exists():
+        return None
+    import sqlite3
+
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT symbol, cik, sec_name, name
+            FROM symbols
+            WHERE symbol = ?
+              AND cik IS NOT NULL
+              AND trim(cik) <> ''
+            """,
+            (wanted,),
+        ).fetchone()
+    if row is None:
+        return None
+    return EligibleSymbol(
+        symbol=str(row["symbol"]).strip().upper(),
+        cik=str(row["cik"]).strip(),
+        company_name=str(row["sec_name"] or row["name"] or wanted).strip(),
+        status="catalog_fallback",
+    )
+
+
 def _choose_better_candidate(current: FactCandidate, candidate: FactCandidate) -> FactCandidate:
     current_score = (current.concept_priority, current.unit != "USD", current.frame is not None)
     candidate_score = (candidate.concept_priority, candidate.unit != "USD", candidate.frame is not None)
     return candidate if candidate_score < current_score else current
 
 
+def _concept_sources(facts: Dict[str, Any], metric: str) -> Iterable[Tuple[str, str, int, Dict[str, Any]]]:
+    source_groups = (
+        ("us-gaap", COMPANYFACTS_CONCEPTS.get(metric) or []),
+        ("ifrs-full", IFRS_COMPANYFACTS_CONCEPTS.get(metric) or []),
+    )
+    for namespace, concepts in source_groups:
+        namespace_payload = facts.get(namespace) or {}
+        if not isinstance(namespace_payload, dict):
+            continue
+        for concept_priority, concept_name in enumerate(concepts):
+            concept_payload = namespace_payload.get(concept_name)
+            if isinstance(concept_payload, dict):
+                yield namespace, concept_name, concept_priority, concept_payload
+
+
 def _extract_companyfacts_candidates(companyfacts_file: Path, symbol: EligibleSymbol) -> Tuple[str, List[FactCandidate]]:
     payload = json.loads(companyfacts_file.read_text(encoding="utf-8"))
     company_name = str(payload.get("entityName") or symbol.company_name or symbol.symbol).strip()
-    facts = ((payload.get("facts") or {}).get("us-gaap") or {})
+    facts = payload.get("facts") or {}
     selected: Dict[Tuple[str, str, str, str], FactCandidate] = {}
 
-    for metric, concepts in COMPANYFACTS_CONCEPTS.items():
-        for concept_priority, concept_name in enumerate(concepts):
-            concept_payload = facts.get(concept_name)
-            if not isinstance(concept_payload, dict):
-                continue
+    for metric in COMPANYFACTS_CONCEPTS:
+        for namespace, concept_name, concept_priority, concept_payload in _concept_sources(facts, metric):
             units = concept_payload.get("units") or {}
             if not isinstance(units, dict):
                 continue
@@ -282,7 +442,7 @@ def _extract_companyfacts_candidates(companyfacts_file: Path, symbol: EligibleSy
                         start_date=start_date,
                         fp=str(item.get("fp") or "").strip() or None,
                         frame=str(item.get("frame") or "").strip() or None,
-                        source_path=f"{companyfacts_file}#facts.us-gaap.{concept_name}.units.{unit_name}",
+                        source_path=f"{companyfacts_file}#facts.{namespace}.{concept_name}.units.{unit_name}",
                         concept_priority=concept_priority,
                     )
                     key = (candidate.accession_number, candidate.metric, candidate.period_end, candidate.period_type)
@@ -293,6 +453,66 @@ def _extract_companyfacts_candidates(companyfacts_file: Path, symbol: EligibleSy
                         selected[key] = _choose_better_candidate(current, candidate)
 
     return company_name, sorted(selected.values(), key=lambda item: (item.accession_number, item.period_end, item.metric))
+
+
+def _load_companyfacts_company_name(companyfacts_file: Path, symbol: EligibleSymbol) -> str:
+    payload = json.loads(companyfacts_file.read_text(encoding="utf-8"))
+    return str(payload.get("entityName") or symbol.company_name or symbol.symbol).strip()
+
+
+def _extract_companyfacts_fundamental_candidates(
+    companyfacts_file: Path,
+    symbol: EligibleSymbol,
+) -> List[FundamentalCandidate]:
+    payload = json.loads(companyfacts_file.read_text(encoding="utf-8"))
+    facts = payload.get("facts") or {}
+    selected: Dict[Tuple[str, str, str], FundamentalCandidate] = {}
+
+    for concept_priority, (namespace, concept_name) in enumerate(SHARES_OUTSTANDING_CONCEPTS):
+        namespace_payload = facts.get(namespace) or {}
+        if not isinstance(namespace_payload, dict):
+            continue
+        concept_payload = namespace_payload.get(concept_name)
+        if not isinstance(concept_payload, dict):
+            continue
+        units = concept_payload.get("units") or {}
+        if not isinstance(units, dict):
+            continue
+        for unit_name, items in units.items():
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                form = _normalize_form(item.get("form"))
+                if form not in ALLOWED_FORMS:
+                    continue
+                accession_number = str(item.get("accn") or "").strip()
+                filing_date = str(item.get("filed") or "").strip()
+                period_end = str(item.get("end") or "").strip()
+                if not accession_number or not filing_date or not period_end or item.get("val") in (None, ""):
+                    continue
+                candidate = FundamentalCandidate(
+                    symbol=symbol.symbol,
+                    cik=symbol.cik,
+                    metric="sharesOutstanding",
+                    concept_namespace=namespace,
+                    concept=concept_name,
+                    unit=str(unit_name or "").strip() or "UNKNOWN",
+                    form=form,
+                    accession_number=accession_number,
+                    filing_date=filing_date,
+                    period_end=period_end,
+                    value=item.get("val"),
+                    source_path=f"{companyfacts_file}#facts.{namespace}.{concept_name}.units.{unit_name}",
+                    concept_priority=concept_priority,
+                )
+                key = (candidate.metric, candidate.accession_number, candidate.period_end)
+                current = selected.get(key)
+                if current is None or candidate.concept_priority < current.concept_priority:
+                    selected[key] = candidate
+
+    return sorted(selected.values(), key=lambda item: (item.accession_number, item.period_end, item.metric))
 
 
 def _evidence_ref(candidate: FactCandidate) -> str:
@@ -428,15 +648,40 @@ def _insert_statement_rows(
     return written
 
 
+def _insert_fundamental_rows(conn: Any, candidates: List[FundamentalCandidate]) -> int:
+    written = 0
+    for candidate in candidates:
+        inserted = pit_store._insert_fundamental_fact(
+            conn,
+            symbol=candidate.symbol,
+            metric=candidate.metric,
+            value=candidate.value,
+            classification="capital_structure",
+            period_type="instant",
+            period_end=candidate.period_end,
+            published_at=candidate.filing_date,
+            available_at=candidate.filing_date,
+            availability_basis="sec_filing_date",
+            source=SOURCE_TYPE,
+            source_path=candidate.source_path,
+            fetched_at_ms=None,
+        )
+        written += int(inserted)
+    return written
+
+
 def main() -> None:
     args = parse_args()
     companyfacts_dir = Path(args.companyfacts_dir).resolve()
     eligibility_report = Path(args.eligibility_report).resolve()
     all_symbols = _load_eligible_symbols(eligibility_report)
-    selected = _select_symbols(all_symbols, args.symbol, args.offset, args.limit)
+    selected = _select_symbols(all_symbols, args.symbol, args.symbols, args.offset, args.limit)
 
     if args.symbol and not selected:
-        raise SystemExit(f"Symbol not found in eligible universe/report: {args.symbol}")
+        fallback = _load_symbol_from_catalog(args.symbol)
+        if fallback is None:
+            raise SystemExit(f"Symbol not found in eligible universe/report or symbol catalog: {args.symbol}")
+        selected = [fallback]
 
     conn = None
     if not args.dry_run:
@@ -446,6 +691,7 @@ def main() -> None:
     summary_rows: List[Dict[str, Any]] = []
     total_documents = 0
     total_statement_rows = 0
+    total_fundamental_rows = 0
     total_symbols_with_facts = 0
 
     try:
@@ -462,8 +708,13 @@ def main() -> None:
                 )
                 continue
 
-            company_name, candidates = _extract_companyfacts_candidates(companyfacts_file, item)
-            if not candidates:
+            if args.fundamentals_only:
+                company_name = _load_companyfacts_company_name(companyfacts_file, item)
+                candidates = []
+            else:
+                company_name, candidates = _extract_companyfacts_candidates(companyfacts_file, item)
+            fundamental_candidates = _extract_companyfacts_fundamental_candidates(companyfacts_file, item)
+            if not candidates and not fundamental_candidates:
                 summary_rows.append(
                     {
                         "symbol": item.symbol,
@@ -484,13 +735,18 @@ def main() -> None:
             document_rows = 0
             statement_rows = 0
             if conn is not None:
-                document_rows = _insert_document_rows(conn, companyfacts_file, candidates)
-                statement_rows = _insert_statement_rows(conn, candidates)
+                if not args.fundamentals_only:
+                    document_rows = _insert_document_rows(conn, companyfacts_file, candidates)
+                    statement_rows = _insert_statement_rows(conn, candidates)
+                fundamental_rows = _insert_fundamental_rows(conn, fundamental_candidates)
                 conn.commit()
+            else:
+                fundamental_rows = 0
 
             total_symbols_with_facts += 1
             total_documents += len(accession_numbers)
             total_statement_rows += statement_rows
+            total_fundamental_rows += fundamental_rows
             summary_rows.append(
                 {
                     "symbol": item.symbol,
@@ -501,7 +757,11 @@ def main() -> None:
                     "documents_seen": len(accession_numbers),
                     "document_rows_written": document_rows,
                     "statement_rows_written": statement_rows,
+                    "fundamental_rows_written": fundamental_rows,
                     "metric_counts": dict(sorted(metric_counts.items())),
+                    "fundamental_metric_counts": {
+                        "sharesOutstanding": len(fundamental_candidates),
+                    },
                 }
             )
     finally:
@@ -518,7 +778,9 @@ def main() -> None:
                 "symbols_with_facts": total_symbols_with_facts,
                 "documents_seen": total_documents,
                 "statement_rows_written": total_statement_rows,
+                "fundamental_rows_written": total_fundamental_rows,
                 "dry_run": bool(args.dry_run),
+                "fundamentals_only": bool(args.fundamentals_only),
                 "rows": summary_rows,
             },
             indent=2,

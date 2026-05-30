@@ -48,6 +48,26 @@ class FundamentalsServiceRegressionTests(unittest.TestCase):
         self.assertGreater(insider_buying, insider_selling)
         self.assertGreater(strong_market, weak_market)
 
+    def test_forward_expectations_suppresses_extreme_eps_growth_artifacts(self):
+        ctx = fs._build_forward_expectations_context({
+            'growthEstimates': {
+                'currentQtr': '-900.00%',
+                'nextQtr': '--',
+                'currentYear': '131.88%',
+                'nextYear': '400.00%',
+            },
+            'financialHighlights': {
+                'Quarterly Revenue Growth  (yoy)': '35.80%',
+            },
+        })
+
+        self.assertIsNotNone(ctx)
+        self.assertIsNone(ctx['currentQtrGrowthPct'])
+        self.assertEqual(ctx['currentYearGrowthPct'], 131.9)
+        self.assertIsNone(ctx['nextYearGrowthPct'])
+        self.assertEqual(ctx['quarterlyRevenueGrowthPct'], 35.8)
+        self.assertEqual(ctx['outlierNotes'][0]['field'], 'currentQtr')
+
     def test_interpretation_adds_expected_tactical_tags(self):
         snapshot = {
             'cashRunwayQuarters': 10,

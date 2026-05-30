@@ -21,6 +21,11 @@ VALUATION_MEMBERSHIP_TYPES = (
     "valuation_coverage_mode",
 )
 
+CLASSIFICATION_MEMBERSHIP_TYPES = (
+    "company_type",
+    "valuation_engine_class",
+)
+
 VALUATION_METRIC_FIELDS = {
     "valuation_price": "price",
     "valuation_fair_value_low": "fair_value_low",
@@ -64,6 +69,26 @@ def clear_existing_valuation_rows(db_path: Path) -> None:
         conn.commit()
 
 
+def clear_existing_classification_memberships(db_path: Path, symbols: Iterable[str]) -> None:
+    clean_symbols = [normalize_symbol(symbol) for symbol in symbols if normalize_symbol(symbol)]
+    if not clean_symbols:
+        return
+    with sqlite3.connect(db_path) as conn:
+        type_placeholders = ", ".join("?" for _ in CLASSIFICATION_MEMBERSHIP_TYPES)
+        for chunk_start in range(0, len(clean_symbols), 800):
+            chunk = clean_symbols[chunk_start : chunk_start + 800]
+            symbol_placeholders = ", ".join("?" for _ in chunk)
+            conn.execute(
+                f"""
+                DELETE FROM symbol_memberships
+                WHERE membership_type IN ({type_placeholders})
+                  AND symbol IN ({symbol_placeholders})
+                """,
+                tuple(CLASSIFICATION_MEMBERSHIP_TYPES) + tuple(chunk),
+            )
+        conn.commit()
+
+
 def build_membership_rows(rows: Iterable[Dict[str, Any]], as_of: str | None, source: str) -> List[Dict[str, Any]]:
     memberships: List[Dict[str, Any]] = []
     for row in rows:
@@ -73,6 +98,30 @@ def build_membership_rows(rows: Iterable[Dict[str, Any]], as_of: str | None, sou
         valuation_state = str(row.get("valuation_state") or "").strip().lower()
         quality_grade = str(row.get("quality_grade") or "").strip().lower()
         coverage_mode = str(row.get("coverage_mode") or "").strip().lower()
+        company_type = str(row.get("company_type") or "").strip().lower()
+        valuation_engine_class = str(row.get("valuation_engine_class") or "").strip().lower()
+        if company_type:
+            memberships.append(
+                {
+                    "symbol": symbol,
+                    "membership_type": "company_type",
+                    "membership_value": company_type,
+                    "source": source,
+                    "as_of": as_of,
+                    "payload": row,
+                }
+            )
+        if valuation_engine_class:
+            memberships.append(
+                {
+                    "symbol": symbol,
+                    "membership_type": "valuation_engine_class",
+                    "membership_value": valuation_engine_class,
+                    "source": source,
+                    "as_of": as_of,
+                    "payload": row,
+                }
+            )
         if valuation_state:
             memberships.append(
                 {
@@ -142,6 +191,10 @@ def sync_snapshot(payload: Dict[str, Any], *, db_path: Path = SYMBOL_CATALOG_DB_
     db_root = db_path.resolve().parents[2]
     db = SymbolCatalogDb(root=db_root)
     clear_existing_valuation_rows(db_path)
+    clear_existing_classification_memberships(
+        db_path,
+        (normalize_symbol((row or {}).get("symbol")) for row in rows),
+    )
 
     symbol_rows = []
     for row in rows:
@@ -152,6 +205,11 @@ def sync_snapshot(payload: Dict[str, Any], *, db_path: Path = SYMBOL_CATALOG_DB_
             {
                 "symbol": symbol,
                 "asset_class": "stocks",
+                "company_type": row.get("company_type"),
+                "valuation_engine_class": row.get("valuation_engine_class"),
+                "classification_source": source,
+                "classification_confidence": 0.85 if row.get("company_type") and row.get("valuation_engine_class") else None,
+                "last_classified_at": as_of,
                 "source": {"source": source},
             }
         )

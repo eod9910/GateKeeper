@@ -11,10 +11,15 @@ from __future__ import annotations
 import json
 import math
 import sys
+import hashlib
+import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from sec_financial_resolver import resolve_sec_first_financials
+try:
+    from backend.services.sec_financial_resolver import resolve_sec_first_financials
+except ImportError:
+    from sec_financial_resolver import resolve_sec_first_financials
 
 try:
     import yfinance as yf
@@ -88,6 +93,11 @@ def _round(value: Optional[float], digits: int = 2) -> Optional[float]:
     return round(float(value), digits)
 
 
+def _clean_text_compact(value: Any) -> str:
+    text = str(value or "").replace("&#39;", "'").replace("&amp;", "&").strip()
+    return re.sub(r"\s+", " ", text)
+
+
 def _parse_compact_number_text(value: Any) -> Optional[float]:
     if _is_number(value):
         return float(value)
@@ -135,6 +145,15 @@ def _parse_percent_text(value: Any) -> Optional[float]:
     if _is_number(value):
         return _to_pct(value)
     return _parse_compact_number_text(value)
+
+
+def _sanitize_forward_growth_pct(value: Optional[float]) -> Optional[float]:
+    """Ignore EPS-growth artifacts caused by tiny/negative comparison bases."""
+    if value is None:
+        return None
+    if value <= -300.0 or value >= 300.0:
+        return None
+    return value
 
 
 def _normalize_lookup_key(value: Any) -> str:
@@ -887,10 +906,14 @@ def _build_forward_expectations_context(stockdex_data: Dict[str, Any]) -> Option
     if not isinstance(highlights, dict):
         highlights = {}
 
-    current_qtr = _parse_percent_text(growth.get("currentQtr"))
-    next_qtr = _parse_percent_text(growth.get("nextQtr"))
-    current_year = _parse_percent_text(growth.get("currentYear"))
-    next_year = _parse_percent_text(growth.get("nextYear"))
+    raw_current_qtr = _parse_percent_text(growth.get("currentQtr"))
+    raw_next_qtr = _parse_percent_text(growth.get("nextQtr"))
+    raw_current_year = _parse_percent_text(growth.get("currentYear"))
+    raw_next_year = _parse_percent_text(growth.get("nextYear"))
+    current_qtr = _sanitize_forward_growth_pct(raw_current_qtr)
+    next_qtr = _sanitize_forward_growth_pct(raw_next_qtr)
+    current_year = _sanitize_forward_growth_pct(raw_current_year)
+    next_year = _sanitize_forward_growth_pct(raw_next_year)
     quarterly_revenue_growth = _parse_percent_text(_lookup_loose_value(highlights, "quarterly revenue growth"))
     quarterly_earnings_growth = _parse_percent_text(_lookup_loose_value(highlights, "quarterly earnings growth"))
 
@@ -906,6 +929,20 @@ def _build_forward_expectations_context(stockdex_data: Dict[str, Any]) -> Option
     elif negative_reads >= 2 and positive_reads == 0:
         signal = "weak"
 
+    outlier_notes = []
+    for label, raw_value in [
+        ("currentQtr", raw_current_qtr),
+        ("nextQtr", raw_next_qtr),
+        ("currentYear", raw_current_year),
+        ("nextYear", raw_next_year),
+    ]:
+        if raw_value is not None and _sanitize_forward_growth_pct(raw_value) is None:
+            outlier_notes.append({
+                "field": label,
+                "rawGrowthPct": _round(raw_value, 1),
+                "reason": "ignored_extreme_eps_growth_artifact",
+            })
+
     return {
         "score": score,
         "signal": signal,
@@ -916,6 +953,7 @@ def _build_forward_expectations_context(stockdex_data: Dict[str, Any]) -> Option
         "quarterlyRevenueGrowthPct": _round(quarterly_revenue_growth, 1),
         "quarterlyEarningsGrowthPct": _round(quarterly_earnings_growth, 1),
         "raw": growth,
+        "outlierNotes": outlier_notes,
     }
 
 
@@ -1077,6 +1115,110 @@ def _build_ownership_context(snapshot: Dict[str, Any], stockdex_data: Dict[str, 
     }
 
 
+def _build_risk_flags(snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Compute deterministic balance-sheet and fundamental risk flags.
+
+    Each flag is a dict with: code, label, severity ('critical'|'high'|'moderate'),
+    short (one-line), and detail (explanatory sentence).
+    """
+    flags: List[Dict[str, Any]] = []
+    total_debt = snapshot.get("totalDebt")
+    total_cash = snapshot.get("totalCash")
+    market_cap = snapshot.get("marketCap")
+    enterprise_value = snapshot.get("enterpriseValue")
+    current_ratio = snapshot.get("currentRatio")
+    free_cash_flow = snapshot.get("freeCashFlowTTM")
+    revenue_growth = snapshot.get("revenueGrowthPct")
+    revenue_yoy = snapshot.get("revenueYoYGrowthPct")
+    profit_margin = snapshot.get("profitMarginPct")
+    debt_to_equity = snapshot.get("debtToEquity")
+    eps_surprise = snapshot.get("epsSurprisePct")
+
+    net_debt = None
+    if _is_number(total_debt) and _is_number(total_cash):
+        net_debt = total_debt - total_cash
+
+    if _is_number(net_debt) and _is_number(market_cap) and market_cap > 0:
+        net_debt_to_equity_ratio = net_debt / market_cap
+        if net_debt_to_equity_ratio >= 3.0:
+            flags.append({
+                "code": "extreme_leverage",
+                "label": "Extreme leverage",
+                "severity": "critical",
+                "short": f"Net debt is {net_debt_to_equity_ratio:.1f}x equity market cap",
+                "detail": f"Net debt ${net_debt/1e9:.1f}B vs market cap ${market_cap/1e9:.1f}B. "
+                          "Equity is a thin residual — small changes in business value hit the stock hard.",
+            })
+        elif net_debt_to_equity_ratio >= 1.5:
+            flags.append({
+                "code": "high_leverage",
+                "label": "High leverage",
+                "severity": "high",
+                "short": f"Net debt is {net_debt_to_equity_ratio:.1f}x equity market cap",
+                "detail": f"Net debt ${net_debt/1e9:.1f}B vs market cap ${market_cap/1e9:.1f}B. "
+                          "Significant debt load relative to equity value.",
+            })
+
+    if _is_number(enterprise_value) and _is_number(market_cap) and market_cap > 0:
+        ev_to_equity = enterprise_value / market_cap
+        if ev_to_equity >= 4.0:
+            equity_pct = (market_cap / enterprise_value) * 100
+            flags.append({
+                "code": "thin_equity_stub",
+                "label": "Thin equity stub",
+                "severity": "critical",
+                "short": f"Equity is only {equity_pct:.0f}% of enterprise value",
+                "detail": f"EV ${enterprise_value/1e9:.1f}B but equity only ${market_cap/1e9:.1f}B. "
+                          "Most of the business value is spoken for by debt.",
+            })
+
+    if _is_number(current_ratio) and current_ratio < 0.5 and current_ratio >= 0:
+        flags.append({
+            "code": "liquidity_crisis",
+            "label": "Liquidity stress",
+            "severity": "critical" if current_ratio < 0.3 else "high",
+            "short": f"Current ratio {current_ratio:.2f}",
+            "detail": "Current liabilities significantly exceed current assets. "
+                      "May struggle to meet near-term obligations.",
+        })
+
+    growth_val = _first_number(revenue_growth, revenue_yoy)
+    if _is_number(growth_val) and growth_val <= -5:
+        revenue_flag_severity = "high" if growth_val <= -15 else "moderate"
+        flags.append({
+            "code": "revenue_declining",
+            "label": "Revenue declining",
+            "severity": revenue_flag_severity,
+            "short": f"Revenue growth {growth_val:+.1f}%",
+            "detail": "Top-line revenue is contracting. In a levered business, "
+                      "this amplifies equity risk.",
+        })
+
+    if _is_number(eps_surprise) and eps_surprise <= -5:
+        flags.append({
+            "code": "earnings_miss",
+            "label": "Earnings miss",
+            "severity": "high" if eps_surprise <= -10 else "moderate",
+            "short": f"EPS surprise {eps_surprise:+.1f}%",
+            "detail": "Company missed earnings estimates, indicating potential "
+                      "execution or demand weakness.",
+        })
+
+    leverage_present = any(f["code"] in ("extreme_leverage", "high_leverage", "thin_equity_stub") for f in flags)
+    weakness_present = any(f["code"] in ("revenue_declining", "earnings_miss") for f in flags)
+    if leverage_present and weakness_present:
+        flags.append({
+            "code": "leverage_plus_weakness",
+            "label": "Leverage + fundamental weakness",
+            "severity": "critical",
+            "short": "High debt combined with deteriorating fundamentals",
+            "detail": "This company carries heavy leverage AND shows declining revenue or earnings. "
+                      "The combination makes the equity especially fragile.",
+        })
+
+    return flags
+
+
 def _build_interpretation(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     runway_quarters = snapshot.get("cashRunwayQuarters")
     revenue_flag = snapshot.get("revenueTrendFlag")
@@ -1098,7 +1240,15 @@ def _build_interpretation(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     positioning_score = snapshot.get("positioningScore")
     market_context_score = snapshot.get("marketContextScore")
 
+    risk_flags = _build_risk_flags(snapshot)
+
     tags: List[Dict[str, str]] = []
+
+    for rf in risk_flags:
+        if rf["severity"] == "critical":
+            tags.insert(0, _tag(rf["label"], "danger"))
+        elif rf["severity"] == "high":
+            tags.append(_tag(rf["label"], "danger"))
 
     if runway_quarters is not None and runway_quarters >= 8:
         tags.append(_tag("Strong runway", "positive"))
@@ -1226,14 +1376,20 @@ def _build_interpretation(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     status_tags = [tag["label"] for tag in tags[:3]]
     status_note = " | ".join(status_tags) if status_tags else "Loaded"
 
+    risk_note = status_note
+    if risk_flags:
+        worst = risk_flags[0]
+        risk_note = worst["short"]
+
     return {
         "quality": quality,
         "holdContext": hold_context,
         "tacticalGrade": tactical_grade,
         "tacticalScore": _round(tactical_score, 1),
         "statusNote": status_note,
-        "riskNote": status_note,
+        "riskNote": risk_note,
         "tags": tags,
+        "riskFlags": risk_flags,
     }
 
 
@@ -1743,20 +1899,44 @@ def _stocktwits_social_buzz(symbol: str) -> Dict[str, Any]:
         mood = "No Data"
 
     recent_messages = []
+    raw_posts = []
     for msg in messages[:recent_limit]:
         s = (msg.get("entities") or {}).get("sentiment", {})
         basic = s.get("basic") if isinstance(s, dict) else None
-        body = msg.get("body", "")
-        if "&#39;" in body:
-            body = body.replace("&#39;", "'")
-        if "&amp;" in body:
-            body = body.replace("&amp;", "&")
+        body = _clean_text_compact(msg.get("body", ""))
         recent_messages.append({
             "body": body[:280],
             "sentiment": basic,
             "created_at": msg.get("created_at"),
             "user": (msg.get("user") or {}).get("username"),
             "source": "StockTwits",
+        })
+    for msg in messages:
+        s = (msg.get("entities") or {}).get("sentiment", {})
+        basic = s.get("basic") if isinstance(s, dict) else None
+        user = msg.get("user") or {}
+        likes = ((msg.get("likes") or {}).get("total")) if isinstance(msg.get("likes"), dict) else None
+        raw_posts.append({
+            "symbol": symbol.upper(),
+            "platform": "StockTwits",
+            "platform_post_id": str(msg.get("id") or "").strip(),
+            "platform_thread_id": str((msg.get("conversation") or {}).get("parent_message_id") or "") or None,
+            "author_id": str(user.get("id") or "").strip() or None,
+            "author_handle": user.get("username"),
+            "posted_at": msg.get("created_at"),
+            "fetched_at": datetime.utcnow().isoformat() + "Z",
+            "body_text": _clean_text_compact(msg.get("body", "")),
+            "url": msg.get("url"),
+            "language": msg.get("language"),
+            "like_count": likes,
+            "reply_count": (msg.get("conversation") or {}).get("replies"),
+            "repost_count": None,
+            "view_count": None,
+            "engagement_score": float(likes or 0) + float(((msg.get("conversation") or {}).get("replies")) or 0),
+            "is_reply": bool((msg.get("conversation") or {}).get("parent_message_id")),
+            "is_repost": False,
+            "sentiment_label": str(basic or "").lower() or None,
+            "payload": msg,
         })
 
     newest_message_at = messages[0].get("created_at") if messages else None
@@ -1781,8 +1961,9 @@ def _stocktwits_social_buzz(symbol: str) -> Dict[str, Any]:
         "mood": mood,
         "newest_message_at": newest_message_at,
         "oldest_message_at": oldest_message_at,
-        "recent_messages": recent_messages,
-    }
+          "recent_messages": recent_messages,
+          "raw_posts": raw_posts,
+      }
 
 
 def _yahoo_community_buzz(symbol: str) -> Dict[str, Any]:
@@ -1885,27 +2066,51 @@ def _yahoo_community_buzz(symbol: str) -> Dict[str, Any]:
             return " ".join(parts).strip()
 
         recent_messages = []
+        raw_posts = []
         newest_message_at = None
         oldest_message_at = None
-        for comment in comments[:recent_limit]:
+        for comment in comments:
             written_at = comment.get("written_at") or comment.get("time")
             created_at = None
             if isinstance(written_at, (int, float)):
                 created_at = datetime.utcfromtimestamp(int(written_at)).isoformat() + "Z"
-            body = comment_text(comment)
+            body = _clean_text_compact(comment_text(comment))
             if not body:
                 continue
-            if newest_message_at is None:
-                newest_message_at = created_at
-            oldest_message_at = created_at
-            recent_messages.append({
-                "body": body[:280],
-                "sentiment": None,
-                "created_at": created_at,
-                "user": comment.get("user_display_name") or "Yahoo User",
-                "source": "Yahoo Finance",
-                "replies_count": comment.get("replies_count"),
-                "stars": comment.get("stars"),
+            if len(recent_messages) < recent_limit:
+                if newest_message_at is None:
+                    newest_message_at = created_at
+                oldest_message_at = created_at
+                recent_messages.append({
+                    "body": body[:280],
+                    "sentiment": None,
+                    "created_at": created_at,
+                    "user": comment.get("user_display_name") or "Yahoo User",
+                    "source": "Yahoo Finance",
+                    "replies_count": comment.get("replies_count"),
+                    "stars": comment.get("stars"),
+                })
+            raw_posts.append({
+                "symbol": symbol,
+                "platform": "Yahoo Finance",
+                "platform_post_id": str(comment.get("id") or "").strip(),
+                "platform_thread_id": str(comment.get("root_id") or comment.get("parent_id") or comment.get("id") or "").strip() or None,
+                "author_id": str(comment.get("user_id") or "").strip() or None,
+                "author_handle": comment.get("user_display_name") or "Yahoo User",
+                "posted_at": created_at,
+                "fetched_at": datetime.utcnow().isoformat() + "Z",
+                "body_text": body,
+                "url": None,
+                "language": None,
+                "like_count": comment.get("stars"),
+                "reply_count": comment.get("replies_count"),
+                "repost_count": None,
+                "view_count": None,
+                "engagement_score": float(comment.get("stars") or 0) + float(comment.get("replies_count") or 0),
+                "is_reply": bool(comment.get("parent_id")),
+                "is_repost": False,
+                "sentiment_label": None,
+                "payload": comment,
             })
 
         return {
@@ -1916,9 +2121,10 @@ def _yahoo_community_buzz(symbol: str) -> Dict[str, Any]:
             "pages_fetched": pages_fetched,
             "message_count": len(recent_messages),
             "sampled_message_count": len(comments),
-            "recent_messages": recent_messages,
-            "newest_message_at": newest_message_at,
-            "oldest_message_at": oldest_message_at,
+              "recent_messages": recent_messages,
+              "raw_posts": raw_posts,
+              "newest_message_at": newest_message_at,
+              "oldest_message_at": oldest_message_at,
             "total_comments": total_comments,
             "total_replies": total_replies,
             "mood": "Community Active" if recent_messages else "No Data",
@@ -2001,6 +2207,107 @@ def get_social_buzz(symbol: str) -> Dict[str, Any]:
     }
 
 
+def build_social_intelligence_payload(symbol: str) -> Dict[str, Any]:
+    buzz = get_social_buzz(symbol)
+    source_breakdown = buzz.get("source_breakdown") or {}
+    raw_posts: List[Dict[str, Any]] = []
+    for source_payload in source_breakdown.values():
+        for post in source_payload.get("raw_posts") or []:
+            platform_post_id = str(post.get("platform_post_id") or "").strip()
+            posted_at = str(post.get("posted_at") or "").strip()
+            platform = str(post.get("platform") or "").strip()
+            if not platform_post_id or not posted_at or not platform:
+                continue
+            raw_posts.append(dict(post))
+
+    clean_posts: List[Dict[str, Any]] = []
+    post_sentiment: List[Dict[str, Any]] = []
+    for post in raw_posts:
+        body_text = _clean_text_compact(post.get("body_text"))
+        symbol_upper = str(post.get("symbol") or symbol).strip().upper()
+        platform = str(post.get("platform") or "").strip()
+        platform_post_id = str(post.get("platform_post_id") or "").strip()
+        posted_at = str(post.get("posted_at") or "").strip()
+        trade_date = posted_at[:10] if posted_at else None
+        if not trade_date:
+            continue
+        author_key = str(post.get("author_id") or post.get("author_handle") or "").strip().lower() or None
+        normalized_text = body_text.lower()
+        duplicate_group_key = hashlib.md5(normalized_text.encode("utf-8")).hexdigest() if normalized_text else None
+        canonical_post_key = f"{platform.lower()}:{platform_post_id}"
+        clean_posts.append({
+            "platform_post_id": platform_post_id,
+            "symbol": symbol_upper,
+            "platform": platform,
+            "canonical_post_key": canonical_post_key,
+            "canonical_author_key": author_key,
+            "trade_date": trade_date,
+            "posted_at": posted_at,
+            "cleaned_text": body_text,
+            "token_count": len(body_text.split()) if body_text else 0,
+            "has_ticker_mention": f"${symbol_upper.lower()}" in normalized_text or symbol_upper.lower() in normalized_text,
+            "is_spam": False,
+            "spam_score": 0.0,
+            "duplicate_group_key": duplicate_group_key,
+            "payload": {
+                "platform_post_id": platform_post_id,
+                "platform_thread_id": post.get("platform_thread_id"),
+            },
+        })
+
+        sentiment_label = str(post.get("sentiment_label") or "").strip().lower() or None
+        sentiment_score = None
+        sentiment_confidence = None
+        if sentiment_label == "bullish":
+            sentiment_score = 1.0
+            sentiment_confidence = 1.0
+        elif sentiment_label == "bearish":
+            sentiment_score = -1.0
+            sentiment_confidence = 1.0
+        else:
+            bullish_terms = ("bull", "buy", "long", "breakout", "squeeze", "beat", "strong")
+            bearish_terms = ("bear", "sell", "short", "dump", "miss", "weak", "fraud")
+            bullish_hits = sum(1 for term in bullish_terms if term in normalized_text)
+            bearish_hits = sum(1 for term in bearish_terms if term in normalized_text)
+            if bullish_hits > bearish_hits and bullish_hits > 0:
+                sentiment_label = "bullish"
+                sentiment_score = min(1.0, 0.25 + bullish_hits * 0.15)
+                sentiment_confidence = min(0.75, 0.25 + bullish_hits * 0.1)
+            elif bearish_hits > bullish_hits and bearish_hits > 0:
+                sentiment_label = "bearish"
+                sentiment_score = max(-1.0, -0.25 - bearish_hits * 0.15)
+                sentiment_confidence = min(0.75, 0.25 + bearish_hits * 0.1)
+            else:
+                sentiment_label = "neutral"
+                sentiment_score = 0.0
+                sentiment_confidence = 0.2
+
+        post_sentiment.append({
+            "platform_post_id": platform_post_id,
+            "symbol": symbol_upper,
+            "platform": platform,
+            "trade_date": trade_date,
+            "sentiment_label": sentiment_label,
+            "sentiment_score": sentiment_score,
+            "sentiment_confidence": sentiment_confidence,
+            "sentiment_model": "source_or_keyword_v1",
+            "topic_label": None,
+            "hype_score": 1.0 if "squeeze" in normalized_text or "moon" in normalized_text else 0.0,
+            "fear_score": 1.0 if "panic" in normalized_text or "dump" in normalized_text else 0.0,
+            "payload": {
+                "platform_post_id": platform_post_id,
+            },
+        })
+
+    return {
+        "symbol": str(symbol or "").strip().upper(),
+        "buzz": buzz,
+        "raw_posts": raw_posts,
+        "clean_posts": clean_posts,
+        "post_sentiment": post_sentiment,
+    }
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No symbol provided"}))
@@ -2015,6 +2322,16 @@ if __name__ == "__main__":
             sys.exit(1)
         try:
             print(json.dumps(get_social_buzz(symbol)))
+        except Exception as exc:
+            print(json.dumps({"error": str(exc)}))
+            sys.exit(1)
+    elif cmd == "--social-intel" and len(sys.argv) >= 3:
+        symbol = str(sys.argv[2] or "").strip().upper()
+        if not symbol:
+            print(json.dumps({"error": "No symbol provided"}))
+            sys.exit(1)
+        try:
+            print(json.dumps(build_social_intelligence_payload(symbol)))
         except Exception as exc:
             print(json.dumps({"error": str(exc)}))
             sys.exit(1)

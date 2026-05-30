@@ -15,6 +15,7 @@ This is the production-oriented counterpart to the valuation-gap research script
 
 import argparse
 import json
+import re
 import sqlite3
 import sys
 from collections import Counter
@@ -29,6 +30,7 @@ BACKEND_DIR = ROOT / "backend"
 DATA_DIR = BACKEND_DIR / "data"
 DEFAULT_DB_PATH = DATA_DIR / "fundamentals-pit.sqlite"
 DEFAULT_OUTPUT_PATH = DATA_DIR / "research" / "valuation_universe_snapshot.json"
+REIT_SUPPLEMENTAL_DB_PATH = DATA_DIR / "reit-supplementals" / "reit-supplementals.sqlite"
 SERVICES_DIR = BACKEND_DIR / "services"
 SCRIPTS_DIR = BACKEND_DIR / "scripts"
 
@@ -42,6 +44,7 @@ import run_valuation_gap_accuracy_study as study  # noqa: E402
 import sync_valuation_snapshot_to_symbol_catalog as valuation_snapshot_sync  # noqa: E402
 
 CATALOG_DB = SymbolCatalogDb(root=ROOT)
+_REIT_FACT_CACHE: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
 
 VALUATION_FACT_KEYS = tuple(
     list(study.DCF_FACT_KEYS)
@@ -52,6 +55,21 @@ VALUATION_FACT_KEYS = tuple(
         "common_stock_equity",
         "total_equity",
         "stockholders_equity_including_noncontrolling_interest",
+        "depreciation_and_amortization",
+        "depreciation",
+        "amortization",
+        "real_estate_depreciation_and_amortization",
+        "gain_on_sale_of_real_estate",
+        "gain_loss_on_sale_of_real_estate",
+        "gains_on_property_sales",
+        "property_noi",
+        "net_operating_income",
+        "same_store_noi",
+        "interest_expense",
+        "dividends_paid",
+        "preferred_equity",
+        "total_debt",
+        "cash_and_cash_equivalents",
     ]
 )
 
@@ -82,6 +100,12 @@ class ValuationSnapshotRow:
     coverage_mode: str
     company_type: Optional[str]
     valuation_engine_class: str
+    # DCF assumptions (base-case, populated for dcf_operating engine only)
+    dcf_revenue_growth_pct: Optional[float] = None
+    dcf_target_fcf_margin_pct: Optional[float] = None
+    dcf_discount_rate_pct: Optional[float] = None
+    dcf_terminal_growth_pct: Optional[float] = None
+    dcf_forecast_years: Optional[int] = None
 
 
 def _scale_multiplier(scale: Any) -> float:
@@ -349,6 +373,11 @@ def _build_current_standardized_dcf(
         "quality_grade": quality_grade,
         "quality_score": quality_score,
         "coverage_mode": coverage_mode,
+        "dcf_revenue_growth_pct": base_near_term_growth_pct,
+        "dcf_target_fcf_margin_pct": base_target_fcf_margin_pct,
+        "dcf_discount_rate_pct": discount_rate_pct,
+        "dcf_terminal_growth_pct": terminal_growth_pct,
+        "dcf_forecast_years": forecast_years,
     }
 
 
@@ -456,17 +485,521 @@ def _build_financial_company_valuation(
     }
 
 
+def _first_metric(metrics: Dict[str, Any], keys: Iterable[str]) -> Optional[float]:
+    return _first_finite(metrics.get(key) for key in keys)
+
+
+def _prefer_consistent_statement_value(statement_value: Any, snapshot_value: Any) -> Optional[float]:
+    statement_num = study._safe_float(statement_value)
+    snapshot_num = study._safe_float(snapshot_value)
+    if statement_num is not None and snapshot_num not in (None, 0):
+        ratio = statement_num / snapshot_num
+        if ratio > 5.0 or ratio < 0.2:
+            return snapshot_num
+    if statement_num is not None:
+        return statement_num
+    return snapshot_num
+
+
+def _resolve_reit_property_type(snapshot: Dict[str, Any]) -> str:
+    text = " ".join(
+        str(snapshot.get(key) or "")
+        for key in ("industry", "sector", "companyName", "businessDescription")
+    ).lower()
+    if "data center" in text:
+        return "data_center"
+    if "industrial" in text or "logistics" in text or "warehouse" in text:
+        return "industrial"
+    if "net lease" in text or "triple net" in text:
+        return "net_lease"
+    if "self-storage" in text or "self storage" in text:
+        return "self_storage"
+    if "apartment" in text or "residential" in text or "multifamily" in text:
+        return "residential"
+    if "healthcare" in text or "medical" in text or "senior" in text:
+        return "healthcare"
+    if "mall" in text or "shopping center" in text or "retail" in text:
+        return "retail"
+    if "office" in text:
+        return "office"
+    if "hotel" in text or "lodging" in text:
+        return "lodging"
+    return "diversified"
+
+
+def _reit_multiple_band(property_type: str) -> Tuple[float, float, float]:
+    bands = {
+        "data_center": (17.0, 21.0, 25.0),
+        "industrial": (16.0, 20.0, 24.0),
+        "self_storage": (15.0, 18.0, 22.0),
+        "residential": (13.0, 16.0, 20.0),
+        "net_lease": (12.0, 15.0, 18.0),
+        "healthcare": (11.0, 14.0, 17.0),
+        "retail": (10.0, 13.0, 16.0),
+        "office": (7.0, 10.0, 13.0),
+        "lodging": (8.0, 11.0, 14.0),
+        "diversified": (11.0, 15.0, 19.0),
+    }
+    return bands.get(property_type, bands["diversified"])
+
+
+def _reit_cap_rate_default(property_type: str) -> float:
+    defaults = {
+        "data_center": 5.75,
+        "industrial": 5.5,
+        "self_storage": 5.75,
+        "residential": 5.25,
+        "net_lease": 6.25,
+        "healthcare": 6.75,
+        "retail": 7.0,
+        "office": 8.25,
+        "lodging": 8.5,
+        "diversified": 6.75,
+    }
+    return defaults.get(property_type, defaults["diversified"])
+
+
+def _reit_quality_label(score: float) -> Tuple[str, int]:
+    bounded = int(study._clamp(score, 20, 92))
+    grade = "high" if bounded >= 75 else "good" if bounded >= 60 else "mixed" if bounded >= 45 else "weak"
+    return grade, bounded
+
+
+def _load_reit_normalized_facts(symbol: str) -> Dict[str, List[Dict[str, Any]]]:
+    normalized_symbol = _normalize_symbol(symbol)
+    if normalized_symbol in _REIT_FACT_CACHE:
+        return _REIT_FACT_CACHE[normalized_symbol]
+    facts: Dict[str, List[Dict[str, Any]]] = {}
+    if not REIT_SUPPLEMENTAL_DB_PATH.exists():
+        _REIT_FACT_CACHE[normalized_symbol] = facts
+        return facts
+    try:
+        conn = sqlite3.connect(REIT_SUPPLEMENTAL_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT
+                metric_name,
+                metric_value_num,
+                metric_value_text,
+                period_hint,
+                confidence,
+                evidence_text,
+                source_url,
+                extraction_method,
+                document_id,
+                id
+            FROM reit_normalized_facts
+            WHERE symbol = ?
+              AND metric_value_num IS NOT NULL
+              AND confidence IN ('high', 'medium_high')
+            ORDER BY document_id DESC, id DESC
+            """,
+            (normalized_symbol,),
+        ).fetchall()
+        candidate_rows = conn.execute(
+            """
+            SELECT
+                metric_name,
+                metric_value_num,
+                metric_value_text,
+                period_hint,
+                confidence,
+                evidence_text,
+                source_url,
+                'candidate_extractor' AS extraction_method,
+                document_id,
+                id
+            FROM reit_metric_candidates
+            WHERE symbol = ?
+              AND metric_value_num IS NOT NULL
+              AND metric_name IN (
+                'affo_per_share',
+                'ffo_per_share',
+                'core_ffo_per_share',
+                'net_debt_to_ebitda',
+                'fixed_charge_coverage',
+                'dividend_per_share',
+                'affo_payout_ratio_pct',
+                'occupancy_pct',
+                'same_store_noi_growth_pct'
+              )
+            ORDER BY document_id DESC, id DESC
+            """,
+            (normalized_symbol,),
+        ).fetchall()
+        conn.close()
+    except Exception:
+        _REIT_FACT_CACHE[normalized_symbol] = facts
+        return facts
+    for row in list(rows) + list(candidate_rows):
+        metric_name = str(row["metric_name"] or "").strip()
+        if not metric_name:
+            continue
+        facts.setdefault(metric_name, []).append(dict(row))
+    _REIT_FACT_CACHE[normalized_symbol] = facts
+    return facts
+
+
+def _reit_fact_value(
+    facts: Dict[str, List[Dict[str, Any]]],
+    metric_name: str,
+    *,
+    period_hint: Optional[str] = None,
+) -> Optional[float]:
+    candidates = facts.get(metric_name) or []
+    if period_hint:
+        needle = period_hint.lower()
+        candidates = [
+            row for row in candidates
+            if needle in str(row.get("period_hint") or "").lower()
+        ]
+    for row in candidates:
+        value = study._safe_float(row.get("metric_value_num"))
+        if value is not None and metric_name.endswith("_per_share"):
+            evidence = str(row.get("evidence_text") or "")
+            raw_value = str(row.get("metric_value_text") or "").strip()
+            escaped_raw = re.escape(raw_value) if raw_value else ""
+            if value <= 0 or value > 100:
+                continue
+            if 1900 <= value <= 2100 and float(value).is_integer():
+                continue
+            if raw_value and "." not in raw_value and not re.search(rf"\$\s*{escaped_raw}\b", evidence):
+                continue
+            if escaped_raw and re.search(rf"{escaped_raw}\s*%", evidence):
+                continue
+        if value is not None:
+            return value
+    return None
+
+
+def _reit_annualized_per_share_fact(
+    facts: Dict[str, List[Dict[str, Any]]],
+    metric_names: Sequence[str],
+    *,
+    current_price: float,
+) -> Optional[float]:
+    for metric_name in metric_names:
+        candidates = facts.get(metric_name) or []
+        for row in candidates:
+            value = study._safe_float(row.get("metric_value_num"))
+            if value is None:
+                continue
+            evidence = str(row.get("evidence_text") or "")
+            raw_value = str(row.get("metric_value_text") or "").strip()
+            escaped_raw = re.escape(raw_value) if raw_value else ""
+            if value <= 0 or value > 100:
+                continue
+            if 1900 <= value <= 2100 and float(value).is_integer():
+                continue
+            if raw_value and "." not in raw_value and not re.search(rf"\$\s*{escaped_raw}\b", evidence):
+                continue
+            if escaped_raw and re.search(rf"{escaped_raw}\s*%", evidence):
+                continue
+            period_hint = str(row.get("period_hint") or "").lower()
+            evidence_lower = evidence.lower()
+            full_yearish = (
+                "full_year" in period_hint
+                or "full year" in evidence_lower
+                or "fy " in evidence_lower
+                or "guidance" in evidence_lower
+                or "year ended" in evidence_lower
+            )
+            quarterish = (
+                "quarter" in period_hint
+                or "quarter" in evidence_lower
+                or "three months" in evidence_lower
+                or re.search(r"\b[1-4]q\d{2,4}\b", evidence_lower) is not None
+                or re.search(r"\bq[1-4]\s*\d{2,4}\b", evidence_lower) is not None
+            )
+            if quarterish and not full_yearish and value < 2.0:
+                annualized_value = value * 4.0
+            else:
+                annualized_value = value
+            if current_price > 0 and annualized_value > current_price * 0.5:
+                continue
+            return annualized_value
+    return None
+
+
 def _build_reit_proxy_valuation(
     snapshot: Dict[str, Any],
     latest_annual: Dict[str, Any],
     prior_annual: Optional[Dict[str, Any]],
     current_price: float,
+    reit_facts: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> Optional[Dict[str, Any]]:
-    result = _build_current_standardized_dcf(snapshot, latest_annual, prior_annual, current_price)
-    if not result:
+    metrics = latest_annual.get("metrics") or {}
+    prior_metrics = (prior_annual or {}).get("metrics") or {}
+    facts = reit_facts or {}
+    property_type = _resolve_reit_property_type(snapshot)
+
+    market_cap = study._safe_float(snapshot.get("marketCap"))
+    shares_outstanding = _first_finite([
+        snapshot.get("sharesOutstanding"),
+        (market_cap / current_price) if market_cap is not None and current_price > 0 else None,
+    ])
+
+    annual_revenue = _prefer_consistent_statement_value(metrics.get("revenue"), snapshot.get("annualRevenue"))
+    prior_revenue = _first_finite([prior_metrics.get("revenue")])
+    revenue_growth_pct = _first_finite([snapshot.get("revenueGrowthPct"), snapshot.get("revenueYoYGrowthPct")])
+    if revenue_growth_pct is None and annual_revenue not in (None, 0) and prior_revenue not in (None, 0):
+        revenue_growth_pct = ((annual_revenue / prior_revenue) - 1.0) * 100.0
+
+    operating_income = study._safe_float(metrics.get("operating_income"))
+    operating_margin_pct = (
+        (operating_income / annual_revenue) * 100.0
+        if operating_income is not None and annual_revenue not in (None, 0)
+        else study._safe_float(snapshot.get("operatingMarginPct"))
+    )
+
+    net_income = study._safe_float(metrics.get("net_income"))
+    operating_cash_flow = _prefer_consistent_statement_value(metrics.get("operating_cash_flow"), snapshot.get("operatingCashFlowTTM"))
+
+    depreciation_and_amortization = _first_metric(metrics, [
+        "real_estate_depreciation_and_amortization",
+        "depreciation_and_amortization",
+        "depreciation",
+        "amortization",
+    ])
+    gains_on_sale = _first_metric(metrics, [
+        "gain_on_sale_of_real_estate",
+        "gain_loss_on_sale_of_real_estate",
+        "gains_on_property_sales",
+    ])
+    nareit_ffo_estimate = (
+        net_income + depreciation_and_amortization - (gains_on_sale or 0.0)
+        if net_income is not None and depreciation_and_amortization is not None
+        else None
+    )
+    quarterly_affo_per_share = _reit_fact_value(facts, "affo_per_share", period_hint="quarter")
+    annual_affo_per_share = _reit_fact_value(facts, "affo_per_share", period_hint="full_year")
+    guidance_low = _reit_fact_value(facts, "affo_guidance_low")
+    guidance_high = _reit_fact_value(facts, "affo_guidance_high")
+    guidance_mid = (
+        (guidance_low + guidance_high) / 2.0
+        if guidance_low is not None and guidance_high is not None and guidance_high >= guidance_low
+        else None
+    )
+    docling_affo_per_share = _first_finite([
+        guidance_mid,
+        annual_affo_per_share,
+        (quarterly_affo_per_share * 4.0) if quarterly_affo_per_share is not None else None,
+    ])
+
+    reported_cash_metric_per_share = _first_finite([
+        docling_affo_per_share,
+        snapshot.get("affoPerShare"),
+        snapshot.get("ffoPerShare"),
+        _reit_annualized_per_share_fact(
+            facts,
+            ("affo_per_share", "core_ffo_per_share", "ffo_per_share"),
+            current_price=current_price,
+        ),
+    ])
+    reported_cash_metric = _first_finite([
+        (reported_cash_metric_per_share * shares_outstanding)
+        if reported_cash_metric_per_share is not None and shares_outstanding not in (None, 0)
+        else None,
+        snapshot.get("affo"),
+        snapshot.get("fundsFromOperations"),
+        snapshot.get("ffo"),
+    ])
+    cash_metric_source = "docling_reported_affo" if docling_affo_per_share is not None else "reported_affo_or_ffo" if reported_cash_metric is not None or reported_cash_metric_per_share is not None else None
+    if cash_metric_source is None and nareit_ffo_estimate is not None:
+        cash_metric_source = "nareit_ffo_estimate"
+    if cash_metric_source is None and operating_cash_flow is not None:
+        cash_metric_source = "operating_cash_flow_proxy"
+    if cash_metric_source is None and net_income is not None:
+        cash_metric_source = "net_income_proxy"
+
+    affo_proxy = _first_finite([
+        reported_cash_metric,
+        nareit_ffo_estimate,
+        operating_cash_flow,
+        net_income,
+    ])
+    affo_per_share = _first_finite([
+        reported_cash_metric_per_share,
+        (affo_proxy / shares_outstanding)
+        if affo_proxy is not None and shares_outstanding not in (None, 0) and shares_outstanding > 0
+        else None,
+    ])
+    if affo_per_share is None or affo_per_share <= 0:
         return None
-    result["coverage_mode"] = "reit_cashflow_proxy" if result.get("coverage_mode") == "pit_statement_backed" else "reit_cashflow_proxy_with_snapshot_fallback"
-    return result
+    if affo_proxy is None and shares_outstanding not in (None, 0) and shares_outstanding > 0:
+        affo_proxy = affo_per_share * shares_outstanding
+
+    debt_to_equity = study._safe_float(snapshot.get("debtToEquity"))
+    total_debt = _first_finite([snapshot.get("totalDebt"), metrics.get("total_debt")])
+    total_cash = _first_finite([snapshot.get("totalCash"), metrics.get("cash_and_cash_equivalents")])
+    preferred_equity = _first_finite([snapshot.get("preferredEquity"), metrics.get("preferred_equity")]) or 0.0
+    interest_expense = _first_metric(metrics, ["interest_expense"])
+    property_noi = _first_finite([
+        snapshot.get("propertyNOI"),
+        snapshot.get("netOperatingIncome"),
+        _first_metric(metrics, ["property_noi", "net_operating_income", "same_store_noi"]),
+    ])
+    cap_rate_pct = _first_finite([
+        snapshot.get("capRatePct"),
+        snapshot.get("impliedCapRatePct"),
+        _reit_cap_rate_default(property_type),
+    ])
+    monthly_dividend_per_share = _reit_fact_value(facts, "monthly_dividend_per_share")
+    dividend_per_share = _first_finite([
+        _reit_fact_value(facts, "annual_dividend_per_share"),
+        (monthly_dividend_per_share * 12.0) if monthly_dividend_per_share is not None else None,
+        snapshot.get("dividendRate"),
+        snapshot.get("annualDividendRate"),
+        snapshot.get("dividendPerShare"),
+    ])
+    dividend_coverage = (
+        affo_per_share / dividend_per_share
+        if dividend_per_share not in (None, 0) and affo_per_share is not None
+        else None
+    )
+    fixed_charge_coverage = _first_finite([
+        _reit_fact_value(facts, "fixed_charge_coverage"),
+        (
+        (property_noi + abs(interest_expense)) / abs(interest_expense)
+        if property_noi is not None and interest_expense not in (None, 0)
+        else None
+        ),
+    ])
+    current_ratio = study._safe_float(snapshot.get("currentRatio"))
+    affo_margin_pct = (
+        (affo_proxy / annual_revenue) * 100.0
+        if affo_proxy is not None and annual_revenue not in (None, 0)
+        else None
+    )
+
+    band_low, band_mid, band_high = _reit_multiple_band(property_type)
+    growth_component = study._clamp((revenue_growth_pct or 2.5) / 5.0, -2.0, 3.0)
+    margin_component = (
+        1.0 if affo_margin_pct is not None and affo_margin_pct >= 40.0
+        else 0.5 if affo_margin_pct is not None and affo_margin_pct >= 25.0
+        else -0.75 if affo_margin_pct is not None and affo_margin_pct < 15.0
+        else 0.0
+    )
+    leverage_component = (
+        -1.5 if debt_to_equity is not None and debt_to_equity >= 100.0
+        else -0.75 if debt_to_equity is not None and debt_to_equity >= 75.0
+        else 0.25 if debt_to_equity is not None and debt_to_equity <= 45.0
+        else 0.0
+    )
+    dividend_component = (
+        -1.0 if dividend_coverage is not None and dividend_coverage < 1.05
+        else 0.5 if dividend_coverage is not None and dividend_coverage >= 1.25
+        else 0.0
+    )
+    base_affo_multiple = study._clamp(
+        band_mid + growth_component + margin_component + leverage_component + dividend_component,
+        band_low,
+        band_high,
+    )
+
+    scenarios = [
+        {
+            "name": "bear",
+            "growth_pct": study._clamp((revenue_growth_pct or 2.5) - 2.0, -3.0, 8.0),
+            "multiple": study._clamp(base_affo_multiple - 2.5, max(6.0, band_low - 2.0), band_high),
+        },
+        {
+            "name": "base",
+            "growth_pct": study._clamp(revenue_growth_pct or 2.5, -2.0, 10.0),
+            "multiple": base_affo_multiple,
+        },
+        {
+            "name": "bull",
+            "growth_pct": study._clamp((revenue_growth_pct or 2.5) + 2.0, 0.0, 12.0),
+            "multiple": study._clamp(base_affo_multiple + 2.5, band_low, band_high + 2.0),
+        },
+    ]
+
+    affo_values: Dict[str, float] = {}
+    for scenario in scenarios:
+        normalized_affo_per_share = affo_per_share * (1.0 + scenario["growth_pct"] / 100.0)
+        affo_values[scenario["name"]] = normalized_affo_per_share * scenario["multiple"]
+
+    nav_value_per_share = None
+    if (
+        property_noi is not None and property_noi > 0
+        and cap_rate_pct is not None and cap_rate_pct > 0
+        and shares_outstanding not in (None, 0) and shares_outstanding > 0
+    ):
+        gross_asset_value = property_noi / (cap_rate_pct / 100.0)
+        net_asset_value = gross_asset_value - (total_debt or 0.0) + (total_cash or 0.0) - preferred_equity
+        if net_asset_value > 0:
+            nav_value_per_share = net_asset_value / shares_outstanding
+
+    fair_values: Dict[str, float] = {}
+    for name, affo_value in affo_values.items():
+        if nav_value_per_share is not None:
+            nav_adjustment = {"bear": 0.9, "base": 1.0, "bull": 1.1}[name]
+            nav_scenario_value = nav_value_per_share * nav_adjustment
+            nav_weight = 0.35 if cash_metric_source in ("reported_affo_or_ffo", "nareit_ffo_estimate") else 0.2
+            fair_values[name] = affo_value * (1.0 - nav_weight) + nav_scenario_value * nav_weight
+        else:
+            fair_values[name] = affo_value
+
+    fair_value_mid = fair_values["base"]
+    if not fair_value_mid or fair_value_mid <= 0:
+        return None
+
+    valuation_gap_pct = ((fair_value_mid - current_price) / current_price) * 100.0 if current_price > 0 else 0.0
+    quality_score = 70 if cash_metric_source == "docling_reported_affo" else 62 if cash_metric_source == "reported_affo_or_ffo" else 56 if cash_metric_source == "nareit_ffo_estimate" else 48 if cash_metric_source == "operating_cash_flow_proxy" else 38
+    if affo_margin_pct is not None and affo_margin_pct >= 35.0:
+        quality_score += 12
+    elif affo_margin_pct is not None and affo_margin_pct >= 20.0:
+        quality_score += 6
+    elif affo_margin_pct is not None and affo_margin_pct < 10.0:
+        quality_score -= 10
+    if revenue_growth_pct is not None and revenue_growth_pct >= 10.0:
+        quality_score += 8
+    elif revenue_growth_pct is not None and revenue_growth_pct < 0.0:
+        quality_score -= 8
+    if debt_to_equity is not None and debt_to_equity >= 100.0:
+        quality_score -= 12
+    elif debt_to_equity is not None and debt_to_equity <= 60.0:
+        quality_score += 5
+    if dividend_coverage is not None and dividend_coverage < 1.0:
+        quality_score -= 12
+    elif dividend_coverage is not None and dividend_coverage >= 1.25:
+        quality_score += 6
+    if fixed_charge_coverage is not None and fixed_charge_coverage < 1.5:
+        quality_score -= 10
+    elif fixed_charge_coverage is not None and fixed_charge_coverage >= 3.0:
+        quality_score += 5
+    if nav_value_per_share is not None:
+        quality_score += 5
+    quality_grade, quality_score = _reit_quality_label(quality_score)
+
+    coverage_mode = {
+        "docling_reported_affo": "reit_docling_reported_affo",
+        "reported_affo_or_ffo": "reit_reported_affo_or_ffo",
+        "nareit_ffo_estimate": "reit_nareit_ffo_estimate",
+        "operating_cash_flow_proxy": "reit_ocf_proxy",
+        "net_income_proxy": "reit_net_income_proxy",
+    }.get(str(cash_metric_source or ""), "reit_proxy")
+    if nav_value_per_share is not None:
+        coverage_mode += "_with_nav_cross_check"
+
+    return {
+        "fair_value_low": fair_values["bear"],
+        "fair_value_mid": fair_value_mid,
+        "fair_value_high": fair_values["bull"],
+        "valuation_gap_pct": valuation_gap_pct,
+        "revenue": annual_revenue,
+        "free_cash_flow": affo_proxy,
+        "shares_outstanding": shares_outstanding or 0.0,
+        "revenue_growth_pct": revenue_growth_pct,
+        "operating_margin_pct": operating_margin_pct,
+        "free_cash_flow_margin_pct": affo_margin_pct,
+        "current_ratio": current_ratio,
+        "quality_grade": quality_grade,
+        "quality_score": quality_score,
+        "coverage_mode": coverage_mode,
+    }
 
 
 def _normalize_symbol(value: Any) -> str:
@@ -552,17 +1085,28 @@ def _build_row(
     if price in (None, 0):
         return None, _failure(symbol, "no_price", asof_date=asof_date)
 
-    annual_rows = _load_annual_statement_rows(conn, symbol, asof_date)
-    annual_periods = _group_annual_periods_for_current_dcf(annual_rows)
-    if not annual_periods:
-        return None, _failure(symbol, "no_annual_statement_facts", asof_date=asof_date)
-
-    latest_annual = annual_periods[0]
-    prior_annual = annual_periods[1] if len(annual_periods) > 1 else None
     stored_symbol = CATALOG_DB.get_symbol(symbol) or {}
     classification = classify_company_from_snapshot(snapshot) or {}
     company_type = str(stored_symbol.get("company_type") or classification.get("company_type") or "operating_company").strip() or "operating_company"
     valuation_engine_class = str(stored_symbol.get("valuation_engine_class") or classification.get("valuation_engine_class") or "dcf_operating").strip() or "dcf_operating"
+
+    annual_rows = _load_annual_statement_rows(conn, symbol, asof_date)
+    annual_periods = _group_annual_periods_for_current_dcf(annual_rows)
+    if not annual_periods:
+        if valuation_engine_class == "reit_affo":
+            annual_periods = [
+                {
+                    "period_end": asof_date,
+                    "filing_date": None,
+                    "available_at": asof_date,
+                    "metrics": {},
+                }
+            ]
+        else:
+            return None, _failure(symbol, "no_annual_statement_facts", asof_date=asof_date)
+
+    latest_annual = annual_periods[0]
+    prior_annual = annual_periods[1] if len(annual_periods) > 1 else None
     metrics = latest_annual.get("metrics") or {}
     sparse_financial_signal = (
         valuation_engine_class == "dcf_operating"
@@ -586,7 +1130,13 @@ def _build_row(
                 valuation_engine_class=valuation_engine_class,
             )
     elif valuation_engine_class == "reit_affo":
-        valuation = _build_reit_proxy_valuation(snapshot, latest_annual, prior_annual, float(price))
+        valuation = _build_reit_proxy_valuation(
+            snapshot,
+            latest_annual,
+            prior_annual,
+            float(price),
+            _load_reit_normalized_facts(symbol),
+        )
         if not valuation:
             return None, _failure(
                 symbol,
@@ -664,6 +1214,11 @@ def _build_row(
         coverage_mode=str(valuation.get("coverage_mode") or "pit_statement_backed"),
         company_type=company_type,
         valuation_engine_class=valuation_engine_class,
+        dcf_revenue_growth_pct=study._safe_float(valuation.get("dcf_revenue_growth_pct")),
+        dcf_target_fcf_margin_pct=study._safe_float(valuation.get("dcf_target_fcf_margin_pct")),
+        dcf_discount_rate_pct=study._safe_float(valuation.get("dcf_discount_rate_pct")),
+        dcf_terminal_growth_pct=study._safe_float(valuation.get("dcf_terminal_growth_pct")),
+        dcf_forecast_years=int(valuation["dcf_forecast_years"]) if valuation.get("dcf_forecast_years") is not None else None,
     ), None
 
 
@@ -703,7 +1258,127 @@ def _summarize_rows(rows: List[ValuationSnapshotRow]) -> Dict[str, Any]:
     }
 
 
-def build_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
+def _market_cap_band(market_cap: Optional[float]) -> Optional[str]:
+    if market_cap is None or market_cap <= 0:
+        return None
+    if market_cap >= 200_000_000_000:
+        return "mega"
+    if market_cap >= 10_000_000_000:
+        return "large"
+    if market_cap >= 2_000_000_000:
+        return "mid"
+    if market_cap >= 300_000_000:
+        return "small"
+    return "micro"
+
+
+def _log_dcf_predictions(rows: List[ValuationSnapshotRow]) -> int:
+    """Write each valuation row to the legacy dcf_predictions table with engine-aware metadata."""
+    app_state_path = DATA_DIR / "app-state.sqlite"
+    conn = sqlite3.connect(str(app_state_path))
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS dcf_predictions (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol                  TEXT NOT NULL,
+            sector                  TEXT,
+            industry                TEXT,
+            market_cap_band         TEXT,
+            prediction_date         TEXT NOT NULL,
+            price_at_prediction     REAL,
+            fair_value_low          REAL,
+            fair_value_mid          REAL,
+            fair_value_high         REAL,
+            valuation_gap_pct       REAL,
+            judgment                TEXT,
+            confidence_level        TEXT,
+            revenue_growth_pct      REAL,
+            target_fcf_margin_pct   REAL,
+            discount_rate_pct       REAL,
+            terminal_growth_pct     REAL,
+            forecast_years          INTEGER,
+            annual_revenue          REAL,
+            reported_fcf            REAL,
+            quality_adjusted_fcf    REAL,
+            operating_margin_pct    REAL,
+            source                  TEXT NOT NULL DEFAULT 'valuation_refresh',
+            engine_version          TEXT,
+            created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dcf_predictions_symbol ON dcf_predictions(symbol)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dcf_predictions_sector ON dcf_predictions(sector)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dcf_predictions_date ON dcf_predictions(prediction_date)")
+    conn.commit()
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    logged = 0
+    for row in rows:
+        stored = CATALOG_DB.get_symbol(row.symbol) or {}
+        sector = stored.get("sector")
+        industry = stored.get("industry")
+        band = _market_cap_band(row.market_cap)
+
+        judgment = None
+        gap = row.valuation_gap_pct
+        if gap > 30:
+            judgment = "significantly_undervalued"
+        elif gap > 10:
+            judgment = "undervalued"
+        elif gap >= -10:
+            judgment = "roughly_fair"
+        elif gap >= -30:
+            judgment = "overvalued"
+        else:
+            judgment = "significantly_overvalued"
+
+        confidence = "high" if row.quality_score >= 75 else "moderate" if row.quality_score >= 45 else "low"
+
+        conn.execute(
+            """INSERT INTO dcf_predictions (
+                symbol, sector, industry, market_cap_band, prediction_date,
+                price_at_prediction, fair_value_low, fair_value_mid, fair_value_high,
+                valuation_gap_pct, judgment, confidence_level,
+                revenue_growth_pct, target_fcf_margin_pct, discount_rate_pct,
+                terminal_growth_pct, forecast_years,
+                annual_revenue, reported_fcf, quality_adjusted_fcf, operating_margin_pct,
+                source, engine_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                row.symbol,
+                sector,
+                industry,
+                band,
+                today,
+                row.price,
+                row.fair_value_low,
+                row.fair_value_mid,
+                row.fair_value_high,
+                row.valuation_gap_pct,
+                judgment,
+                confidence,
+                row.dcf_revenue_growth_pct,
+                row.dcf_target_fcf_margin_pct,
+                row.dcf_discount_rate_pct,
+                row.dcf_terminal_growth_pct,
+                row.dcf_forecast_years,
+                row.revenue,
+                row.free_cash_flow,
+                None,  # quality_adjusted_fcf not available at this level
+                row.operating_margin_pct,
+                f"valuation_refresh:{row.valuation_engine_class}",
+                f"universe_snapshot_v1:{row.valuation_engine_class}",
+            ),
+        )
+        logged += 1
+
+    conn.commit()
+    conn.close()
+    return logged
+
+
+def build_snapshot(args: argparse.Namespace) -> Tuple[Dict[str, Any], List[ValuationSnapshotRow]]:
     symbols = _load_symbols(args)
     conn = connect_pit(str(args.db))
     ensure_schema(conn)
@@ -738,7 +1413,7 @@ def build_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
         },
         "rows": [asdict(row) for row in rows],
     }
-    return payload
+    return payload, rows
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
@@ -749,6 +1424,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--symbols", default="", help="Optional comma-separated symbol override")
     parser.add_argument("--limit", type=int, default=0, help="Optional symbol limit for smoke tests")
     parser.add_argument("--gap-threshold-pct", type=float, default=20.0, help="Threshold for overvalued/undervalued labeling")
+    parser.add_argument("--no-sync", action="store_true", help="Write the snapshot file without replacing symbol-catalog valuation rows")
+    parser.add_argument("--no-log-predictions", action="store_true", help="Skip app-state valuation prediction logging")
     return parser.parse_args(argv)
 
 
@@ -758,16 +1435,29 @@ def main(argv: Optional[List[str]] = None) -> int:
     args.output = Path(args.output).resolve()
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
-    payload = build_snapshot(args)
+    payload, snapshot_rows = build_snapshot(args)
     args.output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    sync_counts = valuation_snapshot_sync.sync_snapshot(payload, source=args.output.name)
 
     print(f"[ValuationSnapshot] wrote {len(payload['rows'])} rows to {args.output}", flush=True)
-    print(
-        f"[ValuationSnapshot] synced {sync_counts['symbols']} symbols, "
-        f"{sync_counts['memberships']} memberships, and {sync_counts['metrics']} metrics into symbol catalog",
-        flush=True,
-    )
+    if args.no_sync:
+        print("[ValuationSnapshot] skipped symbol catalog sync (--no-sync)", flush=True)
+    else:
+        sync_counts = valuation_snapshot_sync.sync_snapshot(payload, source=args.output.name)
+        print(
+            f"[ValuationSnapshot] synced {sync_counts['symbols']} symbols, "
+            f"{sync_counts['memberships']} memberships, and {sync_counts['metrics']} metrics into symbol catalog",
+            flush=True,
+        )
+
+    if args.no_log_predictions:
+        print("[ValuationSnapshot] skipped valuation prediction logging (--no-log-predictions)", flush=True)
+    else:
+        try:
+            prediction_count = _log_dcf_predictions(snapshot_rows)
+            print(f"[ValuationSnapshot] logged {prediction_count} valuation predictions to app-state.sqlite", flush=True)
+        except Exception as exc:
+            print(f"[ValuationSnapshot] WARNING: DCF prediction logging failed: {exc}", flush=True)
+
     print(json.dumps(payload["meta"], indent=2), flush=True)
     return 0
 

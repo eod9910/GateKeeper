@@ -242,7 +242,7 @@ function buildGroupedSummary(observationsCsvPath: string): GroupedValuationSumma
   }));
 
   const horizons = [63, 126, 252];
-  const buildGroup = (key: string, values: string[]): Record<string, GroupedBreakoutSummary> => {
+  const buildGroup = (key: 'cap_tier' | 'quality_grade', values: string[]): Record<string, GroupedBreakoutSummary> => {
     const out: Record<string, GroupedBreakoutSummary> = {};
     for (const value of values) {
       const groupRows = normalizedRows.filter((row) => String(row[key] || '') === value);

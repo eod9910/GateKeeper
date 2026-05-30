@@ -386,7 +386,7 @@ def _build_standardized_dcf(
         free_cash_flow = operating_cash_flow - capital_expenditures
 
     shares_outstanding = _safe_float(snapshot.get("sharesOutstanding"))
-    if shares_outstanding is None:
+    if shares_outstanding is None or shares_outstanding <= 0:
         return None
 
     if annual_revenue is None or free_cash_flow is None:
@@ -657,9 +657,24 @@ def _directionally_correct(state: str, forward_return_pct: Optional[float]) -> O
     return None
 
 
+def _signal_return_pct(state: str, forward_return_pct: Optional[float]) -> Optional[float]:
+    if forward_return_pct is None:
+        return None
+    if state == "undervalued":
+        return forward_return_pct
+    if state == "overvalued":
+        return -forward_return_pct
+    return None
+
+
 def _summarize_bucket(observations: Sequence[StudyObservation], horizon: int, state: str) -> Dict[str, Any]:
     subset = [obs for obs in observations if obs.valuation_state == state]
     returns = [obs.horizon_returns[horizon] for obs in subset if obs.horizon_returns[horizon] is not None]
+    signal_returns = [
+        _signal_return_pct(obs.valuation_state, obs.horizon_returns[horizon])
+        for obs in subset
+        if _signal_return_pct(obs.valuation_state, obs.horizon_returns[horizon]) is not None
+    ]
     correct_flags = [
         _directionally_correct(obs.valuation_state, obs.horizon_returns[horizon])
         for obs in subset
@@ -672,8 +687,37 @@ def _summarize_bucket(observations: Sequence[StudyObservation], horizon: int, st
         "usable_returns": len(returns),
         "avg_forward_return_pct": round(statistics.mean(returns), 4) if returns else None,
         "median_forward_return_pct": round(statistics.median(returns), 4) if returns else None,
+        "avg_signal_return_pct": round(statistics.mean(signal_returns), 4) if signal_returns else None,
+        "median_signal_return_pct": round(statistics.median(signal_returns), 4) if signal_returns else None,
         "directional_accuracy": round(sum(1 for flag in correct_flags if flag) / len(correct_flags), 4) if correct_flags else None,
         "hit_fair_value_rate": round(sum(1 for flag in target_flags if flag) / len(target_flags), 4) if target_flags else None,
+    }
+
+
+def _summarize_signal_strategy(observations: Sequence[StudyObservation], horizon: int) -> Dict[str, Any]:
+    signal_rows = [
+        (obs, _signal_return_pct(obs.valuation_state, obs.horizon_returns[horizon]))
+        for obs in observations
+        if obs.valuation_state in {"undervalued", "overvalued"}
+    ]
+    usable = [(obs, ret) for obs, ret in signal_rows if ret is not None]
+    returns = [float(ret) for _, ret in usable if ret is not None]
+    wins = [ret > 0 for ret in returns]
+    long_returns = [float(ret) for obs, ret in usable if obs.valuation_state == "undervalued" and ret is not None]
+    short_returns = [float(ret) for obs, ret in usable if obs.valuation_state == "overvalued" and ret is not None]
+
+    return {
+        "rule": "long undervalued, short overvalued, skip roughly_fair",
+        "signals": len(signal_rows),
+        "usable_signals": len(usable),
+        "long_signals": sum(1 for obs, _ in usable if obs.valuation_state == "undervalued"),
+        "short_signals": sum(1 for obs, _ in usable if obs.valuation_state == "overvalued"),
+        "win_rate": round(sum(1 for flag in wins if flag) / len(wins), 4) if wins else None,
+        "expectancy_pct_per_signal": round(statistics.mean(returns), 4) if returns else None,
+        "median_return_pct_per_signal": round(statistics.median(returns), 4) if returns else None,
+        "avg_long_return_pct": round(statistics.mean(long_returns), 4) if long_returns else None,
+        "avg_short_return_pct": round(statistics.mean(short_returns), 4) if short_returns else None,
+        "gross_equal_weight_return_pct": round(sum(returns), 4) if returns else None,
     }
 
 
@@ -707,6 +751,7 @@ def _summarize_study(
                 sum(1 for flag in directional_flags if flag) / len(directional_flags),
                 4,
             ) if directional_flags else None,
+            "signal_strategy": _summarize_signal_strategy(observations, horizon),
             "by_state": by_state,
         }
 

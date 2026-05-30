@@ -18,7 +18,9 @@ import hashlib
 import importlib.util
 import json
 import os
+import sqlite3
 import sys
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -36,7 +38,8 @@ if _SERVICES_DIR not in sys.path:
 from platform_sdk.ohlcv import OHLCV
 
 _STUDY_MODULE = None
-_PIT_CONN = None
+_STUDY_MODULE_LOCK = threading.Lock()
+_PIT_CONN_LOCAL = threading.local()
 _VALUATION_CACHE: Dict[Tuple[str, str, float, float], Optional[Dict[str, Any]]] = {}
 _SNAPSHOT_INDEX: Optional[Dict[str, Dict[str, Any]]] = None
 _SNAPSHOT_GENERATED_AT: Optional[datetime] = None
@@ -89,25 +92,48 @@ def _load_study_module():
     if _STUDY_MODULE is not None:
         return _STUDY_MODULE
 
-    script_path = os.path.join(_SCRIPTS_DIR, "run_valuation_gap_accuracy_study.py")
-    spec = importlib.util.spec_from_file_location("valuation_gap_accuracy_study", script_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("Could not load valuation gap study module")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    _STUDY_MODULE = module
-    return module
+    with _STUDY_MODULE_LOCK:
+        if _STUDY_MODULE is not None:
+            return _STUDY_MODULE
+        script_path = os.path.join(_SCRIPTS_DIR, "run_valuation_gap_accuracy_study.py")
+        spec = importlib.util.spec_from_file_location("valuation_gap_accuracy_study", script_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("Could not load valuation gap study module")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        _STUDY_MODULE = module
+        return module
 
 
 def _get_pit_conn():
-    global _PIT_CONN
-    if _PIT_CONN is not None:
-        return _PIT_CONN
+    conn = getattr(_PIT_CONN_LOCAL, "conn", None)
+    owner_thread_id = getattr(_PIT_CONN_LOCAL, "owner_thread_id", None)
+    current_thread_id = threading.get_ident()
+    if conn is not None and owner_thread_id == current_thread_id:
+        return conn
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
     mod = _load_study_module()
-    _PIT_CONN = mod.connect_pit(str(mod.DEFAULT_DB_PATH))
-    mod.ensure_schema(_PIT_CONN)
-    return _PIT_CONN
+    conn = mod.connect_pit(str(mod.DEFAULT_DB_PATH))
+    mod.ensure_schema(conn)
+    _PIT_CONN_LOCAL.conn = conn
+    _PIT_CONN_LOCAL.owner_thread_id = current_thread_id
+    return conn
+
+
+def _reset_pit_conn() -> None:
+    conn = getattr(_PIT_CONN_LOCAL, "conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    _PIT_CONN_LOCAL.conn = None
+    _PIT_CONN_LOCAL.owner_thread_id = None
 
 
 def _load_snapshot_index() -> Tuple[Dict[str, Dict[str, Any]], Optional[datetime]]:
@@ -207,17 +233,37 @@ def _build_from_pit(
 ) -> Optional[Dict[str, Any]]:
     mod = _load_study_module()
     conn = _get_pit_conn()
-    snapshot = mod.get_asof_snapshot(conn, symbol, asof_date)
+    try:
+        snapshot = mod.get_asof_snapshot(conn, symbol, asof_date)
+    except sqlite3.ProgrammingError as exc:
+        if "created in a thread" not in str(exc):
+            raise
+        _reset_pit_conn()
+        conn = _get_pit_conn()
+        snapshot = mod.get_asof_snapshot(conn, symbol, asof_date)
     if not snapshot:
         return None
 
-    annual_rows = mod.get_statement_history(
-        conn,
-        symbol,
-        "annual",
-        asof_date,
-        fact_keys=mod.DCF_FACT_KEYS,
-    )
+    try:
+        annual_rows = mod.get_statement_history(
+            conn,
+            symbol,
+            "annual",
+            asof_date,
+            fact_keys=mod.DCF_FACT_KEYS,
+        )
+    except sqlite3.ProgrammingError as exc:
+        if "created in a thread" not in str(exc):
+            raise
+        _reset_pit_conn()
+        conn = _get_pit_conn()
+        annual_rows = mod.get_statement_history(
+            conn,
+            symbol,
+            "annual",
+            asof_date,
+            fact_keys=mod.DCF_FACT_KEYS,
+        )
     annuals = mod._group_annual_periods(annual_rows)
     if not annuals:
         return None

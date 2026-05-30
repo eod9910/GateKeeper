@@ -301,6 +301,16 @@ def _forward_return_pct(series: List[Tuple[str, float]], asof_date: str, forward
     return ((exit_price - entry) / entry) * 100.0
 
 
+def _price_at_or_before(series: List[Tuple[str, float]], asof_date: str) -> Optional[float]:
+    price = None
+    for bar_date, close in series:
+        if bar_date <= asof_date:
+            price = close
+        else:
+            break
+    return price
+
+
 def _bucket_metrics(period_returns: List[float]) -> Dict[str, Any]:
     if not period_returns:
         return {
@@ -422,6 +432,142 @@ def _run_basket_validation(
         "excluded": _bucket_metrics(excluded_period_returns),
         "spread": _spread_metrics(selected_period_returns, excluded_period_returns),
         "rebalance_dates": usable_dates,
+    }
+
+
+def run_valuation_state_validation(
+    spec: Dict[str, Any],
+    bars_by_symbol: Dict[str, List[Dict[str, Any]]],
+    date_start: Optional[str] = None,
+    date_end: Optional[str] = None,
+) -> Dict[str, Any]:
+    setup = (spec.get("setup_config") or {}) if isinstance(spec, dict) else {}
+    if str(setup.get("pattern_type") or "").strip() != "valuation_state_primitive":
+        return {"enabled": False, "status": "disabled"}
+
+    try:
+        from plugins.valuation_state_primitive import _valuation_signal_for_bar
+    except Exception as exc:
+        return {"enabled": True, "status": "error", "reason": f"Could not load valuation primitive: {exc}"}
+
+    fundamental_cfg = (spec.get("fundamental_config") or {}) if isinstance(spec, dict) else {}
+    target_state = str(setup.get("target_state") or "undervalued").strip().lower()
+    if target_state == "fair":
+        target_state = "roughly_fair"
+    rebalance_frequency = str(fundamental_cfg.get("rebalance_frequency") or setup.get("rebalance_frequency") or "monthly").strip().lower()
+    if rebalance_frequency not in {"monthly", "quarterly"}:
+        rebalance_frequency = "monthly"
+    forward_bars = max(1, int(fundamental_cfg.get("forward_bars") or setup.get("forward_bars") or 13))
+    min_selected_count = max(1, int(fundamental_cfg.get("min_selected_count") or setup.get("min_selected_count") or 1))
+    min_excluded_count = max(1, int(fundamental_cfg.get("min_excluded_count") or setup.get("min_excluded_count") or 1))
+    gap_threshold_pct = float(setup.get("gap_threshold_pct", 20.0) or 20.0)
+
+    symbol_series = {
+        symbol: _series_for_symbol(bars)
+        for symbol, bars in (bars_by_symbol or {}).items()
+        if bars
+    }
+    if not symbol_series:
+        return {"enabled": True, "status": "skipped", "reason": "No symbol bars available for valuation basket validation."}
+
+    reference_symbol = max(symbol_series.items(), key=lambda item: len(item[1]))[0]
+    reference_bars = bars_by_symbol[reference_symbol]
+    rebalance_dates = _select_rebalance_dates(reference_bars, rebalance_frequency, forward_bars)
+    if date_start or date_end:
+        start_key = str(date_start or "").strip()[:10]
+        end_key = str(date_end or "").strip()[:10]
+        rebalance_dates = [
+            asof_date
+            for asof_date in rebalance_dates
+            if (not start_key or asof_date >= start_key) and (not end_key or asof_date <= end_key)
+        ]
+
+    selected_period_returns: List[float] = []
+    excluded_period_returns: List[float] = []
+    usable_dates: List[str] = []
+    selected_observations = 0
+    excluded_observations = 0
+    no_valuation_observations = 0
+    period_details: List[Dict[str, Any]] = []
+
+    for asof_date in rebalance_dates:
+        selected_symbol_returns: List[float] = []
+        excluded_symbol_returns: List[float] = []
+        date_no_valuation = 0
+
+        for symbol, series in symbol_series.items():
+            current_price = _price_at_or_before(series, asof_date)
+            forward_return = _forward_return_pct(series, asof_date, forward_bars)
+            if current_price is None or forward_return is None:
+                continue
+
+            valuation = _valuation_signal_for_bar(symbol, asof_date, float(current_price), gap_threshold_pct)
+            if not valuation:
+                no_valuation_observations += 1
+                date_no_valuation += 1
+                continue
+
+            valuation_state = str(valuation.get("valuation_state") or "").strip().lower()
+            if valuation_state == target_state:
+                selected_symbol_returns.append(forward_return)
+            else:
+                excluded_symbol_returns.append(forward_return)
+
+        if len(selected_symbol_returns) < min_selected_count or len(excluded_symbol_returns) < min_excluded_count:
+            continue
+
+        selected_mean = statistics.mean(selected_symbol_returns)
+        excluded_mean = statistics.mean(excluded_symbol_returns)
+        selected_period_returns.append(selected_mean)
+        excluded_period_returns.append(excluded_mean)
+        selected_observations += len(selected_symbol_returns)
+        excluded_observations += len(excluded_symbol_returns)
+        usable_dates.append(asof_date)
+        period_details.append({
+            "asof_date": asof_date,
+            "selected_count": len(selected_symbol_returns),
+            "excluded_count": len(excluded_symbol_returns),
+            "no_valuation_count": date_no_valuation,
+            "selected_avg_forward_return_pct": round(selected_mean, 4),
+            "excluded_avg_forward_return_pct": round(excluded_mean, 4),
+            "spread_pct": round(selected_mean - excluded_mean, 4),
+        })
+
+    return {
+        "enabled": True,
+        "status": "completed" if usable_dates else "skipped",
+        "reason": None if usable_dates else "No rebalance dates had enough selected and excluded valuation observations.",
+        "mode": "valuation_state_basket",
+        "config": {
+            "rebalance_frequency": rebalance_frequency,
+            "forward_bars": forward_bars,
+            "date_start": date_start,
+            "date_end": date_end,
+            "comparison_mode": "selected_vs_excluded",
+            "target_state": target_state,
+            "gap_threshold_pct": gap_threshold_pct,
+            "min_selected_count": min_selected_count,
+            "min_excluded_count": min_excluded_count,
+            "variables": [
+                {
+                    "metric": "valuation_state",
+                    "label": "DCF Valuation State",
+                    "operator": "==",
+                    "threshold": target_state,
+                }
+            ],
+        },
+        "selected": _bucket_metrics(selected_period_returns),
+        "excluded": _bucket_metrics(excluded_period_returns),
+        "spread": _spread_metrics(selected_period_returns, excluded_period_returns),
+        "rebalance_dates": usable_dates,
+        "observations": {
+            "selected": selected_observations,
+            "excluded": excluded_observations,
+            "no_valuation": no_valuation_observations,
+            "symbols": len(symbol_series),
+        },
+        "period_details": period_details[-24:],
     }
 
 
