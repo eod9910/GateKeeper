@@ -47,6 +47,8 @@ Use the relevant skill when the task requires detailed procedure:
   Use for full company review, business quality analysis, risk assessment, and structured valuation judgment.
 - `skills/dcf-valuation/SKILL.md`
   Use for discounted cash flow modeling, forecast assumptions, fade periods, discount rates, and value ranges.
+- `skills/reit-affo-nav-valuation/SKILL.md`
+  Use for REIT valuation, FFO, AFFO, NAV, cap rates, occupancy, dividend coverage, and REIT-specific false-positive checks.
 - `skills/earnings-quality/SKILL.md`
   Use for accounting quality review, cash conversion analysis, distortion checks, lease treatment, R&D treatment, and non-recurring item review.
 - `skills/buried-risk-review/SKILL.md`

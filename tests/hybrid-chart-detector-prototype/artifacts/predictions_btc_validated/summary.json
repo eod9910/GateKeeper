@@ -1,0 +1,21 @@
+{
+  "model": "foduucom/stockmarket-pattern-detection-yolov8",
+  "resolved_model": "C:\\Users\\eod99\\.cache\\huggingface\\hub\\models--foduucom--stockmarket-pattern-detection-yolov8\\snapshots\\31bbb9abc9843dc3d9c08349507c178cde56be31\\model.pt",
+  "images_dir": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\tests\\hybrid-chart-detector-prototype\\artifacts\\charts_btc_full",
+  "images_scanned": 21,
+  "images_with_detections": 10,
+  "detections_exported": 10,
+  "conf_threshold": 0.5,
+  "class_filter": "",
+  "output_csv": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\tests\\hybrid-chart-detector-prototype\\artifacts\\predictions_btc_validated\\detections.csv",
+  "class_counts": {
+    "Head and shoulders top": 9,
+    "M_Head": 1
+  },
+  "validation": {
+    "total": 10,
+    "confirmed": 6,
+    "rejected": 3,
+    "skipped": 1
+  }
+}

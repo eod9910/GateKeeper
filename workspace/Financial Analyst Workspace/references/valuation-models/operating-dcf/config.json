@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "engine_class": "dcf_operating",
+  "valuation_method": "simplified_fcfe_dcf",
+  "forecast_years": {
+    "default": 7,
+    "min": 4,
+    "max": 12
+  },
+  "near_term_revenue_growth_pct": {
+    "default_when_unavailable": 8,
+    "observed_growth_multiplier": 0.7,
+    "min": 1,
+    "max": 25
+  },
+  "target_operating_margin_pct": {
+    "default_when_unavailable": 12,
+    "observed_margin_add_pct": 3,
+    "observed_margin_floor_pct": 10,
+    "min": 4,
+    "max": 35
+  },
+  "target_free_cash_flow_margin_pct": {
+    "conversion_ratio_floor": 0.55,
+    "min": 2,
+    "fallback_starting_margin_multiplier": 0.7
+  },
+  "discount_rate_pct": {
+    "base_default": 9,
+    "quality_premiums": {
+      "weak": 2,
+      "mixed": 1,
+      "good": 0,
+      "high": 0
+    },
+    "current_ratio_below_one_premium": 1,
+    "likely_rich_premium": 0.5,
+    "min": 6,
+    "max": 18,
+    "default_min": 8,
+    "default_max": 14
+  },
+  "terminal_growth_pct": {
+    "default": 3,
+    "min": 1,
+    "spread_below_discount_rate_pct": 2.5,
+    "minimum_dynamic_max": 1.5
+  },
+  "scenario_spreads": {
+    "bear": {
+      "revenue_growth_delta_pct": -4,
+      "target_fcf_margin_delta_pct": -1.5,
+      "discount_rate_delta_pct": 1,
+      "terminal_growth_delta_pct": -0.5
+    },
+    "bull": {
+      "revenue_growth_delta_pct": 4,
+      "target_fcf_margin_delta_pct": 1.5,
+      "discount_rate_delta_pct": -1,
+      "terminal_growth_delta_pct": 0.5
+    }
+  }
+}

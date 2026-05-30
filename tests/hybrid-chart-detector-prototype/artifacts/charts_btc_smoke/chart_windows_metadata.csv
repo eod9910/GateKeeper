@@ -1,0 +1,6 @@
+symbol,timeframe,window_start_idx,window_end_idx,start_datetime,end_datetime,bars_visible,image_path
+BTC-USD,1wk,0,79,2021-04-19 00:00:00,2022-10-24 00:00:00,80,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_btc_smoke\1wk\BTC-USD\BTC-USD__1wk__0_79.png
+BTC-USD,1wk,40,119,2022-01-24 00:00:00,2023-07-31 00:00:00,80,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_btc_smoke\1wk\BTC-USD\BTC-USD__1wk__40_119.png
+BTC-USD,1wk,80,159,2022-10-31 00:00:00,2024-05-06 00:00:00,80,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_btc_smoke\1wk\BTC-USD\BTC-USD__1wk__80_159.png
+BTC-USD,1wk,120,199,2023-08-07 00:00:00,2025-02-10 00:00:00,80,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_btc_smoke\1wk\BTC-USD\BTC-USD__1wk__120_199.png
+BTC-USD,1wk,160,239,2024-05-13 00:00:00,2025-11-17 00:00:00,80,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_btc_smoke\1wk\BTC-USD\BTC-USD__1wk__160_239.png

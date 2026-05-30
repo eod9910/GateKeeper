@@ -1,0 +1,8 @@
+symbol,timeframe,window_start_idx,window_end_idx,start_datetime,end_datetime,bars_visible,image_path
+A,1d,0,59,2025-04-23 00:00:00,2025-07-18 00:00:00,60,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_smoke\1d\A\A__1d__0_59.png
+A,1d,30,89,2025-06-05 00:00:00,2025-08-29 00:00:00,60,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_smoke\1d\A\A__1d__30_89.png
+A,1d,60,119,2025-07-21 00:00:00,2025-10-13 00:00:00,60,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_smoke\1d\A\A__1d__60_119.png
+A,1d,90,149,2025-09-02 00:00:00,2025-11-24 00:00:00,60,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_smoke\1d\A\A__1d__90_149.png
+A,1d,120,179,2025-10-14 00:00:00,2026-01-08 00:00:00,60,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_smoke\1d\A\A__1d__120_179.png
+A,1d,150,209,2025-11-25 00:00:00,2026-02-23 00:00:00,60,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_smoke\1d\A\A__1d__150_209.png
+A,1d,180,239,2026-01-09 00:00:00,2026-04-07 00:00:00,60,C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\tests\hybrid-chart-detector-prototype\artifacts\charts_smoke\1d\A\A__1d__180_239.png

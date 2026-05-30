@@ -2,6 +2,8 @@
 
 ## Default Tool Inventory
 
+For the full mental model of how Ledger, workspace skills, runtime tools, and backend engines fit together, see `documents/LEDGER_ARCHITECTURE.md`.
+
 Ledger's active runtime tools are:
 
 - `get_ledger_context`
@@ -23,7 +25,16 @@ Ledger's active runtime tools are:
   - backend engine: `earnings_quality_engine`
 - `dcf-valuation`
   - runtime tool: `run_dcf_valuation`
-  - backend engine: `dcf_engine`
+  - backend engine: valuation dispatcher, usually `dcf_engine`
+- `reit-affo-nav-valuation`
+  - runtime tool: `run_dcf_valuation`
+  - backend engine: `reit_affo_valuation_engine`
+  - valuation method: `reit_affo_nav_proxy`
+- `special-situation-valuation`
+  - runtime tool: `run_dcf_valuation`
+  - backend engine: `special_situation_valuation_engine`
+  - valuation method: `special_situation_post_reorg_scenario` or `special_situation_deal_value`
+  - valuation engine class: `special_situation`
 - `buried-risk-review`
   - runtime tool: `get_ledger_context`
   - backend implementation: filing-note retrieval plus note classification/filtering
@@ -88,14 +99,35 @@ Use it when the user asks for:
 - top ideas from the database
 - ranked clean-universe picks
 - stock selection based on valuation, debt, quality, and trend together
+- natural-language Finviz-style screens such as "high P/E and high price-to-sales", "low debt and high gross margin", "high short float", "high beta", or "high relative volume"
 
 This tool should:
 
 - screen only the `tradable_stock_default` clean universe
 - use the symbol catalog as the primary prefilter layer
 - narrow by valuation state, consumer-cycle positioning, optional theme, and optional optionability
+- optionally narrow by trust-gated social conditions such as:
+  - `social_signal = buzz_hot`
+  - `social_signal = buzz_rising`
+  - `social_signal = bullish`
+  - `min_buzz_zscore`
+  - `min_final_buzz_score`
+- translate plain-English metric requests into `metric_filters`, using aliases such as:
+  - `pe`
+  - `price_to_sales`
+  - `enterprise_to_sales`
+  - `market_cap`
+  - `revenue_growth`
+  - `gross_margin`
+  - `profit_margin`
+  - `roe`
+  - `debt_to_equity`
+  - `short_float`
+  - `beta`
+  - `relative_volume`
 - then rank candidates with fundamentals snapshot checks for liquidity, balance-sheet quality, earnings quality, and technical trend
 - return a ranked list that Ledger can explain rather than inventing picks from one loaded symbol
+- be clear when a metric is computed from available raw fields rather than directly stored
 
 ### 2. `run_financial_analysis`
 
@@ -145,7 +177,11 @@ Use this when the user asks for:
 - fair value
 - overvalued vs undervalued judgment
 
-This tool should be treated as the runtime entrypoint for the `dcf-valuation` skill.
+This tool should be treated as the runtime entrypoint for the valuation dispatcher. The name is legacy; it can return a normal DCF, REIT AFFO/NAV valuation, financial-company ROE/book valuation, pre-profit sales scenario, or special-situation valuation depending on the company and hard flags.
+
+For REITs, the same runtime tool dispatches to `reit_affo_valuation_engine` and should be interpreted through the `reit-affo-nav-valuation` skill, not as a normal operating-company DCF.
+
+For bankruptcy, restructuring, signed deals, CVRs, liquidation, delisting, restatement, or other hard-event cases, the same runtime tool dispatches to `special_situation_valuation_engine` and should be interpreted through the `special-situation-valuation` skill, not as a normal operating-company DCF.
 
 ## Note Review / Buried Risk Usage
 

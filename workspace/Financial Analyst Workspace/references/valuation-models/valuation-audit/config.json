@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "purpose": "Post-valuation QA rules that make sure backend valuation outputs follow Ledger workspace doctrine.",
+  "severity_levels": ["critical", "warning", "info"],
+  "global_rules": {
+    "require_current_price": true,
+    "require_fair_value_range": true,
+    "warn_when_price_vs_mid_abs_pct_above": 75,
+    "warn_when_confidence_above_low_with_proxy_inputs": true
+  },
+  "operating_dcf_rules": {
+    "allowed_valuation_methods": ["simplified_fcfe_dcf"],
+    "require_forecast_years": true,
+    "require_bear_base_bull": true,
+    "max_terminal_value_pct_of_equity_value": 75,
+    "terminal_growth_must_be_below_discount_rate": true,
+    "minimum_discount_rate_spread_pct": 0.5,
+    "warn_when_discount_rate_below_pct": 6,
+    "warn_when_terminal_growth_above_pct": 5,
+    "required_base_inputs": [
+      "annual_revenue",
+      "quality_adjusted_free_cash_flow",
+      "shares_outstanding",
+      "current_price"
+    ]
+  },
+  "reit_affo_rules": {
+    "allowed_valuation_methods": ["reit_affo_nav_proxy"],
+    "required_engine_class": "reit_affo",
+    "require_affo_or_ffo_proxy": true,
+    "require_property_type": true,
+    "warn_on_proxy_cash_metric_sources": [
+      "operating_cash_flow_proxy",
+      "net_income_proxy"
+    ],
+    "warn_when_payout_ratio_pct_above": 95,
+    "required_context_checks": [
+      "dividend_coverage",
+      "nav_cap_rate_cross_check",
+      "fixed_charge_coverage_and_debt_maturities"
+    ]
+  }
+}

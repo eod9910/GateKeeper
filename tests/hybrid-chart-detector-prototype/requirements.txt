@@ -1,0 +1,9 @@
+ultralytics
+pandas
+numpy
+pillow
+opencv-python
+streamlit
+yfinance
+mplfinance
+huggingface-hub

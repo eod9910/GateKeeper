@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "engine_class": "reit_affo",
+  "valuation_method": "reit_affo_nav_proxy",
+  "property_type_multiple_bands": {
+    "data_center": { "low": 17, "mid": 21, "high": 25 },
+    "industrial": { "low": 16, "mid": 20, "high": 24 },
+    "self_storage": { "low": 15, "mid": 18, "high": 22 },
+    "residential": { "low": 13, "mid": 16, "high": 20 },
+    "net_lease": { "low": 12, "mid": 15, "high": 18 },
+    "healthcare": { "low": 11, "mid": 14, "high": 17 },
+    "retail": { "low": 10, "mid": 13, "high": 16 },
+    "office": { "low": 7, "mid": 10, "high": 13 },
+    "lodging": { "low": 8, "mid": 11, "high": 14 },
+    "diversified": { "low": 11, "mid": 15, "high": 19 }
+  },
+  "default_affo_multiple_adjustments": {
+    "revenue_growth_divisor": 5,
+    "revenue_growth_min_delta": -2,
+    "revenue_growth_max_delta": 3,
+    "quality_premiums": {
+      "high": 1.5,
+      "good": 0.75,
+      "mixed": 0,
+      "weak": -1.5
+    },
+    "debt_to_equity_threshold": 100,
+    "debt_to_equity_penalty": 1.5
+  },
+  "scenario_spreads": {
+    "bear": {
+      "affo_multiple_delta": -2.5,
+      "affo_growth_delta_pct": -2,
+      "affo_growth_min_pct": -3,
+      "affo_growth_max_pct": 8,
+      "multiple_low_floor": 6,
+      "multiple_low_extra_room": 2
+    },
+    "base": {
+      "default_affo_growth_pct": 2.5,
+      "affo_growth_min_pct": -2,
+      "affo_growth_max_pct": 10
+    },
+    "bull": {
+      "affo_multiple_delta": 2.5,
+      "affo_growth_delta_pct": 2,
+      "affo_growth_min_pct": 0,
+      "affo_growth_max_pct": 12,
+      "multiple_high_extra_room": 2
+    }
+  },
+  "required_inputs": [
+    "AFFO/FFO per share or operating-cash-flow proxy",
+    "current price"
+  ],
+  "model_limitations": [
+    "This is a REIT-specific AFFO/FFO multiple proxy, not an industrial free-cash-flow DCF.",
+    "If true AFFO/FFO or NAV facts are unavailable, operating cash flow is used only as a provisional proxy.",
+    "NAV is not blended unless property NOI and cap-rate inputs are explicitly available."
+  ]
+}

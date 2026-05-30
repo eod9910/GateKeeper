@@ -14,10 +14,17 @@ Use it when:
 The goal is simple:
 
 - do not rediscover workspace architecture by grepping the repo every time
+- keep future agent work aligned with Ledger, the most complete workspace implementation in this repo
 
 ## What A Workspace Is
 
 A workspace is a role-specific prompt package for one analyst or copilot surface.
+
+The reference implementation is:
+
+- `workspace/Financial Analyst Workspace/`
+
+Ledger is the template of record for how future agents should be shaped. If a template or build-agent skill disagrees with Ledger's folder shape, update the docs or template so they match Ledger.
 
 A workspace is not:
 
@@ -212,6 +219,8 @@ Optional:
 - `references/`
 - `skills/`
 
+`references/` is the Ledger-style library folder. Use it for long-form grounding material such as PDFs, methodology notes, manuals, and research references. Do not introduce a parallel `documents/` convention for new workspaces unless Ledger and the architecture docs are migrated together.
+
 ### File Roles
 
 `IDENTITY.md`
@@ -277,7 +286,7 @@ When adding a new workspace, follow this order.
 
 1. Define the page or analyst role.
 2. Decide whether it is actually a new workspace or just a new skill.
-3. Copy the standard workspace template.
+3. Copy the Ledger-shaped workspace pattern: root markdown files, `skills/`, and `references/`.
 4. Fill in `IDENTITY.md`, `SOUL.md`, and `AGENTS.md` first.
 5. Add `TOOLS.md` with the intended tool contract.
 6. Add only the skills the workspace truly needs.
@@ -291,9 +300,11 @@ When adding a new workspace, follow this order.
 A new workspace is not done until all of these are true:
 
 - the workspace folder exists
+- the workspace shape matches Ledger unless there is a deliberate migration
 - core markdown files exist
 - the role is clearly distinct
 - the skill list is intentional
+- long-form library material lives in `references/`
 - tool notes reflect reality
 - runtime binding exists in `visionService.ts`
 - any claimed executable tools exist in runtime code

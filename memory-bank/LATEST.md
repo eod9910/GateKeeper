@@ -1,14 +1,290 @@
-# Latest Session - 2026-04-16
+# Latest Session - 2026-05-05
 
 ## Status
 
-- Phase: `REFINE` — ledger-data foundation, PIT source-of-truth hardening, and isolated SEC/Docling ingestion probe
-- Product state: universe centralization and PIT historical ownership clarified; isolated SEC filing extraction probe now works end to end
+- Phase: `BUILD` — Market Intelligence Asymmetric Narrative Layer + Social Arbitrage/Macro controls
+- Product state: Market Intelligence now has raw-hit → claim → narrative-cluster → scenario promotion plumbing for undercovered narrative discovery; REIT valuation work and sector-aware options reports remain active context
 - Current source-of-truth planning area: `.planning/plans/`
-- Startup continuity now includes `memory-bank/CURSOR_CONTINUITY.md`, generated from the live Cursor mirror
-- **2026-04-16 hygiene pass landed** — see `.planning/plans/ACTIVE/repo-hygiene-followups-2026-04-16.md` for full record and remaining decisions
+- **2026-05-05 session**: Built the asymmetric narrative cluster builder and promotion bridge, corrected Market Intelligence UI naming, and fixed Codex GitNexus MCP config for next session
 
-## Latest Update (2026-04-16)
+## Latest Update (2026-05-05)
+
+### Market Intelligence - Social ARB Field Map / Universe Normalization
+
+Social ARB discovery is now being redirected away from hand-picked ticker/watchlist seeding and toward the clean universe as the coordinate system:
+
+- PRD/checklist updated with D30: broad raw intake first, then local clean-universe matching, symbol/source/community baselines, and perturbation ranking by abnormal movement rather than raw mention size.
+- Added `backend/scripts/run_universe_mention_normalization.py`.
+  - Creates `universe_symbol_mentions`, `universe_symbol_daily_counts`, `universe_symbol_baselines`, and `universe_symbol_perturbations`.
+  - Matches `mi_raw_hits` against `backend/data/universe_clean.json` using cashtags, bare tickers, and company/name aliases.
+  - Labels StockTwits/Yahoo ticker-board evidence as `ticker_confirmation`; broad/community matches are `organic_discovery`.
+  - Builds per-symbol/source/community baselines and scores perturbations.
+- First local run: scanned `6,037` raw hits, matched `5,837` clean-universe symbol mentions, refreshed `1,564` daily buckets, wrote `258` baselines, and scored `7` latest-day perturbations.
+- Scheduler job added: `universe_mention_normalization`, every 2h at `:28`.
+- Added the conservative card-pipeline bridge: `backend/scripts/run_universe_mover_claims.py`.
+  - Scheduler job: `universe_mover_claims`, every 2h at `:30`.
+  - Converts only strong `universe_symbol_perturbations` into `emerging_claims`.
+  - Defaults require `min_mentions=3`, organic discovery, and either `z_score >= 2.5` or `perturbation_score >= 35`.
+  - Current real run inserted `0` claims because latest movers are weak/noisy; a lowered-threshold dry run proved the bridge would pick up `TBH`, but production thresholds correctly suppress it.
+- Updated `run_narrative_cluster_builder.py` so single-company mover claims cluster per ticker instead of collapsing unrelated symbols into one generic Social ARB cluster.
+- API/UI added:
+  - `GET /api/market-intelligence/social-arb/universe-movers`
+  - Market Intelligence -> Social Arbitrage Engine -> `Normalized Universe Movers` collapsible panel.
+- Validation passed:
+  - `py -m py_compile backend/scripts/run_universe_mention_normalization.py`
+  - `py -m py_compile backend/scripts/run_universe_mover_claims.py backend/scripts/run_narrative_cluster_builder.py`
+  - `node --check frontend/public/market-intelligence.js`
+  - `npm run build` from `backend/`
+
+### Market Intelligence — Asymmetric Narrative Layer
+
+### Market Intelligence - YouTube Engine v1
+
+YouTube is now documented as a staged engine rather than a single transcript utility:
+
+- PRD decision D31 added: YouTube runs as channel/feed watcher -> transcript collector -> later comments layer -> later bounded search/discovery. It does not attempt whole-YouTube crawling.
+- Checklist updated with YouTube engine tasks.
+- `collect_youtube_transcripts.py` now skips cleanly when `youtube-watchlist.txt` is empty instead of failing scheduled runs.
+- Added `backend/scripts/collect_youtube_channel_feeds.py`.
+  - Reads `backend/data/preferences/youtube-channels.json`.
+  - Pulls free YouTube RSS feeds by channel id / handle / channel URL.
+  - Persists upload metadata as `youtube_video` rows in `mi_raw_hits`.
+  - Can optionally hand discovered video URLs to the existing transcript collector with `--fetch-transcripts`.
+  - Empty config returns `status:"skipped"` with no error.
+- Added operator-managed `backend/data/preferences/youtube-channels.json` with supported channel shapes documented.
+- Registered scheduler job `youtube_channel_feed_collector`, every 2h at `:11`.
+- Validation:
+  - Empty config dry run returns clean skip.
+  - Live dry run against Google Developers RSS found 3 recent videos and would write 3 metadata rows.
+  - Python compile and backend TypeScript build pass.
+
+The system now supports the intended hunting pipeline:
+
+```text
+mi_raw_hits -> emerging_claims -> narrative_clusters -> market_situations
+```
+
+**Built and run locally:**
+- `backend/scripts/run_narrative_claim_extraction.py` already produced `47` `emerging_claims` from local `mi_raw_hits`.
+- Added `backend/scripts/run_narrative_cluster_builder.py`.
+  - Groups claims into `narrative_clusters`.
+  - Preserves lineage in `narrative_cluster_claims`.
+  - Assigns `WATCH`, `RESEARCH`, or `SCENARIO_READY`.
+  - Stores deterministic promotion rationale in `metadata_json.promotion_rationale`.
+  - Maps specific asymmetric themes to existing `theme_registry` keys while preserving the richer theme in metadata.
+- Added `backend/scripts/promote_narrative_clusters.py`.
+  - Promotes only mapped, unpromoted `SCENARIO_READY` clusters into `market_situations`.
+  - Preserves `claim_ids`, `source_hit_ids`, `source_types`, `source_communities`, and `watch_tickers` in scenario metadata.
+  - Writes a `situation_evidence` row and marks the source cluster `PROMOTED`.
+
+**Local DB result:**
+- `emerging_claims`: `47`
+- `narrative_clusters`: `5`
+- `narrative_cluster_claims`: `47`
+- Cluster statuses after promotion:
+  - `PROMOTED`: `1`
+  - `RESEARCH`: `4`
+- Promoted scenario:
+  - scenario id: `457`
+  - slug: `narrative-ai-power-grid-bottleneck`
+  - detection path: `mixed_anomaly_led`
+  - watch tickers: `CEG`, `ETN`, `GEV`, `NEE`, `PWR`, `SO`, `VST`
+
+**Scheduler wiring added in `backend/src/services/marketIntelligenceScheduler.ts`:**
+- `narrative_claim_extraction`
+- `narrative_cluster_builder`
+- `narrative_cluster_promotion`
+
+**Checklist updated:**
+- `.planning/plans/ACTIVE/market-intelligence-checklist.md`
+- Phase 1.2 now marks claim extraction, cluster building, promotion bridge, deterministic status transitions, cluster creation, promotion lineage, and `SINGLE_SOURCE_RISK` flagging complete.
+- Added Narrative Radar API/UI completion to the checklist:
+  - `GET /api/market-intelligence/narrative-clusters`
+  - `GET /api/market-intelligence/narrative-clusters/:id`
+  - Market Intelligence page now has a collapsible `Narrative Radar` section showing status, narrative summary, claim count, source count/breadth, mapped tickers, flags, and updated date.
+  - Local helper smoke test returned 5 clusters; first detail decoded 3 claims with `SINGLE_SOURCE_RISK` and `VERIFY_PRIMARY_SOURCES`.
+- Added Ledger narrative cross-check reports:
+  - `GET /api/market-intelligence/narrative-clusters/:id/report`
+  - Narrative Radar rows now have a `Report` action.
+  - Report payload includes `candidate_fundamentals` with `company_type` and `valuation_engine` so Ledger can avoid using DCF for the wrong company types.
+  - Local smoke test on cluster `#5` returned `GOOGL`/`IBM` as `dcf_operating` and `IONQ` as `sales_scenario`.
+
+**Still open in Phase 1.2:**
+- Completed after the first memory update:
+  - `backend/data/scenarios/conviction-templates/asymmetric_narrative.json` added and covered by offline eval.
+  - `backend/scripts/collect_youtube_transcripts.py` added with Shorts/watch/youtu.be/video-id normalization, public caption fetch when available, and `--transcript-file` fallback for operator-copied transcripts.
+  - `youtube_transcript_collector` registered in the Market Intelligence scheduler.
+  - `OPERATOR_SEEDED`, `VERIFY_PRIMARY_SOURCES`, `POLICY_RUMOR_RISK`, and `SINGLE_SOURCE_RISK` now have explicit UI flag tooltips/severity.
+- Phase 1.2 in `.planning/plans/ACTIVE/market-intelligence-checklist.md` is now fully checked off.
+
+### Options Flow — Clean-Universe Optionability
+
+Options Flow is now aligned to the canonical clean universe:
+
+- Added `options_symbol_optionability` table in `backend/data/options-flow.sqlite`.
+- `backend/data/universe/optionable.json` is now treated as a seed/intersection source, not a master universe.
+- Seed result from clean universe:
+  - `3272` optionable
+  - `986` not-optionable
+  - `55` unknown
+- Active optionability refresh smoke checked 3 unknown symbols and moved totals to:
+  - `3272` optionable
+  - `989` not-optionable
+  - `52` unknown
+- Daily options flow collector now defaults to clean-universe symbols marked optionable.
+- Manual `/api/options-flow/run-collect` now also defaults to `optionable-clean` instead of top 100.
+- Added `/api/options-flow/optionability` so the app can report clean-universe optionability counts from SQLite.
+- Scheduler now has:
+  - daily `options_flow_collector` over `optionable-clean`
+  - weekly `options_optionability_refresh`
+- Two-symbol collection smoke originally added `2026-05-06` snapshots for `A` and `AA`; those smoke rows were removed because the anomaly UI chooses the latest snapshot date.
+- `getTopAnomalies()` now defaults to the latest date with at least 20 distinct symbols, so partial/smoke days do not hide the prior usable options-flow dataset.
+- Added raw options-chain snapshot storage:
+  - `options_contract_snapshot` table in `options-flow.sqlite`
+  - stores expiration, option type, strike, contract symbol, bid/ask, last price, volume, open interest, IV, moneyness, and last trade date
+  - daily collector now hydrates raw contract rows and aggregate anomaly rows in the same pass
+  - `GET /api/options-flow/optionability` includes chain snapshot stats
+- Hydration smoke over 5 clean-optionable symbols wrote `1482` raw contract rows for `2026-05-06`.
+- `getTopAnomalies()` now requires at least 50 symbols on a date before treating it as the default anomaly date, so partial hydration runs do not hide the prior usable anomaly set.
+- Settings > Market Intel now includes the options-chain update engine controls:
+  - manual collection status
+  - scheduler state for `options_flow_collector` and `options_optionability_refresh`
+  - clean-universe optionability counts
+  - raw-chain snapshot coverage
+  - buttons for daily chain hydration, optionability refresh, manual full optionable-universe hydration, and status refresh
+- Live process check showed no `collect_options_flow.py` job running. Backend/Python services are listening, but the running backend still exposes the old scheduler registry (`options_flow_collector` disabled, no `options_optionability_refresh`), so restart backend before expecting the new Settings controls to show live job/coverage data.
+
+### Market Intelligence UI Naming / Control Surfaces
+
+The page now uses the clearer mental model:
+- `Theme Performance` = forward-tracking outcomes and per-theme hit-rate/returns
+- `Macro Source Monitor` = macro collector/engine scheduler health
+- `Social Arbitrage Engine` = listening concepts + emerging-topic controls
+- `Listening Concepts` = old tracked-concepts registry surface
+- `Intelligence Network Intake` = Social ARB funnel health: raw social hits, matched concept hits, pending/promoted/suppressed emerging topics, cross-platform topics, and active Social ARB cards. Added via `GET /api/market-intelligence/social-arb/audit` and a new Social Arbitrage Engine panel.
+- `Promoted Topic Ledger` = maps each promoted emerging topic to its destination scenario card and explains compression. Added via `GET /api/market-intelligence/social-arb/promoted-topics`.
+- Current Social ARB compression finding: `34` promoted topics are only `3` unique destination cards (`29` self-hosted/off-cloud, `4` Nvidia/CUDA, `1` OpenAI model releases), with `0` cross-platform confirmations.
+- The ledger now groups repeated spike events by concept/card, so the UI shows `3` grouped rows instead of `34` repeated rows. Repeats are represented as pulse counts: self-hosted/off-cloud `29`, Nvidia/CUDA `4`, OpenAI models `1`.
+- Social ARB hunting criteria are now explicit in the active plan/checklist and visible in the promoted-spike groups: undercovered tradable exposure, niche adoption, user enthusiasm, specialist/forum evidence, YouTube/ticker implications, real-use/demand/procurement/shortage/pricing/new-customer language, and cross-platform migration. The ledger now includes hunting-fit score, source breadth, real-use hits, ticker/product-specific hits, watch tickers, and hunting flags.
+- Pruned 27 noisy/context tracked concepts from active Social ARB listening (`openai_models`, `github_copilot`, `self_hosted_migration`, `nvidia_cuda_moat`, Tesla/Apple/Cloudflare derivative rows, etc.). Active concepts are now 19 core hunting targets. Backup before DB edit: `backend/data/market-intelligence.sqlite.pre-social-arb-prune-20260505-223505.bak`.
+- Social ARB promoted-spike ledger and audit now exclude pruned/context concepts by default. Active core promoted spike events/cards are now `0/0`; historical pruned/context groups remain available with `include_pruned=true` (`34` spike events into `3` cards).
+- Added the Social Intelligence -> Market Intelligence raw bridge:
+  - `backend/scripts/run_social_raw_bridge.py`
+  - scheduler job `social_raw_bridge`
+  - imports matched StockTwits, Yahoo Finance community, and Reddit rows from `social-intelligence.sqlite` into `market-intelligence.sqlite.mi_raw_hits`
+  - matches by active Social ARB concept search terms and `watch_tickers`
+  - first live run wrote `1,255` rows: `1,195` StockTwits, `52` Reddit, `8` Yahoo community
+  - refreshed `242` concept/day/community buckets
+  - current top ticker-indexed Social ARB concepts by 7d mentions: quantum commercialization, consumer product breakout, stablecoin rails, AI compute shortage, robotics automation, tokenization, 24-hour trading, drones/counter-drone, defense AI, and AI drug discovery
+- Added candidate-intel fallback for the Social ARB promoted-spike ledger:
+  - `social-arb/promoted-topics` returns `candidate_groups` when raw Social ARB evidence exists but no promoted spike groups have matured
+  - UI renders those candidates in the promoted-spike table as "candidate intel - baseline warming"
+  - first backend smoke returned `16` candidate groups; top candidate was `quantum_computing_commercialization` with `207` 7d mentions, `7` communities, `2` source types, and hunting fit `100`
+
+Files touched:
+- `frontend/public/market-intelligence.html`
+- `frontend/public/market-intelligence.js`
+- `backend/src/routes/marketIntelligence.ts`
+- `backend/src/services/marketIntelligenceDb.ts`
+- `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd-pdr.md`
+- `.planning/plans/ACTIVE/market-intelligence-checklist.md`
+
+### GitNexus MCP Config
+
+Codex config had GitNexus enabled, but pointed to:
+
+```toml
+command = "C:\\Program Files\\nodejs\\npx.cmd"
+args = ["-y", "gitnexus@latest", "mcp"]
+```
+
+That launcher failed locally with:
+
+```text
+Cannot destructure property 'package' of 'node.target' as it is null.
+```
+
+Updated `C:\Users\eod99\.codex\config.toml` to use the working local executable:
+
+```toml
+[mcp_servers.gitnexus]
+command = "C:\\Users\\eod99\\AppData\\Roaming\\npm\\gitnexus.cmd"
+args = ["mcp"]
+enabled = true
+```
+
+This likely requires a new Codex session to expose MCP resources/tools. In the current session, GitNexus CLI works and the repo index is healthy, but MCP resources were not attached.
+
+---
+
+## Previous Update (2026-04-30)
+
+### Options Flow Intelligence Report — Full Fundamental Integration
+
+The Options Flow Anomaly Engine was significantly enhanced to produce hedge-fund-quality intelligence reports by cross-referencing all available data sources.
+
+**Problem found and fixed:**
+- The report endpoint was looking for fundamentals at `fJson.data.snapshot` but the API returns data at `fJson.data`. This meant `fundamentalsData` was always null — the LLM had no fundamentals, risk flags, earnings data, or valuation context. Reports were generic and useless.
+
+**Data pack now includes (backend: `optionsFlow.ts`):**
+- Full balance sheet: D/E, current ratio, quick ratio, total cash vs debt, FCF, OCF, cash burn, cash runway
+- Quarterly trend (last 3 quarters): revenue, EPS, margins, leverage, cash position
+- Earnings execution: beat/miss streaks, average surprise %, full history with actuals vs estimates
+- Forward expectations: current & next quarter growth estimates, revenue/earnings growth trajectory
+- DCF valuation: fair value, gap %, quality grade, valuation state
+- Risk flags with severity, short descriptions, and full detail
+- Tags with tone (danger/positive/neutral)
+- Status notes, risk notes, hold context, squeeze pressure, days until earnings
+- Social buzz with per-platform source breakdown and sample messages
+- Company type classification and valuation engine class
+
+**Social Buzz Aggregation (backend: `fundamentals.ts`):**
+- Added `getMiRawHitsForSymbol()` — queries `market-intelligence.sqlite` (`mi_raw_hits`) for posts from HN, 4chan, Bluesky, Forums, Discord, Yahoo News, Reuters, AP
+- Buzz endpoint now merges ALL available social sources alongside StockTwits, Yahoo Finance, and Reddit
+- Dynamic `source_label` lists only sources with actual data
+
+**Sector-Specific Valuation Guidance:**
+- The system already classifies companies by type (`reit`, `financial_company`, `preprofit_growth`, `operating_company`) via `getSymbolClassification()` in `symbolCatalog.ts`
+- Added `getSectorValuationGuidance()` function that injects sector-appropriate analytical guidance into the LLM prompt:
+  - **REITs**: Explains that low current ratio, negative FCF, and low cash are structurally normal. Instructs LLM to use AFFO, dividend coverage, cap rate spreads. Warns that `liquidity_crisis` flags are likely false positives.
+  - **Financial companies**: Price/Book, ROE vs cost of equity, NIM, loan quality — not standard DCF.
+  - **Pre-profit growth**: Revenue multiples, Rule of 40, cash runway — not earnings-based metrics.
+- Prompt instructions explicitly tell the LLM to follow sector guidance and distinguish genuine concerns from false positives caused by sector-blind thresholds.
+
+**Why this matters — the ADC case study:**
+- ADC (Agree Realty, REIT) had a 56:1 put/call ratio. The original report called it a "compelling short" citing "liquidity crisis" (current ratio 0.29) and negative FCF.
+- Ledger (Financial Analyst workspace) correctly pushed back: for a net lease REIT, current ratio 0.29 is normal, negative FCF reflects property acquisitions, and the company has $504M OCF + $625M commercial paper program.
+- The original report was wrong because it applied generic financial distress heuristics to a REIT. The new sector-aware prompt prevents this class of error.
+
+**Frontend enhancements (market-intelligence.js):**
+- Report drawer now shows: company type badge, valuation state, quality grade, industry, current ratio, revenue growth, profit margin, FCF, short float, short ratio
+- Earnings execution panel: score, beat streak, average surprise
+- Forward expectations panel: score, signal, revenue growth QoQ
+- Status/risk notes displayed inline
+- Tags color-coded by tone (danger=red, positive=green, neutral=gray)
+- Social buzz panel: per-source message counts as badges, sample messages with source and sentiment color-coding
+
+**Files modified:**
+- `backend/src/routes/optionsFlow.ts` — fundamentals extraction fix, enriched dataPack, sector guidance, rewritten LLM prompt
+- `backend/src/routes/fundamentals.ts` — `getMiRawHitsForSymbol()`, aggregated social sources in buzz endpoint
+- `frontend/public/market-intelligence.js` — enriched report drawer, social buzz panel, company type badge
+
+**Architecture insight discovered:**
+- The `workspace/Financial Analyst Workspace/` contains Ledger's full agent definition: `IDENTITY.md`, `SOUL.md`, `AGENTS.md`, `TOOLS.md`, `DATA_CONTRACT.md`, plus reference PDFs (Morningstar, CFA) and skills (`dcf-valuation`, `buried-risk-review`, `earnings-quality`, etc.)
+- Ledger's `SOUL.md` teaches it to be skeptical of surface metrics and choose the right valuation framework per company type
+- The DCF valuation skill explicitly says to choose FCFF/WACC vs FCFE based on company type
+- The options flow report engine now has a miniature version of this sector awareness, but Ledger's full workspace remains the authoritative source for deep fundamental analysis
+
+**Related prior work in this conversation:**
+- Reddit social intelligence integration into buzz endpoint
+- Enable All Jobs button for MI scheduler
+- Options flow collector and anomaly detection system
+- LLM-driven narrative generation for options reports
+- Market Intelligence page live data integration
+
+---
+
+## Previous Status (2026-04-16)
 
 ### Repo Hygiene + Scope + Fragility Pass
 

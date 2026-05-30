@@ -1,0 +1,13 @@
+{
+  "symbol_mode": "single_symbol",
+  "universe_json": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\universe_clean.json",
+  "symbols_scanned": 1,
+  "timeframes": [
+    "1wk"
+  ],
+  "period": "5y",
+  "window_bars": 80,
+  "stride_bars": 40,
+  "total_images": 5,
+  "metadata_csv": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\tests\\hybrid-chart-detector-prototype\\artifacts\\charts_btc_smoke\\chart_windows_metadata.csv"
+}

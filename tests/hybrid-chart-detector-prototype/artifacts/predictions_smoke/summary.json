@@ -1,0 +1,12 @@
+{
+  "model": "foduucom/stockmarket-pattern-detection-yolov8",
+  "resolved_model": "C:\\Users\\eod99\\.cache\\huggingface\\hub\\models--foduucom--stockmarket-pattern-detection-yolov8\\snapshots\\31bbb9abc9843dc3d9c08349507c178cde56be31\\model.pt",
+  "images_dir": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\tests\\hybrid-chart-detector-prototype\\artifacts\\charts_smoke",
+  "images_scanned": 2,
+  "images_with_detections": 0,
+  "detections_exported": 0,
+  "conf_threshold": 0.7,
+  "class_filter": "head and shoulders",
+  "output_csv": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\tests\\hybrid-chart-detector-prototype\\artifacts\\predictions_smoke\\detections.csv",
+  "class_counts": {}
+}

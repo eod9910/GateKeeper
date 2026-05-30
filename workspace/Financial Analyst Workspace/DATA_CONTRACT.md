@@ -23,6 +23,10 @@ When the app asks the Financial Analyst workspace to analyze a company, it shoul
 - `company_name`
 - `analysis_mode`
 - `asof_date`
+- `valuation_engine_class`
+  - expected values: `dcf_operating`, `roe_book_value`, `reit_affo`, `sales_scenario`, or `special_situation`
+- `company_type`
+  - expected values include `operating_company`, `financial_company`, `reit`, `preprofit_growth`, and event-driven/special-situation labels when applicable
 
 ### 2. Coverage Metadata
 
@@ -48,6 +52,12 @@ Allowed `coverage_tier` values at v0:
   - multi-period statement facts by period
 - `market_context`
   - market facts that are explicitly allowed to inform analysis
+- `valuation_method_inputs`
+  - facts required by the selected valuation engine
+  - for `dcf_operating`: revenue, margins, operating cash flow, free cash flow, reinvestment needs, shares, discount rate, terminal growth
+  - for `roe_book_value`: book value or tangible book value, normalized ROE, cost of equity, capital adequacy, credit quality, reserves/provisions
+  - for `reit_affo`: FFO, AFFO, dividend coverage, NAV, cap rates, occupancy, same-store rent growth, debt maturity ladder, fixed-charge coverage
+  - for `sales_scenario`: revenue growth, gross margin, unit economics, runway, dilution, EV/Sales, path to profitability
 - `events`
   - earnings and other relevant PIT event rows if included
 
@@ -101,6 +111,7 @@ The Financial Analyst workspace should return one structured analysis result.
 - `competitive_advantage`
 - `capital_allocation`
 - `valuation_method`
+- `valuation_engine_class`
 - `intrinsic_value_conclusion`
 - `price_vs_value_judgment`
 - `main_risks`
@@ -120,6 +131,7 @@ The Financial Analyst workspace should return one structured analysis result.
 - `insufficient_evidence_areas`
 - `open_questions`
 - `normalization_warnings`
+- `model_limitations`
 
 ---
 
@@ -131,6 +143,9 @@ The Financial Analyst workspace should return one structured analysis result.
 4. The analyst must expose low-confidence and insufficient-evidence states directly.
 5. The analyst should prefer filing-derived evidence when available over vendor-only summaries.
 6. The analyst must not present vendor-only coverage as if it were filing-backed coverage.
+7. The analyst must not force all companies into a DCF. Choose the valuation engine that fits the business model.
+8. The analyst must not call REIT, financial-company, sales-scenario, or special-situation valuation a DCF.
+9. If the correct engine is unavailable or key inputs are missing, return the missing model requirements instead of producing a misleading fair value.
 
 ---
 

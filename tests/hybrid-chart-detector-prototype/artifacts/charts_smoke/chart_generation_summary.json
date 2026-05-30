@@ -1,0 +1,12 @@
+{
+  "universe_json": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\universe_clean.json",
+  "symbols_scanned": 1,
+  "timeframes": [
+    "1d"
+  ],
+  "period": "1y",
+  "window_bars": 60,
+  "stride_bars": 30,
+  "total_images": 7,
+  "metadata_csv": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\tests\\hybrid-chart-detector-prototype\\artifacts\\charts_smoke\\chart_windows_metadata.csv"
+}

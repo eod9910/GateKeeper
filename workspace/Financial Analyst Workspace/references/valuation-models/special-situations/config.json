@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "engine_class": "special_situation",
+  "valuation_method": "special_situation_post_reorg_scenario",
+  "scenario_spreads": {
+    "bear": {
+      "revenue_growth_delta_pct": -15,
+      "ev_sales_multiple_delta": -1.2,
+      "survival_probability_pct": 35
+    },
+    "base": {
+      "default_revenue_growth_pct": 5,
+      "survival_probability_pct": 55
+    },
+    "bull": {
+      "revenue_growth_delta_pct": 15,
+      "ev_sales_multiple_delta": 1.5,
+      "survival_probability_pct": 75
+    }
+  },
+  "default_ev_sales_multiple": {
+    "base": 2,
+    "min": 0.25,
+    "max": 8
+  },
+  "required_inputs": [
+    "post-reorg share count",
+    "post-reorg cash and debt",
+    "remaining claims, warrants, or contingent equity",
+    "normalized revenue base",
+    "path to free-cash-flow breakeven",
+    "scenario EV multiple or normalized EBITDA/FCF anchor"
+  ],
+  "model_limitations": [
+    "This is a special-situation scenario and equity-waterfall framework, not a normal operating-company DCF.",
+    "The output is highly sensitive to post-reorg capital structure, dilution, liquidity runway, and execution against the operating reset.",
+    "If confirmed plan terms are missing, treat the value range as a placeholder for what must be underwritten rather than a precise fair value."
+  ]
+}
