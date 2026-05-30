@@ -10,9 +10,8 @@
   <link rel="stylesheet" href="styles.css">
   <style>
     /* =========================================================
-       Market-Intelligence page — Phase 0 mockup (no data wired)
+       Market Intelligence — Scenario Engine
        Spec: .planning/plans/ACTIVE/market-intelligence-scenario-engine-prd-pdr.md §UI Contract
-       Sample data: market-intelligence.js
        ========================================================= */
 
     .mi-page {
@@ -120,15 +119,22 @@
     }
     .mi-engine-tabs {
       display: flex;
-      gap: 2px;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: var(--space-8);
       background: var(--color-bg);
       border: 1px solid var(--color-border);
       border-radius: var(--radius);
-      padding: 2px;
+      padding: var(--space-4);
       width: fit-content;
+      max-width: 100%;
     }
     .mi-engine-tab {
-      padding: var(--space-6) var(--space-12);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-16);
       font-size: var(--text-small);
       color: var(--color-text-muted);
       cursor: pointer;
@@ -137,6 +143,8 @@
       border-radius: var(--radius);
       transition: background var(--transition), color var(--transition);
       font-family: var(--font-sans);
+      line-height: 1.3;
+      white-space: nowrap;
     }
     .mi-engine-tab:hover { color: var(--color-text); background: var(--color-surface-hover); }
     .mi-engine-tab.active { color: var(--color-text); background: var(--color-surface-hover); font-weight: 600; }
@@ -144,39 +152,105 @@
       font-family: var(--font-mono);
       font-size: var(--text-caption);
       color: var(--color-text-subtle);
-      margin-left: var(--space-4);
+      margin-left: 0;
+      flex-shrink: 0;
     }
 
     .mi-global-filters {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
-      gap: var(--space-12);
+      align-items: flex-end;
+      gap: var(--space-16) var(--space-24);
+      font-family: var(--font-sans);
       font-size: var(--text-small);
+      color: var(--color-text-muted);
     }
     .mi-filter {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: stretch;
       gap: var(--space-6);
-      color: var(--color-text-muted);
+      min-width: 0;
     }
-    .mi-filter label { font-size: var(--text-caption); }
+    .mi-filter label {
+      font-size: var(--text-small);
+      font-weight: 500;
+      font-family: var(--font-sans);
+      color: var(--color-text-muted);
+      line-height: 1.3;
+      letter-spacing: 0.01em;
+    }
     .mi-filter select,
     .mi-filter input[type="number"],
     .mi-filter input[type="range"] {
-      padding: 4px 8px;
-      font-size: var(--text-caption);
-      font-family: var(--font-mono);
+      padding: var(--space-8) var(--space-10);
+      font-size: var(--text-small);
+      font-family: var(--font-sans);
       background: var(--color-bg);
       border: 1px solid var(--color-border);
       border-radius: var(--radius);
       color: var(--color-text);
     }
-    .mi-filter input[type="number"] { width: 60px; }
-    .mi-filter input[type="range"] { width: 110px; padding: 0; }
+    .mi-filter input[type="number"] { width: 72px; }
+    .mi-filter input[type="range"] {
+      width: min(160px, 32vw);
+      min-width: 120px;
+      padding: 0;
+      height: 6px;
+      accent-color: var(--color-accent);
+    }
+    .mi-filter-slider-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-10);
+    }
+    .mi-filter-slider-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-small);
+      font-weight: 600;
+      color: var(--color-text);
+      min-width: 2.25rem;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .mi-filter-toggles-row {
+      flex-basis: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-16) var(--space-24);
+      padding-top: var(--space-12);
+      margin-top: var(--space-4);
+      border-top: 1px solid var(--color-border);
+    }
     .mi-filter-toggle {
-      display: flex; align-items: center; gap: 4px; cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-8);
+      cursor: pointer;
       user-select: none;
+      font-family: var(--font-sans);
+      font-size: var(--text-small);
+      color: var(--color-text-muted);
+    }
+    .mi-filter-toggle input[type="checkbox"] {
+      width: 1rem;
+      height: 1rem;
+      accent-color: var(--color-accent);
+      flex-shrink: 0;
+    }
+    .mi-filter-toggle-text {
+      font-family: var(--font-sans);
+      font-size: var(--text-small);
+      color: var(--color-text);
+      line-height: 1.35;
+    }
+    .mi-filter-toggle-hint {
+      display: block;
+      font-size: var(--text-caption);
+      font-weight: 400;
+      color: var(--color-text-subtle);
+      margin-top: 2px;
     }
 
     /* ---------- Two-panel layout ---------- */
@@ -337,6 +411,18 @@
     .mi-card-engine.mixed-news    { background: linear-gradient(90deg, var(--engine-macro), var(--engine-mixed)); }
     .mi-card-engine.mixed-anomaly { background: linear-gradient(90deg, var(--engine-social), var(--engine-mixed)); }
 
+    .mi-card-date {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-hover);
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
     .mi-card-coverage {
       font-family: var(--font-mono);
       font-size: 9px;
@@ -455,6 +541,7 @@
       font-family: var(--font-mono);
       font-size: 9px;
       padding: 2px 5px;
+      cursor: help;
       border-radius: var(--radius);
       background: var(--color-surface-hover);
       color: var(--color-text-subtle);
@@ -479,6 +566,28 @@
     .mi-card-candidate-symbol { font-weight: 600; color: var(--color-text); }
     .mi-card-candidate-meta   { color: var(--color-text-subtle); font-size: 10px; }
     .mi-card-candidate-rank   { color: var(--color-text-muted); }
+    .mi-scanner-symbol-link,
+    a[href*="/scanner?symbol="],
+    .mi-card-candidate-symbol.mi-scanner-symbol-link {
+      color: var(--color-accent);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(93, 122, 146, 0.45);
+      cursor: pointer;
+      border-radius: 2px;
+      transition: color 120ms ease, background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+    .mi-scanner-symbol-link:hover,
+    .mi-scanner-symbol-link:focus-visible,
+    a[href*="/scanner?symbol="]:hover,
+    a[href*="/scanner?symbol="]:focus-visible,
+    .mi-card-candidate-symbol.mi-scanner-symbol-link:hover,
+    .mi-card-candidate-symbol.mi-scanner-symbol-link:focus-visible {
+      color: #d8ecff;
+      background: rgba(93, 122, 146, 0.22);
+      border-bottom-color: #d8ecff;
+      box-shadow: 0 0 0 2px rgba(93, 122, 146, 0.18);
+      outline: none;
+    }
 
     /* ---------- Detail drawer ---------- */
     .mi-drawer-backdrop {
@@ -626,7 +735,154 @@
     .mi-candidates-table tr.candidate-row { cursor: pointer; }
     .mi-candidates-table tr.candidate-row:hover { background: var(--color-surface-alt); }
     .mi-open-scanner-link { color: var(--color-accent); text-decoration: none; font-size: 10px; }
-    .mi-open-scanner-link:hover { text-decoration: underline; }
+    .mi-open-scanner-link:hover,
+    .mi-open-scanner-link:focus-visible { text-decoration: underline; }
+
+    .mi-candidates-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+    }
+    .mi-candidates-header .mi-drawer-section-title { margin-bottom: 0; }
+    .mi-export-btn {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 3px 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      background: var(--color-surface);
+      color: var(--color-text-subtle);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .mi-export-btn:hover { color: var(--color-text); border-color: var(--color-accent); }
+
+    .mi-sortable-th {
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      padding-right: 14px !important;
+    }
+    .mi-sortable-th:hover { color: var(--color-text); }
+    .mi-sortable-th::after { content: '\2195'; position: absolute; right: 2px; opacity: 0.3; font-size: 9px; }
+    .mi-sortable-th.sort-asc::after  { content: '\2191'; opacity: 0.8; }
+    .mi-sortable-th.sort-desc::after { content: '\2193'; opacity: 0.8; }
+
+    /* ---------- Exposure table ---------- */
+    .mi-exposure-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: var(--space-8); }
+    .mi-exposure-table th, .mi-exposure-table td {
+      padding: 4px 6px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .mi-exposure-table th {
+      color: var(--color-text-subtle); font-family: var(--font-mono);
+      font-weight: 500; text-transform: uppercase; font-size: 9px;
+    }
+    .mi-exposure-table td { font-family: var(--font-mono); color: var(--color-text); }
+    .mi-exposure-table tr:hover { background: var(--color-surface-alt); }
+    .exp-order { color: var(--color-text-muted); font-size: 10px; }
+    .exp-type  { color: var(--color-text-subtle); }
+    .exp-key   { font-weight: 600; }
+    .exp-dir.dir-long   { color: var(--color-positive); }
+    .exp-dir.dir-short  { color: var(--color-negative); }
+    .exp-dir.dir-volatility, .exp-dir.dir-direction { color: var(--color-warning, #d4a017); }
+    .exp-method { font-size: 9px; }
+    .exp-method.method-hand_curated { color: var(--color-positive); }
+    .exp-method.method-llm_assist { color: var(--color-accent); }
+    .exp-method.method-operator_override { color: var(--color-warning, #d4a017); font-weight: 600; }
+    .exp-symbol-link { color: var(--color-accent); text-decoration: none; font-weight: 600; }
+    .exp-symbol-link:hover,
+    .exp-symbol-link:focus-visible { text-decoration: underline; }
+
+    /* ---------- Conviction layer ---------- */
+    .mi-conviction-block {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      margin-bottom: var(--space-12);
+    }
+    .mi-conviction-row {
+      display: flex;
+      gap: var(--space-8);
+      margin-bottom: var(--space-8);
+    }
+    .mi-conviction-row:last-child { margin-bottom: 0; }
+    .mi-conviction-label {
+      flex: 0 0 110px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+      padding-top: 2px;
+    }
+    .mi-conviction-value {
+      flex: 1;
+      font-size: var(--text-caption);
+      color: var(--color-text);
+      line-height: 1.5;
+    }
+    .mi-conviction-signals { margin-bottom: var(--space-8); }
+    .mi-conviction-sub-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+      margin-bottom: var(--space-4);
+      display: inline-block;
+    }
+    .mi-conviction-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 0 var(--space-8);
+      font-size: var(--text-caption);
+    }
+    .mi-conviction-list li {
+      padding: 2px 0;
+      position: relative;
+      padding-left: 14px;
+    }
+    .mi-conviction-list li::before {
+      content: '\2022';
+      position: absolute;
+      left: 0;
+    }
+    .mi-conviction-list.confirming li::before { color: var(--color-positive); }
+    .mi-conviction-list.invalidating li::before { color: var(--color-negative); }
+    .mi-conviction-list.risks li::before { color: var(--color-warning, #d4a017); }
+    .mi-conviction-best {
+      margin-bottom: var(--space-8);
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      flex-wrap: wrap;
+    }
+    .mi-conviction-ticker {
+      background: var(--color-accent);
+      color: var(--color-bg);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .mi-conviction-ticker:hover,
+    .mi-conviction-ticker:focus-visible {
+      opacity: 1;
+      background: #d8ecff;
+      color: var(--color-bg);
+      box-shadow: 0 0 0 2px rgba(93, 122, 146, 0.35);
+      outline: none;
+    }
+    .mi-conviction-meta {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      margin-bottom: var(--space-12);
+    }
 
     /* ---------- Engine color tokens ---------- */
     :root {
@@ -635,7 +891,142 @@
       --engine-mixed:  #9b6dc8;   /* purple */
     }
 
-    /* ---------- Sample-data badge ---------- */
+    /* ---------- Engine monitors / operator controls ---------- */
+    .mi-operator-section {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      margin-bottom: var(--space-12);
+    }
+    .mi-operator-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-8) var(--space-12);
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+    }
+    .mi-operator-section.expanded .mi-operator-header {
+      border-bottom-color: var(--color-border-subtle);
+    }
+    .mi-operator-title {
+      display: flex; align-items: center; gap: var(--space-8);
+      font-family: var(--font-mono); font-size: var(--text-caption);
+      color: var(--color-text); font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .mi-operator-title-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #c8b878;
+    }
+    .mi-operator-toggle {
+      background: none; border: none; color: var(--color-text-muted);
+      font-size: 14px; cursor: pointer; padding: 0; line-height: 1;
+    }
+    .mi-operator-body {
+      display: none;
+      padding: var(--space-12);
+      grid-template-columns: 1.4fr 1fr;
+      gap: var(--space-12);
+    }
+    .mi-operator-section.expanded .mi-operator-body { display: grid; }
+    @media (max-width: 1100px) { .mi-operator-body { grid-template-columns: 1fr; } }
+
+    .mi-operator-card {
+      background: var(--color-surface-alt);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius);
+      padding: var(--space-12);
+      display: flex; flex-direction: column; gap: var(--space-8);
+    }
+    .mi-operator-card[hidden] { display: none; }
+    #mi-operator-section .mi-operator-body { grid-template-columns: 1fr; }
+    #mi-operator-section .mi-operator-card { grid-column: 1 / -1; }
+    .mi-operator-card.collapsed > :not(.mi-operator-card-header) { display: none; }
+    .mi-operator-card-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--color-text-subtle); text-transform: uppercase; letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+    .mi-operator-card-header .mi-operator-card-count {
+      color: var(--color-text-muted); font-size: 10px;
+    }
+    .mi-card-toggle {
+      background: none;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      border-radius: 3px;
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      line-height: 1;
+      margin-left: var(--space-6);
+    }
+    .mi-card-toggle:hover { color: var(--color-text); border-color: var(--color-accent); }
+
+    .mi-operator-toolbar {
+      display: flex; gap: var(--space-6); flex-wrap: wrap; align-items: center;
+    }
+    .mi-operator-toolbar input[type="text"],
+    .mi-operator-toolbar select {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      padding: 4px 8px;
+      font-family: var(--font-mono); font-size: 11px;
+      border-radius: 3px;
+    }
+    .mi-operator-toolbar input[type="text"] { min-width: 140px; }
+
+    .mi-operator-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .mi-operator-table th, .mi-operator-table td {
+      padding: 4px 6px; text-align: left;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .mi-operator-table th {
+      color: var(--color-text-subtle); font-family: var(--font-mono);
+      font-weight: 500; text-transform: uppercase; font-size: 10px;
+    }
+    .mi-operator-table td { font-family: var(--font-mono); color: var(--color-text); }
+    .mi-operator-table td.label-cell { font-family: var(--font-body); }
+    .mi-operator-table tr.status-pruned td { color: var(--color-text-muted); opacity: 0.65; }
+    .mi-operator-table tr.status-merged td { color: var(--color-text-muted); font-style: italic; }
+    .mi-operator-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+    .mi-operator-btn {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      padding: 2px 8px;
+      font-family: var(--font-mono); font-size: 10px;
+      border-radius: 3px; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .mi-operator-btn:hover { background: var(--color-surface-hover); }
+    .mi-operator-btn.danger { border-color: #b46060; color: #d88080; }
+    .mi-operator-btn.warn   { border-color: #c8b878; color: #c8b878; }
+    .mi-operator-btn.go     { border-color: var(--color-positive); color: var(--color-positive); }
+    .mi-operator-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .mi-operator-empty {
+      padding: var(--space-12);
+      color: var(--color-text-subtle);
+      font-family: var(--font-mono); font-size: 11px; text-align: center;
+    }
+    .mi-operator-toast {
+      padding: var(--space-6) var(--space-8);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-left: 3px solid var(--color-positive);
+      border-radius: 3px;
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--color-text-muted);
+      max-height: 80px; overflow-y: auto;
+    }
+    .mi-operator-toast.error { border-left-color: #b46060; }
+
+    /* ---------- (removed Phase 0 badge) ---------- */
     .mi-mock-badge {
       position: fixed;
       bottom: var(--space-12);
@@ -652,7 +1043,7 @@
     }
   </style>
 </head>
-<body>
+<body data-disable-global-help="true">
   <div class="app">
     <!-- Sidebar (matches existing pages) -->
     <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
@@ -666,9 +1057,15 @@
       <nav class="sidebar-nav">
         <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
         <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
-        <a href="/market-intelligence.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Market Intelligence</span></a>
+        <a href="/position-book" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
         <a href="/validator" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
-        <a href="/settings" class="sidebar-nav-item" style="margin-top:auto;"><span class="nav-dot"></span><span class="sidebar-label-text">&#9881; Settings</span></a>
+        <a href="/indicator-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+        <a href="/auto-labeler" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Auto Labeler</span></a>
+        <a href="/research-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Studio</span></a>
+        <a href="/parameter-sweep" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">&#9881; Settings</span></a>
       </nav>
     </aside>
 
@@ -712,33 +1109,493 @@
 
           <div class="mi-global-filters">
             <div class="mi-filter">
-              <label for="mi-time-horizon">time_horizon</label>
-              <select id="mi-time-horizon">
-                <option value="">any</option>
-                <option value="hours">hours</option>
-                <option value="days">days</option>
-                <option value="weeks">weeks</option>
-                <option value="months">months</option>
+              <label for="mi-time-horizon">Time horizon</label>
+              <select id="mi-time-horizon" aria-label="Filter by time horizon">
+                <option value="">Any</option>
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
               </select>
             </div>
             <div class="mi-filter">
-              <label for="mi-min-strength">min signal_strength</label>
-              <input type="range" id="mi-min-strength" min="0" max="100" value="0" step="5">
-              <span class="text-mono" id="mi-min-strength-val" style="font-size:10px;width:24px;">0</span>
+              <label for="mi-min-strength">Min signal strength</label>
+              <div class="mi-filter-slider-row">
+                <input type="range" id="mi-min-strength" min="0" max="100" value="0" step="5" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span class="mi-filter-slider-value" id="mi-min-strength-val">0</span>
+              </div>
             </div>
             <div class="mi-filter">
-              <label for="mi-min-confidence">min confidence</label>
-              <input type="range" id="mi-min-confidence" min="0" max="100" value="0" step="5">
-              <span class="text-mono" id="mi-min-confidence-val" style="font-size:10px;width:24px;">0</span>
+              <label for="mi-min-confidence">Min confidence (%)</label>
+              <div class="mi-filter-slider-row">
+                <input type="range" id="mi-min-confidence" min="0" max="100" value="0" step="5" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span class="mi-filter-slider-value" id="mi-min-confidence-val">0</span>
+              </div>
             </div>
-            <label class="mi-filter-toggle">
-              <input type="checkbox" id="mi-include-invalidated">
-              <span class="text-mono" style="font-size:10px;">include INVALIDATED</span>
-            </label>
-            <label class="mi-filter-toggle">
-              <input type="checkbox" id="mi-include-suppressed">
-              <span class="text-mono" style="font-size:10px;">include LIKELY_INAUTHENTIC</span>
-            </label>
+            <div class="mi-filter-toggles-row">
+              <label class="mi-filter-toggle">
+                <input type="checkbox" id="mi-include-invalidated">
+                <span>
+                  <span class="mi-filter-toggle-text">Include invalidated scenarios</span>
+                  <span class="mi-filter-toggle-hint">Status = INVALIDATED</span>
+                </span>
+              </label>
+              <label class="mi-filter-toggle">
+                <input type="checkbox" id="mi-include-suppressed">
+                <span>
+                  <span class="mi-filter-toggle-text">Include likely inauthentic</span>
+                  <span class="mi-filter-toggle-hint">Social arb &mdash; LIKELY_INAUTHENTIC flag</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Theme Performance (Phase 5) — collapsed by default -->
+        <section class="mi-operator-section" id="mi-quality-section">
+          <div class="mi-operator-header" id="mi-quality-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-title-dot" style="background:var(--color-info);"></span>
+              Theme Performance
+              <span class="mi-operator-card-count" id="mi-quality-summary">themes: 0 &middot; outcomes: 0</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-quality-toggle" aria-label="Toggle theme performance">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-quality-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Per-Theme Hit Rate &amp; Returns</span>
+                <span class="mi-operator-card-count" id="mi-quality-theme-count">0</span>
+              </div>
+              <div id="mi-quality-themes-table" style="overflow-x:auto;"></div>
+            </div>
+            <div class="mi-operator-card" style="max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Recent Outcome Tracking</span>
+                <button class="mi-export-btn" id="mi-quality-export-btn">Export CSV</button>
+              </div>
+              <div id="mi-quality-outcomes-table" style="overflow-x:auto;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Narrative Radar — clustered claims before scenario promotion -->
+        <section class="mi-operator-section" id="mi-narrative-section">
+          <div class="mi-operator-header" id="mi-narrative-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-title-dot" style="background:var(--engine-social);"></span>
+              Narrative Radar
+              <span class="mi-operator-card-count" id="mi-narrative-summary">clusters: 0 &middot; ready: 0</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-narrative-toggle" aria-label="Toggle narrative radar">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-narrative-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Research Queue</span>
+                <span class="mi-operator-card-count" id="mi-narrative-count">0</span>
+              </div>
+              <div class="mi-operator-toolbar">
+                <select id="mi-narrative-status-filter">
+                  <option value="all">all statuses</option>
+                  <option value="SCENARIO_READY">scenario ready</option>
+                  <option value="RESEARCH">research</option>
+                  <option value="WATCH">watch</option>
+                  <option value="PROMOTED">promoted</option>
+                </select>
+                <button class="mi-operator-btn" id="mi-narrative-refresh">Refresh</button>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-narrative-table">
+                  <thead>
+                    <tr>
+                      <th>status</th>
+                      <th>narrative</th>
+                      <th>claims</th>
+                      <th>sources</th>
+                      <th>tickers</th>
+                      <th>flags</th>
+                      <th>updated</th>
+                      <th>actions</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="8" class="mi-operator-empty">Open to load narrative clusters.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-narrative-toast" hidden></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Convergence Scoreboard — the unified "underneath the surface" view -->
+        <style>
+          .mi-conv-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+          .mi-conv-tier-btn {
+            font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; cursor: pointer;
+            background: var(--color-surface); color: var(--color-text-muted);
+            border: 1px solid var(--color-border); border-radius: 4px;
+          }
+          .mi-conv-tier-btn:hover { color: var(--color-text); background: var(--color-surface-hover); }
+          .mi-conv-tier-btn.active { color: var(--color-text); background: var(--color-surface-hover); font-weight: 600; border-color: var(--color-text-subtle); }
+          .mi-conv-badge {
+            display:inline-block; font-family: var(--font-mono); font-size: 10px; font-weight:600;
+            padding: 1px 6px; border-radius: 3px; letter-spacing: .03em;
+          }
+          .mi-conv-tier1 { background: rgba(52,211,153,.16); color:#34d399; }
+          .mi-conv-tier2 { background: rgba(251,191,36,.16); color:#fbbf24; }
+          .mi-conv-tier3 { background: rgba(148,163,184,.16); color:#94a3b8; }
+          .mi-conv-bull { color:#34d399; }
+          .mi-conv-bear { color:#f87171; }
+          .mi-conv-neutral { color:#94a3b8; }
+          .mi-conv-chip {
+            display:inline-block; font-family: var(--font-mono); font-size: 10px;
+            padding: 1px 5px; margin: 1px 2px 1px 0; border-radius: 3px;
+            border: 1px solid var(--color-border);
+          }
+          .mi-conv-chip.up { color:#34d399; border-color: rgba(52,211,153,.35); }
+          .mi-conv-chip.down { color:#f87171; border-color: rgba(248,113,113,.35); }
+          .mi-conv-score-cell { display:flex; align-items:center; gap:6px; min-width:72px; }
+          .mi-conv-score-bar { height:5px; border-radius:3px; background:var(--color-accent,#60a5fa); }
+          .mi-conv-row { cursor:pointer; }
+          .mi-conv-row:hover { background: var(--color-surface-alt); }
+          .mi-conv-detail td { background: var(--color-surface); padding: 10px 12px !important; }
+          .mi-conv-funnel { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }
+          .mi-conv-step { border:1px solid var(--color-border); border-radius:6px; padding:8px 10px; }
+          .mi-conv-step h5 { margin:0 0 4px; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--color-text-subtle); font-family:var(--font-mono); }
+          .mi-conv-step div { font-size:11px; color:var(--color-text); line-height:1.5; }
+          .mi-conv-step .muted { color:var(--color-text-muted); }
+          .mi-conv-narrative td { opacity:.82; }
+          .mi-conv-narrative-badge { background: rgba(96,165,250,.16); color:#60a5fa; }
+          .mi-conv-catalyst { margin-top:10px; border:1px solid var(--color-border); border-radius:6px; padding:10px 12px; }
+          .mi-conv-catalyst-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+          .mi-conv-catalyst-head > span { font-size:11px; font-weight:600; color:var(--color-text); }
+          .mi-conv-catalyst-body .muted { color:var(--color-text-muted); font-size:11px; }
+          .mi-conv-narrative-text { font-size:12px; line-height:1.6; color:var(--color-text); white-space:pre-wrap; }
+          .mi-conv-sources { margin-top:10px; border-top:1px solid var(--color-border); padding-top:8px; }
+          .mi-conv-sources-head { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--color-text-subtle); font-family:var(--font-mono); margin-bottom:5px; }
+          .mi-conv-source { font-size:11px; margin-bottom:6px; }
+          .mi-conv-source.alias-risk { opacity:.6; }
+          .mi-conv-source-text { color:var(--color-text-muted); font-size:11px; line-height:1.4; margin-top:1px; }
+        </style>
+        <section class="mi-operator-section" id="mi-convergence-section">
+          <div class="mi-operator-header" id="mi-convergence-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-dot" style="background:#60a5fa;"></span>
+              Convergence Scoreboard
+              <span id="mi-convergence-summary" style="color:var(--color-text-subtle);font-weight:500;">not loaded</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-convergence-toggle" type="button" aria-label="Toggle convergence scoreboard">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-convergence-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="grid-column:1 / -1;max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Where independent signals stack up</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-convergence-count">setups: 0</span>
+                  <button class="mi-operator-btn" id="mi-convergence-refresh" type="button">Refresh</button>
+                </span>
+              </div>
+              <div class="mi-conv-toolbar">
+                <button class="mi-conv-tier-btn active" data-conv-tier="0" type="button">All</button>
+                <button class="mi-conv-tier-btn" data-conv-tier="1" type="button">Tier 1 · convergence</button>
+                <button class="mi-conv-tier-btn" data-conv-tier="2" type="button">Tier 2 · watch</button>
+                <button class="mi-conv-tier-btn" data-conv-tier="3" type="button">Tier 3 · background</button>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-convergence-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>symbol</th>
+                      <th>dir</th>
+                      <th>score</th>
+                      <th>tier</th>
+                      <th>votes</th>
+                      <th>sector</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="7" class="mi-operator-empty">Loading convergence scoreboard…</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-convergence-toast" hidden></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Macro source monitor — collapsed by default -->
+        <section class="mi-operator-section" id="mi-macro-source-section">
+          <div class="mi-operator-header" id="mi-macro-source-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-title-dot" style="background:var(--engine-macro);"></span>
+              Macro Source Monitor
+              <span class="mi-operator-card-count" id="mi-macro-source-summary">jobs: 0 &middot; running: 0</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-macro-source-toggle" aria-label="Toggle macro source monitor">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-macro-source-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Macro Feed Health</span>
+                <button class="mi-export-btn" id="mi-macro-source-refresh">Refresh</button>
+              </div>
+              <div id="mi-macro-source-table" style="overflow-x:auto;">
+                <div class="mi-operator-empty">Open to load macro source jobs.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Social Arbitrage controls (prune / merge / promote) — collapsed by default -->
+        <section class="mi-operator-section" id="mi-operator-section">
+          <div class="mi-operator-header" id="mi-operator-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-title-dot" style="background:var(--engine-social);"></span>
+              Social Arbitrage Engine
+              <span class="mi-operator-card-count" id="mi-operator-summary">listening: 0 &middot; emerging: 0</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-operator-toggle" aria-label="Toggle social arbitrage engine controls">+</button>
+          </div>
+
+          <div class="mi-operator-body">
+
+            <div class="mi-operator-card" id="mi-intake-card" style="max-width:100%;grid-column:1 / -1;">
+              <div class="mi-operator-card-header">
+                <span>Intelligence Network Intake</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-social-audit-summary">raw: 0 &middot; matched: 0 &middot; cards: 0</span>
+                  <button class="mi-export-btn" id="mi-social-audit-refresh" type="button">Refresh</button>
+                  <button class="mi-card-toggle" type="button" aria-label="Toggle intelligence network intake">&minus;</button>
+                </span>
+              </div>
+              <div id="mi-social-audit-funnel" class="mi-operator-toolbar" style="justify-content:flex-start;"></div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-social-audit-table">
+                  <thead>
+                    <tr>
+                      <th>source</th>
+                      <th>community</th>
+                      <th>7d raw</th>
+                      <th>7d matched</th>
+                      <th>latest</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="5" class="mi-operator-empty">Open to load Social ARB intake.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-social-audit-toast" hidden></div>
+            </div>
+
+            <div class="mi-operator-card" id="mi-candidate-intel-card" style="max-width:100%;grid-column:1 / -1;">
+              <div class="mi-operator-card-header">
+                <span>Candidate Intel / Promoted Spikes</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-social-ledger-summary">topics: 0 &middot; cards: 0</span>
+                  <button class="mi-export-btn" id="mi-social-ledger-refresh" type="button">Refresh</button>
+                  <button class="mi-card-toggle" type="button" aria-label="Toggle candidate intel">&minus;</button>
+                </span>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-social-ledger-table">
+                  <thead>
+                    <tr>
+                      <th>concept</th>
+                      <th>pulses</th>
+                      <th>z</th>
+                      <th>mentions</th>
+                      <th>source</th>
+                      <th>fit</th>
+                      <th>mapped card</th>
+                      <th>card score</th>
+                      <th>diagnosis</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="9" class="mi-operator-empty">Open to load candidate intel.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-social-ledger-toast" hidden></div>
+            </div>
+
+            <div class="mi-operator-card" id="mi-universe-movers-card" style="max-width:100%;grid-column:1 / -1;">
+              <div class="mi-operator-card-header">
+                <span>Normalized Universe Movers</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-universe-movers-summary">movers: 0</span>
+                  <button class="mi-export-btn" id="mi-universe-movers-refresh" type="button">Refresh</button>
+                  <button class="mi-card-toggle" type="button" aria-label="Toggle normalized universe movers">&minus;</button>
+                </span>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-universe-movers-table">
+                  <thead>
+                    <tr>
+                      <th>symbol</th>
+                      <th>source</th>
+                      <th>mentions</th>
+                      <th>baseline</th>
+                      <th>z</th>
+                      <th>velocity</th>
+                      <th>authors</th>
+                      <th>role</th>
+                      <th>score</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="9" class="mi-operator-empty">Open to load normalized universe movers.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-universe-movers-toast" hidden></div>
+            </div>
+
+            <div class="mi-operator-card collapsed" id="mi-listening-rules-card">
+              <div class="mi-operator-card-header">
+                <span>Listening Rules</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-tracked-count">0 / 0</span>
+                  <button class="mi-card-toggle" type="button" aria-label="Toggle listening rules">+</button>
+                </span>
+              </div>
+              <div class="mi-operator-toolbar">
+                <input type="text" id="mi-tracked-search" placeholder="search concept_key…" />
+                <select id="mi-tracked-status-filter">
+                  <option value="active">active only</option>
+                  <option value="all">all</option>
+                  <option value="pruned">pruned</option>
+                  <option value="merged">merged</option>
+                </select>
+                <select id="mi-tracked-target-filter">
+                  <option value="">any target_type</option>
+                  <option value="brand">brand</option>
+                  <option value="product">product</option>
+                  <option value="category">category</option>
+                  <option value="behavior">behavior</option>
+                  <option value="event_type">event_type</option>
+                  <option value="keyword">keyword</option>
+                </select>
+                <button class="mi-operator-btn" id="mi-tracked-refresh">Refresh</button>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-tracked-table">
+                  <thead>
+                    <tr>
+                      <th>id</th>
+                      <th>concept_key</th>
+                      <th>target_type</th>
+                      <th>target_key</th>
+                      <th>28d hits</th>
+                      <th>status</th>
+                      <th>actions</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="7" class="mi-operator-empty">Loading&hellip;</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-tracked-toast" hidden></div>
+            </div>
+
+            <div class="mi-operator-card collapsed" id="mi-promotion-queue-card">
+              <div class="mi-operator-card-header">
+                <span>Promotion Queue</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-emerging-count">0</span>
+                  <button class="mi-card-toggle" type="button" aria-label="Toggle promotion queue">+</button>
+                </span>
+              </div>
+              <div class="mi-operator-toolbar">
+                <select id="mi-emerging-filter">
+                  <option value="unpromoted">unpromoted only</option>
+                  <option value="all">all (incl. promoted + suppressed)</option>
+                </select>
+                <button class="mi-operator-btn" id="mi-emerging-refresh">Refresh</button>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-emerging-table">
+                  <thead>
+                    <tr>
+                      <th>id</th>
+                      <th>concept</th>
+                      <th>z</th>
+                      <th>auth</th>
+                      <th>tickers</th>
+                      <th>state</th>
+                      <th>actions</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="7" class="mi-operator-empty">Loading&hellip;</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-emerging-toast" hidden></div>
+            </div>
+
+          </div>
+        </section>
+
+        <section class="mi-operator-section" id="mi-eigen-section">
+          <div class="mi-operator-header" id="mi-eigen-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-dot" style="background:#a78bfa;"></span>
+              Eigen Perturbation Engine
+              <span id="mi-eigen-summary" style="color:var(--color-text-subtle);font-weight:500;">scan: not loaded</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-eigen-toggle" type="button" aria-label="Toggle eigen perturbation engine">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-eigen-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" id="mi-eigen-pressure-card" style="grid-column:1 / -1;max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Pre-Explosion Pressure Watch</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-eigen-pressure-summary">matches: 0</span>
+                </span>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-eigen-pressure-table">
+                  <thead>
+                    <tr>
+                      <th>symbol</th>
+                      <th>resid z</th>
+                      <th>z change</th>
+                      <th>slope 3d</th>
+                      <th>return</th>
+                      <th>unexplained</th>
+                      <th>options</th>
+                      <th>valuation</th>
+                      <th>cross</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="9" class="mi-operator-empty">Expand to load pre-explosion candidates.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="mi-operator-card" id="mi-eigen-card" style="grid-column:1 / -1;max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Clean Universe Daily Scan</span>
+                <span>
+                  <span class="mi-operator-card-count" id="mi-eigen-scan-summary">symbols: 0</span>
+                  <button class="mi-operator-btn" id="mi-eigen-refresh" type="button">Refresh</button>
+                  <button class="mi-operator-btn go" id="mi-eigen-run" type="button">Run Scan</button>
+                </span>
+              </div>
+              <div class="mi-operator-toolbar" id="mi-eigen-replay-summary" style="justify-content:flex-start;">
+                Historical replay not loaded.
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-eigen-table">
+                  <thead>
+                    <tr>
+                      <th>symbol</th>
+                      <th>resid z</th>
+                      <th>actual</th>
+                      <th>expected</th>
+                      <th>unexplained</th>
+                      <th>options</th>
+                      <th>social</th>
+                      <th>valuation</th>
+                      <th>cross</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="9" class="mi-operator-empty">Expand to load the latest eigen scan.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mi-operator-toast" id="mi-eigen-toast" hidden></div>
+            </div>
           </div>
         </section>
 
@@ -809,12 +1666,12 @@
               <div class="mi-panel-filters">
                 <div class="mi-filter">
                   <label for="mi-social-auth">auth ≥</label>
-                  <input type="range" id="mi-social-auth" min="0" max="100" value="65" step="5">
-                  <span class="text-mono" id="mi-social-auth-val" style="font-size:10px;width:30px;">0.65</span>
+                  <input type="range" id="mi-social-auth" min="0" max="100" value="0" step="5">
+                  <span class="text-mono" id="mi-social-auth-val" style="font-size:10px;width:30px;">0.00</span>
                 </div>
                 <div class="mi-filter">
                   <label for="mi-social-min-z">peak z ≥</label>
-                  <input type="number" id="mi-social-min-z" min="0" max="10" step="0.5" value="3.0">
+                  <input type="number" id="mi-social-min-z" min="0" max="10" step="0.5" value="0">
                 </div>
                 <label class="mi-filter-toggle">
                   <input type="checkbox" id="mi-social-cross-platform">
@@ -829,9 +1686,40 @@
 
         </section>
 
-      </div>
+        <!-- Options Flow Anomaly Engine -->
+        <section style="margin-top:var(--space-16);">
+          <div class="mi-panel" style="border-color:rgba(239,68,68,0.3);">
+            <div class="mi-panel-header">
+              <div class="mi-panel-title-row">
+                <div class="mi-panel-title">
+                  <span class="mi-engine-dot" style="background:#ef4444;"></span>
+                  Options Flow Anomaly Engine
+                </div>
+                <div style="display:flex;gap:var(--space-8);align-items:center;flex-wrap:wrap;">
+                  <select id="mi-options-direction" class="input" style="font-size:11px;padding:4px 8px;" onchange="miLoadOptionsAnomalies()">
+                    <option value="both">Both directions</option>
+                    <option value="put">Put-heavy</option>
+                    <option value="call">Call-heavy</option>
+                  </select>
+                  <select id="mi-options-tier" class="input" style="font-size:11px;padding:4px 8px;" onchange="miLoadOptionsAnomalies()">
+                    <option value="heavy">Heavy 2x+</option>
+                    <option value="elevated">Elevated 1.3x+</option>
+                    <option value="extreme">Extreme 5x+</option>
+                    <option value="absurd">Absurd 20x+</option>
+                  </select>
+                  <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="miLoadOptionsAnomalies()">Refresh</button>
+                  <button class="btn btn-primary btn-sm" style="font-size:11px;" onclick="miRunOptionsCollect()">Collect Now</button>
+                </div>
+              </div>
+              <div class="mi-panel-subtitle">Detects unusual put-heavy and call-heavy options activity, IV skew shifts, and volume anomalies. Symbols ranked by dominant options imbalance so bullish and bearish flow both surface.</div>
+            </div>
+            <div class="mi-panel-body" id="mi-options-body" style="padding:var(--space-12);">
+              <div class="mi-panel-empty">Loading options flow data&hellip;</div>
+            </div>
+          </div>
+        </section>
 
-      <span class="mi-mock-badge" title="Phase 0 mock — sample data only">PHASE 0 MOCK &middot; sample data, no API wired</span>
+      </div>
 
       <!-- Detail drawer -->
       <div class="mi-drawer-backdrop" id="mi-drawer-backdrop"></div>
@@ -848,6 +1736,7 @@
     </div>
   </div>
 
+  <script src="app.js"></script>
   <script src="market-intelligence.js"></script>
 </body>
 </html>

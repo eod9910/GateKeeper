@@ -23,7 +23,7 @@
 // ============================================================================
 
 /** Bump in lockstep with backend/scripts/build_market_intelligence_db.py. */
-export const MARKET_INTELLIGENCE_SCHEMA_VERSION = 5;
+export const MARKET_INTELLIGENCE_SCHEMA_VERSION = 7;
 
 // ============================================================================
 // CORE ENUMS
@@ -238,7 +238,9 @@ export type ValidityFlag =
   | 'LIKELY_INAUTHENTIC'
   | 'MEGA_COVERAGE_PENALTY'
   | 'AUTHENTICITY_BORDERLINE'
-  | 'OPERATOR_OVERRODE_AUTHENTICITY';
+  | 'OPERATOR_OVERRODE_AUTHENTICITY'
+  | 'PRIVATE_ENTITY'
+  | 'NO_PUBLIC_TICKER';
 
 /** UI-friendly bucket derived from `confidence_score` at write time. */
 export type ConfidenceLevel = 'low' | 'medium' | 'high';
@@ -312,6 +314,10 @@ export interface ConvictionLayer {
   why_now: string;
   what_breaks_it: string;
   expression_notes: string;
+  confirming_signals: string[];
+  invalidating_signals: string[];
+  key_risks: string[];
+  best_expression_assets: string[];
   generated_at: number;
   prompt_template_version: string;
   cited_evidence_ids: number[];
@@ -726,6 +732,8 @@ export interface ScenarioListQuery {
   include_invalidated?: boolean;
   /** Required to see LIKELY_INAUTHENTIC rows. */
   include_suppressed?: boolean;
+  /** Minimum evidence_count to include (default 2 for UI). */
+  min_evidence?: number;
   limit?: number;
 }
 
