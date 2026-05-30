@@ -6,6 +6,8 @@ import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { existsSync } from 'fs';
+import { DatabaseSync } from 'node:sqlite';
 import * as storage from '../services/storageService';
 import { computeSpecHash } from '../services/storageService';
 import { ScanRequest, PatternCandidate, StrategyCandidate, StrategySpec, ApiResponse } from '../types';
@@ -28,12 +30,14 @@ import {
   isPyServiceEnabled,
   runScannerPluginViaService,
   runScannerUniverseViaService,
+  runCopilotAnalysisViaService,
 } from '../services/pluginServiceClient';
 import { normalizeMarketDataSymbol } from '../services/marketSymbols';
 import { loadUniverseSymbols } from '../services/universeRegistry';
 
 const router = Router();
 const CANDIDATES_USE_PY_SERVICE = isPyServiceEnabled();
+const SOCIAL_INTELLIGENCE_DB_PATH = path.join(__dirname, '../../data/social-intelligence.sqlite');
 type BatchScanJobStatus = 'queued' | 'running' | 'cancelled' | 'completed' | 'failed';
 
 type BatchScanJob = {
@@ -153,6 +157,157 @@ function cleanupOrphanBatchJobs(nowMs = Date.now()): number {
 
 function isValidSymbol(s: any): boolean {
   return typeof s === 'string' && /^[A-Z0-9._\-=^]{1,15}$/.test(s.trim().toUpperCase());
+}
+
+function normalizeSymbolArray(values: any): string[] {
+  if (!Array.isArray(values)) return [];
+  return Array.from(
+    new Set(
+      values
+        .map((value: any) => String(value || '').trim().toUpperCase())
+        .filter((value: string) => !!value)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+}
+
+function loadLatestSocialScannerCriteria(): {
+  socialbullish: string[];
+  socialbearish: string[];
+  socialhot: string[];
+  socialrising: string[];
+  socialconfirmed: string[];
+} {
+  const empty = {
+    socialbullish: [] as string[],
+    socialbearish: [] as string[],
+    socialhot: [] as string[],
+    socialrising: [] as string[],
+    socialconfirmed: [] as string[],
+  };
+  if (!existsSync(SOCIAL_INTELLIGENCE_DB_PATH)) {
+    return empty;
+  }
+
+  let db: DatabaseSync | null = null;
+  try {
+    db = new DatabaseSync(SOCIAL_INTELLIGENCE_DB_PATH, { readOnly: true });
+    const rows = db.prepare(`
+      WITH latest_daily AS (
+        SELECT tsd.*
+        FROM ticker_social_daily tsd
+        INNER JOIN (
+          SELECT symbol, MAX(trade_date) AS trade_date
+          FROM ticker_social_daily
+          WHERE platform = 'aggregate'
+          GROUP BY symbol
+        ) latest
+          ON latest.symbol = tsd.symbol
+         AND latest.trade_date = tsd.trade_date
+        WHERE tsd.platform = 'aggregate'
+      ),
+      latest_scores AS (
+        SELECT tbs.*
+        FROM ticker_buzz_scores tbs
+        INNER JOIN (
+          SELECT symbol, MAX(trade_date) AS trade_date
+          FROM ticker_buzz_scores
+          GROUP BY symbol
+        ) latest
+          ON latest.symbol = tbs.symbol
+         AND latest.trade_date = tbs.trade_date
+      )
+      SELECT
+        ld.symbol AS symbol,
+        COALESCE(ld.net_sentiment, 0.0) AS net_sentiment,
+        COALESCE(ld.bullish_ratio, 0.0) AS bullish_ratio,
+        COALESCE(ld.bearish_ratio, 0.0) AS bearish_ratio,
+        COALESCE(ls.final_buzz_score, 0.0) AS final_buzz_score,
+        COALESCE(ls.buzz_zscore, 0.0) AS buzz_zscore,
+        COALESCE(ls.mention_velocity, 0.0) AS mention_velocity,
+        COALESCE(ls.mention_acceleration, 0.0) AS mention_acceleration,
+        ls.cross_platform_agreement AS cross_platform_agreement,
+        COALESCE(ls.yahoo_mentions, 0) AS yahoo_mentions,
+        COALESCE(ls.stocktwits_mentions, 0) AS stocktwits_mentions,
+        COALESCE(ls.is_score_valid, 0) AS is_score_valid,
+        COALESCE(ls.score_validity, '') AS score_validity,
+        COALESCE(ls.confidence_tier, '') AS confidence_tier
+      FROM latest_daily ld
+      LEFT JOIN latest_scores ls
+        ON ls.symbol = ld.symbol
+       AND ls.trade_date = ld.trade_date
+    `).all() as Array<{
+      symbol: string;
+      net_sentiment: number | null;
+      bullish_ratio: number | null;
+      bearish_ratio: number | null;
+      final_buzz_score: number | null;
+      buzz_zscore: number | null;
+      mention_velocity: number | null;
+      mention_acceleration: number | null;
+      cross_platform_agreement: number | null;
+      yahoo_mentions: number | null;
+      stocktwits_mentions: number | null;
+      is_score_valid: number | null;
+      score_validity: string | null;
+      confidence_tier: string | null;
+    }>;
+
+    const socialBullish = new Set<string>();
+    const socialBearish = new Set<string>();
+    const socialHot = new Set<string>();
+    const socialRising = new Set<string>();
+    const socialConfirmed = new Set<string>();
+
+    for (const row of rows) {
+      const symbol = String(row.symbol || '').trim().toUpperCase();
+      if (!symbol) continue;
+      const netSentiment = Number(row.net_sentiment || 0);
+      const bullishRatio = Number(row.bullish_ratio || 0);
+      const bearishRatio = Number(row.bearish_ratio || 0);
+      const finalBuzzScore = Number(row.final_buzz_score || 0);
+      const buzzZscore = Number(row.buzz_zscore || 0);
+      const mentionVelocity = Number(row.mention_velocity || 0);
+      const mentionAcceleration = Number(row.mention_acceleration || 0);
+      const crossPlatformAgreement = Number(row.cross_platform_agreement || 0);
+      const yahooMentions = Number(row.yahoo_mentions || 0);
+      const stocktwitsMentions = Number(row.stocktwits_mentions || 0);
+      const isScoreValid = Number(row.is_score_valid || 0) === 1;
+      const scoreValidity = String(row.score_validity || '').trim().toUpperCase();
+      const confidenceTier = String(row.confidence_tier || '').trim().toUpperCase();
+
+      if (!isScoreValid || !['USABLE', 'STRONG'].includes(scoreValidity) || !['MEDIUM', 'HIGH'].includes(confidenceTier)) {
+        continue;
+      }
+
+      if (netSentiment >= 0.05 && bullishRatio >= bearishRatio) {
+        socialBullish.add(symbol);
+      }
+      if (netSentiment <= -0.05 && bearishRatio >= bullishRatio) {
+        socialBearish.add(symbol);
+      }
+      if (finalBuzzScore >= 15 || buzzZscore >= 1.5 || mentionVelocity >= 1.5) {
+        socialHot.add(symbol);
+      }
+      if (mentionVelocity >= 1.15 || mentionAcceleration >= 0.1) {
+        socialRising.add(symbol);
+      }
+      if (yahooMentions > 0 && stocktwitsMentions > 0 && crossPlatformAgreement >= 0.5) {
+        socialConfirmed.add(symbol);
+      }
+    }
+
+    return {
+      socialbullish: normalizeSymbolArray(Array.from(socialBullish)),
+      socialbearish: normalizeSymbolArray(Array.from(socialBearish)),
+      socialhot: normalizeSymbolArray(Array.from(socialHot)),
+      socialrising: normalizeSymbolArray(Array.from(socialRising)),
+      socialconfirmed: normalizeSymbolArray(Array.from(socialConfirmed)),
+    };
+  } catch {
+    return empty;
+  } finally {
+    try { db?.close(); } catch {}
+  }
 }
 
 function semanticsMetaFromDefinition(definition: any): CandidateSemanticsMeta {
@@ -555,21 +710,11 @@ router.get('/symbols', async (req: Request, res: Response) => {
     const symbolsPath = path.join(__dirname, '..', '..', 'data', 'symbols.json');
     const content = await fs.readFile(symbolsPath, 'utf-8');
     const symbols = JSON.parse(content) || {};
-
-    const normalizeSymbols = (arr: any): string[] => {
-      if (!Array.isArray(arr)) return [];
-      return Array.from(
-        new Set(
-          arr
-            .map((s: any) => String(s || '').trim().toUpperCase())
-            .filter((s: string) => !!s)
-        )
-      ).sort((a, b) => a.localeCompare(b));
-    };
+    const socialCriteria = loadLatestSocialScannerCriteria();
 
     const intersectSymbols = (base: string[], filter: string[]): string[] => {
-      const filterSet = new Set(normalizeSymbols(filter));
-      return normalizeSymbols(base).filter((symbol) => filterSet.has(symbol));
+      const filterSet = new Set(normalizeSymbolArray(filter));
+      return normalizeSymbolArray(base).filter((symbol) => filterSet.has(symbol));
     };
 
     const optionable = await loadUniverseSymbols('tradable_optionable_stocks');
@@ -583,23 +728,28 @@ router.get('/symbols', async (req: Request, res: Response) => {
     const data = {
       ...symbols,
       stocks: sourceAll,
-      commodities: normalizeSymbols(symbols.commodities),
-      futures: normalizeSymbols(symbols.futures),
-      indices: normalizeSymbols(symbols.indices),
-      sectors: normalizeSymbols(symbols.sectors),
-      international: normalizeSymbols(symbols.international),
-      bonds: normalizeSymbols(symbols.bonds),
+      commodities: normalizeSymbolArray(symbols.commodities),
+      futures: normalizeSymbolArray(symbols.futures),
+      indices: normalizeSymbolArray(symbols.indices),
+      sectors: normalizeSymbolArray(symbols.sectors),
+      international: normalizeSymbolArray(symbols.international),
+      bonds: normalizeSymbolArray(symbols.bonds),
       smallcaps: intersectSymbols(sourceAll, symbols.smallcaps),
       largecaps: intersectSymbols(sourceAll, [...sp500, ...largeCapKnown]),
-      crypto: normalizeSymbols(symbols.crypto),
+      crypto: normalizeSymbolArray(symbols.crypto),
       undervalued: intersectSymbols(sourceAll, undervalued),
       fairvalue: intersectSymbols(sourceAll, fairValue),
       overvalued: intersectSymbols(sourceAll, overvalued),
+      socialbullish: intersectSymbols(sourceAll, socialCriteria.socialbullish),
+      socialbearish: intersectSymbols(sourceAll, socialCriteria.socialbearish),
+      socialhot: intersectSymbols(sourceAll, socialCriteria.socialhot),
+      socialrising: intersectSymbols(sourceAll, socialCriteria.socialrising),
+      socialconfirmed: intersectSymbols(sourceAll, socialCriteria.socialconfirmed),
       optionable,
       source_all: sourceAll,
       all: sourceAll.length > 0
         ? sourceAll
-        : normalizeSymbols([...(symbols.all || []), ...optionable]),
+        : normalizeSymbolArray([...(symbols.all || []), ...optionable]),
     };
 
     res.json({
@@ -945,6 +1095,28 @@ router.post('/scan', async (req: Request, res: Response) => {
       const epsilon = typeof scanRequest.swingEpsilon === 'number' ? scanRequest.swingEpsilon : 0.05;
       const userDir = (scanRequest as any).tradeDirection || 'null';
       const userDirPy = userDir === 'null' ? 'None' : `"${userDir}"`;
+
+      // Fast path: the warm Python service avoids ~3.4s of import/JIT cold-start
+      // per request and reuses its in-memory OHLCV cache. Fall back to the
+      // spawn path below if the service is disabled or unavailable.
+      if (CANDIDATES_USE_PY_SERVICE) {
+        try {
+          const analysis = await runCopilotAnalysisViaService(
+            sym,
+            itvl,
+            prd,
+            timeframe,
+            epsilon,
+            userDir === 'null' ? null : userDir,
+          );
+          res.json({ success: true, data: analysis });
+          return;
+        } catch (serviceErr: any) {
+          console.warn(
+            `[candidates] Python service unavailable for copilot analysis; falling back to spawn path: ${serviceErr?.message || serviceErr}`,
+          );
+        }
+      }
 
       const pyScript = `
 import sys, json

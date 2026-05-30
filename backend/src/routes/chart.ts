@@ -63,6 +63,7 @@ for bar in bars:
         "high": float(bar.high),
         "low": float(bar.low),
         "close": float(bar.close),
+        "volume": float(getattr(bar, 'volume', 0) or 0),
     })
 
 print(json.dumps({"success": True, "symbol": "${symbol}", "interval": "${interval}", "raw_bars": raw_bars}))

@@ -3,9 +3,13 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { DatabaseSync } from 'node:sqlite';
 import type { TradingContext, AIRole } from './visionService';
 import { runEarningsQualityEngine, runFinancialAnalysisEngine, runValuationEngine } from './ledgerEngines';
+import { logDcfPrediction, deriveMarketCapBand, getCalibrationAdjustments } from './dcfCalibrationDb';
 import { shouldVerifySpecialSituationWeb, verifySpecialSituationWeb } from './specialSituationWebVerifier';
+import { runCopilotAnalysisViaService, isPyServiceEnabled } from './pluginServiceClient';
+import { normalizeMarketDataSymbol } from './marketSymbols';
 import {
   listTradableUniverseScreenRows,
   type ConsumerCycleBucket,
@@ -45,6 +49,14 @@ type CopilotToolResult = {
 };
 
 type UniverseScreenDirection = 'long' | 'short';
+type UniverseSocialSignal = 'buzz_hot' | 'buzz_rising' | 'bullish' | 'bearish' | 'cross_platform_confirmed';
+type UniverseMetricFilter = {
+  metric: string;
+  min?: number | null;
+  max?: number | null;
+  operator?: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'between';
+  value?: number | null;
+};
 
 type UniverseFundamentalsSnapshot = {
   symbol: string;
@@ -53,8 +65,19 @@ type UniverseFundamentalsSnapshot = {
   industry: string | null;
   currentPrice: number | null;
   marketCap: number | null;
+  enterpriseValue: number | null;
+  enterpriseToSales: number | null;
+  annualRevenue: number | null;
+  peRatio: number | null;
+  priceToSales: number | null;
+  priceToBook: number | null;
   averageVolume: number | null;
+  volume: number | null;
   relativeVolume: number | null;
+  shortFloatPct: number | null;
+  shortRatio: number | null;
+  institutionalOwnershipPct: number | null;
+  insiderOwnershipPct: number | null;
   debtToEquity: number | null;
   currentRatio: number | null;
   quickRatio: number | null;
@@ -73,6 +96,31 @@ type UniverseFundamentalsSnapshot = {
   positioningScore: number | null;
   revenueGrowthPct: number | null;
   earningsGrowthPct: number | null;
+  grossMarginPct: number | null;
+  operatingMarginPct: number | null;
+  profitMarginPct: number | null;
+  returnOnEquityPct: number | null;
+  returnOnAssetsPct: number | null;
+  beta: number | null;
+};
+
+type UniverseSocialSnapshot = {
+  symbol: string;
+  tradeDate: string | null;
+  finalBuzzScore: number | null;
+  buzzZscore: number | null;
+  mentionVelocity: number | null;
+  mentionAcceleration: number | null;
+  crossPlatformAgreement: number | null;
+  yahooMentions: number | null;
+  stocktwitsMentions: number | null;
+  netSentiment: number | null;
+  bullishRatio: number | null;
+  bearishRatio: number | null;
+  scoreValidity: string | null;
+  confidenceTier: string | null;
+  isScoreValid: boolean;
+  reasonCodes: string[];
 };
 
 type UniverseScreenCandidate = {
@@ -86,6 +134,7 @@ type UniverseScreenCandidate = {
   valuationGapPct: number | null;
   fairValueMid: number | null;
   price: number | null;
+  metrics: Record<string, number | null>;
   valuationQualityGrade: string | null;
   valuationQualityScore: number | null;
   coverageMode: string | null;
@@ -94,6 +143,7 @@ type UniverseScreenCandidate = {
   themes: SymbolTheme[];
   optionable: boolean | null;
   dollarVolume: number | null;
+  social: UniverseSocialSnapshot | null;
   balanceSheet: {
     debtToEquity: number | null;
     currentRatio: number | null;
@@ -128,6 +178,7 @@ const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const LEDGER_HYDRATION_SCRIPT = path.resolve(REPO_ROOT, 'backend', 'scripts', 'hydrate_ledger_company.py');
 const LEDGER_HARD_FLAG_QUERY = 'merger acquisition definitive agreement merger agreement going private take private acquired by stockholders to receive contingent value right CVR expected to close per share cash consideration chapter 11 going concern covenant breach default forbearance deficiency notice delist restatement cannot rely on material weakness auditor resignation at-the-market offering PIPE convertible notes subpoena warning letter product recall';
+const SOCIAL_INTELLIGENCE_DB_PATH = path.resolve(REPO_ROOT, 'backend', 'data', 'social-intelligence.sqlite');
 
 function trimString(value: unknown): string | null {
   const text = typeof value === 'string' ? value.trim() : '';
@@ -146,6 +197,131 @@ function clamp(value: number, min: number, max: number): number {
 function scoreBucketValue(value: number | null | undefined, min: number, max: number): number {
   if (!Number.isFinite(Number(value))) return 0;
   return clamp((Number(value) - min) / (max - min), 0, 1);
+}
+
+function normalizeReasonCodes(value: unknown): string[] {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => String(item || '').trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function loadLatestUniverseSocialSnapshots(): Map<string, UniverseSocialSnapshot> {
+  const bySymbol = new Map<string, UniverseSocialSnapshot>();
+  if (!fs.existsSync(SOCIAL_INTELLIGENCE_DB_PATH)) return bySymbol;
+  let db: DatabaseSync | null = null;
+  try {
+    db = new DatabaseSync(SOCIAL_INTELLIGENCE_DB_PATH, { readOnly: true });
+    const rows = db.prepare(`
+      WITH latest_daily AS (
+        SELECT tsd.*
+        FROM ticker_social_daily tsd
+        INNER JOIN (
+          SELECT symbol, MAX(trade_date) AS trade_date
+          FROM ticker_social_daily
+          WHERE platform = 'aggregate'
+          GROUP BY symbol
+        ) latest
+          ON latest.symbol = tsd.symbol
+         AND latest.trade_date = tsd.trade_date
+        WHERE tsd.platform = 'aggregate'
+      ),
+      latest_scores AS (
+        SELECT tbs.*
+        FROM ticker_buzz_scores tbs
+        INNER JOIN (
+          SELECT symbol, MAX(trade_date) AS trade_date
+          FROM ticker_buzz_scores
+          GROUP BY symbol
+        ) latest
+          ON latest.symbol = tbs.symbol
+         AND latest.trade_date = tbs.trade_date
+      )
+      SELECT
+        ld.symbol,
+        ld.trade_date,
+        ld.net_sentiment,
+        ld.bullish_ratio,
+        ld.bearish_ratio,
+        ls.final_buzz_score,
+        ls.buzz_zscore,
+        ls.mention_velocity,
+        ls.mention_acceleration,
+        ls.cross_platform_agreement,
+        ls.yahoo_mentions,
+        ls.stocktwits_mentions,
+        ls.score_validity,
+        ls.confidence_tier,
+        ls.is_score_valid,
+        ls.reason_codes_json
+      FROM latest_daily ld
+      LEFT JOIN latest_scores ls
+        ON ls.symbol = ld.symbol
+       AND ls.trade_date = ld.trade_date
+    `).all() as Array<Record<string, unknown>>;
+
+    for (const row of rows) {
+      const symbol = trimString(row.symbol)?.toUpperCase();
+      if (!symbol) continue;
+      bySymbol.set(symbol, {
+        symbol,
+        tradeDate: trimString(row.trade_date),
+        finalBuzzScore: toFiniteNumber(row.final_buzz_score),
+        buzzZscore: toFiniteNumber(row.buzz_zscore),
+        mentionVelocity: toFiniteNumber(row.mention_velocity),
+        mentionAcceleration: toFiniteNumber(row.mention_acceleration),
+        crossPlatformAgreement: toFiniteNumber(row.cross_platform_agreement),
+        yahooMentions: toFiniteNumber(row.yahoo_mentions),
+        stocktwitsMentions: toFiniteNumber(row.stocktwits_mentions),
+        netSentiment: toFiniteNumber(row.net_sentiment),
+        bullishRatio: toFiniteNumber(row.bullish_ratio),
+        bearishRatio: toFiniteNumber(row.bearish_ratio),
+        scoreValidity: trimString(row.score_validity),
+        confidenceTier: trimString(row.confidence_tier),
+        isScoreValid: Number(row.is_score_valid || 0) === 1,
+        reasonCodes: normalizeReasonCodes(row.reason_codes_json),
+      });
+    }
+  } catch {
+    return bySymbol;
+  } finally {
+    try { db?.close(); } catch {}
+  }
+  return bySymbol;
+}
+
+function socialSignalMatches(snapshot: UniverseSocialSnapshot | null | undefined, requestedSignal: UniverseSocialSignal | null): boolean {
+  if (!requestedSignal) return true;
+  if (!snapshot || !snapshot.isScoreValid) return false;
+  const netSentiment = Number(snapshot.netSentiment || 0);
+  const bullishRatio = Number(snapshot.bullishRatio || 0);
+  const bearishRatio = Number(snapshot.bearishRatio || 0);
+  const finalBuzzScore = Number(snapshot.finalBuzzScore || 0);
+  const buzzZscore = Number(snapshot.buzzZscore || 0);
+  const mentionVelocity = Number(snapshot.mentionVelocity || 0);
+  const mentionAcceleration = Number(snapshot.mentionAcceleration || 0);
+  const crossPlatformAgreement = Number(snapshot.crossPlatformAgreement || 0);
+  const yahooMentions = Number(snapshot.yahooMentions || 0);
+  const stocktwitsMentions = Number(snapshot.stocktwitsMentions || 0);
+
+  switch (requestedSignal) {
+    case 'buzz_hot':
+      return finalBuzzScore >= 15 || buzzZscore >= 1.5 || mentionVelocity >= 1.5;
+    case 'buzz_rising':
+      return mentionVelocity >= 1.15 || mentionAcceleration >= 0.1;
+    case 'bullish':
+      return netSentiment >= 0.05 && bullishRatio >= bearishRatio;
+    case 'bearish':
+      return netSentiment <= -0.05 && bearishRatio >= bullishRatio;
+    case 'cross_platform_confirmed':
+      return yahooMentions > 0 && stocktwitsMentions > 0 && crossPlatformAgreement >= 0.5;
+    default:
+      return true;
+  }
 }
 
 function themeMatches(row: TradableUniverseScreenRow, requestedTheme: string | null): boolean {
@@ -645,6 +821,178 @@ function isSymbolRequestAllowed(context: TradingContext, requestedSymbol?: unkno
   };
 }
 
+// ---------------------------------------------------------------------------
+// Trading primitives (Navigator) — fact tools backed by the warm Python
+// copilot service. Each returns structured FACTS only (no GO/NO-GO verdict);
+// the agent synthesizes the read itself.
+// ---------------------------------------------------------------------------
+
+const TRADING_PERIOD_BY_INTERVAL: Record<string, string> = {
+  '1mo': 'max',
+  '1wk': 'max',
+  '1d': '10y',
+  '4h': '730d',
+  '1h': '730d',
+  '15m': '60d',
+  '5m': '60d',
+  '1m': '7d',
+};
+
+const TRADING_TF_LABEL_BY_INTERVAL: Record<string, string> = {
+  '1mo': 'M',
+  '1wk': 'W',
+  '1d': 'D',
+  '4h': '4H',
+  '1h': '1H',
+  '15m': '15m',
+  '5m': '5m',
+  '1m': '1m',
+};
+
+// Scanner/Trading Desk display labels -> yfinance interval keys.
+const TRADING_DISPLAY_TF_TO_INTERVAL: Record<string, string> = {
+  M: '1mo',
+  W: '1wk',
+  D: '1d',
+  '4H': '4h',
+  '1H': '1h',
+  '15m': '15m',
+  '5m': '5m',
+  '1m': '1m',
+};
+
+function resolveTradingInterval(context: TradingContext, args: Record<string, unknown>): string {
+  const scanner = (context as any)?.copilotAnalysis || {};
+  const candidate = scanner?.candidate || {};
+  const raw =
+    trimString(args?.interval)
+    || trimString((context as any)?.interval)
+    || trimString(scanner?.interval)
+    || trimString(candidate?.interval)
+    || trimString(candidate?.timeframe)
+    || trimString(scanner?.timeframe)
+    || '1d';
+  return TRADING_DISPLAY_TF_TO_INTERVAL[raw] || raw;
+}
+
+type TradingAnalysisLoad = { ok: boolean; data?: any; error?: string };
+
+async function loadTradingAnalysis(
+  context: TradingContext,
+  args: Record<string, unknown>,
+): Promise<TradingAnalysisLoad> {
+  const symbolRaw = getCurrentScannerSymbol(context) || trimString(args?.symbol);
+  if (!symbolRaw) {
+    return { ok: false, error: 'No active symbol in context. Load a chart first.' };
+  }
+  const symbol = normalizeMarketDataSymbol(symbolRaw);
+  const interval = resolveTradingInterval(context, args);
+  const period = TRADING_PERIOD_BY_INTERVAL[interval] || 'max';
+  const timeframe = TRADING_TF_LABEL_BY_INTERVAL[interval] || 'W';
+  const dirRaw = String((context as any)?.tradeDirection || '').toLowerCase();
+  const direction = dirRaw === 'long' || dirRaw === 'short' ? dirRaw : null;
+
+  // Memoize within a single chat turn so four tool calls don't each re-fetch.
+  const cacheKey = `${symbol}::${interval}::${direction || ''}`;
+  const cache = ((context as any).__tradingAnalysisCache ||= {}) as Record<string, TradingAnalysisLoad>;
+  if (cache[cacheKey]) return cache[cacheKey];
+
+  if (!isPyServiceEnabled()) {
+    const r: TradingAnalysisLoad = { ok: false, error: 'Trading analysis service is not enabled (VALIDATOR_USE_PY_SERVICE).' };
+    cache[cacheKey] = r;
+    return r;
+  }
+
+  try {
+    const analysis = await runCopilotAnalysisViaService(symbol, interval, period, timeframe, 0.05, direction);
+    if (analysis && analysis.verdict === 'INSUFFICIENT_DATA') {
+      const r: TradingAnalysisLoad = { ok: false, error: `Insufficient data to analyze ${symbol} on ${interval}.` };
+      cache[cacheKey] = r;
+      return r;
+    }
+    const r: TradingAnalysisLoad = { ok: true, data: analysis };
+    cache[cacheKey] = r;
+    return r;
+  } catch (err: any) {
+    const r: TradingAnalysisLoad = { ok: false, error: `Trading analysis failed: ${err?.message || err}` };
+    cache[cacheKey] = r;
+    return r;
+  }
+}
+
+async function buildMarketStructure(context: TradingContext, args: Record<string, unknown>): Promise<CopilotToolResult> {
+  const a = await loadTradingAnalysis(context, args);
+  if (!a.ok) return { ok: false, tool: 'get_market_structure', error: a.error };
+  const d = a.data || {};
+  return {
+    ok: true,
+    tool: 'get_market_structure',
+    data: {
+      symbol: d.symbol ?? null,
+      timeframe: d.timeframe ?? null,
+      currentPrice: d.current_price ?? null,
+      primaryTrend: d.primary_trend ?? null,
+      intermediateTrend: d.intermediate_trend ?? null,
+      trendAlignment: d.trend_alignment ?? null,
+      currentRetracementPct: d.current_retracement_pct ?? null,
+      range: d.range ?? null,
+      swingPoints: Array.isArray(d.swing_points) ? d.swing_points.slice(-12) : [],
+    },
+  };
+}
+
+async function buildFibLevels(context: TradingContext, args: Record<string, unknown>): Promise<CopilotToolResult> {
+  const a = await loadTradingAnalysis(context, args);
+  if (!a.ok) return { ok: false, tool: 'get_fib_levels', error: a.error };
+  const d = a.data || {};
+  return {
+    ok: true,
+    tool: 'get_fib_levels',
+    data: {
+      symbol: d.symbol ?? null,
+      timeframe: d.timeframe ?? null,
+      currentPrice: d.current_price ?? null,
+      currentRetracementPct: d.current_retracement_pct ?? null,
+      range: d.range ?? null,
+      nearestLevel: d.nearest_level ?? null,
+      fibLevels: Array.isArray(d.fib_levels) ? d.fib_levels : [],
+    },
+  };
+}
+
+async function buildEnergyState(context: TradingContext, args: Record<string, unknown>): Promise<CopilotToolResult> {
+  const a = await loadTradingAnalysis(context, args);
+  if (!a.ok) return { ok: false, tool: 'get_energy_state', error: a.error };
+  const d = a.data || {};
+  return {
+    ok: true,
+    tool: 'get_energy_state',
+    data: {
+      symbol: d.symbol ?? null,
+      timeframe: d.timeframe ?? null,
+      energy: d.energy ?? null,
+    },
+  };
+}
+
+async function buildPressureRead(context: TradingContext, args: Record<string, unknown>): Promise<CopilotToolResult> {
+  const a = await loadTradingAnalysis(context, args);
+  if (!a.ok) return { ok: false, tool: 'get_pressure_read', error: a.error };
+  const d = a.data || {};
+  return {
+    ok: true,
+    tool: 'get_pressure_read',
+    data: {
+      symbol: d.symbol ?? null,
+      timeframe: d.timeframe ?? null,
+      pressureType: d.pressure_type ?? null,
+      buyingPressure: d.buying_pressure ?? null,
+      sellingPressure: d.selling_pressure ?? null,
+      stopDistancePct: d.stop_distance_pct ?? null,
+    },
+  };
+}
+
 function buildChartSnapshot(context: TradingContext): CopilotToolResult {
   const scanner = getScannerContext(context);
   const candidate = scanner?.candidate || null;
@@ -869,8 +1217,19 @@ async function loadUniverseFundamentalsSnapshot(symbol: string): Promise<Univers
       industry: trimString(data.industry),
       currentPrice: toFiniteNumber(data.currentPrice),
       marketCap: toFiniteNumber(data.marketCap),
+      enterpriseValue: toFiniteNumber(data.enterpriseValue),
+      enterpriseToSales: toFiniteNumber(data.enterpriseToSales),
+      annualRevenue: toFiniteNumber(data.annualRevenue),
+      peRatio: toFiniteNumber(data.peRatio),
+      priceToSales: toFiniteNumber(data.priceToSales),
+      priceToBook: toFiniteNumber(data.priceToBook),
       averageVolume: toFiniteNumber(data.averageVolume),
+      volume: toFiniteNumber(data.volume),
       relativeVolume: toFiniteNumber(data.relativeVolume),
+      shortFloatPct: toFiniteNumber(data.shortFloatPct),
+      shortRatio: toFiniteNumber(data.shortRatio),
+      institutionalOwnershipPct: toFiniteNumber(data.institutionalOwnershipPct),
+      insiderOwnershipPct: toFiniteNumber(data.insiderOwnershipPct),
       debtToEquity: toFiniteNumber(data.debtToEquity),
       currentRatio: toFiniteNumber(data.currentRatio),
       quickRatio: toFiniteNumber(data.quickRatio),
@@ -889,10 +1248,193 @@ async function loadUniverseFundamentalsSnapshot(symbol: string): Promise<Univers
       positioningScore: toFiniteNumber(data.positioningScore),
       revenueGrowthPct: toFiniteNumber(data.revenueGrowthPct),
       earningsGrowthPct: toFiniteNumber(data.earningsGrowthPct),
+      grossMarginPct: toFiniteNumber(data.grossMarginPct),
+      operatingMarginPct: toFiniteNumber(data.operatingMarginPct),
+      profitMarginPct: toFiniteNumber(data.profitMarginPct),
+      returnOnEquityPct: toFiniteNumber(data.returnOnEquityPct),
+      returnOnAssetsPct: toFiniteNumber(data.returnOnAssetsPct),
+      beta: toFiniteNumber(data.beta),
     };
   } catch {
     return null;
   }
+}
+
+function safeRatio(numerator: unknown, denominator: unknown): number | null {
+  const n = Number(numerator);
+  const d = Number(denominator);
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0) return null;
+  return n / d;
+}
+
+function normalizeUniverseMetricKey(metric: unknown): string | null {
+  const raw = String(metric || '').trim().toLowerCase();
+  if (!raw) return null;
+  const compact = raw.replace(/[\s_./-]+/g, '');
+  const aliases: Record<string, string> = {
+    pe: 'pe_ratio',
+    peratio: 'pe_ratio',
+    trailingpe: 'pe_ratio',
+    priceearnings: 'pe_ratio',
+    pricetoearnings: 'pe_ratio',
+    ps: 'price_to_sales',
+    psratio: 'price_to_sales',
+    pricetosales: 'price_to_sales',
+    pricesales: 'price_to_sales',
+    evsales: 'enterprise_to_sales',
+    evtosales: 'enterprise_to_sales',
+    enterprisetosales: 'enterprise_to_sales',
+    enterpriserevenue: 'enterprise_to_sales',
+    marketcap: 'market_cap',
+    revenue: 'revenue',
+    sales: 'revenue',
+    enterprisevalue: 'enterprise_value',
+    price: 'price',
+    currentprice: 'price',
+    pricetobook: 'price_to_book',
+    pb: 'price_to_book',
+    pbratio: 'price_to_book',
+    grossmargin: 'gross_margin_pct',
+    operatingmargin: 'operating_margin_pct',
+    profitmargin: 'profit_margin_pct',
+    netmargin: 'profit_margin_pct',
+    roe: 'return_on_equity_pct',
+    roa: 'return_on_assets_pct',
+    revenuegrowth: 'revenue_growth_pct',
+    salesgrowth: 'revenue_growth_pct',
+    earningsgrowth: 'earnings_growth_pct',
+    fcf: 'free_cash_flow',
+    freecashflow: 'free_cash_flow',
+    fcfmargin: 'free_cash_flow_margin_pct',
+    freecashflowmargin: 'free_cash_flow_margin_pct',
+    operatingcashflow: 'operating_cash_flow',
+    debttoequity: 'debt_to_equity',
+    currentratio: 'current_ratio',
+    quickratio: 'quick_ratio',
+    cash: 'cash',
+    totalcash: 'cash',
+    debt: 'debt',
+    totaldebt: 'debt',
+    netcash: 'net_cash',
+    beta: 'beta',
+    volume: 'volume',
+    avgvolume: 'average_volume',
+    averagevolume: 'average_volume',
+    relativevolume: 'relative_volume',
+    relvolume: 'relative_volume',
+    dollarvolume: 'dollar_volume',
+    shortfloat: 'short_float_pct',
+    shortfloatpct: 'short_float_pct',
+    shortratio: 'short_ratio',
+    institutionalownership: 'institutional_ownership_pct',
+    insiderownership: 'insider_ownership_pct',
+    valuationgap: 'valuation_gap_pct',
+    qualityscore: 'valuation_quality_score',
+    buzzscore: 'final_buzz_score',
+    finalbuzzscore: 'final_buzz_score',
+    buzzzscore: 'buzz_zscore',
+    socialbuzz: 'final_buzz_score',
+  };
+  return aliases[compact] || raw.replace(/[\s./-]+/g, '_');
+}
+
+function buildUniverseMetricMap(
+  row: TradableUniverseScreenRow,
+  snapshot: UniverseFundamentalsSnapshot,
+  social: UniverseSocialSnapshot | null,
+  dollarVolume: number | null,
+): Record<string, number | null> {
+  const valuation = row.valuation;
+  const marketCap = snapshot.marketCap ?? valuation?.marketCap ?? null;
+  const revenue = snapshot.annualRevenue ?? valuation?.revenue ?? null;
+  const enterpriseValue = snapshot.enterpriseValue ?? valuation?.enterpriseValue ?? null;
+  const freeCashFlow = snapshot.freeCashFlowTTM ?? valuation?.freeCashFlow ?? null;
+  const profitMarginPct = snapshot.profitMarginPct ?? null;
+  const netIncome = Number.isFinite(Number(revenue)) && Number.isFinite(Number(profitMarginPct))
+    ? Number(revenue) * (Number(profitMarginPct) / 100)
+    : null;
+  const priceToSales = snapshot.priceToSales ?? safeRatio(marketCap, revenue);
+  const enterpriseToSales = snapshot.enterpriseToSales ?? valuation?.enterpriseToSales ?? safeRatio(enterpriseValue, revenue);
+  const peRatio = snapshot.peRatio ?? (Number.isFinite(Number(netIncome)) && Number(netIncome) > 0 ? safeRatio(marketCap, netIncome) : null);
+
+  return {
+    pe_ratio: peRatio,
+    price_to_sales: priceToSales,
+    enterprise_to_sales: enterpriseToSales,
+    price_to_book: snapshot.priceToBook,
+    market_cap: marketCap,
+    enterprise_value: enterpriseValue,
+    revenue,
+    price: snapshot.currentPrice ?? valuation?.price ?? null,
+    valuation_gap_pct: valuation?.valuationGapPct ?? null,
+    valuation_quality_score: valuation?.qualityScore ?? null,
+    free_cash_flow: freeCashFlow,
+    free_cash_flow_margin_pct: valuation?.freeCashFlowMarginPct ?? null,
+    operating_cash_flow: snapshot.operatingCashFlowTTM,
+    gross_margin_pct: snapshot.grossMarginPct,
+    operating_margin_pct: snapshot.operatingMarginPct ?? valuation?.operatingMarginPct ?? null,
+    profit_margin_pct: profitMarginPct,
+    return_on_equity_pct: snapshot.returnOnEquityPct,
+    return_on_assets_pct: snapshot.returnOnAssetsPct,
+    revenue_growth_pct: snapshot.revenueGrowthPct ?? valuation?.revenueGrowthPct ?? null,
+    earnings_growth_pct: snapshot.earningsGrowthPct,
+    debt_to_equity: snapshot.debtToEquity,
+    current_ratio: snapshot.currentRatio ?? valuation?.currentRatio ?? null,
+    quick_ratio: snapshot.quickRatio,
+    cash: snapshot.totalCash,
+    debt: snapshot.totalDebt,
+    net_cash: snapshot.netCash,
+    beta: snapshot.beta,
+    average_volume: snapshot.averageVolume,
+    volume: snapshot.volume,
+    relative_volume: snapshot.relativeVolume,
+    dollar_volume: dollarVolume,
+    short_float_pct: snapshot.shortFloatPct,
+    short_ratio: snapshot.shortRatio,
+    institutional_ownership_pct: snapshot.institutionalOwnershipPct,
+    insider_ownership_pct: snapshot.insiderOwnershipPct,
+    final_buzz_score: social?.finalBuzzScore ?? null,
+    buzz_zscore: social?.buzzZscore ?? null,
+    mention_velocity: social?.mentionVelocity ?? null,
+    mention_acceleration: social?.mentionAcceleration ?? null,
+    net_sentiment: social?.netSentiment ?? null,
+  };
+}
+
+function normalizeUniverseMetricFilters(value: unknown): UniverseMetricFilter[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): UniverseMetricFilter | null => {
+      if (!item || typeof item !== 'object') return null;
+      const raw = item as Record<string, unknown>;
+      const metric = normalizeUniverseMetricKey(raw.metric);
+      if (!metric) return null;
+      const min = toFiniteNumber(raw.min);
+      const max = toFiniteNumber(raw.max);
+      const operatorRaw = String(raw.operator || '').trim().toLowerCase();
+      const operator = ['gt', 'gte', 'lt', 'lte', 'eq', 'between'].includes(operatorRaw)
+        ? operatorRaw as UniverseMetricFilter['operator']
+        : undefined;
+      const valueNum = toFiniteNumber(raw.value);
+      return { metric, min, max, operator, value: valueNum };
+    })
+    .filter((item): item is UniverseMetricFilter => Boolean(item));
+}
+
+function metricFilterMatches(metrics: Record<string, number | null>, filter: UniverseMetricFilter): boolean {
+  const actual = metrics[filter.metric];
+  if (!Number.isFinite(Number(actual))) return false;
+  const value = Number(actual);
+  if (filter.min != null && value < filter.min) return false;
+  if (filter.max != null && value > filter.max) return false;
+  if (filter.operator && filter.value != null) {
+    if (filter.operator === 'gt' && !(value > filter.value)) return false;
+    if (filter.operator === 'gte' && !(value >= filter.value)) return false;
+    if (filter.operator === 'lt' && !(value < filter.value)) return false;
+    if (filter.operator === 'lte' && !(value <= filter.value)) return false;
+    if (filter.operator === 'eq' && value !== filter.value) return false;
+  }
+  return true;
 }
 
 function preRankUniverseRows(
@@ -901,13 +1443,15 @@ function preRankUniverseRows(
   requestedTheme: string | null,
   requestedCycleBucket: ConsumerCycleBucket | null,
   optionableOnly: boolean,
+  includeAllValuationStates: boolean = false,
 ): TradableUniverseScreenRow[] {
   const filtered = rows.filter((row) => {
-    if (!row.valuation) return false;
+    if (!includeAllValuationStates && !row.valuation) return false;
     if (optionableOnly && !row.optionable) return false;
     if (requestedTheme && !themeMatches(row, requestedTheme)) return false;
     if (requestedCycleBucket && row.classification.consumerCycleBucket !== requestedCycleBucket) return false;
-    const state = row.valuation.valuationState;
+    if (includeAllValuationStates) return true;
+    const state = row.valuation?.valuationState || null;
     if (direction === 'long') {
       return state === 'undervalued' || state === 'fair' || state === 'roughly_fair';
     }
@@ -938,8 +1482,10 @@ function preRankUniverseRows(
 function buildUniverseScreenCandidate(
   row: TradableUniverseScreenRow,
   snapshot: UniverseFundamentalsSnapshot,
+  social: UniverseSocialSnapshot | null,
   direction: UniverseScreenDirection,
   cycleStatus: string | null,
+  inputMetrics?: Record<string, number | null>,
 ): UniverseScreenCandidate {
   const valuation = row.valuation;
   const rawValuationGapPct = valuation?.valuationGapPct ?? null;
@@ -950,6 +1496,7 @@ function buildUniverseScreenCandidate(
     snapshot.currentPrice != null && snapshot.averageVolume != null
       ? snapshot.currentPrice * snapshot.averageVolume
       : null;
+  const metrics = inputMetrics || buildUniverseMetricMap(row, snapshot, social, dollarVolume);
 
   let score = 0;
   const reasons: string[] = [];
@@ -1024,6 +1571,20 @@ function buildUniverseScreenCandidate(
   if ((snapshot.trendScore ?? 0) >= 70 && direction === 'long') {
     reasons.push('Technical trend is already supportive.');
   }
+  if (social?.isScoreValid) {
+    score += scoreBucketValue(social.finalBuzzScore, 45, 120) * 8;
+    score += scoreBucketValue(social.buzzZscore, 0.5, 2.5) * 8;
+    score += scoreBucketValue(social.mentionVelocity, 1.0, 2.0) * 5;
+    if ((social.finalBuzzScore ?? 0) >= 15 || (social.buzzZscore ?? 0) >= 1.5) {
+      reasons.push(`Social buzz is elevated${social.buzzZscore != null ? ` (z-score ${social.buzzZscore.toFixed(2)})` : ''}.`);
+    }
+    if ((social.netSentiment ?? 0) >= 0.05 && direction === 'long') {
+      reasons.push('Crowd tone is net bullish, which can help near-term attention.');
+    }
+    if ((social.netSentiment ?? 0) <= -0.05 && direction === 'short') {
+      reasons.push('Crowd tone is net bearish, which can reinforce downside pressure.');
+    }
+  }
 
   return {
     symbol: row.symbol,
@@ -1036,6 +1597,7 @@ function buildUniverseScreenCandidate(
     valuationGapPct: valuation?.valuationGapPct || null,
     fairValueMid: valuation?.fairValueMid || null,
     price: snapshot.currentPrice ?? valuation?.price ?? null,
+    metrics,
     valuationQualityGrade: valuation?.qualityGrade || null,
     valuationQualityScore: valuation?.qualityScore || null,
     coverageMode: valuation?.coverageMode || null,
@@ -1044,6 +1606,7 @@ function buildUniverseScreenCandidate(
     themes: Array.isArray(row.classification.themeMemberships) ? row.classification.themeMemberships : [],
     optionable: row.optionable,
     dollarVolume,
+    social,
     balanceSheet: {
       debtToEquity: snapshot.debtToEquity,
       currentRatio: snapshot.currentRatio,
@@ -1073,15 +1636,27 @@ async function buildCleanUniverseScreen(context: TradingContext, args: Record<st
   const direction = String(args?.direction || 'long').trim().toLowerCase() === 'short' ? 'short' : 'long';
   const requestedTheme = trimString(args?.theme);
   const requestedCycleBucket = trimString(args?.cycle_bucket) as ConsumerCycleBucket | null;
+  const requestedSocialSignal = (trimString(args?.social_signal)?.toLowerCase() || null) as UniverseSocialSignal | null;
   const countRaw = Number(args?.count);
   const count = Number.isFinite(countRaw) ? Math.min(Math.max(Math.trunc(countRaw), 1), 10) : 5;
   const maxCandidatesRaw = Number(args?.max_candidates);
-  const maxCandidates = Number.isFinite(maxCandidatesRaw) ? Math.min(Math.max(Math.trunc(maxCandidatesRaw), 10), 120) : 60;
   const minDollarVolumeMillionsRaw = Number(args?.min_dollar_volume_millions);
   const minDollarVolume = Number.isFinite(minDollarVolumeMillionsRaw)
     ? Math.max(0, minDollarVolumeMillionsRaw) * 1_000_000
     : 15_000_000;
+  const minBuzzZscoreRaw = Number(args?.min_buzz_zscore);
+  const minBuzzZscore = Number.isFinite(minBuzzZscoreRaw) ? minBuzzZscoreRaw : null;
+  const minFinalBuzzScoreRaw = Number(args?.min_final_buzz_score);
+  const minFinalBuzzScore = Number.isFinite(minFinalBuzzScoreRaw) ? minFinalBuzzScoreRaw : null;
+  const metricFilters = normalizeUniverseMetricFilters(args?.metric_filters);
+  const maxCandidateLimit = metricFilters.length ? 5000 : 120;
+  const defaultMaxCandidates = metricFilters.length ? 5000 : 60;
+  const maxCandidates = Number.isFinite(maxCandidatesRaw)
+    ? Math.min(Math.max(Math.trunc(maxCandidatesRaw), 10), maxCandidateLimit)
+    : defaultMaxCandidates;
+  const requireSocialValidity = args?.require_social_validity !== false;
   const optionableOnly = args?.optionable_only === true;
+  const latestSocialBySymbol = loadLatestUniverseSocialSnapshots();
 
   const rows = preRankUniverseRows(
     listTradableUniverseScreenRows(),
@@ -1089,6 +1664,7 @@ async function buildCleanUniverseScreen(context: TradingContext, args: Record<st
     requestedTheme,
     requestedCycleBucket,
     optionableOnly,
+    metricFilters.length > 0,
   ).slice(0, maxCandidates);
 
   if (!rows.length) {
@@ -1114,14 +1690,31 @@ async function buildCleanUniverseScreen(context: TradingContext, args: Record<st
   const scored = await mapWithConcurrency(rows, 6, async (row) => {
     const snapshot = await loadUniverseFundamentalsSnapshot(row.symbol);
     if (!snapshot) return null;
+    const social = latestSocialBySymbol.get(row.symbol) || null;
+    if (requireSocialValidity && requestedSocialSignal && (!social || !social.isScoreValid)) {
+      return null;
+    }
+    if (requestedSocialSignal && !socialSignalMatches(social, requestedSocialSignal)) {
+      return null;
+    }
+    if (minBuzzZscore != null && (social?.buzzZscore == null || social.buzzZscore < minBuzzZscore)) {
+      return null;
+    }
+    if (minFinalBuzzScore != null && (social?.finalBuzzScore == null || social.finalBuzzScore < minFinalBuzzScore)) {
+      return null;
+    }
     const dollarVolume =
       snapshot.currentPrice != null && snapshot.averageVolume != null
         ? snapshot.currentPrice * snapshot.averageVolume
-        : null;
+      : null;
     if (dollarVolume != null && dollarVolume < minDollarVolume) {
       return null;
     }
-    return buildUniverseScreenCandidate(row, snapshot, direction, cycleStatus);
+    const metrics = buildUniverseMetricMap(row, snapshot, social, dollarVolume);
+    if (metricFilters.length && !metricFilters.every((filter) => metricFilterMatches(metrics, filter))) {
+      return null;
+    }
+    return buildUniverseScreenCandidate(row, snapshot, social, direction, cycleStatus, metrics);
   });
 
   const candidates = scored
@@ -1145,11 +1738,18 @@ async function buildCleanUniverseScreen(context: TradingContext, args: Record<st
       methodology: [
         'Universe scoped to tradable_stock_default.',
         'Prefiltered on valuation state and optional theme/cycle filters from the symbol catalog.',
-        'Then ranked with fundamentals snapshot checks for liquidity, balance sheet, execution, and technical trend.',
+        'Optionally filtered on Finviz-like metric filters Ledger translated from the user request, using stored catalog metrics and derived fundamentals where possible.',
+        'Optionally filtered on trust-gated social buzz fields such as final buzz score, buzz z-score, and social signal state.',
+        'Then ranked with fundamentals snapshot checks for liquidity, balance sheet, execution, technical trend, and social context.',
       ],
       filter_summary: {
         theme: requestedTheme,
         cycle_bucket: requestedCycleBucket,
+        social_signal: requestedSocialSignal,
+        min_buzz_zscore: minBuzzZscore,
+        min_final_buzz_score: minFinalBuzzScore,
+        metric_filters: metricFilters,
+        require_social_validity: requireSocialValidity,
         optionable_only: optionableOnly,
         min_dollar_volume_millions: Number((minDollarVolume / 1_000_000).toFixed(1)),
         macro_cycle_status: cycleStatus,
@@ -1430,13 +2030,68 @@ async function buildLedgerWorkflowResult(
     };
   }
 
+  let calibrationAdjustments: { assumption_key: string; adjustment_pct: number; scope_type: string; scope_value: string; sample_size: number }[] | null = null;
+  try {
+    const snap = base?.current_snapshot || {};
+    const adjustmentRows = getCalibrationAdjustments(
+      trimString(snap.sector),
+      trimString(snap.industry),
+      deriveMarketCapBand(toFiniteNumber(snap.marketCap)),
+    );
+    if (adjustmentRows.length > 0) {
+      calibrationAdjustments = adjustmentRows.map(r => ({
+        assumption_key: r.assumption_key,
+        adjustment_pct: r.adjustment_pct,
+        scope_type: r.scope_type,
+        scope_value: r.scope_value,
+        sample_size: r.sample_size,
+      }));
+    }
+  } catch {
+    // calibration lookup is best-effort
+  }
+
   const dcfResult = runValuationEngine(base, {
     revenue_growth_near_term_pct: toFiniteNumber(args?.revenue_growth_near_term_pct),
     target_operating_margin_pct: toFiniteNumber(args?.target_operating_margin_pct),
     discount_rate_pct: toFiniteNumber(args?.discount_rate_pct),
     terminal_growth_pct: toFiniteNumber(args?.terminal_growth_pct),
     forecast_years: toFiniteNumber(args?.forecast_years),
+    calibration_adjustments: calibrationAdjustments,
   });
+
+  try {
+    const sc = dcfResult?.supporting_context || {};
+    const bc = dcfResult?.scenarios?.base_case || {};
+    logDcfPrediction({
+      symbol: dcfResult?.symbol || base?.symbol || context?.symbol || '',
+      sector: sc.sector ?? null,
+      industry: sc.industry ?? null,
+      market_cap_band: deriveMarketCapBand(sc.market_cap),
+      prediction_date: new Date().toISOString().slice(0, 10),
+      price_at_prediction: sc.current_price ?? null,
+      fair_value_low: dcfResult?.fair_value_range?.bear ?? null,
+      fair_value_mid: dcfResult?.fair_value_range?.base ?? null,
+      fair_value_high: dcfResult?.fair_value_range?.bull ?? null,
+      valuation_gap_pct: sc.valuation_gap_pct ?? null,
+      judgment: dcfResult?.price_vs_value_judgment ?? null,
+      confidence_level: dcfResult?.confidence_level ?? null,
+      revenue_growth_pct: bc.revenue_growth_near_term_pct ?? null,
+      target_fcf_margin_pct: bc.target_free_cash_flow_margin_pct ?? null,
+      discount_rate_pct: bc.discount_rate_pct ?? null,
+      terminal_growth_pct: bc.terminal_growth_pct ?? null,
+      forecast_years: bc.forecast_years ?? null,
+      annual_revenue: bc.annual_revenue ?? null,
+      reported_fcf: bc.base_free_cash_flow ?? null,
+      quality_adjusted_fcf: bc.quality_adjusted_fcf ?? null,
+      operating_margin_pct: bc.operating_margin_pct ?? null,
+      source: 'interactive_analysis',
+      engine_version: 'ledger_engines_v1',
+    });
+  } catch {
+    // prediction logging is best-effort; never block the analysis
+  }
+
   const dcfWithVerification = await maybeAttachSpecialSituationWebVerification(context, mergedLedgerData, dcfResult, args);
   return {
     ok: true,
@@ -1478,7 +2133,62 @@ async function buildLedgerWorkflowResult(
   };
 }
 
+function tradingSymbolIntervalParams(): ToolSchema {
+  return {
+    type: 'object',
+    properties: {
+      symbol: {
+        type: 'string',
+        description: 'Optional symbol. Must match the active chart symbol if provided.',
+      },
+      interval: {
+        type: 'string',
+        description: 'Optional timeframe override (yfinance style: 1mo, 1wk, 1d, 4h, 1h, 15m, 5m, 1m). Defaults to the active chart timeframe.',
+      },
+    },
+    additionalProperties: false,
+  };
+}
+
+export function getTradingCopilotTools(): OpenAITool[] {
+  return [
+    {
+      type: 'function',
+      function: {
+        name: 'get_market_structure',
+        description: 'Return swing structure FACTS for the active chart: primary/intermediate trend, trend alignment, current price, current retracement %, the active swing range, and recent swing points. No verdict — you form the read.',
+        parameters: tradingSymbolIntervalParams(),
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'get_fib_levels',
+        description: 'Return Fibonacci FACTS for the active chart: the swing range (low/high/direction), the full fib retracement ladder with prices and distance, the nearest level, and current retracement %.',
+        parameters: tradingSymbolIntervalParams(),
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'get_energy_state',
+        description: 'Return momentum/energy FACTS for the active chart: character state (STRONG/WANING/EXHAUSTED/RECOVERING), direction, ATR-normalized velocity and acceleration, range compression, and energy score.',
+        parameters: tradingSymbolIntervalParams(),
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'get_pressure_read',
+        description: 'Return buying/selling pressure FACTS (exhaustion read) for the active chart: which pressure is relevant given direction, current/peak/change/trend for buying and selling pressure, and the swing-based stop distance %.',
+        parameters: tradingSymbolIntervalParams(),
+      },
+    },
+  ];
+}
+
 export function getCopilotToolsForRole(role: AIRole): OpenAITool[] {
+  if (role === 'copilot') return getTradingCopilotTools();
   if (!SCANNER_TOOL_ROLES.includes(role)) return [];
   return [
     {
@@ -1554,9 +2264,16 @@ export function getCopilotToolsForRole(role: AIRole): OpenAITool[] {
 
 export function getCopilotToolsForAnalyst(analyst: WorkspaceAnalystId): OpenAITool[] {
   if (WORKSPACE_SCANNER_ANALYSTS.includes(analyst)) {
-    return getCopilotToolsForRole(
+    const scannerTools = getCopilotToolsForRole(
       analyst === 'pattern_analyst' ? 'pattern_analyst' : 'contextual_ranker'
     );
+    // The Structure analyst grounds trend/fib/energy/pressure claims in live
+    // computation, so it also carries the trading fact-tool belt on top of the
+    // scanner-context tools.
+    if (analyst === 'technical_analyst') {
+      return [...scannerTools, ...getTradingCopilotTools()];
+    }
+    return scannerTools;
   }
 
   if (analyst !== 'financial_analyst') return [];
@@ -1641,6 +2358,55 @@ export function getCopilotToolsForAnalyst(analyst: WorkspaceAnalystId): OpenAITo
             theme: {
               type: 'string',
               description: 'Optional theme filter such as software, software_application, cloud, or adtech.',
+            },
+            social_signal: {
+              type: 'string',
+              enum: ['buzz_hot', 'buzz_rising', 'bullish', 'bearish', 'cross_platform_confirmed'],
+              description: 'Optional social signal filter from the trust-gated social intelligence layer.',
+            },
+            min_buzz_zscore: {
+              type: 'number',
+              description: 'Optional minimum social buzz z-score threshold.',
+            },
+            min_final_buzz_score: {
+              type: 'number',
+              description: 'Optional minimum final buzz score threshold.',
+            },
+            metric_filters: {
+              type: 'array',
+              description: 'Optional natural-language screener filters Ledger has translated into metrics. Examples: [{metric:"pe",min:50},{metric:"price_to_sales",min:20},{metric:"gross_margin",min:60}]. Supports Finviz-like aliases where data exists or can be derived.',
+              items: {
+                type: 'object',
+                properties: {
+                  metric: {
+                    type: 'string',
+                    description: 'Metric alias, such as pe, price_to_sales, ev_sales, market_cap, revenue_growth, gross_margin, profit_margin, roe, debt_to_equity, short_float, beta, relative_volume, or buzz_zscore.',
+                  },
+                  min: {
+                    type: 'number',
+                    description: 'Minimum acceptable metric value.',
+                  },
+                  max: {
+                    type: 'number',
+                    description: 'Maximum acceptable metric value.',
+                  },
+                  operator: {
+                    type: 'string',
+                    enum: ['gt', 'gte', 'lt', 'lte', 'eq', 'between'],
+                    description: 'Optional comparison operator when using value.',
+                  },
+                  value: {
+                    type: 'number',
+                    description: 'Comparison value used with operator.',
+                  },
+                },
+                required: ['metric'],
+                additionalProperties: false,
+              },
+            },
+            require_social_validity: {
+              type: 'boolean',
+              description: 'Defaults to true. When true, only trust-gated usable/strong social scores are allowed for social filtering.',
             },
             cycle_bucket: {
               type: 'string',
@@ -1776,7 +2542,7 @@ export function getCopilotToolsForAnalyst(analyst: WorkspaceAnalystId): OpenAITo
       type: 'function',
       function: {
         name: 'run_dcf_valuation',
-        description: 'Run Ledger’s DCF valuation workflow scaffold, returning the current filing-backed valuation base, required assumptions, and structured valuation output contract.',
+        description: 'Run Ledger’s valuation dispatcher. It returns DCF, REIT AFFO/NAV, financial-company ROE/book, pre-profit sales-scenario, or special-situation valuation output depending on the active company and hard flags.',
         parameters: {
           type: 'object',
           properties: {
@@ -1823,6 +2589,26 @@ export function getCopilotToolsForAnalyst(analyst: WorkspaceAnalystId): OpenAITo
 export function buildCopilotToolPromptAppendix(role: AIRole): string {
   const tools = getCopilotToolsForRole(role);
   if (!tools.length) return '';
+
+  if (role === 'copilot') {
+    return `
+
+AVAILABLE READ-ONLY TOOLS:
+- These tools return raw structural FACTS computed from price. They never return a GO/NO-GO verdict — YOU form the read and the trade stance.
+- Call a tool when the user's question depends on structure, fibs, momentum, or pressure and the prompt context does not already contain it.
+- Stay within the active chart symbol and timeframe. You may pass an interval to inspect a different timeframe when the user asks.
+- Prefer 1-3 targeted tool calls, then reason. Do not call every tool reflexively.
+- For "what's the trend / structure / where are we in the swing", call get_market_structure.
+- For "where are the fib levels / what level are we at / where's support-resistance", call get_fib_levels.
+- For "is momentum strong or exhausted / is this move running out of gas", call get_energy_state.
+- For "are buyers/sellers still in control / is this exhausting", call get_pressure_read.
+- Treat the trader's chosen direction (LONG/SHORT) as given; do not override it. Use the facts to assess whether their setup is supported, and name the invalidation.
+
+TOOL LIST:
+${tools.map(tool => `- ${tool.function.name}: ${tool.function.description}`).join('\n')}
+`;
+  }
+
   return `
 
 AVAILABLE READ-ONLY TOOLS:
@@ -1842,6 +2628,26 @@ ${tools.map(tool => `- ${tool.function.name}: ${tool.function.description}`).joi
 export function buildCopilotToolPromptAppendixForAnalyst(analyst: WorkspaceAnalystId): string {
   const tools = getCopilotToolsForAnalyst(analyst);
   if (!tools.length) return '';
+
+  if (analyst === 'technical_analyst') {
+    return `
+
+AVAILABLE READ-ONLY TOOLS:
+- You have two kinds of tools: scanner-context tools (what the detector found) and computed structure FACT tools (trend, fibs, energy, pressure). The fact tools return raw facts only — no verdict. You form the read.
+- Use tools only when the answer would materially improve from a targeted fetch. Do not restate data already obvious in the prompt.
+- Stay within the active scanner symbol and timeframe. Prefer 1-3 targeted calls, then reason.
+- For "what's the trend / structure / where are we in the swing", call get_market_structure.
+- For "where are the fib levels / what level are we at / where is support-resistance", call get_fib_levels.
+- For "is momentum strong or exhausted / is this move running out of gas", call get_energy_state.
+- For "are buyers/sellers still in control / is this exhausting", call get_pressure_read.
+- For detector state, trigger logic, rule checklist, or setup internals, call get_candidate_details.
+- Ground structural claims in the fact tools rather than asserting trend or levels from memory. Name the invalidation level when you give a structural read.
+
+TOOL LIST:
+${tools.map(tool => `- ${tool.function.name}: ${tool.function.description}`).join('\n')}
+`;
+  }
+
   return `
 
 AVAILABLE READ-ONLY TOOLS:
@@ -1853,7 +2659,7 @@ AVAILABLE READ-ONLY TOOLS:
 - If Ledger coverage is missing, stale, or insufficient, call refresh_filing_coverage before concluding that the company is unavailable.
 - If the user asks for a full company review, call run_financial_analysis.
 - If the user asks about accounting quality, earnings quality, cash conversion, dilution, or distortions, call run_earnings_quality.
-- If the user asks for DCF, fair value, intrinsic value, or overvalued/undervalued judgment, call run_dcf_valuation.
+- If the user asks for DCF, fair value, intrinsic value, special-situation value, post-reorg value, or overvalued/undervalued judgment, call run_dcf_valuation.
 - If the user asks about sentiment, social buzz, watcher activity, or crowd positioning, call get_social_buzz and treat it as secondary context rather than proof.
 - If the user asks about consumer cycle, cyclical demand, slowdown risk, recession sensitivity, or whether the company belongs in a cyclical or defensive bucket, call get_consumer_cycle_context before answering.
 - If the user asks for database-wide stock picks, top ideas, best 5 longs, best 5 shorts, or clean-universe ranking, call screen_clean_universe before answering.
@@ -1874,6 +2680,14 @@ export async function executeCopilotToolCall(name: string, args: Record<string, 
   }
 
   switch (name) {
+    case 'get_market_structure':
+      return buildMarketStructure(context, args);
+    case 'get_fib_levels':
+      return buildFibLevels(context, args);
+    case 'get_energy_state':
+      return buildEnergyState(context, args);
+    case 'get_pressure_read':
+      return buildPressureRead(context, args);
     case 'get_chart_snapshot':
       return buildChartSnapshot(context);
     case 'get_candidate_details':

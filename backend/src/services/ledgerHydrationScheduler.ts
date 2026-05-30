@@ -19,8 +19,10 @@ export interface LedgerHydrationScheduleConfig {
   limit: number;
   write_report: boolean;
   refresh_valuations: boolean;
+  refresh_reit_supplementals: boolean;
   refresh_yahoo_identity_metadata: boolean;
   refresh_consumer_cycle_classifications: boolean;
+  refresh_social_intelligence: boolean;
 }
 
 export interface LedgerHydrationRuntimeState {
@@ -72,14 +74,20 @@ const LOCAL_CONFIG_FILE = path.join(__dirname, '..', '..', 'data', 'preferences'
 const RUNTIME_STATE_FILE = path.join(__dirname, '..', '..', 'data', 'preferences', 'ledger-hydration-runtime.local.json');
 const RESEARCH_DIR = path.join(__dirname, '..', '..', 'data', 'research');
 const SYNC_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'sync_ledger_coverage_from_canonical.py');
+const REIT_SUPPLEMENTAL_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'collect_reit_supplementals.py');
 const VALUATION_SNAPSHOT_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'build_universe_valuation_snapshot.py');
 const VALUATION_REGIME_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'build_valuation_regime_universes.py');
 const YAHOO_IDENTITY_ENRICHMENT_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'enrich_symbol_catalog_from_yahoo.py');
 const CONSUMER_CYCLE_CLASSIFICATION_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'backfill_symbol_classifications.py');
+const SOCIAL_COLLECT_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'collect_social_intraday.py');
+const SOCIAL_FINALIZE_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'build_social_daily_snapshot.py');
 const SCHEDULER_NAMESPACE = 'ledger_hydration_scheduler';
 const CONFIG_DOCUMENT_KEY = 'config';
 const RUNTIME_DOCUMENT_KEY = 'runtime';
 const CONSUMER_CYCLE_RUNTIME_DOCUMENT_KEY = 'consumer_cycle_classification_runtime';
+const DEFAULT_REIT_SUPPLEMENTAL_DOWNLOAD_LIMIT = 1200;
+const DEFAULT_REIT_SUPPLEMENTAL_SYMBOL_LIMIT = 0;
+const DEFAULT_REIT_SUPPLEMENTAL_MAX_SEC_FILINGS = 40;
 
 let _cronJob: ScheduledTask | null = null;
 let _config: LedgerHydrationScheduleConfig | null = null;
@@ -122,8 +130,10 @@ function defaultConfig(): LedgerHydrationScheduleConfig {
     limit: 0,
     write_report: true,
     refresh_valuations: true,
+    refresh_reit_supplementals: true,
     refresh_yahoo_identity_metadata: true,
     refresh_consumer_cycle_classifications: true,
+    refresh_social_intelligence: true,
   };
 }
 
@@ -159,6 +169,10 @@ function sanitizeConfig(input: any): LedgerHydrationScheduleConfig {
     limit: Math.max(0, Number(input?.limit) || 0),
     write_report: input?.write_report !== undefined ? Boolean(input.write_report) : base.write_report,
     refresh_valuations: input?.refresh_valuations !== undefined ? Boolean(input.refresh_valuations) : base.refresh_valuations,
+    refresh_reit_supplementals:
+      input?.refresh_reit_supplementals !== undefined
+        ? Boolean(input.refresh_reit_supplementals)
+        : base.refresh_reit_supplementals,
     refresh_yahoo_identity_metadata:
       input?.refresh_yahoo_identity_metadata !== undefined
         ? Boolean(input.refresh_yahoo_identity_metadata)
@@ -167,6 +181,10 @@ function sanitizeConfig(input: any): LedgerHydrationScheduleConfig {
       input?.refresh_consumer_cycle_classifications !== undefined
         ? Boolean(input.refresh_consumer_cycle_classifications)
         : base.refresh_consumer_cycle_classifications,
+    refresh_social_intelligence:
+      input?.refresh_social_intelligence !== undefined
+        ? Boolean(input.refresh_social_intelligence)
+        : base.refresh_social_intelligence,
   };
 }
 
@@ -566,29 +584,65 @@ function startValuationRefreshSequence(config: LedgerHydrationScheduleConfig, so
     return;
   }
 
-  startPythonProcess(
-    [VALUATION_SNAPSHOT_SCRIPT],
-    {
-      source,
-      startMessage: '[ValuationRefresh] Rebuilding universe valuation snapshot...',
-      successMessage: '[ValuationRefresh] Universe valuation snapshot rebuilt.',
-      preserveStartedAt: true,
-      onSuccess: () => {
-            startPythonProcess(
-          [VALUATION_REGIME_SCRIPT],
-          {
-            source,
-            startMessage: '[ValuationRefresh] Rebuilding valuation regime universes...',
-            successMessage: '[ValuationRefresh] Valuation regime universes rebuilt.',
-            preserveStartedAt: true,
-            onSuccess: () => {
-              startPostHydrationMetadataRefreshSequence(config, source);
+  const startSnapshotRefresh = () => {
+    startPythonProcess(
+      [VALUATION_SNAPSHOT_SCRIPT],
+      {
+        source,
+        startMessage: '[ValuationRefresh] Rebuilding universe valuation snapshot...',
+        successMessage: '[ValuationRefresh] Universe valuation snapshot rebuilt.',
+        preserveStartedAt: true,
+        onSuccess: () => {
+              startPythonProcess(
+            [VALUATION_REGIME_SCRIPT],
+            {
+              source,
+              startMessage: '[ValuationRefresh] Rebuilding valuation regime universes...',
+              successMessage: '[ValuationRefresh] Valuation regime universes rebuilt.',
+              preserveStartedAt: true,
+              onSuccess: () => {
+                startPostHydrationMetadataRefreshSequence(config, source);
+              },
             },
-          },
-        );
+          );
+        },
       },
-    },
-  );
+    );
+  };
+
+  if (config.refresh_reit_supplementals) {
+    if (!fs.existsSync(REIT_SUPPLEMENTAL_SCRIPT)) {
+      finishRun(-1, 'REIT supplemental collection script is not available.');
+      return;
+    }
+    startPythonProcess(
+      [
+        REIT_SUPPLEMENTAL_SCRIPT,
+        '--init-source-map',
+        '--discover',
+        '--download',
+        '--docling',
+        '--extract-docling',
+        '--promote-docling',
+        '--limit',
+        String(Number(process.env.REIT_SUPPLEMENTAL_DOWNLOAD_LIMIT || DEFAULT_REIT_SUPPLEMENTAL_DOWNLOAD_LIMIT) || DEFAULT_REIT_SUPPLEMENTAL_DOWNLOAD_LIMIT),
+        '--max-symbols',
+        String(Number(process.env.REIT_SUPPLEMENTAL_SYMBOL_LIMIT || DEFAULT_REIT_SUPPLEMENTAL_SYMBOL_LIMIT) || DEFAULT_REIT_SUPPLEMENTAL_SYMBOL_LIMIT),
+        '--max-sec-filings',
+        String(Number(process.env.REIT_SUPPLEMENTAL_MAX_SEC_FILINGS || DEFAULT_REIT_SUPPLEMENTAL_MAX_SEC_FILINGS) || DEFAULT_REIT_SUPPLEMENTAL_MAX_SEC_FILINGS),
+      ],
+      {
+        source,
+        startMessage: '[REITSupplementals] Refreshing REIT supplemental documents and normalized facts...',
+        successMessage: '[REITSupplementals] REIT supplemental facts refreshed. Starting valuation refresh...',
+        preserveStartedAt: true,
+        onSuccess: startSnapshotRefresh,
+      },
+    );
+    return;
+  }
+
+  startSnapshotRefresh();
 }
 
 function startYahooIdentityRefreshSequence(
@@ -617,14 +671,26 @@ function startYahooIdentityRefreshSequence(
       preserveStartedAt: true,
       onSuccess: () => {
         if (config.refresh_consumer_cycle_classifications) {
-          finishRun(0, null);
-          startConsumerCycleClassificationProcess(source);
+          startConsumerCycleClassificationProcess(source, () => {
+            startPostHydrationSocialRefreshSequence(config, source);
+          });
           return;
         }
-        finishRun(0, null);
+        startPostHydrationSocialRefreshSequence(config, source);
       },
     },
   );
+}
+
+function startPostHydrationSocialRefreshSequence(
+  config: LedgerHydrationScheduleConfig,
+  source: 'manual' | 'scheduled',
+): void {
+  if (config.refresh_social_intelligence) {
+    startSocialIntelligenceRefreshSequence(source);
+    return;
+  }
+  finishRun(0, null);
 }
 
 function startPostHydrationMetadataRefreshSequence(
@@ -636,11 +702,49 @@ function startPostHydrationMetadataRefreshSequence(
     return;
   }
   if (config.refresh_consumer_cycle_classifications) {
-    finishRun(0, null);
-    startConsumerCycleClassificationProcess(source);
+    startConsumerCycleClassificationProcess(source, () => {
+      startPostHydrationSocialRefreshSequence(config, source);
+    });
     return;
   }
-  finishRun(0, null);
+  startPostHydrationSocialRefreshSequence(config, source);
+}
+
+function startSocialIntelligenceRefreshSequence(source: 'manual' | 'scheduled'): void {
+  if (!fs.existsSync(SOCIAL_COLLECT_SCRIPT)) {
+    finishRun(-1, 'Social intelligence collection script is not available.');
+    return;
+  }
+  if (!fs.existsSync(SOCIAL_FINALIZE_SCRIPT)) {
+    finishRun(-1, 'Social intelligence finalizer script is not available.');
+    return;
+  }
+
+  startPythonProcess(
+    [
+      SOCIAL_COLLECT_SCRIPT,
+      '--sleep-ms',
+      '250',
+    ],
+    {
+      source,
+      startMessage: '[SocialIntel] Collecting full clean-universe social data...',
+      successMessage: '[SocialIntel] Social collection complete. Building daily buzz snapshot...',
+      preserveStartedAt: true,
+      onSuccess: () => {
+        startPythonProcess(
+          [SOCIAL_FINALIZE_SCRIPT],
+          {
+            source,
+            startMessage: '[SocialIntel] Finalizing daily social snapshot...',
+            successMessage: '[SocialIntel] Social intelligence refresh complete.',
+            preserveStartedAt: true,
+            onSuccess: () => finishRun(0, null),
+          },
+        );
+      },
+    },
+  );
 }
 
 function startConsumerCycleClassificationProcess(source: 'manual' | 'scheduled', onSuccess?: () => void): void {
@@ -846,32 +950,41 @@ export function runLedgerHydrationNow(source: 'manual' | 'scheduled' = 'manual')
       source,
       startMessage: `[LedgerSync] Started ${source} run`,
       successMessage: config.refresh_valuations
-        ? '[LedgerSync] Hydration complete. Starting valuation refresh...'
-        : config.refresh_yahoo_identity_metadata
+        ? config.refresh_reit_supplementals
+          ? '[LedgerSync] Hydration complete. Starting REIT supplemental refresh and valuation refresh...'
+          : '[LedgerSync] Hydration complete. Starting valuation refresh...'
+      : config.refresh_yahoo_identity_metadata
           ? '[LedgerSync] Hydration complete. Starting Yahoo identity refresh...'
         : config.refresh_consumer_cycle_classifications
           ? '[LedgerSync] Hydration complete. Starting consumer-cycle classification refresh...'
+        : config.refresh_social_intelligence
+          ? '[LedgerSync] Hydration complete. Starting social intelligence refresh...'
           : '[LedgerSync] Hydration complete.',
       onSuccess: config.refresh_valuations
         ? () => startValuationRefreshSequence(config, source)
         : config.refresh_yahoo_identity_metadata
           ? () => startYahooIdentityRefreshSequence(config, source)
         : config.refresh_consumer_cycle_classifications
-          ? () => {
-              finishRun(0, null);
-              startConsumerCycleClassificationProcess(source);
-            }
+          ? () => startConsumerCycleClassificationProcess(source, () => {
+              startPostHydrationSocialRefreshSequence(config, source);
+            })
+        : config.refresh_social_intelligence
+          ? () => startSocialIntelligenceRefreshSequence(source)
           : () => finishRun(0, null),
     },
   );
   return {
     started: true,
     message: config.refresh_valuations
-      ? 'Ledger hydration job started. Valuation refresh will run automatically after hydration.'
+      ? config.refresh_reit_supplementals
+        ? 'Ledger hydration job started. REIT supplementals and valuation refresh will run automatically after hydration.'
+        : 'Ledger hydration job started. Valuation refresh will run automatically after hydration.'
       : config.refresh_yahoo_identity_metadata
         ? 'Ledger hydration job started. Yahoo identity refresh will run automatically after hydration.'
       : config.refresh_consumer_cycle_classifications
         ? 'Ledger hydration job started. Consumer-cycle classification refresh will run automatically after hydration.'
+      : config.refresh_social_intelligence
+        ? 'Ledger hydration job started. Social intelligence refresh will run automatically after hydration.'
       : 'Ledger hydration job started.',
   };
 }
@@ -887,6 +1000,46 @@ export function runConsumerCycleClassificationNow(source: 'manual' | 'scheduled'
   return {
     started: true,
     message: 'Consumer-cycle classification refresh started.',
+  };
+}
+
+export function runValuationRefreshNow(source: 'manual' | 'scheduled' = 'manual'): { started: boolean; message: string } {
+  if (_activeProcess && !_activeProcess.killed) {
+    return { started: false, message: 'A Ledger hydration or valuation job is already running.' };
+  }
+  const baseConfig = _config || loadLedgerHydrationScheduleConfig();
+  const standaloneConfig: LedgerHydrationScheduleConfig = {
+    ...baseConfig,
+    refresh_valuations: false,
+    refresh_reit_supplementals: baseConfig.refresh_reit_supplementals,
+    refresh_yahoo_identity_metadata: false,
+    refresh_consumer_cycle_classifications: false,
+    refresh_social_intelligence: false,
+  };
+  startValuationRefreshSequence(standaloneConfig, source);
+  return {
+    started: true,
+    message: 'Valuation refresh started.',
+  };
+}
+
+export function runYahooIdentityRefreshNow(source: 'manual' | 'scheduled' = 'manual'): { started: boolean; message: string } {
+  if (_activeProcess && !_activeProcess.killed) {
+    return { started: false, message: 'A Ledger hydration or valuation job is already running.' };
+  }
+  const baseConfig = _config || loadLedgerHydrationScheduleConfig();
+  const standaloneConfig: LedgerHydrationScheduleConfig = {
+    ...baseConfig,
+    refresh_valuations: false,
+    refresh_reit_supplementals: false,
+    refresh_yahoo_identity_metadata: false,
+    refresh_consumer_cycle_classifications: false,
+    refresh_social_intelligence: false,
+  };
+  startYahooIdentityRefreshSequence(standaloneConfig, source);
+  return {
+    started: true,
+    message: 'Yahoo identity refresh started.',
   };
 }
 

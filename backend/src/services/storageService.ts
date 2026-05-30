@@ -341,7 +341,7 @@ export async function getCandidate(id: string): Promise<PatternCandidate | null>
     const candidate = parseJsonWithBomSupport<PatternCandidate>(content);
     if (candidate?.id) {
       writeAppRecord(CANDIDATES_NAMESPACE, String(candidate.id), candidate, {
-        sortKey: String(candidate.createdAt || candidate.created_at || ''),
+        sortKey: String(candidate.createdAt || (candidate as any).created_at || ''),
       });
     }
     return candidate;

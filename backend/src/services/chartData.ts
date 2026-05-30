@@ -4,6 +4,7 @@ export interface RawChartBar {
   high: number;
   low: number;
   close: number;
+  volume?: number | null;
 }
 
 export interface ChartBar {
@@ -12,6 +13,7 @@ export interface ChartBar {
   high: number;
   low: number;
   close: number;
+  volume?: number;
 }
 
 export function detectIntradayBars(bars: RawChartBar[]): boolean {
@@ -48,13 +50,16 @@ export function formatChartBars(bars: RawChartBar[]): ChartBar[] {
       time = parsed ?? time;
     }
 
-    rows.push({
+    const volumeRaw = Number(bar.volume);
+    const row: ChartBar = {
       time,
       open: Number(bar.open),
       high: Number(bar.high),
       low: Number(bar.low),
       close: Number(bar.close),
-    });
+    };
+    if (Number.isFinite(volumeRaw) && volumeRaw >= 0) row.volume = volumeRaw;
+    rows.push(row);
   }
 
   return rows;

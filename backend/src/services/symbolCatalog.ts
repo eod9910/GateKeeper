@@ -91,6 +91,7 @@ export type ValuationEngineClass =
   | 'roe_book_value'
   | 'reit_affo'
   | 'sales_scenario'
+  | 'special_situation'
   | 'dcf_operating'
   | 'unknown';
 
@@ -989,7 +990,6 @@ export function listTradableUniverseScreenRows(): TradableUniverseScreenRow[] {
             operatingMarginPct: toFiniteNumber(row.valuation_operating_margin_pct),
             freeCashFlowMarginPct: toFiniteNumber(row.valuation_free_cash_flow_margin_pct),
             currentRatio: toFiniteNumber(row.valuation_current_ratio),
-            qualityScore: toFiniteNumber(row.valuation_quality_score),
             asOfDate: trimString(row.valuation_as_of),
           } satisfies SymbolValuationSnapshot;
 
@@ -1123,6 +1123,27 @@ export function upsertSymbolClassification(symbol: string, classification: Omit<
     }
   } catch {
     // Best-effort backfill only.
+  } finally {
+    try { db.close(); } catch {}
+  }
+}
+
+export function bulkLookupSymbolNames(symbols: string[]): Record<string, string> {
+  if (!symbols.length) return {};
+  const db = openCatalog(true);
+  if (!db) return {};
+  try {
+    const placeholders = symbols.map(() => '?').join(',');
+    const rows = db.prepare(
+      `SELECT symbol, COALESCE(name, sec_name) AS company_name FROM symbols WHERE symbol IN (${placeholders})`
+    ).all(...symbols.map(normalizeSymbol)) as Array<{ symbol: string; company_name: string | null }>;
+    const map: Record<string, string> = {};
+    for (const r of rows) {
+      if (r.company_name) map[r.symbol] = r.company_name;
+    }
+    return map;
+  } catch {
+    return {};
   } finally {
     try { db.close(); } catch {}
   }

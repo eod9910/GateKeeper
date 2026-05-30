@@ -7,6 +7,7 @@ export * from './strategy';
 export * from './fundamentals';
 export * from './training';
 export * from './structureDiscovery';
+export * from './marketIntelligence';
 
 // Base structure (accumulation zone)
 export interface Base {

@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { classifyCompanyFromSnapshot, getSymbolClassification, upsertSymbolClassification } from './symbolCatalog';
 
 type LedgerMetricEntry = {
@@ -39,6 +41,416 @@ type LedgerContextSummary = {
     } | null;
   } | null;
 };
+
+type ReitMultipleBand = { low: number; mid: number; high: number };
+
+type OperatingDcfConfig = {
+  schema_version: number;
+  engine_class: 'dcf_operating';
+  valuation_method: string;
+  forecast_years: { default: number; min: number; max: number };
+  near_term_revenue_growth_pct: {
+    default_when_unavailable: number;
+    observed_growth_multiplier: number;
+    min: number;
+    max: number;
+  };
+  target_operating_margin_pct: {
+    default_when_unavailable: number;
+    observed_margin_add_pct: number;
+    observed_margin_floor_pct: number;
+    min: number;
+    max: number;
+  };
+  target_free_cash_flow_margin_pct: {
+    conversion_ratio_floor: number;
+    min: number;
+    fallback_starting_margin_multiplier: number;
+  };
+  discount_rate_pct: {
+    base_default: number;
+    quality_premiums: Record<string, number>;
+    current_ratio_below_one_premium: number;
+    likely_rich_premium: number;
+    min: number;
+    max: number;
+    default_min: number;
+    default_max: number;
+  };
+  terminal_growth_pct: {
+    default: number;
+    min: number;
+    spread_below_discount_rate_pct: number;
+    minimum_dynamic_max: number;
+  };
+  scenario_spreads: {
+    bear: {
+      revenue_growth_delta_pct: number;
+      target_fcf_margin_delta_pct: number;
+      discount_rate_delta_pct: number;
+      terminal_growth_delta_pct: number;
+    };
+    bull: {
+      revenue_growth_delta_pct: number;
+      target_fcf_margin_delta_pct: number;
+      discount_rate_delta_pct: number;
+      terminal_growth_delta_pct: number;
+    };
+  };
+};
+
+type ReitAffoConfig = {
+  schema_version: number;
+  engine_class: 'reit_affo';
+  valuation_method: string;
+  property_type_multiple_bands: Record<string, ReitMultipleBand>;
+  default_affo_multiple_adjustments: {
+    revenue_growth_divisor: number;
+    revenue_growth_min_delta: number;
+    revenue_growth_max_delta: number;
+    quality_premiums: Record<string, number>;
+    debt_to_equity_threshold: number;
+    debt_to_equity_penalty: number;
+  };
+  scenario_spreads: {
+    bear: {
+      affo_multiple_delta: number;
+      affo_growth_delta_pct: number;
+      affo_growth_min_pct: number;
+      affo_growth_max_pct: number;
+      multiple_low_floor: number;
+      multiple_low_extra_room: number;
+    };
+    base: {
+      default_affo_growth_pct: number;
+      affo_growth_min_pct: number;
+      affo_growth_max_pct: number;
+    };
+    bull: {
+      affo_multiple_delta: number;
+      affo_growth_delta_pct: number;
+      affo_growth_min_pct: number;
+      affo_growth_max_pct: number;
+      multiple_high_extra_room: number;
+    };
+  };
+  required_inputs: string[];
+  model_limitations: string[];
+};
+
+type SpecialSituationConfig = {
+  schema_version: number;
+  engine_class: 'special_situation';
+  valuation_method: string;
+  scenario_spreads: {
+    bear: {
+      revenue_growth_delta_pct: number;
+      ev_sales_multiple_delta: number;
+      survival_probability_pct: number;
+    };
+    base: {
+      default_revenue_growth_pct: number;
+      survival_probability_pct: number;
+    };
+    bull: {
+      revenue_growth_delta_pct: number;
+      ev_sales_multiple_delta: number;
+      survival_probability_pct: number;
+    };
+  };
+  default_ev_sales_multiple: {
+    base: number;
+    min: number;
+    max: number;
+  };
+  required_inputs: string[];
+  model_limitations: string[];
+};
+
+type ValuationAuditConfig = {
+  schema_version: number;
+  purpose: string;
+  severity_levels: string[];
+  global_rules: {
+    require_current_price: boolean;
+    require_fair_value_range: boolean;
+    warn_when_price_vs_mid_abs_pct_above: number;
+    warn_when_confidence_above_low_with_proxy_inputs: boolean;
+  };
+  operating_dcf_rules: {
+    allowed_valuation_methods: string[];
+    require_forecast_years: boolean;
+    require_bear_base_bull: boolean;
+    max_terminal_value_pct_of_equity_value: number;
+    terminal_growth_must_be_below_discount_rate: boolean;
+    minimum_discount_rate_spread_pct: number;
+    warn_when_discount_rate_below_pct: number;
+    warn_when_terminal_growth_above_pct: number;
+    required_base_inputs: string[];
+  };
+  reit_affo_rules: {
+    allowed_valuation_methods: string[];
+    required_engine_class: string;
+    require_affo_or_ffo_proxy: boolean;
+    require_property_type: boolean;
+    warn_on_proxy_cash_metric_sources: string[];
+    warn_when_payout_ratio_pct_above: number;
+    required_context_checks: string[];
+  };
+};
+
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
+const LEDGER_VALUATION_MODEL_ROOT = path.join(
+  PROJECT_ROOT,
+  'workspace',
+  'Financial Analyst Workspace',
+  'references',
+  'valuation-models',
+);
+
+const DEFAULT_OPERATING_DCF_CONFIG: OperatingDcfConfig = {
+  schema_version: 1,
+  engine_class: 'dcf_operating',
+  valuation_method: 'simplified_fcfe_dcf',
+  forecast_years: { default: 7, min: 4, max: 12 },
+  near_term_revenue_growth_pct: {
+    default_when_unavailable: 8,
+    observed_growth_multiplier: 0.7,
+    min: 1,
+    max: 25,
+  },
+  target_operating_margin_pct: {
+    default_when_unavailable: 12,
+    observed_margin_add_pct: 3,
+    observed_margin_floor_pct: 10,
+    min: 4,
+    max: 35,
+  },
+  target_free_cash_flow_margin_pct: {
+    conversion_ratio_floor: 0.55,
+    min: 2,
+    fallback_starting_margin_multiplier: 0.7,
+  },
+  discount_rate_pct: {
+    base_default: 9,
+    quality_premiums: { weak: 2, mixed: 1, good: 0, high: 0 },
+    current_ratio_below_one_premium: 1,
+    likely_rich_premium: 0.5,
+    min: 6,
+    max: 18,
+    default_min: 8,
+    default_max: 14,
+  },
+  terminal_growth_pct: {
+    default: 3,
+    min: 1,
+    spread_below_discount_rate_pct: 2.5,
+    minimum_dynamic_max: 1.5,
+  },
+  scenario_spreads: {
+    bear: {
+      revenue_growth_delta_pct: -4,
+      target_fcf_margin_delta_pct: -1.5,
+      discount_rate_delta_pct: 1,
+      terminal_growth_delta_pct: -0.5,
+    },
+    bull: {
+      revenue_growth_delta_pct: 4,
+      target_fcf_margin_delta_pct: 1.5,
+      discount_rate_delta_pct: -1,
+      terminal_growth_delta_pct: 0.5,
+    },
+  },
+};
+
+const DEFAULT_REIT_AFFO_CONFIG: ReitAffoConfig = {
+  schema_version: 1,
+  engine_class: 'reit_affo',
+  valuation_method: 'reit_affo_nav_proxy',
+  property_type_multiple_bands: {
+    data_center: { low: 17, mid: 21, high: 25 },
+    industrial: { low: 16, mid: 20, high: 24 },
+    self_storage: { low: 15, mid: 18, high: 22 },
+    residential: { low: 13, mid: 16, high: 20 },
+    net_lease: { low: 12, mid: 15, high: 18 },
+    healthcare: { low: 11, mid: 14, high: 17 },
+    retail: { low: 10, mid: 13, high: 16 },
+    office: { low: 7, mid: 10, high: 13 },
+    lodging: { low: 8, mid: 11, high: 14 },
+    diversified: { low: 11, mid: 15, high: 19 },
+  },
+  default_affo_multiple_adjustments: {
+    revenue_growth_divisor: 5,
+    revenue_growth_min_delta: -2,
+    revenue_growth_max_delta: 3,
+    quality_premiums: { high: 1.5, good: 0.75, mixed: 0, weak: -1.5 },
+    debt_to_equity_threshold: 100,
+    debt_to_equity_penalty: 1.5,
+  },
+  scenario_spreads: {
+    bear: {
+      affo_multiple_delta: -2.5,
+      affo_growth_delta_pct: -2,
+      affo_growth_min_pct: -3,
+      affo_growth_max_pct: 8,
+      multiple_low_floor: 6,
+      multiple_low_extra_room: 2,
+    },
+    base: {
+      default_affo_growth_pct: 2.5,
+      affo_growth_min_pct: -2,
+      affo_growth_max_pct: 10,
+    },
+    bull: {
+      affo_multiple_delta: 2.5,
+      affo_growth_delta_pct: 2,
+      affo_growth_min_pct: 0,
+      affo_growth_max_pct: 12,
+      multiple_high_extra_room: 2,
+    },
+  },
+  required_inputs: [
+    'AFFO/FFO per share or operating-cash-flow proxy',
+    'current price',
+  ],
+  model_limitations: [
+    'This is a REIT-specific AFFO/FFO multiple proxy, not an industrial free-cash-flow DCF.',
+    'If true AFFO/FFO or NAV facts are unavailable, operating cash flow is used only as a provisional proxy.',
+    'NAV is not blended unless property NOI and cap-rate inputs are explicitly available.',
+  ],
+};
+
+const DEFAULT_SPECIAL_SITUATION_CONFIG: SpecialSituationConfig = {
+  schema_version: 1,
+  engine_class: 'special_situation',
+  valuation_method: 'special_situation_post_reorg_scenario',
+  scenario_spreads: {
+    bear: {
+      revenue_growth_delta_pct: -15,
+      ev_sales_multiple_delta: -1.2,
+      survival_probability_pct: 35,
+    },
+    base: {
+      default_revenue_growth_pct: 5,
+      survival_probability_pct: 55,
+    },
+    bull: {
+      revenue_growth_delta_pct: 15,
+      ev_sales_multiple_delta: 1.5,
+      survival_probability_pct: 75,
+    },
+  },
+  default_ev_sales_multiple: {
+    base: 2,
+    min: 0.25,
+    max: 8,
+  },
+  required_inputs: [
+    'post-reorg share count',
+    'post-reorg cash and debt',
+    'remaining claims, warrants, or contingent equity',
+    'normalized revenue base',
+    'path to free-cash-flow breakeven',
+    'scenario EV multiple or normalized EBITDA/FCF anchor',
+  ],
+  model_limitations: [
+    'This is a special-situation scenario and equity-waterfall framework, not a normal operating-company DCF.',
+    'The output is highly sensitive to post-reorg capital structure, dilution, liquidity runway, and execution against the operating reset.',
+    'If confirmed plan terms are missing, treat the value range as a placeholder for what must be underwritten rather than a precise fair value.',
+  ],
+};
+
+const DEFAULT_VALUATION_AUDIT_CONFIG: ValuationAuditConfig = {
+  schema_version: 1,
+  purpose: 'Post-valuation QA rules that make sure backend valuation outputs follow Ledger workspace doctrine.',
+  severity_levels: ['critical', 'warning', 'info'],
+  global_rules: {
+    require_current_price: true,
+    require_fair_value_range: true,
+    warn_when_price_vs_mid_abs_pct_above: 75,
+    warn_when_confidence_above_low_with_proxy_inputs: true,
+  },
+  operating_dcf_rules: {
+    allowed_valuation_methods: ['simplified_fcfe_dcf'],
+    require_forecast_years: true,
+    require_bear_base_bull: true,
+    max_terminal_value_pct_of_equity_value: 75,
+    terminal_growth_must_be_below_discount_rate: true,
+    minimum_discount_rate_spread_pct: 0.5,
+    warn_when_discount_rate_below_pct: 6,
+    warn_when_terminal_growth_above_pct: 5,
+    required_base_inputs: [
+      'annual_revenue',
+      'quality_adjusted_free_cash_flow',
+      'shares_outstanding',
+      'current_price',
+    ],
+  },
+  reit_affo_rules: {
+    allowed_valuation_methods: ['reit_affo_nav_proxy'],
+    required_engine_class: 'reit_affo',
+    require_affo_or_ffo_proxy: true,
+    require_property_type: true,
+    warn_on_proxy_cash_metric_sources: [
+      'operating_cash_flow_proxy',
+      'net_income_proxy',
+    ],
+    warn_when_payout_ratio_pct_above: 95,
+    required_context_checks: [
+      'dividend_coverage',
+      'nav_cap_rate_cross_check',
+      'fixed_charge_coverage_and_debt_maturities',
+    ],
+  },
+};
+
+function mergeRecord<T extends Record<string, any>>(fallback: T, override: any): T {
+  if (!override || typeof override !== 'object' || Array.isArray(override)) return fallback;
+  const merged: Record<string, any> = { ...fallback };
+  for (const [key, value] of Object.entries(override)) {
+    const fallbackValue = (fallback as Record<string, any>)[key];
+    if (
+      fallbackValue
+      && typeof fallbackValue === 'object'
+      && !Array.isArray(fallbackValue)
+      && value
+      && typeof value === 'object'
+      && !Array.isArray(value)
+    ) {
+      merged[key] = mergeRecord(fallbackValue, value);
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged as T;
+}
+
+function loadLedgerValuationConfig<T extends Record<string, any>>(relativePath: string, fallback: T): T {
+  try {
+    const configPath = path.join(LEDGER_VALUATION_MODEL_ROOT, relativePath);
+    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    return mergeRecord(fallback, parsed);
+  } catch {
+    return fallback;
+  }
+}
+
+const OPERATING_DCF_CONFIG = loadLedgerValuationConfig(
+  path.join('operating-dcf', 'config.json'),
+  DEFAULT_OPERATING_DCF_CONFIG,
+);
+const REIT_AFFO_CONFIG = loadLedgerValuationConfig(
+  path.join('reit-affo-nav', 'config.json'),
+  DEFAULT_REIT_AFFO_CONFIG,
+);
+const SPECIAL_SITUATION_CONFIG = loadLedgerValuationConfig(
+  path.join('special-situations', 'config.json'),
+  DEFAULT_SPECIAL_SITUATION_CONFIG,
+);
+const VALUATION_AUDIT_CONFIG = loadLedgerValuationConfig(
+  path.join('valuation-audit', 'config.json'),
+  DEFAULT_VALUATION_AUDIT_CONFIG,
+);
 
 function toFiniteNumber(value: unknown): number | null {
   const num = Number(value);
@@ -215,6 +627,10 @@ function isFinancialCompanyForDcf(snapshot: Record<string, any> | null | undefin
 function resolveValuationEngineClass(ledgerBase: LedgerContextSummary): string {
   const symbol = trimString(ledgerBase?.symbol);
   const snapshot = ledgerBase?.current_snapshot || {};
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
+  if (hardFlags.length) {
+    return 'special_situation';
+  }
   const stored = symbol ? getSymbolClassification(symbol) : null;
   if (stored?.valuationEngineClass) {
     return stored.valuationEngineClass;
@@ -514,6 +930,74 @@ function buildConfidenceLevel(hasAnnual: boolean, retrievalCount: number, extraS
   return 'low';
 }
 
+function buildDcfCoverageAssessment(args: {
+  latestAnnual?: LedgerPeriod | null;
+  evidenceAssessment: LedgerEvidenceAssessment;
+  annualRevenue: unknown;
+  freeCashFlow: unknown;
+  normalizedFcf: unknown;
+  sharesOutstanding: unknown;
+  currentPrice: unknown;
+  operatingMarginPct: unknown;
+  currentFcfMarginPct: unknown;
+  retrievalCount: number;
+}): Record<string, any> {
+  const latestAnnual = args.latestAnnual || null;
+  const metrics = latestAnnual?.metrics || {};
+  const missingCoreInputs = cleanList([
+    hasFiniteNumber(args.annualRevenue) ? null : 'annual revenue',
+    hasFiniteNumber(args.freeCashFlow) || hasFiniteNumber(args.normalizedFcf) ? null : 'free cash flow',
+    hasFiniteNumber(args.sharesOutstanding) ? null : 'shares outstanding',
+    hasFiniteNumber(args.currentPrice) ? null : 'current price',
+  ], 8);
+  const missingSupportInputs = cleanList([
+    latestAnnual ? null : 'latest annual statement',
+    hasFiniteNumber(args.operatingMarginPct) ? null : 'operating margin',
+    hasFiniteNumber(args.currentFcfMarginPct) ? null : 'free cash flow margin',
+    trimString(metrics.revenue?.source_type) ? null : 'revenue source evidence',
+    trimString(metrics.free_cash_flow?.source_type) || trimString(metrics.operating_cash_flow?.source_type) ? null : 'cash-flow source evidence',
+  ], 8);
+  const filingBackedInputs = [
+    trimString(metrics.revenue?.source_type),
+    trimString(metrics.free_cash_flow?.source_type) || trimString(metrics.operating_cash_flow?.source_type),
+    trimString(metrics.net_income?.source_type),
+  ].filter(Boolean);
+  const hasFilingBackedInputs = filingBackedInputs.some((source) => String(source).startsWith('sec_'));
+  const fallbackInputs = cleanList([
+    !trimString(metrics.revenue?.source_type) && hasFiniteNumber(args.annualRevenue) ? 'annual revenue fallback' : null,
+    !trimString(metrics.free_cash_flow?.source_type) && hasFiniteNumber(args.freeCashFlow) ? 'free cash flow fallback' : null,
+    !trimString(metrics.operating_cash_flow?.source_type) && !trimString(metrics.free_cash_flow?.source_type) && hasFiniteNumber(args.normalizedFcf) ? 'cash-flow fallback' : null,
+  ], 8);
+
+  const quality = missingCoreInputs.length
+    ? 'unavailable'
+    : !hasFilingBackedInputs || fallbackInputs.length || missingSupportInputs.length >= 3
+      ? 'partial'
+      : args.evidenceAssessment.analysisMode !== 'filing_backed'
+        ? 'partial'
+        : 'good';
+
+  return {
+    quality,
+    status: missingCoreInputs.length ? 'blocked' : quality === 'good' ? 'usable' : 'usable_with_caution',
+    core_inputs_present: missingCoreInputs.length === 0,
+    missing_core_inputs: missingCoreInputs,
+    missing_support_inputs: missingSupportInputs,
+    fallback_inputs: fallbackInputs,
+    filing_backed_inputs: filingBackedInputs,
+    latest_annual_period_end: latestAnnual?.period_end || null,
+    latest_annual_available_at: latestAnnual?.available_at || null,
+    coverage_tier: args.evidenceAssessment.coverageTier,
+    analysis_mode: args.evidenceAssessment.analysisMode,
+    retrieval_evidence_count: args.retrievalCount,
+    summary: missingCoreInputs.length
+      ? `DCF unavailable: missing ${missingCoreInputs.join(', ')}.`
+      : quality === 'good'
+        ? 'DCF inputs are filing-backed and complete enough for a normal current valuation read.'
+        : 'DCF can be calculated, but some inputs rely on fallbacks or thinner supporting evidence.',
+  };
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -524,6 +1008,126 @@ function interpolate(start: number, end: number, ratio: number): number {
 
 function toMoneyString(value: number | null): string | null {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(2) : null;
+}
+
+type ValuationAuditFinding = {
+  severity: 'critical' | 'warning' | 'info';
+  code: string;
+  message: string;
+};
+
+function buildValuationAudit(
+  result: Record<string, any>,
+  engineClass: 'dcf_operating' | 'reit_affo',
+): Record<string, any> {
+  const config = VALUATION_AUDIT_CONFIG;
+  const findings: ValuationAuditFinding[] = [];
+  const addFinding = (severity: ValuationAuditFinding['severity'], code: string, message: string) => {
+    findings.push({ severity, code, message });
+  };
+
+  const range = result.fair_value_range || {};
+  const currentPrice = toFiniteNumber(range.current_price ?? result.normalized_cash_flow_base?.current_price ?? result.normalized_reit_base?.current_price);
+  const midpoint = toFiniteNumber(range.mid_per_share);
+  if (config.global_rules.require_current_price && !hasFiniteNumber(currentPrice)) {
+    addFinding('critical', 'missing_current_price', 'Current price is missing, so price-versus-value judgment is not reliable.');
+  }
+  if (config.global_rules.require_fair_value_range && !hasFiniteNumber(midpoint)) {
+    addFinding('critical', 'missing_fair_value_midpoint', 'Fair value midpoint is missing from the valuation output.');
+  }
+  if (hasFiniteNumber(currentPrice) && hasFiniteNumber(midpoint) && Number(currentPrice) > 0) {
+    const gapAbs = Math.abs(((Number(midpoint) - Number(currentPrice)) / Number(currentPrice)) * 100);
+    if (gapAbs > config.global_rules.warn_when_price_vs_mid_abs_pct_above) {
+      addFinding('warning', 'large_price_value_gap', `The midpoint differs from current price by about ${gapAbs.toFixed(1)}%; verify price freshness, share count, and input scale.`);
+    }
+  }
+
+  if (engineClass === 'dcf_operating') {
+    const rules = config.operating_dcf_rules;
+    if (!rules.allowed_valuation_methods.includes(String(result.valuation_method || ''))) {
+      addFinding('critical', 'unexpected_dcf_method', `Operating DCF returned unexpected valuation method: ${result.valuation_method || 'missing'}.`);
+    }
+    const scenarios = Array.isArray(result.scenario_outputs) ? result.scenario_outputs : [];
+    const scenarioNames = new Set(scenarios.map((row) => String(row?.scenario || '')));
+    if (rules.require_bear_base_bull && !(['bear', 'base', 'bull'].every((name) => scenarioNames.has(name)))) {
+      addFinding('critical', 'missing_scenarios', 'DCF output does not include all bear/base/bull scenarios.');
+    }
+    const base = scenarios.find((row) => row?.scenario === 'base') || null;
+    const baseAssumptions = base?.assumptions || result.base_case_assumptions || {};
+    const discountRate = toFiniteNumber(baseAssumptions.discount_rate_pct);
+    const terminalGrowth = toFiniteNumber(baseAssumptions.terminal_growth_pct);
+    if (rules.require_forecast_years && !hasFiniteNumber(baseAssumptions.forecast_years)) {
+      addFinding('warning', 'missing_forecast_years', 'DCF base-case assumptions do not expose forecast years.');
+    }
+    if (hasFiniteNumber(discountRate) && hasFiniteNumber(terminalGrowth)) {
+      if (rules.terminal_growth_must_be_below_discount_rate && Number(terminalGrowth) >= Number(discountRate)) {
+        addFinding('critical', 'terminal_growth_not_below_discount_rate', 'Terminal growth is not below the discount rate.');
+      } else if (Number(discountRate) - Number(terminalGrowth) < rules.minimum_discount_rate_spread_pct) {
+        addFinding('warning', 'thin_discount_terminal_spread', 'Discount rate spread over terminal growth is very thin.');
+      }
+      if (Number(discountRate) < rules.warn_when_discount_rate_below_pct) {
+        addFinding('warning', 'low_discount_rate', `Discount rate is below ${rules.warn_when_discount_rate_below_pct}%.`);
+      }
+      if (Number(terminalGrowth) > rules.warn_when_terminal_growth_above_pct) {
+        addFinding('warning', 'high_terminal_growth', `Terminal growth is above ${rules.warn_when_terminal_growth_above_pct}%.`);
+      }
+    }
+    const pvTerminal = toFiniteNumber(base?.present_value_of_terminal_value);
+    const equityValue = toFiniteNumber(base?.equity_value);
+    if (hasFiniteNumber(pvTerminal) && hasFiniteNumber(equityValue) && Number(equityValue) > 0) {
+      const terminalPct = (Number(pvTerminal) / Number(equityValue)) * 100;
+      if (terminalPct > rules.max_terminal_value_pct_of_equity_value) {
+        addFinding('warning', 'terminal_value_dominance', `Terminal value is about ${terminalPct.toFixed(1)}% of base-case equity value.`);
+      }
+    }
+    const normalizedBase = result.normalized_cash_flow_base || {};
+    for (const key of rules.required_base_inputs) {
+      if (!hasFiniteNumber(normalizedBase[key])) {
+        addFinding('critical', `missing_dcf_input_${key}`, `DCF normalized base is missing ${key}.`);
+      }
+    }
+  }
+
+  if (engineClass === 'reit_affo') {
+    const rules = config.reit_affo_rules;
+    if (!rules.allowed_valuation_methods.includes(String(result.valuation_method || ''))) {
+      addFinding('critical', 'unexpected_reit_method', `REIT valuation returned unexpected valuation method: ${result.valuation_method || 'missing'}.`);
+    }
+    if (String(result.valuation_engine_class || '') !== rules.required_engine_class) {
+      addFinding('critical', 'wrong_reit_engine_class', 'REIT valuation did not return the required reit_affo engine class.');
+    }
+    const normalizedBase = result.normalized_reit_base || {};
+    if (rules.require_affo_or_ffo_proxy && !hasFiniteNumber(normalizedBase.affo_per_share)) {
+      addFinding('critical', 'missing_affo_per_share', 'REIT valuation is missing AFFO/FFO per share or a proxy.');
+    }
+    if (rules.require_property_type && !trimString(normalizedBase.property_type)) {
+      addFinding('warning', 'missing_property_type', 'REIT valuation did not expose property type.');
+    }
+    const cashMetricSource = trimString(normalizedBase.cash_metric_source);
+    if (cashMetricSource && rules.warn_on_proxy_cash_metric_sources.includes(cashMetricSource)) {
+      addFinding('warning', 'proxy_cash_metric_source', `REIT valuation used ${cashMetricSource}; confidence should reflect that this is not company-reported AFFO/FFO.`);
+    }
+    const payoutRatio = toFiniteNumber(normalizedBase.payout_ratio_pct);
+    if (hasFiniteNumber(payoutRatio) && Number(payoutRatio) > rules.warn_when_payout_ratio_pct_above) {
+      addFinding('warning', 'high_reit_payout_ratio', `Dividend payout is about ${Number(payoutRatio).toFixed(1)}% of the AFFO proxy.`);
+    }
+    const recommendedMethods = Array.isArray(result.recommended_methods) ? result.recommended_methods : [];
+    for (const requiredCheck of rules.required_context_checks) {
+      if (!recommendedMethods.includes(requiredCheck)) {
+        addFinding('info', `missing_reit_context_check_${requiredCheck}`, `Recommended REIT context check is not listed: ${requiredCheck}.`);
+      }
+    }
+  }
+
+  const criticalCount = findings.filter((finding) => finding.severity === 'critical').length;
+  const warningCount = findings.filter((finding) => finding.severity === 'warning').length;
+  return {
+    source: 'workspace/Financial Analyst Workspace/references/valuation-models/valuation-audit/config.json',
+    status: criticalCount ? 'fail' : warningCount ? 'warning' : 'pass',
+    critical_count: criticalCount,
+    warning_count: warningCount,
+    findings,
+  };
 }
 
 type LedgerEvidenceAssessment = {
@@ -1210,12 +1814,21 @@ export function runFinancialAnalysisEngine(ledgerBase: LedgerContextSummary): Re
   };
 }
 
+export type CalibrationAdjustment = {
+  assumption_key: string;
+  adjustment_pct: number;
+  scope_type: string;
+  scope_value: string;
+  sample_size: number;
+};
+
 type DcfEngineOptions = {
   revenue_growth_near_term_pct?: number | null;
   target_operating_margin_pct?: number | null;
   discount_rate_pct?: number | null;
   terminal_growth_pct?: number | null;
   forecast_years?: number | null;
+  calibration_adjustments?: CalibrationAdjustment[] | null;
 };
 
 export function runFinancialCompanyValuationEngine(
@@ -1523,6 +2136,7 @@ export function runDcfValuationEngine(
   ledgerBase: LedgerContextSummary,
   options: DcfEngineOptions = {},
 ): Record<string, any> {
+  const dcfConfig = OPERATING_DCF_CONFIG;
   if (resolveValuationEngineClass(ledgerBase) === 'roe_book_value') {
     return runFinancialCompanyValuationEngine(ledgerBase, options);
   }
@@ -1538,7 +2152,7 @@ export function runDcfValuationEngine(
       symbol: ledgerBase?.symbol || null,
       company_name: trimString(ledgerBase?.company_name) || trimString(snapshot.companyName) || null,
       engine: 'dcf_engine',
-      valuation_method: 'simplified_fcfe_dcf',
+      valuation_method: dcfConfig.valuation_method,
       confidence_level: 'low',
       status: evidenceAssessment.status,
       coverage_tier: evidenceAssessment.coverageTier,
@@ -1591,6 +2205,19 @@ export function runDcfValuationEngine(
     ? Number(freeCashFlow) * qualityFactor
     : null;
 
+  const dcfCoverage = buildDcfCoverageAssessment({
+    latestAnnual,
+    evidenceAssessment,
+    annualRevenue,
+    freeCashFlow,
+    normalizedFcf,
+    sharesOutstanding,
+    currentPrice,
+    operatingMarginPct,
+    currentFcfMarginPct,
+    retrievalCount: retrievalResults.length,
+  });
+
   const conversionRatio = Number.isFinite(Number(currentFcfMarginPct)) && Number.isFinite(Number(operatingMarginPct)) && Number(operatingMarginPct)
     ? clamp(Number(currentFcfMarginPct) / Number(operatingMarginPct), 0.25, 0.85)
     : 0.5;
@@ -1599,59 +2226,108 @@ export function runDcfValuationEngine(
     hasFiniteNumber(options.revenue_growth_near_term_pct)
       ? Number(options.revenue_growth_near_term_pct)
       : Number.isFinite(Number(revenueGrowthObservedPct))
-        ? Number(revenueGrowthObservedPct) * 0.7
-        : 8,
-    1,
-    25,
+        ? Number(revenueGrowthObservedPct) * dcfConfig.near_term_revenue_growth_pct.observed_growth_multiplier
+        : dcfConfig.near_term_revenue_growth_pct.default_when_unavailable,
+    dcfConfig.near_term_revenue_growth_pct.min,
+    dcfConfig.near_term_revenue_growth_pct.max,
   );
 
   const baseTargetOperatingMarginPct = clamp(
     hasFiniteNumber(options.target_operating_margin_pct)
       ? Number(options.target_operating_margin_pct)
       : Number.isFinite(Number(operatingMarginPct))
-        ? Math.max(Number(operatingMarginPct) + 3, 10)
-        : 12,
-    4,
-    35,
+        ? Math.max(
+          Number(operatingMarginPct) + dcfConfig.target_operating_margin_pct.observed_margin_add_pct,
+          dcfConfig.target_operating_margin_pct.observed_margin_floor_pct,
+        )
+        : dcfConfig.target_operating_margin_pct.default_when_unavailable,
+    dcfConfig.target_operating_margin_pct.min,
+    dcfConfig.target_operating_margin_pct.max,
   );
 
   const baseTargetFcfMarginPct = clamp(
-    baseTargetOperatingMarginPct * Math.max(conversionRatio, 0.55),
-    2,
+    baseTargetOperatingMarginPct * Math.max(
+      conversionRatio,
+      dcfConfig.target_free_cash_flow_margin_pct.conversion_ratio_floor,
+    ),
+    dcfConfig.target_free_cash_flow_margin_pct.min,
     Math.max(4, baseTargetOperatingMarginPct),
   );
 
   const defaultDiscountRatePct = clamp(
-    9
-      + (qualityGrade === 'weak' ? 2 : qualityGrade === 'mixed' ? 1 : 0)
-      + (Number.isFinite(Number(snapshot.currentRatio)) && Number(snapshot.currentRatio) < 1 ? 1 : 0)
-      + (financialAnalysis?.price_vs_value_judgment?.judgment === 'likely_rich' ? 0.5 : 0),
-    8,
-    14,
+    dcfConfig.discount_rate_pct.base_default
+      + (dcfConfig.discount_rate_pct.quality_premiums[qualityGrade] ?? 0)
+      + (Number.isFinite(Number(snapshot.currentRatio)) && Number(snapshot.currentRatio) < 1
+        ? dcfConfig.discount_rate_pct.current_ratio_below_one_premium
+        : 0)
+      + (financialAnalysis?.price_vs_value_judgment?.judgment === 'likely_rich'
+        ? dcfConfig.discount_rate_pct.likely_rich_premium
+        : 0),
+    dcfConfig.discount_rate_pct.default_min,
+    dcfConfig.discount_rate_pct.default_max,
   );
   const discountRatePct = clamp(
     hasFiniteNumber(options.discount_rate_pct)
       ? Number(options.discount_rate_pct)
       : defaultDiscountRatePct,
-    6,
-    18,
+    dcfConfig.discount_rate_pct.min,
+    dcfConfig.discount_rate_pct.max,
   );
 
   const terminalGrowthPct = clamp(
     hasFiniteNumber(options.terminal_growth_pct)
       ? Number(options.terminal_growth_pct)
-      : 3,
-    1,
-    Math.max(1.5, discountRatePct - 2.5),
+      : dcfConfig.terminal_growth_pct.default,
+    dcfConfig.terminal_growth_pct.min,
+    Math.max(
+      dcfConfig.terminal_growth_pct.minimum_dynamic_max,
+      discountRatePct - dcfConfig.terminal_growth_pct.spread_below_discount_rate_pct,
+    ),
   );
 
   const forecastYears = clamp(
     hasFiniteNumber(options.forecast_years)
       ? Math.trunc(Number(options.forecast_years))
-      : 7,
-    4,
-    12,
+      : dcfConfig.forecast_years.default,
+    dcfConfig.forecast_years.min,
+    dcfConfig.forecast_years.max,
   );
+
+  // --- Calibration adjustment injection ---
+  // Apply only when the user hasn't explicitly overridden assumptions via options.
+  const calibrationAdjustments = Array.isArray(options.calibration_adjustments)
+    ? options.calibration_adjustments
+    : [];
+  const calibrationApplied: Record<string, { adjustment_pct: number; scope: string; original: number; adjusted: number }> = {};
+  let calibratedGrowthPct = baseNearTermGrowthPct;
+  let calibratedFcfMarginPct = baseTargetFcfMarginPct;
+
+  for (const adj of calibrationAdjustments) {
+    if (adj.assumption_key === 'revenue_growth_pct' && !hasFiniteNumber(options.revenue_growth_near_term_pct)) {
+      const original = calibratedGrowthPct;
+      calibratedGrowthPct = clamp(calibratedGrowthPct - adj.adjustment_pct, 0.5, 25);
+      calibrationApplied['revenue_growth_pct'] = {
+        adjustment_pct: adj.adjustment_pct,
+        scope: `${adj.scope_type}:${adj.scope_value}`,
+        original,
+        adjusted: calibratedGrowthPct,
+      };
+      break; // use the most specific match (adjustments arrive specificity-first)
+    }
+  }
+  for (const adj of calibrationAdjustments) {
+    if (adj.assumption_key === 'target_fcf_margin_pct' && !hasFiniteNumber(options.target_operating_margin_pct)) {
+      const original = calibratedFcfMarginPct;
+      calibratedFcfMarginPct = clamp(calibratedFcfMarginPct - adj.adjustment_pct, 1, 30);
+      calibrationApplied['target_fcf_margin_pct'] = {
+        adjustment_pct: adj.adjustment_pct,
+        scope: `${adj.scope_type}:${adj.scope_value}`,
+        original,
+        adjusted: calibratedFcfMarginPct,
+      };
+      break;
+    }
+  }
 
   const missingInputs = cleanList([
     Number.isFinite(Number(annualRevenue)) ? null : 'annual revenue',
@@ -1664,10 +2340,12 @@ export function runDcfValuationEngine(
       symbol: ledgerBase?.symbol || null,
       company_name: companyName,
       engine: 'dcf_engine',
-      valuation_method: 'simplified_fcfe_dcf',
+      valuation_method: dcfConfig.valuation_method,
       confidence_level: 'low',
       status: 'insufficient_inputs',
       missing_inputs: missingInputs,
+      dcf_coverage: dcfCoverage,
+      coverage_quality: dcfCoverage.quality,
       summary: `A numeric DCF could not be completed because key inputs are missing: ${missingInputs.join(', ')}.`,
       base_case_assumptions: null,
       bear_case_assumptions: null,
@@ -1683,24 +2361,56 @@ export function runDcfValuationEngine(
   const scenarioConfigs = [
     {
       name: 'bear',
-      revenueGrowthPct: clamp(baseNearTermGrowthPct - 4, 0.5, 20),
-      targetFcfMarginPct: clamp(baseTargetFcfMarginPct - 1.5, 1, 20),
-      discountRatePct: clamp(discountRatePct + 1, 6, 18),
-      terminalGrowthPct: clamp(terminalGrowthPct - 0.5, 1, 5),
+      revenueGrowthPct: clamp(
+        calibratedGrowthPct + dcfConfig.scenario_spreads.bear.revenue_growth_delta_pct,
+        0.5,
+        20,
+      ),
+      targetFcfMarginPct: clamp(
+        calibratedFcfMarginPct + dcfConfig.scenario_spreads.bear.target_fcf_margin_delta_pct,
+        1,
+        20,
+      ),
+      discountRatePct: clamp(
+        discountRatePct + dcfConfig.scenario_spreads.bear.discount_rate_delta_pct,
+        dcfConfig.discount_rate_pct.min,
+        dcfConfig.discount_rate_pct.max,
+      ),
+      terminalGrowthPct: clamp(
+        terminalGrowthPct + dcfConfig.scenario_spreads.bear.terminal_growth_delta_pct,
+        1,
+        5,
+      ),
     },
     {
       name: 'base',
-      revenueGrowthPct: baseNearTermGrowthPct,
-      targetFcfMarginPct: baseTargetFcfMarginPct,
+      revenueGrowthPct: calibratedGrowthPct,
+      targetFcfMarginPct: calibratedFcfMarginPct,
       discountRatePct,
       terminalGrowthPct,
     },
     {
       name: 'bull',
-      revenueGrowthPct: clamp(baseNearTermGrowthPct + 4, 1, 28),
-      targetFcfMarginPct: clamp(baseTargetFcfMarginPct + 1.5, 2, 24),
-      discountRatePct: clamp(discountRatePct - 1, 6, 18),
-      terminalGrowthPct: clamp(terminalGrowthPct + 0.5, 1, 5),
+      revenueGrowthPct: clamp(
+        calibratedGrowthPct + dcfConfig.scenario_spreads.bull.revenue_growth_delta_pct,
+        1,
+        28,
+      ),
+      targetFcfMarginPct: clamp(
+        calibratedFcfMarginPct + dcfConfig.scenario_spreads.bull.target_fcf_margin_delta_pct,
+        2,
+        24,
+      ),
+      discountRatePct: clamp(
+        discountRatePct + dcfConfig.scenario_spreads.bull.discount_rate_delta_pct,
+        dcfConfig.discount_rate_pct.min,
+        dcfConfig.discount_rate_pct.max,
+      ),
+      terminalGrowthPct: clamp(
+        terminalGrowthPct + dcfConfig.scenario_spreads.bull.terminal_growth_delta_pct,
+        1,
+        5,
+      ),
     },
   ] as const;
 
@@ -1713,7 +2423,9 @@ export function runDcfValuationEngine(
       const fadeRatio = forecastYears === 1 ? 1 : (year - 1) / (forecastYears - 1);
       const growthPct = interpolate(scenario.revenueGrowthPct, scenario.terminalGrowthPct, fadeRatio);
       const fcfMarginPct = interpolate(
-        Number.isFinite(Number(currentFcfMarginPct)) ? Number(currentFcfMarginPct) : scenario.targetFcfMarginPct * 0.7,
+        Number.isFinite(Number(currentFcfMarginPct))
+          ? Number(currentFcfMarginPct)
+          : scenario.targetFcfMarginPct * dcfConfig.target_free_cash_flow_margin_pct.fallback_starting_margin_multiplier,
         scenario.targetFcfMarginPct,
         year / forecastYears,
       );
@@ -1797,20 +2509,24 @@ export function runDcfValuationEngine(
 
   const confidenceLevel = missingInputs.length
     ? 'low'
-    : buildConfidenceLevel(Boolean(latestAnnual), retrievalResults.length, [
+    : dcfCoverage.quality === 'partial'
+      ? 'low_to_moderate'
+      : buildConfidenceLevel(Boolean(latestAnnual), retrievalResults.length, [
       normalizedFcf,
       currentFcfMarginPct,
       currentPrice,
       sharesOutstanding,
     ].filter((value) => Number.isFinite(Number(value))).length);
 
-  return {
+  const result = {
     symbol: ledgerBase?.symbol || null,
     company_name: companyName,
     engine: 'dcf_engine',
-    valuation_method: 'simplified_fcfe_dcf',
+    valuation_method: dcfConfig.valuation_method,
     analysis_mode: evidenceAssessment.analysisMode,
     confidence_level: confidenceLevel,
+    coverage_quality: dcfCoverage.quality,
+    dcf_coverage: dcfCoverage,
     normalized_cash_flow_base: {
       reported_free_cash_flow: freeCashFlow,
       quality_adjusted_free_cash_flow: normalizedFcf,
@@ -1859,12 +2575,864 @@ export function runDcfValuationEngine(
       financial_analysis_value_view: financialAnalysis?.price_vs_value_judgment?.judgment || null,
       sector: trimString(snapshot.sector),
       industry: trimString(snapshot.industry),
+      market_cap: marketCap,
+      current_price: currentPrice,
+      valuation_gap_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+      valuation_quality_score: qualityGrade === 'high' ? 0.85 : qualityGrade === 'good' ? 0.7 : qualityGrade === 'mixed' ? 0.5 : 0.3,
+    },
+    calibration_applied: Object.keys(calibrationApplied).length > 0 ? calibrationApplied : null,
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: hardFlags[0] || null,
+    },
+  };
+  return {
+    ...result,
+    valuation_audit: buildValuationAudit(result, 'dcf_operating'),
+  };
+}
+
+function preferConsistentStatementValue(statementValue: unknown, snapshotValue: unknown): number | null {
+  const statementNum = toFiniteNumber(statementValue);
+  const snapshotNum = toFiniteNumber(snapshotValue);
+  if (statementNum != null && snapshotNum != null && snapshotNum !== 0) {
+    const ratio = statementNum / snapshotNum;
+    if (ratio > 5 || ratio < 0.2) return snapshotNum;
+  }
+  return statementNum ?? snapshotNum;
+}
+
+function resolveReitPropertyType(snapshot: Record<string, any>): string {
+  const text = [
+    snapshot.industry,
+    snapshot.sector,
+    snapshot.companyName,
+    snapshot.businessDescription,
+  ].map((value) => trimString(value) || '').join(' ').toLowerCase();
+  if (text.includes('data center')) return 'data_center';
+  if (/\bindustrial\b|\blogistics\b|\bwarehouse\b/.test(text)) return 'industrial';
+  if (text.includes('net lease') || text.includes('triple net')) return 'net_lease';
+  if (text.includes('self-storage') || text.includes('self storage')) return 'self_storage';
+  if (/\bresidential\b|\bapartment\b|\bmultifamily\b/.test(text)) return 'residential';
+  if (/\bhealthcare\b|\bmedical\b|\bsenior\b/.test(text)) return 'healthcare';
+  if (/\bmall\b|\bshopping center\b|\bretail\b/.test(text)) return 'retail';
+  if (text.includes('office')) return 'office';
+  if (/\bhotel\b|\blodging\b/.test(text)) return 'lodging';
+  return 'diversified';
+}
+
+function reitMultipleBand(propertyType: string, config: ReitAffoConfig = REIT_AFFO_CONFIG): ReitMultipleBand {
+  return config.property_type_multiple_bands[propertyType]
+    || config.property_type_multiple_bands.diversified
+    || DEFAULT_REIT_AFFO_CONFIG.property_type_multiple_bands.diversified;
+}
+
+export function runReitAffoValuationEngine(
+  ledgerBase: LedgerContextSummary,
+  options: DcfEngineOptions = {},
+): Record<string, any> {
+  const reitConfig = REIT_AFFO_CONFIG;
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
+  const retrieval = ledgerBase?.evidence_context?.retrieval || {};
+  const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+  const earningsQuality = runEarningsQualityEngine(ledgerBase);
+  const financialAnalysis = runFinancialAnalysisEngine(ledgerBase);
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
+  const companyName = trimString(ledgerBase?.company_name) || trimString(snapshot.companyName);
+  const currentPrice = toFiniteNumber(snapshot.currentPrice);
+  const marketCap = toFiniteNumber(snapshot.marketCap);
+  const sharesOutstanding = toFiniteNumber(snapshot.sharesOutstanding)
+    ?? (Number.isFinite(Number(marketCap)) && Number.isFinite(Number(currentPrice)) && Number(currentPrice)
+      ? Number(marketCap) / Number(currentPrice)
+      : null);
+
+  if (!evidenceAssessment.sufficient) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'reit_affo_valuation_engine',
+      valuation_method: reitConfig.valuation_method,
+      valuation_engine_class: reitConfig.engine_class,
+      confidence_level: 'low',
+      status: evidenceAssessment.status,
+      coverage_tier: evidenceAssessment.coverageTier,
+      analysis_mode: evidenceAssessment.analysisMode,
+      summary: evidenceAssessment.message,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      model_limitations: ['Insufficient Ledger evidence for a REIT valuation.'],
+      price_vs_value_judgment: {
+        judgment: evidenceAssessment.status,
+        summary: evidenceAssessment.message,
+      },
+    };
+  }
+
+  const propertyType = resolveReitPropertyType(snapshot);
+  const band = reitMultipleBand(propertyType, reitConfig);
+  const netIncome = getMetricValue(latestAnnual, 'net_income');
+  const operatingCashFlow = preferConsistentStatementValue(getMetricValue(latestAnnual, 'operating_cash_flow'), snapshot.operatingCashFlowTTM);
+  const annualRevenue = preferConsistentStatementValue(getMetricValue(latestAnnual, 'revenue'), snapshot.annualRevenue)
+    ?? resolveAnnualRevenue(latestAnnual, snapshot);
+  const revenueGrowthObservedPct = toFiniteNumber(snapshot.revenueGrowthPct) ?? toFiniteNumber(snapshot.revenueYoYGrowthPct);
+  const dividendPerShare = toFiniteNumber((snapshot as any).dividendRate) ?? toFiniteNumber((snapshot as any).annualDividendRate);
+  const depreciationAndAmortization = [
+    getMetricValue(latestAnnual, 'real_estate_depreciation_and_amortization'),
+    getMetricValue(latestAnnual, 'depreciation_and_amortization'),
+    getMetricValue(latestAnnual, 'depreciation'),
+    getMetricValue(latestAnnual, 'amortization'),
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const gainsOnSale = [
+    getMetricValue(latestAnnual, 'gain_on_sale_of_real_estate'),
+    getMetricValue(latestAnnual, 'gain_loss_on_sale_of_real_estate'),
+    getMetricValue(latestAnnual, 'gains_on_property_sales'),
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? 0;
+  const nareitFfoEstimate = netIncome != null && depreciationAndAmortization != null
+    ? netIncome + depreciationAndAmortization - gainsOnSale
+    : null;
+  const reportedCashMetric = [
+    toFiniteNumber((snapshot as any).affo),
+    toFiniteNumber((snapshot as any).fundsFromOperations),
+    toFiniteNumber((snapshot as any).ffo),
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const reportedCashMetricPerShare = [
+    toFiniteNumber((snapshot as any).affoPerShare),
+    toFiniteNumber((snapshot as any).ffoPerShare),
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const cashMetricSource =
+    reportedCashMetric != null || reportedCashMetricPerShare != null ? 'reported_affo_or_ffo' :
+    nareitFfoEstimate != null ? 'nareit_ffo_estimate' :
+    operatingCashFlow != null ? 'operating_cash_flow_proxy' :
+    netIncome != null ? 'net_income_proxy' :
+    'missing';
+  const affoProxy = [
+    reportedCashMetric,
+    nareitFfoEstimate,
+    operatingCashFlow,
+    netIncome,
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const affoPerShare = [
+    reportedCashMetricPerShare,
+    Number.isFinite(Number(affoProxy)) && Number.isFinite(Number(sharesOutstanding)) && Number(sharesOutstanding) > 0
+      ? Number(affoProxy) / Number(sharesOutstanding)
+      : null,
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const payoutRatioPct = Number.isFinite(Number(dividendPerShare)) && Number.isFinite(Number(affoPerShare)) && Number(affoPerShare) > 0
+    ? (Number(dividendPerShare) / Number(affoPerShare)) * 100
+    : null;
+  const debtToEquity = toFiniteNumber(snapshot.debtToEquity);
+  const affoMarginPct = annualRevenue && affoProxy != null ? (Number(affoProxy) / Number(annualRevenue)) * 100 : null;
+  const qualityGrade = trimString(earningsQuality?.earnings_quality_grade) || 'mixed';
+  const dividendCoverage = dividendPerShare != null && dividendPerShare !== 0 && affoPerShare != null
+    ? Number(affoPerShare) / Number(dividendPerShare)
+    : null;
+  const defaultAffoMultiple = clamp(
+    band.mid
+      + (Number.isFinite(Number(revenueGrowthObservedPct))
+        ? clamp(
+          Number(revenueGrowthObservedPct) / reitConfig.default_affo_multiple_adjustments.revenue_growth_divisor,
+          reitConfig.default_affo_multiple_adjustments.revenue_growth_min_delta,
+          reitConfig.default_affo_multiple_adjustments.revenue_growth_max_delta,
+        )
+        : 0)
+      + (reitConfig.default_affo_multiple_adjustments.quality_premiums[qualityGrade] ?? 0)
+      - (Number.isFinite(Number(debtToEquity))
+        && Number(debtToEquity) > reitConfig.default_affo_multiple_adjustments.debt_to_equity_threshold
+        ? reitConfig.default_affo_multiple_adjustments.debt_to_equity_penalty
+        : 0),
+    band.low,
+    band.high,
+  );
+
+  const missingInputs = cleanList([
+    Number.isFinite(Number(affoPerShare)) ? null : 'AFFO/FFO per share or operating-cash-flow proxy',
+    Number.isFinite(Number(currentPrice)) ? null : 'current price',
+  ], 8);
+
+  if (missingInputs.length) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'reit_affo_valuation_engine',
+      valuation_method: reitConfig.valuation_method,
+      valuation_engine_class: reitConfig.engine_class,
+      confidence_level: 'low',
+      status: 'insufficient_inputs',
+      missing_inputs: missingInputs,
+      summary: `A REIT AFFO/NAV valuation could not be completed because key inputs are missing: ${missingInputs.join(', ')}.`,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      model_limitations: [
+        'REIT valuation requires AFFO/FFO, dividend coverage, NAV or cap-rate evidence, and debt-maturity context.',
+      ],
+      price_vs_value_judgment: {
+        judgment: 'insufficient_inputs',
+        summary: 'There is not enough structured AFFO/FFO or NAV input to produce a defensible REIT valuation.',
+      },
+    };
+  }
+
+  const scenarioConfigs = [
+    {
+      name: 'bear',
+      affoMultiple: clamp(
+        defaultAffoMultiple + reitConfig.scenario_spreads.bear.affo_multiple_delta,
+        Math.max(
+          reitConfig.scenario_spreads.bear.multiple_low_floor,
+          band.low - reitConfig.scenario_spreads.bear.multiple_low_extra_room,
+        ),
+        band.high,
+      ),
+      affoGrowthPct: clamp(
+        (revenueGrowthObservedPct ?? reitConfig.scenario_spreads.base.default_affo_growth_pct)
+          + reitConfig.scenario_spreads.bear.affo_growth_delta_pct,
+        reitConfig.scenario_spreads.bear.affo_growth_min_pct,
+        reitConfig.scenario_spreads.bear.affo_growth_max_pct,
+      ),
+    },
+    {
+      name: 'base',
+      affoMultiple: defaultAffoMultiple,
+      affoGrowthPct: clamp(
+        revenueGrowthObservedPct ?? reitConfig.scenario_spreads.base.default_affo_growth_pct,
+        reitConfig.scenario_spreads.base.affo_growth_min_pct,
+        reitConfig.scenario_spreads.base.affo_growth_max_pct,
+      ),
+    },
+    {
+      name: 'bull',
+      affoMultiple: clamp(
+        defaultAffoMultiple + reitConfig.scenario_spreads.bull.affo_multiple_delta,
+        band.low,
+        band.high + reitConfig.scenario_spreads.bull.multiple_high_extra_room,
+      ),
+      affoGrowthPct: clamp(
+        (revenueGrowthObservedPct ?? reitConfig.scenario_spreads.base.default_affo_growth_pct)
+          + reitConfig.scenario_spreads.bull.affo_growth_delta_pct,
+        reitConfig.scenario_spreads.bull.affo_growth_min_pct,
+        reitConfig.scenario_spreads.bull.affo_growth_max_pct,
+      ),
+    },
+  ] as const;
+
+  const scenarioOutputs = scenarioConfigs.map((scenario) => {
+    const normalizedAffoPerShare = Number(affoPerShare) * (1 + scenario.affoGrowthPct / 100);
+    const fairValuePerShare = normalizedAffoPerShare * scenario.affoMultiple;
+    return {
+      scenario: scenario.name,
+      assumptions: {
+        normalized_affo_per_share: Number(normalizedAffoPerShare.toFixed(2)),
+        affo_growth_pct: scenario.affoGrowthPct,
+        affo_multiple: Number(scenario.affoMultiple.toFixed(2)),
+      },
+      fair_value_per_share: Number(fairValuePerShare.toFixed(2)),
+    };
+  });
+  const bear = scenarioOutputs.find((row) => row.scenario === 'bear') || null;
+  const base = scenarioOutputs.find((row) => row.scenario === 'base') || null;
+  const bull = scenarioOutputs.find((row) => row.scenario === 'bull') || null;
+  const lowFairValue = bear?.fair_value_per_share ?? null;
+  const midFairValue = base?.fair_value_per_share ?? null;
+  const highFairValue = bull?.fair_value_per_share ?? null;
+  const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midFairValue)) && Number(currentPrice)
+    ? ((Number(midFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
+    : null;
+  const priceVsValueJudgment = buildValuationPriceJudgment(currentPrice, midFairValue);
+
+  const result = {
+    symbol: ledgerBase?.symbol || null,
+    company_name: companyName,
+    engine: 'reit_affo_valuation_engine',
+    valuation_method: reitConfig.valuation_method,
+    valuation_engine_class: reitConfig.engine_class,
+    analysis_mode: evidenceAssessment.analysisMode,
+    confidence_level: buildConfidenceLevel(Boolean(latestAnnual), retrievalResults.length, [
+      affoPerShare,
+      currentPrice,
+      sharesOutstanding,
+      payoutRatioPct,
+    ].filter((value) => Number.isFinite(Number(value))).length),
+    normalized_reit_base: {
+      affo_proxy: affoProxy,
+      affo_per_share: affoPerShare,
+      annual_revenue: annualRevenue,
+      operating_cash_flow: operatingCashFlow,
+      dividend_per_share: dividendPerShare,
+      payout_ratio_pct: payoutRatioPct,
+      dividend_coverage_ratio: dividendCoverage,
+      cash_metric_source: cashMetricSource,
+      property_type: propertyType,
+      affo_margin_pct: affoMarginPct,
+      shares_outstanding: sharesOutstanding,
+      current_price: currentPrice,
+    },
+    base_case_assumptions: base?.assumptions || null,
+    bear_case_assumptions: bear?.assumptions || null,
+    bull_case_assumptions: bull?.assumptions || null,
+    scenario_outputs: scenarioOutputs,
+    fair_value_range: {
+      low_per_share: lowFairValue,
+      mid_per_share: midFairValue,
+      high_per_share: highFairValue,
+      current_price: currentPrice,
+      current_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+      low_display: toMoneyString(lowFairValue),
+      mid_display: toMoneyString(midFairValue),
+      high_display: toMoneyString(highFairValue),
+    },
+    key_sensitivities: [
+      `${cashMetricSource === 'reported_affo_or_ffo' ? 'Reported AFFO/FFO' : cashMetricSource === 'nareit_ffo_estimate' ? 'Nareit-style FFO estimate' : cashMetricSource === 'operating_cash_flow_proxy' ? 'Operating-cash-flow REIT proxy' : 'Net-income REIT proxy'} per share of about ${toMoneyString(affoPerShare)}.`,
+      `Base AFFO multiple of about ${Number(defaultAffoMultiple.toFixed(1))}x.`,
+      payoutRatioPct != null ? `Dividend payout is about ${toPctString(payoutRatioPct)} of the AFFO proxy.` : 'Dividend coverage could not be verified from structured facts.',
+      'NAV, cap-rate evidence, lease maturity, and debt maturity schedule remain important cross-checks.',
+    ],
+    model_limitations: [
+      ...reitConfig.model_limitations.filter((line) => trimString(line) !== 'NAV is not blended unless property NOI and cap-rate inputs are explicitly available.'),
+      cashMetricSource === 'operating_cash_flow_proxy' || cashMetricSource === 'net_income_proxy'
+        ? 'Structured company-reported AFFO/FFO was not available in the loaded Ledger facts.'
+        : null,
+      'NAV is not blended unless property NOI and cap-rate inputs are explicitly available.',
+    ].filter(Boolean),
+    price_vs_value_judgment: {
+      judgment: priceVsValueJudgment,
+      summary: priceVsValueJudgment === 'undervalued'
+        ? 'The REIT AFFO/FFO proxy suggests the stock trades below a reasonable income-property valuation range.'
+        : priceVsValueJudgment === 'overvalued'
+          ? 'The stock trades above what the current REIT AFFO/FFO proxy appears to justify.'
+          : priceVsValueJudgment === 'roughly_fair'
+            ? 'The current price is near the REIT AFFO/FFO proxy midpoint.'
+            : 'Price versus value could not be judged cleanly from the current REIT inputs.',
+      current_price: currentPrice,
+      midpoint_fair_value: midFairValue,
+      upside_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    supporting_context: {
+      earnings_quality_grade: earningsQuality?.earnings_quality_grade || null,
+      financial_analysis_value_view: financialAnalysis?.price_vs_value_judgment?.judgment || null,
+      sector: trimString(snapshot.sector),
+      industry: trimString(snapshot.industry),
+      property_type: propertyType,
+      market_cap: marketCap,
+      debt_to_equity: debtToEquity,
+      cash_metric_source: cashMetricSource,
+      valuation_gap_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
     },
     special_situations: {
       corporate_action: corporateAction,
       hard_flags: hardFlags,
       primary_hard_flag: hardFlags[0] || null,
     },
+    recommended_methods: [
+      'affo_multiple',
+      'ffo_multiple',
+      'nav_cap_rate_cross_check',
+      'dividend_coverage',
+      'fixed_charge_coverage_and_debt_maturities',
+    ],
+  };
+  return {
+    ...result,
+    valuation_audit: buildValuationAudit(result, 'reit_affo'),
+  };
+}
+
+export function runSalesScenarioValuationEngine(
+  ledgerBase: LedgerContextSummary,
+  options: DcfEngineOptions = {},
+): Record<string, any> {
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
+  const retrieval = ledgerBase?.evidence_context?.retrieval || {};
+  const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+  const earningsQuality = runEarningsQualityEngine(ledgerBase);
+  const financialAnalysis = runFinancialAnalysisEngine(ledgerBase);
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
+  const companyName = trimString(ledgerBase?.company_name) || trimString(snapshot.companyName);
+  const currentPrice = toFiniteNumber(snapshot.currentPrice);
+  const marketCap = toFiniteNumber(snapshot.marketCap);
+  const enterpriseValue = toFiniteNumber(snapshot.enterpriseValue) ?? marketCap;
+  const sharesOutstanding = toFiniteNumber(snapshot.sharesOutstanding)
+    ?? (Number.isFinite(Number(marketCap)) && Number.isFinite(Number(currentPrice)) && Number(currentPrice)
+      ? Number(marketCap) / Number(currentPrice)
+      : null);
+
+  if (!evidenceAssessment.sufficient) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'sales_scenario_valuation_engine',
+      valuation_method: 'preprofit_revenue_scenario',
+      valuation_engine_class: 'sales_scenario',
+      confidence_level: 'low',
+      status: evidenceAssessment.status,
+      coverage_tier: evidenceAssessment.coverageTier,
+      analysis_mode: evidenceAssessment.analysisMode,
+      summary: evidenceAssessment.message,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      model_limitations: ['Insufficient Ledger evidence for a sales-scenario valuation.'],
+      price_vs_value_judgment: {
+        judgment: evidenceAssessment.status,
+        summary: evidenceAssessment.message,
+      },
+    };
+  }
+
+  const annualRevenue = resolveAnnualRevenue(latestAnnual, snapshot);
+  const revenueGrowthObservedPct = toFiniteNumber(snapshot.revenueGrowthPct) ?? toFiniteNumber(snapshot.revenueYoYGrowthPct);
+  const grossMarginPct = toFiniteNumber(snapshot.grossMarginPct);
+  const cash = toFiniteNumber(snapshot.totalCash) ?? toFiniteNumber(snapshot.cash);
+  const debt = toFiniteNumber(snapshot.totalDebt) ?? toFiniteNumber(snapshot.debt);
+  const freeCashFlow = getMetricValue(latestAnnual, 'free_cash_flow') ?? toFiniteNumber(snapshot.freeCashFlowTTM);
+  const cashRunwayQuarters = toFiniteNumber((snapshot as any).cashRunwayQuarters);
+  const currentEvSales = Number.isFinite(Number(enterpriseValue)) && Number.isFinite(Number(annualRevenue)) && Number(annualRevenue) > 0
+    ? Number(enterpriseValue) / Number(annualRevenue)
+    : toFiniteNumber(snapshot.enterpriseToSales);
+
+  const missingInputs = cleanList([
+    Number.isFinite(Number(annualRevenue)) && Number(annualRevenue) > 0 ? null : 'annual revenue',
+    Number.isFinite(Number(sharesOutstanding)) && Number(sharesOutstanding) > 0 ? null : 'shares outstanding',
+    Number.isFinite(Number(currentPrice)) ? null : 'current price',
+  ], 8);
+
+  if (missingInputs.length) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'sales_scenario_valuation_engine',
+      valuation_method: 'preprofit_revenue_scenario',
+      valuation_engine_class: 'sales_scenario',
+      confidence_level: 'low',
+      status: 'insufficient_inputs',
+      missing_inputs: missingInputs,
+      summary: `A pre-profit sales-scenario valuation could not be completed because key inputs are missing: ${missingInputs.join(', ')}.`,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      model_limitations: [
+        'Pre-profit valuation requires revenue scale, growth, margin path, runway, dilution risk, and a defensible revenue multiple.',
+      ],
+      price_vs_value_judgment: {
+        judgment: 'insufficient_inputs',
+        summary: 'There is not enough structured revenue and capital-structure input to produce a defensible sales-scenario valuation.',
+      },
+    };
+  }
+
+  const growthAnchorPct = hasFiniteNumber(options.revenue_growth_near_term_pct)
+    ? Number(options.revenue_growth_near_term_pct)
+    : Number.isFinite(Number(revenueGrowthObservedPct)) ? Number(revenueGrowthObservedPct) : 15;
+  const defaultBaseMultiple = clamp(
+    2.5
+      + clamp(growthAnchorPct / 20, -1, 3)
+      + (Number.isFinite(Number(grossMarginPct)) && Number(grossMarginPct) >= 60 ? 1 : 0)
+      - (Number.isFinite(Number(cashRunwayQuarters)) && Number(cashRunwayQuarters) < 4 ? 1 : 0),
+    0.8,
+    10,
+  );
+  const scenarioConfigs = [
+    { name: 'bear', revenueGrowthPct: clamp(growthAnchorPct - 10, -20, 35), evSalesMultiple: clamp(defaultBaseMultiple - 1.2, 0.4, 8) },
+    { name: 'base', revenueGrowthPct: clamp(growthAnchorPct, -10, 60), evSalesMultiple: defaultBaseMultiple },
+    { name: 'bull', revenueGrowthPct: clamp(growthAnchorPct + 12, 0, 85), evSalesMultiple: clamp(defaultBaseMultiple + 1.8, 1, 14) },
+  ] as const;
+
+  const scenarioOutputs = scenarioConfigs.map((scenario) => {
+    const forwardRevenue = Number(annualRevenue) * (1 + scenario.revenueGrowthPct / 100);
+    const impliedEnterpriseValue = forwardRevenue * scenario.evSalesMultiple;
+    const impliedEquityValue = impliedEnterpriseValue + (Number(cash) || 0) - (Number(debt) || 0);
+    const fairValuePerShare = Number(sharesOutstanding) > 0 ? impliedEquityValue / Number(sharesOutstanding) : null;
+    return {
+      scenario: scenario.name,
+      assumptions: {
+        forward_revenue: Math.round(forwardRevenue),
+        revenue_growth_pct: scenario.revenueGrowthPct,
+        ev_sales_multiple: Number(scenario.evSalesMultiple.toFixed(2)),
+      },
+      implied_enterprise_value: Math.round(impliedEnterpriseValue),
+      implied_equity_value: Math.round(impliedEquityValue),
+      fair_value_per_share: fairValuePerShare != null ? Number(fairValuePerShare.toFixed(2)) : null,
+    };
+  });
+  const bear = scenarioOutputs.find((row) => row.scenario === 'bear') || null;
+  const base = scenarioOutputs.find((row) => row.scenario === 'base') || null;
+  const bull = scenarioOutputs.find((row) => row.scenario === 'bull') || null;
+  const lowFairValue = bear?.fair_value_per_share ?? null;
+  const midFairValue = base?.fair_value_per_share ?? null;
+  const highFairValue = bull?.fair_value_per_share ?? null;
+  const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midFairValue)) && Number(currentPrice)
+    ? ((Number(midFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
+    : null;
+  const priceVsValueJudgment = buildValuationPriceJudgment(currentPrice, midFairValue);
+
+  return {
+    symbol: ledgerBase?.symbol || null,
+    company_name: companyName,
+    engine: 'sales_scenario_valuation_engine',
+    valuation_method: 'preprofit_revenue_scenario',
+    valuation_engine_class: 'sales_scenario',
+    analysis_mode: evidenceAssessment.analysisMode,
+    confidence_level: buildConfidenceLevel(Boolean(latestAnnual), retrievalResults.length, [
+      annualRevenue,
+      currentPrice,
+      sharesOutstanding,
+      currentEvSales,
+    ].filter((value) => Number.isFinite(Number(value))).length),
+    normalized_sales_base: {
+      annual_revenue: annualRevenue,
+      revenue_growth_pct: revenueGrowthObservedPct,
+      gross_margin_pct: grossMarginPct,
+      free_cash_flow: freeCashFlow,
+      cash,
+      debt,
+      enterprise_value: enterpriseValue,
+      current_ev_sales: currentEvSales,
+      shares_outstanding: sharesOutstanding,
+      current_price: currentPrice,
+      cash_runway_quarters: cashRunwayQuarters,
+    },
+    base_case_assumptions: base?.assumptions || null,
+    bear_case_assumptions: bear?.assumptions || null,
+    bull_case_assumptions: bull?.assumptions || null,
+    scenario_outputs: scenarioOutputs,
+    fair_value_range: {
+      low_per_share: lowFairValue,
+      mid_per_share: midFairValue,
+      high_per_share: highFairValue,
+      current_price: currentPrice,
+      current_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+      low_display: toMoneyString(lowFairValue),
+      mid_display: toMoneyString(midFairValue),
+      high_display: toMoneyString(highFairValue),
+    },
+    key_sensitivities: [
+      `Revenue base of about ${Number(annualRevenue).toLocaleString()}.`,
+      `Base EV/Sales multiple of about ${Number(defaultBaseMultiple.toFixed(1))}x.`,
+      Number.isFinite(Number(currentEvSales)) ? `Current EV/Sales is about ${Number(currentEvSales).toFixed(1)}x.` : 'Current EV/Sales could not be measured cleanly.',
+      'Dilution, runway, and path to gross-margin conversion matter more than current free cash flow.',
+    ],
+    model_limitations: [
+      'This is a scenario valuation for unstable or negative cash-flow companies, not a DCF.',
+      'The output is highly sensitive to revenue growth, achievable margins, financing needs, and the selected EV/Sales multiple.',
+    ],
+    price_vs_value_judgment: {
+      judgment: priceVsValueJudgment,
+      summary: priceVsValueJudgment === 'undervalued'
+        ? 'The sales-scenario engine suggests the stock trades below the base revenue-scenario estimate.'
+        : priceVsValueJudgment === 'overvalued'
+          ? 'The stock trades above what the current sales-scenario assumptions appear to justify.'
+          : priceVsValueJudgment === 'roughly_fair'
+            ? 'The current price is near the base sales-scenario estimate.'
+            : 'Price versus value could not be judged cleanly from the current sales-scenario inputs.',
+      current_price: currentPrice,
+      midpoint_fair_value: midFairValue,
+      upside_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    supporting_context: {
+      earnings_quality_grade: earningsQuality?.earnings_quality_grade || null,
+      financial_analysis_value_view: financialAnalysis?.price_vs_value_judgment?.judgment || null,
+      sector: trimString(snapshot.sector),
+      industry: trimString(snapshot.industry),
+      market_cap: marketCap,
+      valuation_gap_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: hardFlags[0] || null,
+    },
+    recommended_methods: [
+      'revenue_scenario',
+      'ev_sales_cross_check',
+      'gross_margin_unit_economics',
+      'cash_runway_and_dilution_analysis',
+    ],
+  };
+}
+
+export function runSpecialSituationValuationEngine(
+  ledgerBase: LedgerContextSummary,
+  options: DcfEngineOptions = {},
+): Record<string, any> {
+  const config = SPECIAL_SITUATION_CONFIG;
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
+  const retrieval = ledgerBase?.evidence_context?.retrieval || {};
+  const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+  const earningsQuality = runEarningsQualityEngine(ledgerBase);
+  const financialAnalysis = runFinancialAnalysisEngine(ledgerBase);
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
+  const primaryHardFlag = corporateAction || hardFlags[0] || null;
+  const companyName = trimString(ledgerBase?.company_name) || trimString(snapshot.companyName);
+  const currentPrice = toFiniteNumber(snapshot.currentPrice);
+  const marketCap = toFiniteNumber(snapshot.marketCap);
+  const enterpriseValue = toFiniteNumber(snapshot.enterpriseValue) ?? marketCap;
+  const cash = toFiniteNumber(snapshot.totalCash) ?? toFiniteNumber(snapshot.cash);
+  const debt = toFiniteNumber(snapshot.totalDebt) ?? toFiniteNumber(snapshot.debt);
+  const annualRevenue = resolveAnnualRevenue(latestAnnual, snapshot);
+  const freeCashFlow = getMetricValue(latestAnnual, 'free_cash_flow') ?? toFiniteNumber(snapshot.freeCashFlowTTM);
+  const revenueGrowthObservedPct = toFiniteNumber(snapshot.revenueGrowthPct) ?? toFiniteNumber(snapshot.revenueYoYGrowthPct);
+  const sharesOutstanding = toFiniteNumber(snapshot.sharesOutstanding)
+    ?? (Number.isFinite(Number(marketCap)) && Number.isFinite(Number(currentPrice)) && Number(currentPrice)
+      ? Number(marketCap) / Number(currentPrice)
+      : null);
+  const currentEvSales = Number.isFinite(Number(enterpriseValue)) && Number.isFinite(Number(annualRevenue)) && Number(annualRevenue) > 0
+    ? Number(enterpriseValue) / Number(annualRevenue)
+    : toFiniteNumber(snapshot.enterpriseToSales);
+
+  if (corporateAction && Number.isFinite(Number(corporateAction.deal_price_per_share))) {
+    const dealPrice = Number(corporateAction.deal_price_per_share);
+    const cvrMax = toFiniteNumber(corporateAction.contingent_value_right_max_per_share) || 0;
+    const breakValue = Number.isFinite(Number(currentPrice)) ? Number(currentPrice) * 0.7 : dealPrice * 0.75;
+    const baseValue = dealPrice + cvrMax * 0.35;
+    const bullValue = dealPrice + cvrMax;
+    const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number(currentPrice)
+      ? ((baseValue - Number(currentPrice)) / Number(currentPrice)) * 100
+      : null;
+
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'special_situation_valuation_engine',
+      valuation_method: 'special_situation_deal_value',
+      valuation_engine_class: config.engine_class,
+      analysis_mode: 'special_situation',
+      confidence_level: buildConfidenceLevel(Boolean(latestAnnual), retrievalResults.length, 2),
+      event_type: corporateAction.code || 'pending_acquisition',
+      event_analysis: {
+        primary_event: corporateAction,
+        deal_price_per_share: dealPrice,
+        contingent_value_right_max_per_share: cvrMax || null,
+        expected_close: corporateAction.expected_close || null,
+      },
+      scenario_outputs: [
+        { scenario: 'bear', label: 'break value', fair_value_per_share: Number(breakValue.toFixed(2)) },
+        { scenario: 'base', label: 'deal value probability-weighted CVR', fair_value_per_share: Number(baseValue.toFixed(2)) },
+        { scenario: 'bull', label: 'full deal plus full CVR', fair_value_per_share: Number(bullValue.toFixed(2)) },
+      ],
+      fair_value_range: {
+        low_per_share: Number(breakValue.toFixed(2)),
+        mid_per_share: Number(baseValue.toFixed(2)),
+        high_per_share: Number(bullValue.toFixed(2)),
+        current_price: currentPrice,
+        current_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+        low_display: toMoneyString(breakValue),
+        mid_display: toMoneyString(baseValue),
+        high_display: toMoneyString(bullValue),
+      },
+      key_sensitivities: [
+        'Deal close probability, timing, financing certainty, regulatory risk, vote risk, and break value dominate ordinary standalone valuation.',
+      ],
+      model_limitations: [
+        'This is deal-value analysis, not an operating-company DCF.',
+        'Standalone value is secondary unless the deal breaks or reprices.',
+      ],
+      price_vs_value_judgment: {
+        judgment: buildValuationPriceJudgment(currentPrice, baseValue),
+        summary: 'This is a special-situation / deal-value setup. Price versus value should be read through deal spread, closing probability, and break risk.',
+        current_price: currentPrice,
+        midpoint_fair_value: Number(baseValue.toFixed(2)),
+        upside_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+      },
+      special_situations: {
+        corporate_action: corporateAction,
+        hard_flags: hardFlags,
+        primary_hard_flag: primaryHardFlag,
+      },
+      recommended_methods: [
+        'deal_spread',
+        'probability_weighted_close_value',
+        'break_value',
+        'timing_and_financing_risk',
+      ],
+    };
+  }
+
+  const missingInputs = cleanList([
+    Number.isFinite(Number(annualRevenue)) && Number(annualRevenue) > 0 ? null : 'normalized revenue base',
+    Number.isFinite(Number(sharesOutstanding)) && Number(sharesOutstanding) > 0 ? null : 'post-reorg shares outstanding',
+    Number.isFinite(Number(currentPrice)) ? null : 'current price',
+    Number.isFinite(Number(cash)) ? null : 'post-reorg cash',
+    Number.isFinite(Number(debt)) ? null : 'post-reorg debt',
+  ], 8);
+
+  const growthAnchorPct = hasFiniteNumber(options.revenue_growth_near_term_pct)
+    ? Number(options.revenue_growth_near_term_pct)
+    : Number.isFinite(Number(revenueGrowthObservedPct))
+      ? Number(revenueGrowthObservedPct)
+      : config.scenario_spreads.base.default_revenue_growth_pct;
+  const baseMultiple = clamp(
+    Number.isFinite(Number(currentEvSales))
+      ? Number(currentEvSales)
+      : config.default_ev_sales_multiple.base,
+    config.default_ev_sales_multiple.min,
+    config.default_ev_sales_multiple.max,
+  );
+
+  const scenarioConfigs = [
+    {
+      name: 'bear',
+      revenueGrowthPct: clamp(growthAnchorPct + config.scenario_spreads.bear.revenue_growth_delta_pct, -50, 50),
+      evSalesMultiple: clamp(baseMultiple + config.scenario_spreads.bear.ev_sales_multiple_delta, config.default_ev_sales_multiple.min, config.default_ev_sales_multiple.max),
+      survivalProbabilityPct: config.scenario_spreads.bear.survival_probability_pct,
+    },
+    {
+      name: 'base',
+      revenueGrowthPct: clamp(growthAnchorPct, -35, 75),
+      evSalesMultiple: baseMultiple,
+      survivalProbabilityPct: config.scenario_spreads.base.survival_probability_pct,
+    },
+    {
+      name: 'bull',
+      revenueGrowthPct: clamp(growthAnchorPct + config.scenario_spreads.bull.revenue_growth_delta_pct, -10, 100),
+      evSalesMultiple: clamp(baseMultiple + config.scenario_spreads.bull.ev_sales_multiple_delta, config.default_ev_sales_multiple.min, config.default_ev_sales_multiple.max),
+      survivalProbabilityPct: config.scenario_spreads.bull.survival_probability_pct,
+    },
+  ] as const;
+
+  const scenarioOutputs = scenarioConfigs.map((scenario) => {
+    const forwardRevenue = Number.isFinite(Number(annualRevenue))
+      ? Number(annualRevenue) * (1 + scenario.revenueGrowthPct / 100)
+      : null;
+    const impliedEnterpriseValue = Number.isFinite(Number(forwardRevenue))
+      ? Number(forwardRevenue) * scenario.evSalesMultiple
+      : null;
+    const impliedEquityValue = Number.isFinite(Number(impliedEnterpriseValue))
+      ? Number(impliedEnterpriseValue) + (Number(cash) || 0) - (Number(debt) || 0)
+      : null;
+    const fairValuePerShare = Number.isFinite(Number(impliedEquityValue)) && Number.isFinite(Number(sharesOutstanding)) && Number(sharesOutstanding) > 0
+      ? Math.max(0, Number(impliedEquityValue) / Number(sharesOutstanding))
+      : null;
+    const probabilityWeightedValue = fairValuePerShare != null
+      ? fairValuePerShare * (scenario.survivalProbabilityPct / 100)
+      : null;
+    return {
+      scenario: scenario.name,
+      assumptions: {
+        forward_revenue: forwardRevenue != null ? Math.round(forwardRevenue) : null,
+        revenue_growth_pct: scenario.revenueGrowthPct,
+        ev_sales_multiple: Number(scenario.evSalesMultiple.toFixed(2)),
+        survival_probability_pct: scenario.survivalProbabilityPct,
+      },
+      implied_enterprise_value: impliedEnterpriseValue != null ? Math.round(impliedEnterpriseValue) : null,
+      implied_equity_value: impliedEquityValue != null ? Math.round(impliedEquityValue) : null,
+      fair_value_per_share: fairValuePerShare != null ? Number(fairValuePerShare.toFixed(2)) : null,
+      probability_weighted_fair_value_per_share: probabilityWeightedValue != null ? Number(probabilityWeightedValue.toFixed(2)) : null,
+    };
+  });
+  const bear = scenarioOutputs.find((row) => row.scenario === 'bear') || null;
+  const base = scenarioOutputs.find((row) => row.scenario === 'base') || null;
+  const bull = scenarioOutputs.find((row) => row.scenario === 'bull') || null;
+  const lowFairValue = bear?.probability_weighted_fair_value_per_share ?? bear?.fair_value_per_share ?? null;
+  const midFairValue = base?.probability_weighted_fair_value_per_share ?? base?.fair_value_per_share ?? null;
+  const highFairValue = bull?.probability_weighted_fair_value_per_share ?? bull?.fair_value_per_share ?? null;
+  const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midFairValue)) && Number(currentPrice)
+    ? ((Number(midFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
+    : null;
+
+  return {
+    symbol: ledgerBase?.symbol || null,
+    company_name: companyName,
+    engine: 'special_situation_valuation_engine',
+    valuation_method: config.valuation_method,
+    valuation_engine_class: config.engine_class,
+    analysis_mode: 'special_situation',
+    confidence_level: missingInputs.length
+      ? 'low'
+      : buildConfidenceLevel(Boolean(latestAnnual), retrievalResults.length, [
+        annualRevenue,
+        currentPrice,
+        sharesOutstanding,
+        currentEvSales,
+        cash,
+        debt,
+      ].filter((value) => Number.isFinite(Number(value))).length),
+    status: missingInputs.length ? 'incomplete_special_situation_inputs' : evidenceAssessment.status,
+    missing_inputs: missingInputs,
+    event_analysis: {
+      primary_event: primaryHardFlag,
+      hard_flag_count: hardFlags.length,
+      framework: 'post-reorg / restructuring scenario and equity waterfall',
+    },
+    normalized_special_situation_base: {
+      annual_revenue: annualRevenue,
+      revenue_growth_pct: revenueGrowthObservedPct,
+      free_cash_flow: freeCashFlow,
+      cash,
+      debt,
+      enterprise_value: enterpriseValue,
+      current_ev_sales: currentEvSales,
+      shares_outstanding: sharesOutstanding,
+      current_price: currentPrice,
+    },
+    base_case_assumptions: base?.assumptions || null,
+    bear_case_assumptions: bear?.assumptions || null,
+    bull_case_assumptions: bull?.assumptions || null,
+    scenario_outputs: scenarioOutputs,
+    fair_value_range: {
+      low_per_share: lowFairValue,
+      mid_per_share: midFairValue,
+      high_per_share: highFairValue,
+      current_price: currentPrice,
+      current_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+      low_display: toMoneyString(lowFairValue),
+      mid_display: toMoneyString(midFairValue),
+      high_display: toMoneyString(highFairValue),
+    },
+    key_sensitivities: [
+      'Post-reorg debt, cash, share count, warrants, and remaining claims determine the equity waterfall.',
+      'Operating recovery matters through revenue ramp, utilization, margin recovery, capex needs, and time to free-cash-flow breakeven.',
+      'Small changes in survival probability or EV multiple can move common-equity value sharply.',
+    ],
+    model_limitations: config.model_limitations,
+    price_vs_value_judgment: {
+      judgment: buildValuationPriceJudgment(currentPrice, midFairValue),
+      summary: missingInputs.length
+        ? `This needs a special-situation valuation, but key post-event inputs are missing: ${missingInputs.join(', ')}.`
+        : 'This is a special-situation valuation. Price versus value should be read through the post-reorg equity waterfall and scenario probabilities, not a normal DCF midpoint.',
+      current_price: currentPrice,
+      midpoint_fair_value: midFairValue,
+      upside_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    supporting_context: {
+      earnings_quality_grade: earningsQuality?.earnings_quality_grade || null,
+      financial_analysis_value_view: financialAnalysis?.price_vs_value_judgment?.judgment || null,
+      sector: trimString(snapshot.sector),
+      industry: trimString(snapshot.industry),
+      market_cap: marketCap,
+      valuation_gap_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: primaryHardFlag,
+    },
+    recommended_methods: [
+      'post_reorg_equity_waterfall',
+      'probability_weighted_scenarios',
+      'ev_sales_or_normalized_ebitda_cross_check',
+      'cash_runway_and_dilution_analysis',
+      'break_or_liquidation_value',
+    ],
+    required_inputs: config.required_inputs,
   };
 }
 
@@ -1872,5 +3440,18 @@ export function runValuationEngine(
   ledgerBase: LedgerContextSummary,
   options: DcfEngineOptions = {},
 ): Record<string, any> {
+  const engineClass = resolveValuationEngineClass(ledgerBase);
+  if (engineClass === 'special_situation') {
+    return runSpecialSituationValuationEngine(ledgerBase, options);
+  }
+  if (engineClass === 'roe_book_value') {
+    return runFinancialCompanyValuationEngine(ledgerBase, options);
+  }
+  if (engineClass === 'reit_affo') {
+    return runReitAffoValuationEngine(ledgerBase, options);
+  }
+  if (engineClass === 'sales_scenario') {
+    return runSalesScenarioValuationEngine(ledgerBase, options);
+  }
   return runDcfValuationEngine(ledgerBase, options);
 }

@@ -109,7 +109,17 @@ function loadBridgeConfig(): BridgeConfig | null {
   const persisted = readJsonDocument<BridgeConfig>(
     EXECUTION_BRIDGE_NAMESPACE,
     EXECUTION_BRIDGE_DOCUMENT_KEY,
-    normalize,
+    (value) => normalize(value) || {
+      strategy_version_id: '',
+      scan_cron: '',
+      timezone: 'America/New_York',
+      max_portfolio_heat_pct: 0.25,
+      max_concurrent: 20,
+      risk_pct_per_trade: 0.01,
+      max_account_dd_pct: 15,
+      max_daily_loss_pct: 3,
+      monitor_interval_ms: 60000,
+    },
   );
   if (persisted) return persisted;
 
@@ -246,21 +256,30 @@ export async function resumeBridgeFromDisk(): Promise<boolean> {
     return true;
   } catch (err: any) {
     const msg = err?.message || String(err);
+
+    // Classify recoverable startup failures so the bridge degrades to a paused
+    // state (config preserved, warning visible in UI) instead of erroring
+    // unrecoverably and losing the persisted config context. Each pattern here
+    // is a known config-drift case, not a real fault:
+    //   - Eligibility: strategy exists but is not approved or has no Tier 3 PASS
+    //   - MissingStrategy: persisted strategy_version_id no longer resolves
+    //     (e.g. strategy was deleted, renamed, or migrated to a different store)
+    const isEligibilityError =
+      msg.includes('Execution Desk only') || msg.includes('Tier 3 PASS');
+    const isMissingStrategyError = msg.startsWith('Strategy not found:');
+    const isRecoverable = isEligibilityError || isMissingStrategyError;
+
     logger.log({
       event: 'error',
       strategy_version_id: config.strategy_version_id,
       details: {
         action: 'resume_bridge_from_disk',
         error: msg,
+        recoverable: isRecoverable,
       },
     });
 
-    // If the strategy is ineligible (rejected / not approved), load config in a
-    // "paused" state so the Execution Desk can still display positions and the
-    // warning rather than going fully offline.
-    const isEligibilityError =
-      msg.includes('Execution Desk only') || msg.includes('Tier 3 PASS');
-    if (isEligibilityError) {
+    if (isRecoverable) {
       _config = config;
       _bridgeWarning = msg;
     }
@@ -572,7 +591,7 @@ async function _runScanCycle(universeKey?: scanner.ScanUniverseKey): Promise<voi
       return;
     }
 
-    if (!positionManager.canOpenNewPosition(state, _config.max_concurrent)) {
+    if (positionManager.getOpenPositionCount(state) >= _config.max_concurrent) {
       logger.log({
         event: 'scan_completed',
         strategy_version_id: _config.strategy_version_id,

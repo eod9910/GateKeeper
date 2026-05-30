@@ -253,6 +253,7 @@ router.post('/start', async (req: Request, res: Response) => {
       strategy_version_id: strategyVersionId,
       scan_cron: String(req.body?.scan_cron || process.env.EXECUTION_SCAN_CRON || '0 21 * * 1-5'),
       timezone: String(req.body?.timezone || process.env.EXECUTION_SCAN_TZ || 'America/New_York'),
+      max_portfolio_heat_pct: Math.min(0.5, Math.max(0.05, toNum(req.body?.max_portfolio_heat_pct, toNum(process.env.EXECUTION_MAX_PORTFOLIO_HEAT_PCT, 0.25)))),
       max_concurrent: Math.max(1, toNum(req.body?.max_concurrent, toNum(process.env.EXECUTION_MAX_CONCURRENT, 3))),
       risk_pct_per_trade: Math.min(0.05, Math.max(0.001, toNum(req.body?.risk_pct_per_trade, 0.01))),
       max_account_dd_pct: Math.min(90, Math.max(1, toNum(req.body?.max_account_dd_pct, toNum(process.env.EXECUTION_ACCOUNT_DD_KILL_PCT, 15)))),

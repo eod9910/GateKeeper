@@ -17,6 +17,16 @@ import {
   readCacheEnvelope,
   writeCacheEnvelope,
 } from '../services/cacheService';
+import {
+  EdgarInsiderSummary,
+  getInsiderSummaryBatch,
+  getInsiderTradesForSymbol,
+  toFundamentalsInsiderTrades,
+  getFilingAlerts,
+  getSmartMoneySummaryBatch,
+  SmartMoneySummary,
+  getInstitutionalHoldings,
+} from '../services/edgarFilingsDb';
 
 const router = Router();
 
@@ -113,6 +123,17 @@ type InsiderScreenRow = {
   is_net_insider_buying: boolean;
   tactical_score: number | null;
   positioning_score: number | null;
+  edgar_buy_count: number;
+  edgar_sell_count: number;
+  edgar_buy_value: number;
+  edgar_sell_value: number;
+  edgar_cluster_alert: boolean;
+  edgar_csuite_purchase: boolean;
+  edgar_latest_date: string | null;
+  data_source: 'yahoo' | 'edgar' | 'merged';
+  smart_money_fund_count: number;
+  smart_money_value: number;
+  smart_money_funds: string[];
 };
 
 const fundamentalsCache = new Map<string, CachedFundamentalsEntry>();
@@ -599,19 +620,63 @@ async function loadLedgerContext(
   return payload;
 }
 
-function buildInsiderScreenRow(snapshot: FundamentalsSnapshotV2): InsiderScreenRow {
+function buildInsiderScreenRow(
+  snapshot: FundamentalsSnapshotV2,
+  edgarSummary?: EdgarInsiderSummary | null,
+  smartMoney?: SmartMoneySummary | null,
+): InsiderScreenRow {
   const positioning = snapshot.positioning || null;
-  const recentBuyCount = Number(positioning?.recentBuyCount || 0);
-  const recentSellCount = Number(positioning?.recentSellCount || 0);
-  const recentBuyValue = positioning?.recentBuyValue ?? null;
-  const recentSellValue = positioning?.recentSellValue ?? null;
-  const signal = positioning?.signal === 'buying'
-    || positioning?.signal === 'selling'
-    || positioning?.signal === 'mixed'
-    || positioning?.signal === 'quiet'
-    ? positioning.signal
-    : 'quiet';
-  const score = Number(snapshot.positioningScore ?? positioning?.score ?? 0);
+  const yahooBuyCount = Number(positioning?.recentBuyCount || 0);
+  const yahooSellCount = Number(positioning?.recentSellCount || 0);
+  const yahooBuyValue = positioning?.recentBuyValue ?? null;
+  const yahooSellValue = positioning?.recentSellValue ?? null;
+
+  const edgarBuyCount = edgarSummary?.buy_count ?? 0;
+  const edgarSellCount = edgarSummary?.sell_count ?? 0;
+  const edgarBuyValue = edgarSummary?.buy_value ?? 0;
+  const edgarSellValue = edgarSummary?.sell_value ?? 0;
+  const hasEdgar = edgarBuyCount > 0 || edgarSellCount > 0;
+
+  const recentBuyCount = hasEdgar ? edgarBuyCount : yahooBuyCount;
+  const recentSellCount = hasEdgar ? edgarSellCount : yahooSellCount;
+  const recentBuyValue = hasEdgar ? edgarBuyValue : yahooBuyValue;
+  const recentSellValue = hasEdgar ? edgarSellValue : yahooSellValue;
+
+  let signal: 'buying' | 'selling' | 'mixed' | 'quiet';
+  if (hasEdgar) {
+    if (recentBuyCount > 0 && recentSellCount > 0) {
+      signal = recentBuyCount > recentSellCount || edgarBuyValue > edgarSellValue ? 'buying' : 'mixed';
+    } else if (recentBuyCount > 0) {
+      signal = 'buying';
+    } else if (recentSellCount > 0) {
+      signal = 'selling';
+    } else {
+      signal = 'quiet';
+    }
+  } else {
+    signal = positioning?.signal === 'buying'
+      || positioning?.signal === 'selling'
+      || positioning?.signal === 'mixed'
+      || positioning?.signal === 'quiet'
+      ? positioning.signal
+      : 'quiet';
+  }
+
+  const yahooScore = Number(snapshot.positioningScore ?? positioning?.score ?? 0);
+  let score = yahooScore;
+  if (hasEdgar) {
+    let edgarScore = 0;
+    edgarScore += Math.min(edgarBuyCount, 10) * 5;
+    if (edgarSummary?.has_cluster_alert) edgarScore += 25;
+    if (edgarSummary?.has_csuite_purchase) edgarScore += 15;
+    if (edgarBuyValue >= 1_000_000) edgarScore += 20;
+    else if (edgarBuyValue >= 100_000) edgarScore += 10;
+    if (edgarSellCount > 0 && edgarSellValue > edgarBuyValue) {
+      edgarScore -= 20;
+    }
+    score = Math.max(score, edgarScore);
+  }
+
   const hasRecentInsiderBuying = recentBuyCount > 0 || (recentBuyValue != null && recentBuyValue > 0);
   const isNetInsiderBuying = (
     recentBuyCount > recentSellCount
@@ -634,6 +699,17 @@ function buildInsiderScreenRow(snapshot: FundamentalsSnapshotV2): InsiderScreenR
     is_net_insider_buying: hasRecentInsiderBuying && isNetInsiderBuying,
     tactical_score: snapshot.tacticalScore ?? null,
     positioning_score: snapshot.positioningScore ?? null,
+    edgar_buy_count: edgarBuyCount,
+    edgar_sell_count: edgarSellCount,
+    edgar_buy_value: edgarBuyValue,
+    edgar_sell_value: edgarSellValue,
+    edgar_cluster_alert: edgarSummary?.has_cluster_alert ?? false,
+    edgar_csuite_purchase: edgarSummary?.has_csuite_purchase ?? false,
+    edgar_latest_date: edgarSummary?.latest_filing_date ?? null,
+    data_source: hasEdgar ? (yahooBuyCount > 0 || yahooSellCount > 0 ? 'merged' : 'edgar') : 'yahoo',
+    smart_money_fund_count: smartMoney?.fund_count ?? 0,
+    smart_money_value: smartMoney?.total_value_thousands ?? 0,
+    smart_money_funds: smartMoney?.funds.map((f) => f.name) ?? [],
   };
 }
 
@@ -657,6 +733,117 @@ function compareInsiderRows(a: InsiderScreenRow, b: InsiderScreenRow): number {
   if (buyCountDiff !== 0) return buyCountDiff;
 
   return a.symbol.localeCompare(b.symbol);
+}
+
+function attachEdgarInsiderTrades(snapshot: FundamentalsSnapshotV2): FundamentalsSnapshotV2 {
+  if (!snapshot?.symbol) return snapshot;
+
+  const edgarTxns = getInsiderTradesForSymbol(snapshot.symbol, 15, 90);
+  if (!edgarTxns.length) return snapshot;
+
+  const edgarTrades = toFundamentalsInsiderTrades(edgarTxns);
+  const positioning = snapshot.positioning || {
+    score: null,
+    signal: null,
+    recentBuyCount: null,
+    recentSellCount: null,
+    recentBuyValue: null,
+    recentSellValue: null,
+    recentTrades: [],
+  };
+
+  const existingTrades = Array.isArray(positioning.recentTrades) ? positioning.recentTrades : [];
+  const existingDates = new Set(existingTrades.map((t) =>
+    `${t.insider || ''}::${t.date || ''}::${t.transaction || ''}`,
+  ));
+
+  const merged = [...edgarTrades.filter((et) =>
+    !existingDates.has(`${et.insider || ''}::${et.date || ''}::${et.transaction || ''}`),
+  ), ...existingTrades];
+
+  merged.sort((a, b) => {
+    const dateA = a.date || '';
+    const dateB = b.date || '';
+    return dateB.localeCompare(dateA);
+  });
+
+  const buyCount = edgarTxns.filter((t) => t.transaction_type === 'P').length;
+  const sellCount = edgarTxns.filter((t) => t.transaction_type === 'S').length;
+  const buyValue = edgarTxns
+    .filter((t) => t.transaction_type === 'P')
+    .reduce((sum, t) => sum + (t.total_value || 0), 0);
+  const sellValue = edgarTxns
+    .filter((t) => t.transaction_type === 'S')
+    .reduce((sum, t) => sum + (t.total_value || 0), 0);
+
+  let signal: 'buying' | 'selling' | 'mixed' | 'quiet' = 'quiet';
+  if (buyCount > 0 && sellCount > 0) {
+    signal = buyCount > sellCount || buyValue > sellValue ? 'buying' : 'mixed';
+  } else if (buyCount > 0) {
+    signal = 'buying';
+  } else if (sellCount > 0) {
+    signal = 'selling';
+  }
+
+  let result: FundamentalsSnapshotV2 = {
+    ...snapshot,
+    positioning: {
+      ...positioning,
+      recentTrades: merged.slice(0, 15),
+      recentBuyCount: Math.max(positioning.recentBuyCount ?? 0, buyCount),
+      recentSellCount: Math.max(positioning.recentSellCount ?? 0, sellCount),
+      recentBuyValue: Math.max(positioning.recentBuyValue ?? 0, buyValue),
+      recentSellValue: Math.max(positioning.recentSellValue ?? 0, sellValue),
+      signal: buyCount > 0 || sellCount > 0 ? signal : positioning.signal,
+    },
+  };
+
+  const instHoldings = getInstitutionalHoldings(snapshot.symbol, 10);
+  if (instHoldings.length > 0) {
+    const ownership = result.ownership || {
+      institutionalOwnershipPct: null,
+      insiderOwnershipPct: null,
+      topInstitutionalHolders: [],
+    };
+
+    const edgarInstitutional = instHoldings.map((h) => {
+      const valDollars = (h.value_thousands ?? 0) * 1000;
+      const valStr = valDollars >= 1e9
+        ? `$${(valDollars / 1e9).toFixed(1)}B`
+        : valDollars >= 1e6
+          ? `$${(valDollars / 1e6).toFixed(1)}M`
+          : `$${valDollars.toLocaleString('en-US')}`;
+      return {
+        holder: h.fund_name || 'Unknown Fund',
+        shares: h.shares != null ? h.shares.toLocaleString('en-US') : null,
+        value: valStr,
+        pctOut: valStr,
+      };
+    });
+
+    const existingHolders = Array.isArray(ownership.topInstitutionalHolders)
+      ? ownership.topInstitutionalHolders
+      : [];
+
+    result = {
+      ...result,
+      ownership: {
+        ...ownership,
+        topInstitutionalHolders: [
+          ...edgarInstitutional,
+          ...existingHolders.filter((eh: any) =>
+            !edgarInstitutional.some((ei) =>
+              ei.holder.toLowerCase().includes(
+                (eh.holder || '').toLowerCase().split(' ')[0],
+              ),
+            ),
+          ),
+        ].slice(0, 10),
+      },
+    };
+  }
+
+  return result;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -700,18 +887,23 @@ router.post('/screen', async (req: Request, res: Response) => {
       });
     }
 
+    const edgarBatch = getInsiderSummaryBatch(uniqueSymbols, 90);
+    const smartMoneyBatch = getSmartMoneySummaryBatch(uniqueSymbols);
+
     let memoryHits = 0;
     let diskHits = 0;
     let refreshedCount = 0;
     let staleFallbackCount = 0;
     const rows = await mapWithConcurrency<string, InsiderScreenRow>(uniqueSymbols, async (symbol) => {
+      const edgarSummary = edgarBatch.get(symbol.toUpperCase()) || null;
+      const smartMoney = smartMoneyBatch.get(symbol.toUpperCase()) || null;
       try {
         const loaded = await loadFundamentalsSnapshot(symbol, forceRefresh);
         if (loaded.freshness.cache_layer === 'memory') memoryHits += 1;
         if (loaded.freshness.cache_layer === 'disk') diskHits += 1;
         if (loaded.freshness.cache_layer === 'refresh') refreshedCount += 1;
         if (loaded.freshness.source_status === 'stale-fallback') staleFallbackCount += 1;
-        return buildInsiderScreenRow(loaded.snapshot);
+        return buildInsiderScreenRow(loaded.snapshot, edgarSummary, smartMoney);
       } catch {
         return {
           symbol,
@@ -726,6 +918,17 @@ router.post('/screen', async (req: Request, res: Response) => {
           is_net_insider_buying: false,
           tactical_score: null,
           positioning_score: null,
+          edgar_buy_count: edgarSummary?.buy_count ?? 0,
+          edgar_sell_count: edgarSummary?.sell_count ?? 0,
+          edgar_buy_value: edgarSummary?.buy_value ?? 0,
+          edgar_sell_value: edgarSummary?.sell_value ?? 0,
+          edgar_cluster_alert: edgarSummary?.has_cluster_alert ?? false,
+          edgar_csuite_purchase: edgarSummary?.has_csuite_purchase ?? false,
+          edgar_latest_date: edgarSummary?.latest_filing_date ?? null,
+          data_source: edgarSummary ? 'edgar' as const : 'yahoo' as const,
+          smart_money_fund_count: smartMoney?.fund_count ?? 0,
+          smart_money_value: smartMoney?.total_value_thousands ?? 0,
+          smart_money_funds: smartMoney?.funds.map((f) => f.name) ?? [],
         };
       }
     }, FUNDAMENTALS_SCREEN_CONCURRENCY);
@@ -754,6 +957,69 @@ router.post('/screen', async (req: Request, res: Response) => {
 // ── Social Buzz (StockTwits) ─────────────────────────────────────────────────
 
 const BUZZ_CACHE = new Map<string, { data: any; fetchedAt: number }>();
+const SOCIAL_INTELLIGENCE_DB_PATH = path.join(__dirname, '..', '..', 'data', 'social-intelligence.sqlite');
+
+const MI_DB_PATH = path.join(__dirname, '..', '..', 'data', 'market-intelligence.sqlite');
+
+function getMiRawHitsForSymbol(symbol: string, limit = 20): any[] {
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    if (!require('fs').existsSync(MI_DB_PATH)) return [];
+    const db = new DatabaseSync(MI_DB_PATH, { readOnly: true });
+    try {
+      const upperSym = symbol.toUpperCase();
+      const tickerPattern = `$${upperSym}`;
+      const wordBoundary = `% ${upperSym} %`;
+      const rows = db.prepare(`
+        SELECT source_type, title, body_text, author, source_community, posted_at, fetched_at
+        FROM mi_raw_hits
+        WHERE (
+          title LIKE '%' || ? || '%'
+          OR body_text LIKE '%' || ? || '%'
+          OR title LIKE ?
+          OR body_text LIKE ?
+        )
+        AND source_type NOT IN ('econ_eia', 'econ_bls', 'rss_federal_reserve')
+        ORDER BY fetched_at DESC
+        LIMIT ?
+      `).all(tickerPattern, tickerPattern, wordBoundary, wordBoundary, limit) as any[];
+      return rows;
+    } finally { db.close(); }
+  } catch { return []; }
+}
+
+function getRedditPostsForSymbol(symbol: string, limit = 15): Array<{ body: string; user: string; source: string; sentiment: string | null; created_at: string; score: number }> {
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    if (!require('fs').existsSync(SOCIAL_INTELLIGENCE_DB_PATH)) return [];
+    const db = new DatabaseSync(SOCIAL_INTELLIGENCE_DB_PATH, { readOnly: true });
+    try {
+      const rows = db.prepare(`
+        SELECT r.body_text, r.author_handle, r.posted_at, r.like_count,
+               s.sentiment_label
+        FROM social_posts_raw r
+        LEFT JOIN social_post_sentiment s ON s.raw_post_id = r.raw_post_id
+        WHERE r.symbol = ? AND r.platform = 'reddit'
+          AND r.body_text IS NOT NULL AND LENGTH(TRIM(r.body_text)) > 10
+        ORDER BY r.posted_at DESC
+        LIMIT ?
+      `).all(symbol.toUpperCase(), limit) as any[];
+      return rows.map((row: any) => ({
+        body: String(row.body_text || '').slice(0, 500),
+        user: String(row.author_handle || '').slice(0, 30),
+        source: 'Reddit',
+        sentiment: row.sentiment_label || null,
+        created_at: row.posted_at || '',
+        score: Number(row.like_count) || 0,
+      }));
+    } finally {
+      db.close();
+    }
+  } catch {
+    return [];
+  }
+}
+
 const BUZZ_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function clamp(value: number, min: number, max: number): number {
@@ -924,7 +1190,69 @@ router.get('/:symbol/buzz', async (req: Request, res: Response) => {
       }, 20000);
     });
 
-    const { enrichedBuzz } = buildSocialSentimentMetrics(symbol, data);
+    const redditPosts = getRedditPostsForSymbol(symbol);
+    const miHits = getMiRawHitsForSymbol(symbol);
+    const enrichedData = { ...data };
+
+    const extraMessages: any[] = [];
+
+    if (redditPosts.length > 0) {
+      redditPosts.forEach((p: any) => {
+        extraMessages.push({
+          body: p.body,
+          user: p.user,
+          source: 'Reddit',
+          sentiment: p.sentiment === 'bullish' ? 'Bullish' : p.sentiment === 'bearish' ? 'Bearish' : null,
+          created_at: p.created_at,
+        });
+      });
+      enrichedData.reddit_post_count = redditPosts.length;
+    }
+
+    const SOURCE_LABELS: Record<string, string> = {
+      hackernews_story: 'Hacker News',
+      hackernews_comment: 'Hacker News',
+      fourchan_op: '4chan',
+      fourchan_reply: '4chan',
+      bluesky_post: 'Bluesky',
+      forum_post: 'Forums',
+      discord_message: 'Discord',
+      rss_yahoo_finance: 'Yahoo News',
+      rss_reuters: 'Reuters',
+      rss_ap: 'AP News',
+      rss_federal_reserve: 'Fed',
+    };
+
+    if (miHits.length > 0) {
+      miHits.forEach((h: any) => {
+        extraMessages.push({
+          body: (h.title ? h.title + ' — ' : '') + (h.body_text || '').slice(0, 300),
+          user: h.author || h.source_community || '',
+          source: SOURCE_LABELS[h.source_type] || h.source_type,
+          sentiment: null,
+          created_at: h.posted_at ? new Date(h.posted_at * 1000).toISOString() : h.fetched_at ? new Date(h.fetched_at * 1000).toISOString() : '',
+        });
+      });
+    }
+
+    if (extraMessages.length > 0) {
+      const existingMessages = Array.isArray(enrichedData.recent_messages) ? enrichedData.recent_messages : [];
+      enrichedData.recent_messages = [...existingMessages, ...extraMessages]
+        .sort((a: any, b: any) => (b.created_at || '').localeCompare(a.created_at || ''))
+        .slice(0, 30);
+
+      const activeSources = new Set<string>();
+      activeSources.add('StockTwits');
+      activeSources.add('Yahoo Finance');
+      if (redditPosts.length > 0) activeSources.add('Reddit');
+      miHits.forEach((h: any) => {
+        const label = SOURCE_LABELS[h.source_type];
+        if (label) activeSources.add(label);
+      });
+      enrichedData.source_label = Array.from(activeSources).join(' + ');
+    }
+
+    const { enrichedBuzz } = buildSocialSentimentMetrics(symbol, enrichedData);
     BUZZ_CACHE.set(symbol, { data: enrichedBuzz, fetchedAt: Date.now() });
     return res.status(200).json({ success: true, data: enrichedBuzz });
   } catch (error: any) {
@@ -965,12 +1293,13 @@ router.get('/:symbol/ledger-context', async (req: Request, res: Response) => {
     if (shouldPersistOverlay(withValuation, withLedgerOverlay)) {
       await persistFundamentalsSnapshot(loaded.snapshot.symbol, withLedgerOverlay);
     }
-    const enrichedSnapshot = await attachSpecialSituation(
+    let enrichedSnapshot = await attachSpecialSituation(
       withLedgerOverlay,
       coverage,
       forceRefresh,
       context,
     );
+    enrichedSnapshot = attachEdgarInsiderTrades(enrichedSnapshot);
     return res.status(200).json({
       success: true,
       data: {
@@ -1002,11 +1331,22 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     if (shouldPersistOverlay(withValuation, withLedgerOverlay)) {
       await persistFundamentalsSnapshot(loaded.snapshot.symbol, withLedgerOverlay);
     }
-    const enrichedSnapshot = await attachSpecialSituation(
+    let enrichedSnapshot = await attachSpecialSituation(
       withLedgerOverlay,
       coverage,
       forceRefresh,
     );
+
+    enrichedSnapshot = attachEdgarInsiderTrades(enrichedSnapshot);
+
+    try {
+      const { getLatestOptionsFlow } = require('../services/optionsFlowDb');
+      const optionsFlow = getLatestOptionsFlow(enrichedSnapshot.symbol);
+      if (optionsFlow) {
+        (enrichedSnapshot as any).optionsFlow = optionsFlow;
+      }
+    } catch { /* options-flow.sqlite may not exist yet */ }
+
     return res.status(200).json({
       success: true,
       data: enrichedSnapshot,

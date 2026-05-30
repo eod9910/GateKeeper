@@ -12,6 +12,7 @@ import path from 'path';
 import { searchAppReference } from './searchService';
 import { applyRolePromptOverride, getConfiguredOpenAIKey } from './aiSettings';
 import { summarizeComparisonDiagnosticsForPrompt } from './validatorComparisonService';
+import { getPredictionsForSymbol, getCalibrationAdjustments, getCalibrationErrorsForPrediction, deriveMarketCapBand, type DcfPredictionRow } from './dcfCalibrationDb';
 import {
   buildCopilotToolPromptAppendix,
   buildCopilotToolPromptAppendixForAnalyst,
@@ -978,6 +979,7 @@ export async function checkOllamaStatus(): Promise<{
  */
 export interface TradingContext {
   symbol?: string;
+  interval?: string;
   patternType?: string;
   entryPrice?: number;
   stopLoss?: number;
@@ -1754,6 +1756,12 @@ function resolveFinancialAnalystWorkspaceSkills(skillContext: ScannerPromptSkill
   if (/\b(valuation|intrinsic value|fair value|dcf|discount rate|terminal value|multiple)\b/i.test(question)) {
     skills.push('dcf-valuation');
   }
+  if (/\b(special situation|post[- ]?reorg|reorganization|restructuring|bankruptcy|chapter 11|distress|distressed|deal spread|merger arbitrage|go[- ]?private|take[- ]?private|cvr|liquidation|equity waterfall)\b/i.test(question)) {
+    skills.push('special-situation-valuation');
+  }
+  if (/\b(reit|ffo|affo|nav|cap rate|cap rates|same-store noi|same store noi|occupancy|dividend coverage|fixed-charge|fixed charge|tenant concentration)\b/i.test(question)) {
+    skills.push('reit-affo-nav-valuation');
+  }
   if (/\b(earnings|cash flow|cash conversion|accrual|margin|quality of earnings|distortion|balance sheet|dilution|liquidity|debt|notes|covenant)\b/i.test(question)) {
     skills.push('earnings-quality');
   }
@@ -1899,6 +1907,61 @@ function buildTechnicalAnalystPrompt(context: TradingContext, userMessage: strin
   });
 }
 
+function buildCalibrationContextBlock(context: TradingContext): string {
+  try {
+    const symbol = context.symbol;
+    if (!symbol) return '';
+
+    const predictions = getPredictionsForSymbol(symbol, 5);
+    if (!predictions.length) return '';
+
+    const latest = predictions[0];
+    const lines: string[] = ['## Prior Valuations & Calibration'];
+
+    lines.push(`Last DCF prediction: ${latest.prediction_date}`);
+    if (latest.fair_value_low != null && latest.fair_value_mid != null && latest.fair_value_high != null) {
+      lines.push(`Fair value range: $${latest.fair_value_low.toFixed(2)} / $${latest.fair_value_mid.toFixed(2)} / $${latest.fair_value_high.toFixed(2)} (bear/base/bull)`);
+    }
+    if (latest.judgment) lines.push(`Judgment: ${latest.judgment}`);
+    if (latest.price_at_prediction != null) lines.push(`Price at prediction: $${latest.price_at_prediction.toFixed(2)}`);
+
+    const errors = getCalibrationErrorsForPrediction(latest.id);
+    if (errors.length > 0) {
+      const err = errors[0];
+      lines.push('');
+      lines.push('Assumption accuracy (last calibration):');
+      if (err.revenue_growth_error_pct != null) {
+        const dir = err.revenue_growth_error_pct > 0 ? 'optimistic' : 'conservative';
+        lines.push(`- Revenue growth: predicted ${err.predicted_revenue_growth_pct?.toFixed(1)}%, actual ${err.actual_revenue_growth_pct?.toFixed(1)}% (${Math.abs(err.revenue_growth_error_pct).toFixed(1)}% ${dir})`);
+      }
+      if (err.fcf_margin_error_pct != null) {
+        const dir = err.fcf_margin_error_pct > 0 ? 'optimistic' : 'conservative';
+        lines.push(`- FCF margin: predicted ${err.predicted_fcf_margin_pct?.toFixed(1)}%, actual ${err.actual_fcf_margin_pct?.toFixed(1)}% (${Math.abs(err.fcf_margin_error_pct).toFixed(1)}% ${dir})`);
+      }
+      if (err.direction_correct != null) {
+        lines.push(`- Direction correct: ${err.direction_correct ? 'yes' : 'no'}`);
+      }
+    }
+
+    if (latest.sector) {
+      const adjustments = getCalibrationAdjustments(latest.sector, latest.industry, latest.market_cap_band);
+      const relevant = adjustments.filter(a => a.sample_size >= 10);
+      if (relevant.length > 0) {
+        lines.push('');
+        lines.push('Active calibration adjustments:');
+        for (const adj of relevant.slice(0, 6)) {
+          const dir = adj.adjustment_pct > 0 ? 'reduce' : 'increase';
+          lines.push(`- ${adj.scope_type}=${adj.scope_value}, ${adj.assumption_key}: ${dir} by ${Math.abs(adj.adjustment_pct).toFixed(1)}% (n=${adj.sample_size})`);
+        }
+      }
+    }
+
+    return lines.join('\n');
+  } catch {
+    return '';
+  }
+}
+
 function buildFinancialAnalystPrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
   const skillContext = buildScannerWorkspaceSkillContext(context, userMessage, hasImage);
   return buildWorkspacePrompt({
@@ -1912,6 +1975,8 @@ function buildFinancialAnalystPrompt(context: TradingContext, userMessage: strin
       'If social buzz is available or the user asks about crowd positioning, use it as secondary context rather than primary evidence.',
       'If the user asks about consumer cycle, cyclical demand, slowdown exposure, defensive vs cyclical positioning, or how the company fits the business cycle, call get_consumer_cycle_context and use the repo consumer-cycle taxonomy rather than improvising your own labels.',
       'If the user asks for database-wide picks, top longs, top shorts, or a ranked clean-universe buy or short list, call screen_clean_universe before answering.',
+      'If the user asks for combinations like undervalued plus high buzz, high buzz z-score, rising attention, or sentiment-confirmed names, use screen_clean_universe with social_signal, min_buzz_zscore, and/or min_final_buzz_score.',
+      'If the user asks for Finviz-style screens in natural language, such as high P/E plus high price-to-sales, low debt plus high gross margin, high short float, high beta, high relative volume, or similar database-wide metric filters, call screen_clean_universe and translate the request into metric_filters. Explain which requested metrics were stored versus derived.',
       'If local filing evidence points to a pending acquisition, merger, or go-private situation but the buyer or deal terms still look incomplete, call verify_special_situation_web before treating the name like a normal standalone equity.',
       'For overviews, answer in facts -> interpretation -> judgment order. Show the numbers before the conclusion.',
       'If filing evidence shows a signed acquisition, merger agreement, go-private transaction, cash deal price, or CVR, stop treating the stock like a normal standalone equity. Explain the deal terms, spread, closing or break risk, and do not recommend a normal short against a stock already pinned to deal value.',
@@ -1920,9 +1985,10 @@ function buildFinancialAnalystPrompt(context: TradingContext, userMessage: strin
         : 'No image is attached. Focus on the business, filing, and capital-structure read.',
       'Separate reported facts, derived metrics, and your own judgment.',
       'Do not present vendor fallback data as if it were filing-backed when Ledger coverage is partial.',
+      'If calibration adjustments were applied to DCF assumptions (visible in your dynamic context), briefly mention them to the user — e.g. "Revenue growth was adjusted down 1.5% based on historical sector bias (n=23)." This keeps the calibration engine visible and builds user trust in the self-improving model.',
     ],
     toolRole: 'financial_analyst',
-    dynamicContext: buildScannerWorkspaceContextBlock(context),
+    dynamicContext: [buildScannerWorkspaceContextBlock(context), buildCalibrationContextBlock(context)].filter(Boolean).join('\n\n'),
   });
 }
 
@@ -1934,7 +2000,7 @@ function buildTradeExecutionContextBlock(context: TradingContext): string {
     takeProfit: context.takeProfit ?? null,
     accountSize: context.accountSize ?? null,
     riskPercent: context.riskPercent ?? null,
-    positionSize: context.positionSize ?? null,
+    positionSize: (context as any).positionSize ?? null,
     leverage: context.leverage ?? null,
     instrumentType: context.instrumentType ?? null,
     tradeDirection: context.tradeDirection ?? null,
@@ -4017,6 +4083,11 @@ function isLedgerOverviewRequest(message: string): boolean {
   return /\btell me about this company\b|\boverall ledger view\b|\boverall view\b|\bcompany overview\b|\bfull company read\b|\bfull company review\b|\bevaluate this company\b|\bbusiness, the financial picture, and the valuation posture\b/.test(lower);
 }
 
+function isLedgerExcitementRequest(message: string): boolean {
+  const lower = extractPrimaryUserMessage(message).toLowerCase();
+  return /\bwhat makes (?:it|this|the company) exciting\b|\bwhy (?:are|would) bulls?\b|\bwhy would someone (?:be )?(?:bullish|excited)\b|\bbull case\b|\bwhat is (?:its|the) technology\b|\btechnology specifically\b|\bis (?:it|the technology|that) scalable\b|\bwhat does (?:it|the company) do\b.*\b(?:exciting|bull|scalable|technology)\b/.test(lower);
+}
+
 function isLedgerShortQuestion(message: string): boolean {
   const lower = extractPrimaryUserMessage(message).toLowerCase();
   return /\bshort(?:ing)?\b|\bbet against\b|\bputs?\b|\bbearish bet\b/.test(lower);
@@ -4382,6 +4453,105 @@ function buildLedgerDcfExplanationResponse(
     ].join('\n');
   }
 
+  if (String(dcfData?.valuation_method || '').toLowerCase() === 'reit_affo_nav_proxy') {
+    const snapshot = financialData?.current_snapshot || {};
+    const range = dcfData?.fair_value_range || {};
+    const judgment = dcfData?.price_vs_value_judgment || {};
+    const base = dcfData?.base_case_assumptions || {};
+    const reitBase = dcfData?.normalized_reit_base || {};
+    return [
+      ...buildLedgerWorkflowLead('valuation', companyName, dcfData, hydrationData),
+      '',
+      `I valued ${companyName} with the REIT AFFO/FFO proxy engine, not a standard free-cash-flow DCF.`,
+      `- Sector / industry: ${snapshot?.sector || 'N/A'} / ${snapshot?.industry || 'N/A'}`,
+      `- Current price: ${ledgerDisplayMoney(judgment?.current_price || range?.current_price)}`,
+      `- AFFO/FFO proxy per share: ${ledgerDisplayMoney(reitBase?.affo_per_share)}`,
+      `- Dividend payout on the AFFO proxy: ${ledgerDisplayPct(reitBase?.payout_ratio_pct)}`,
+      '',
+      'How I got there:',
+      `- Base case uses about ${ledgerDisplayMoney(base?.normalized_affo_per_share)} of normalized AFFO/FFO proxy per share.`,
+      `- I apply an AFFO multiple of roughly ${ledgerDisplayNumber(base?.affo_multiple, 1)}x, not an industrial terminal-value DCF.`,
+      '- NAV, cap rates, occupancy, lease quality, dividend coverage, and debt maturities remain the right cross-checks.',
+      '',
+      'Valuation range:',
+      `- Bear / base / bull fair values: ${range?.low_display || 'N/A'} / ${range?.mid_display || 'N/A'} / ${range?.high_display || 'N/A'}.`,
+      `- Judgment: ${judgment?.summary || 'Price versus value could not be judged cleanly.'}`,
+      ...(Array.isArray(dcfData?.model_limitations) && dcfData.model_limitations.length
+        ? ['', 'Model limits:', ...dcfData.model_limitations.map((line: string) => `- ${line}`)]
+        : []),
+    ].join('\n');
+  }
+
+  if (String(dcfData?.valuation_method || '').toLowerCase() === 'preprofit_revenue_scenario') {
+    const snapshot = financialData?.current_snapshot || {};
+    const range = dcfData?.fair_value_range || {};
+    const judgment = dcfData?.price_vs_value_judgment || {};
+    const base = dcfData?.base_case_assumptions || {};
+    const salesBase = dcfData?.normalized_sales_base || {};
+    return [
+      ...buildLedgerWorkflowLead('valuation', companyName, dcfData, hydrationData),
+      '',
+      `I valued ${companyName} with the pre-profit sales-scenario engine, not a DCF.`,
+      `- Sector / industry: ${snapshot?.sector || 'N/A'} / ${snapshot?.industry || 'N/A'}`,
+      `- Current price: ${ledgerDisplayMoney(judgment?.current_price || range?.current_price)}`,
+      `- Revenue base: ${ledgerDisplayMoney(salesBase?.annual_revenue)}`,
+      `- Current EV/Sales: ${ledgerDisplayNumber(salesBase?.current_ev_sales, 1)}x`,
+      '',
+      'How I got there:',
+      `- Base case uses about ${ledgerDisplayMoney(base?.forward_revenue)} of forward revenue.`,
+      `- I apply an EV/Sales multiple of roughly ${ledgerDisplayNumber(base?.ev_sales_multiple, 1)}x, then adjust for cash and debt.`,
+      '- Current free cash flow is not the valuation anchor because the business is not yet in a normal cash-flow state.',
+      '',
+      'Valuation range:',
+      `- Bear / base / bull fair values: ${range?.low_display || 'N/A'} / ${range?.mid_display || 'N/A'} / ${range?.high_display || 'N/A'}.`,
+      `- Judgment: ${judgment?.summary || 'Price versus value could not be judged cleanly.'}`,
+      ...(Array.isArray(dcfData?.model_limitations) && dcfData.model_limitations.length
+        ? ['', 'Model limits:', ...dcfData.model_limitations.map((line: string) => `- ${line}`)]
+        : []),
+    ].join('\n');
+  }
+
+  if (String(dcfData?.valuation_engine_class || '').toLowerCase() === 'special_situation') {
+    const snapshot = financialData?.current_snapshot || {};
+    const range = dcfData?.fair_value_range || {};
+    const judgment = dcfData?.price_vs_value_judgment || {};
+    const base = dcfData?.base_case_assumptions || {};
+    const specialBase = dcfData?.normalized_special_situation_base || {};
+    const event = dcfData?.event_analysis?.primary_event || dcfData?.special_situations?.primary_hard_flag || null;
+    return [
+      ...buildLedgerWorkflowLead('special-situation valuation', companyName, dcfData, hydrationData),
+      ...(buildLedgerHardFlagLines(dcfData).length ? ['', ...buildLedgerHardFlagLines(dcfData)] : []),
+      '',
+      `I valued ${companyName} with the special-situation engine, not a DCF.`,
+      `- Sector / industry: ${snapshot?.sector || dcfData?.supporting_context?.sector || 'N/A'} / ${snapshot?.industry || dcfData?.supporting_context?.industry || 'N/A'}`,
+      `- Current price: ${ledgerDisplayMoney(judgment?.current_price || range?.current_price)}`,
+      event?.label ? `- Event frame: ${event.label}` : '- Event frame: restructuring, distress, deal, or another hard-flag regime.',
+      specialBase?.annual_revenue != null ? `- Revenue base: ${ledgerDisplayMoney(specialBase.annual_revenue)}` : '- Revenue base: N/A',
+      specialBase?.current_ev_sales != null ? `- Current EV/Sales: ${ledgerDisplayNumber(specialBase.current_ev_sales, 1)}x` : '- Current EV/Sales: N/A',
+      '',
+      'How I got there:',
+      dcfData?.valuation_method === 'special_situation_deal_value'
+        ? '- I started with the deal terms, then framed bear/base/bull around break value, deal value, CVR value, timing, and close risk.'
+        : '- I started with a post-event equity waterfall: enterprise value less net debt and claims, divided by the post-event share base.',
+      base?.survival_probability_pct != null
+        ? `- Base case uses a ${ledgerDisplayPct(base.survival_probability_pct)} survival / execution probability overlay.`
+        : '- Base case requires explicit survival, financing, and execution probabilities.',
+      base?.ev_sales_multiple != null
+        ? `- Base case applies an EV/Sales multiple of roughly ${ledgerDisplayNumber(base.ev_sales_multiple, 1)}x before adjusting for cash and debt.`
+        : '- For a deal, the primary anchor is deal value and break value, not a standalone revenue multiple.',
+      '',
+      'Valuation range:',
+      `- Bear / base / bull fair values: ${range?.low_display || 'N/A'} / ${range?.mid_display || 'N/A'} / ${range?.high_display || 'N/A'}.`,
+      `- Judgment: ${judgment?.summary || 'Price versus value could not be judged cleanly from the current special-situation inputs.'}`,
+      ...(Array.isArray(dcfData?.missing_inputs) && dcfData.missing_inputs.length
+        ? ['', 'Missing inputs:', ...dcfData.missing_inputs.map((line: string) => `- ${line}`)]
+        : []),
+      ...(Array.isArray(dcfData?.model_limitations) && dcfData.model_limitations.length
+        ? ['', 'Model limits:', ...dcfData.model_limitations.map((line: string) => `- ${line}`)]
+        : []),
+    ].join('\n');
+  }
+
   const hardFlagLines = buildLedgerHardFlagLines(dcfData);
   const range = dcfData?.fair_value_range || {};
   const judgment = dcfData?.price_vs_value_judgment || {};
@@ -4451,6 +4621,91 @@ function buildLedgerDcfExplanationResponse(
     '- In plain English, I would need to believe this business can keep compounding revenue at a very high rate, hold unusually strong cash-flow margins, and deserve a premium risk discount for longer than I currently think is prudent.',
     '',
     `Bottom line: ${judgment?.summary || 'The DCF still points to a demanding valuation.'}`,
+  ].join('\n');
+}
+
+function ledgerEvidenceText(data: any): string {
+  const refs = Array.isArray(data?.key_evidence_refs) ? data.key_evidence_refs : [];
+  const chunks = refs.flatMap((ref: any) => [
+    ref?.section_heading,
+    ref?.text_excerpt,
+    ref?.summary,
+  ]);
+  return chunks.map((chunk: any) => String(chunk || '').trim()).filter(Boolean).join(' ');
+}
+
+function ledgerTechnologyClues(data: any): string[] {
+  const text = ledgerEvidenceText(data);
+  if (!text) return [];
+  const matches = text.match(/\b(?:technology|platform|proprietary|patent(?:ed|s)?|process|reactor|catalyst|software|algorithm|AI|machine learning|automation|manufacturing|chemistry|conversion|recycling|feedstock|sensor|device|therapy|drug|molecule|battery|semiconductor|network)\b/gi) || [];
+  return Array.from(new Set(matches.map((match) => match.toLowerCase()))).slice(0, 8);
+}
+
+function buildLedgerExcitementResponse(companyName: string, data: any, hydrationData?: any): string {
+  const hardFlagLines = buildLedgerHardFlagLines(data);
+  const snapshot = data?.current_snapshot || {};
+  const annual = data?.annual_context?.latest_annual || {};
+  const annualMetrics = annual?.metrics || {};
+  const annualRevenue = ledgerFirstFiniteNumber(ledgerMetricValue(annualMetrics?.revenue), data?.business_summary?.annual_revenue);
+  const operatingCashFlow = ledgerFirstFiniteNumber(ledgerMetricValue(annualMetrics?.operating_cash_flow), snapshot.operatingCashFlowTTM, data?.capital_allocation?.operating_cash_flow);
+  const freeCashFlow = ledgerFirstFiniteNumber(ledgerMetricValue(annualMetrics?.free_cash_flow), snapshot.freeCashFlowTTM, data?.capital_allocation?.free_cash_flow);
+  const marketCap = ledgerFirstFiniteNumber(snapshot.marketCap);
+  const evidenceMode = String(data?.analysis_mode || 'filing_backed').toLowerCase();
+  const confidence = String(data?.confidence_level || 'unknown').toLowerCase();
+  const sector = data?.business_summary?.sector || snapshot.sector || 'N/A';
+  const industry = data?.business_summary?.industry || snapshot.industry || 'N/A';
+  const techClues = ledgerTechnologyClues(data);
+  const hasWeakCoverage = evidenceMode === 'vendor_snapshot_only' || confidence === 'low';
+  const isPreProof = !Number.isFinite(Number(annualRevenue))
+    || Number(annualRevenue) < 25_000_000
+    || !Number.isFinite(Number(freeCashFlow))
+    || Number(freeCashFlow) <= 0;
+  const growth = ledgerFirstFiniteNumber(data?.business_summary?.revenue_growth_pct, snapshot.revenueGrowthPct);
+  const dilution = ledgerFirstFiniteNumber(data?.capital_allocation?.shares_outstanding_yoy_change_pct, snapshot.sharesOutstandingYoYChangePct);
+
+  return [
+    ...buildLedgerWorkflowLead('financial-analysis', companyName, data, hydrationData),
+    ...(hardFlagLines.length ? ['', ...hardFlagLines] : []),
+    '',
+    `What makes ${companyName} exciting to a bull:`,
+    `- The bull case is not just the current income statement. It is the possibility that ${companyName} has a differentiated business, product, platform, or process inside ${industry !== 'N/A' ? industry : sector}.`,
+    `- Ledger's loaded business identity: ${data?.business_summary?.summary || 'The current context gives only a generic company profile, so I should not pretend I have a detailed product-level read.'}`,
+    hasWeakCoverage
+      ? '- Important limitation: Ledger does not have strong filing-backed detail here, so any technology or edge discussion should be treated as a thesis until company documents or retrieved evidence support it.'
+      : '- The filing-backed context is usable, but I still want product-level evidence before treating the bull story as proven.',
+    '',
+    'What it does, in plain English:',
+    `- Sector / industry: ${sector} / ${industry}.`,
+    `- Current scale: ${ledgerDisplayMoney(annualRevenue)} annual revenue, ${ledgerDisplayMoney(operatingCashFlow)} operating cash flow, ${ledgerDisplayMoney(freeCashFlow)} free cash flow, and ${ledgerDisplayMoney(marketCap)} market cap.`,
+    `- Business quality read: ${data?.financial_quality?.summary || 'N/A'}`,
+    '',
+    'What the specific edge appears to be:',
+    techClues.length
+      ? `- The evidence text contains possible edge/technology clues around: ${techClues.join(', ')}.`
+      : '- I do not have enough retrieved text to name a specific technology, product architecture, patent position, or process advantage with confidence.',
+    `- Competitive advantage read: ${data?.competitive_advantage?.summary || 'N/A'}`,
+    '- If the company is a story stock, the key is whether that edge creates better economics than incumbents: lower cost, better performance, higher-value output, stronger distribution, faster adoption, or a licensing/platform path.',
+    '',
+    'Why bulls may care:',
+    Number.isFinite(Number(growth)) && Number(growth) > 15
+      ? `- Growth is part of the story: loaded revenue growth is ${ledgerDisplayPct(growth)}.`
+      : '- Bulls are probably underwriting future adoption or strategic value more than proven high current growth.',
+    '- Optionality matters: a real platform or process can create more than one revenue path, such as direct sales, licensing, partnerships, services, or expansion into adjacent markets.',
+    data?.price_vs_value_judgment?.summary ? `- Valuation context: ${data.price_vs_value_judgment.summary}` : '- Valuation context is still incomplete from the loaded evidence.',
+    '',
+    'Is it scalable?',
+    isPreProof
+      ? '- Commercially proven scalability is not established from this evidence. The setup still looks more like a thesis than a demonstrated business model.'
+      : '- There is at least some operating scale in the loaded numbers, but scalability still depends on whether growth can continue without margin collapse or heavy dilution.',
+    '- For a technology/process company, I would separate technical scalability from economic scalability: it has to work repeatedly, handle real-world conditions, keep unit costs attractive, and produce outputs customers actually pay for.',
+    Number.isFinite(Number(dilution)) && Number(dilution) > 5
+      ? `- Dilution is a yellow flag: shares are up about ${ledgerDisplayPct(dilution)} year over year, so financing the scale-up may be part of the risk.`
+      : '- Financing risk still matters, especially if free cash flow is negative or deployment needs capital.',
+    '',
+    'Bottom line:',
+    isPreProof
+      ? `- What makes ${companyName} exciting is the possibility of differentiated future economics, not proven current financial performance. I would treat the scalability case as unproven until revenue, margins, cash flow, customer adoption, and financing all start confirming the thesis.`
+      : `- What makes ${companyName} interesting is the combination of its market position, possible edge, and operating scale. The next question is whether that edge can keep compounding into durable cash flow rather than just a good narrative.`,
   ].join('\n');
 }
 
@@ -4666,6 +4921,17 @@ async function generateToolBackedLocalFinancialAnalystResponse(message: string, 
           '- A cash decline by itself is not a red flag. It matters only if the note context suggests weaker liquidity, hidden obligations, or lower flexibility than the headline balance sheet implies.'
         );
         return parts.join('\n');
+      }
+    }
+
+    if (isLedgerExcitementRequest(rawMessage)) {
+      const { result, hydration } = await executeLedgerWorkflowWithHydrationRetry('run_financial_analysis', context);
+      if (result.ok && result.data && typeof result.data === 'object') {
+        const data = result.data as any;
+        if (isLedgerNoDataStatus(data)) {
+          return buildLedgerNoDataMessage(data, hydration);
+        }
+        return buildLedgerExcitementResponse(companyName, data, hydration);
       }
     }
 

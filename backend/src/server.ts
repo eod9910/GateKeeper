@@ -32,6 +32,7 @@ import sweepRouter from './routes/sweep';
 import executionRouter from './routes/execution';
 import aiSettingsRouter from './routes/aiSettings';
 import ledgerHydrationRouter from './routes/ledgerHydration';
+import calibrationRouter from './routes/calibration';
 import socialIntelligenceRouter from './routes/socialIntelligence';
 import marketIntelligenceRouter from './routes/marketIntelligence';
 import audioRouter from './routes/audio';
@@ -40,10 +41,14 @@ import autoLabelRouter from './routes/autoLabel';
 import trainingRouter from './routes/training';
 import referenceRouter from './routes/reference';
 import consumerCycleRouter from './routes/consumerCycle';
+import edgarFilingsRouter from './routes/edgarFilings';
+import optionsFlowRouter from './routes/optionsFlow';
+import watchListRouter from './routes/watchList';
 import * as executionBridge from './services/executionBridge';
 import * as ledgerHydrationScheduler from './services/ledgerHydrationScheduler';
 import * as socialIntelligenceScheduler from './services/socialIntelligenceScheduler';
 import * as marketIntelligenceScheduler from './services/marketIntelligenceScheduler';
+import * as edgarFilingsScheduler from './services/edgarFilingsScheduler';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -232,6 +237,7 @@ app.use('/api/sweep', sweepRouter);
 app.use('/api/execution', executionRouter);
 app.use('/api/ai', aiSettingsRouter);
 app.use('/api/ledger-hydration', ledgerHydrationRouter);
+app.use('/api/calibration', calibrationRouter);
 app.use('/api/social-intelligence', socialIntelligenceRouter);
 app.use('/api/market-intelligence', marketIntelligenceRouter);
 app.use('/api/audio', audioRouter);
@@ -240,6 +246,9 @@ app.use('/api/auto-label', autoLabelRouter);
 app.use('/api/training', trainingRouter);
 app.use('/api/reference', referenceRouter);
 app.use('/api/consumer-cycle', consumerCycleRouter);
+app.use('/api/edgar-filings', edgarFilingsRouter);
+app.use('/api/options-flow', optionsFlowRouter);
+app.use('/api/watchlist', watchListRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -261,6 +270,10 @@ app.get('/validator', (req, res) => {
 
 app.get('/strategy', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'strategy.html'));
+});
+
+app.get('/strategy-builder', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'public', 'strategy-builder.html'));
 });
 
 app.get('/trading-desk', (req, res) => {
@@ -374,6 +387,9 @@ app.listen(PORT, () => {
   }
   if (marketIntelligenceScheduler.resumeMarketIntelligenceSchedulerFromDisk()) {
     console.log('[MarketIntel] resumed persisted market-intelligence schedule');
+  }
+  if (edgarFilingsScheduler.resumeEdgarFilingsSchedulerFromDisk()) {
+    console.log('[EDGAR] resumed persisted EDGAR filings schedule');
   }
 
   void executionBridge.resumeBridgeFromDisk()

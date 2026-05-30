@@ -207,6 +207,44 @@ export async function runScannerPluginViaService(
   return result as ScannerServiceRunResult;
 }
 
+export async function runCopilotAnalysisViaService(
+  symbol: string,
+  interval: string,
+  period: string,
+  timeframe: string,
+  epsilonPct: number,
+  userDirection?: string | null,
+): Promise<any> {
+  const body: Record<string, any> = {
+    symbol,
+    interval,
+    period,
+    timeframe,
+    epsilon_pct: epsilonPct,
+    user_direction: userDirection || null,
+  };
+  const res = await fetch(
+    `${PY_SERVICE_BASE_URL}/copilot/analyze`,
+    timeoutInit({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  );
+  const payload = await res.json().catch(() => ({} as any));
+  if (!res.ok) {
+    const detail = (payload as any)?.detail;
+    const message = typeof detail === 'string'
+      ? detail
+      : (detail && typeof detail.message === 'string' ? detail.message : `HTTP ${res.status}`);
+    throw new Error(`python service /copilot/analyze failed: ${message}`);
+  }
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('python service returned malformed copilot payload');
+  }
+  return payload;
+}
+
 export async function runScannerUniverseViaService(
   spec: StrategySpec,
   symbols: string[],

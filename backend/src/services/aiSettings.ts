@@ -51,7 +51,11 @@ function normalizeAISettings(settings: unknown): AISettings | null {
 }
 
 export function loadAISettings(): AISettings | null {
-  const persisted = readJsonDocument<AISettings>(AI_SETTINGS_NAMESPACE, AI_SETTINGS_DOCUMENT_KEY, normalizeAISettings);
+  const persisted = readJsonDocument<AISettings>(
+    AI_SETTINGS_NAMESPACE,
+    AI_SETTINGS_DOCUMENT_KEY,
+    (value) => normalizeAISettings(value) || {},
+  );
   if (persisted) return persisted;
   try {
     if (fs.existsSync(SETTINGS_PATH)) {

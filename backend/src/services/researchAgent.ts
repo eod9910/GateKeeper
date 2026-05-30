@@ -889,7 +889,7 @@ function buildSrStrategySpec(session: ResearchSession, entry: GenomeEntry): Stra
   const formulaId = String(entry.formula_id || '').trim();
   if (!formulaId) return null;
 
-  const sr = session.config.sr_config || {};
+  const sr = (session.config.sr_config || {}) as Record<string, any>;
   const strategyId = `sr_formula_${sanitizeIdFragment(formulaId)}`;
   const strategyVersionId = `${strategyId}_v1`;
   const targetBars = Math.max(1, Math.round(toFiniteNumber(sr.target_bars, 5)));

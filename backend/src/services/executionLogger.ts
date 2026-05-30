@@ -16,6 +16,8 @@ export type LogEventType =
   | 'order_cancelled'
   | 'stop_moved'
   | 'position_closed'
+  | 'position_expired'
+  | 'exit_repair_failed'
   | 'kill_switch_triggered'
   | 'bridge_started'
   | 'bridge_stopped'

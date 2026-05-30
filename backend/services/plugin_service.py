@@ -15,7 +15,7 @@ import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import json
@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 from platform_sdk.ohlcv import OHLCV, fetch_data_yfinance, aggregate_bars as _aggregate_bars
+from platform_sdk.copilot import generate_copilot_analysis
 from strategyRunner import run_strategy
 from validatorPipeline import run_pipeline, register_cancel_flag, clear_cancel_flag, _tl
 
@@ -96,6 +97,88 @@ class DataCache:
 DATA_CACHE = DataCache()
 
 
+def _parse_period_days(period: str) -> Optional[int]:
+    raw = str(period or "").strip().lower()
+    if not raw or raw == "max":
+        return None
+    try:
+        if raw.endswith("d"):
+            return int(raw[:-1])
+        if raw.endswith("y"):
+            return int(raw[:-1]) * 365
+        if raw.endswith("mo"):
+            return int(raw[:-2]) * 30
+    except Exception:
+        return None
+    return None
+
+
+def _safe_bar_datetime(ts: str) -> Optional[datetime]:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except Exception:
+        pass
+    try:
+        return datetime.strptime(str(ts)[:19].replace("T", " "), "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        pass
+    try:
+        return datetime.strptime(str(ts)[:10], "%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def _clip_bars_to_period(bars: List[OHLCV], period: str) -> List[OHLCV]:
+    days = _parse_period_days(period)
+    if not bars or days is None:
+        return bars
+    last_dt = _safe_bar_datetime(bars[-1].timestamp if bars else "")
+    if not last_dt:
+        return bars
+    cutoff = last_dt - timedelta(days=days + 7)
+    clipped = [bar for bar in bars if (_safe_bar_datetime(bar.timestamp) or last_dt) >= cutoff]
+    return clipped or bars
+
+
+def _looks_like_forex_daily(symbol: str, interval: str) -> bool:
+    return str(interval or "").strip().lower() == "1d" and str(symbol or "").strip().upper().endswith("=X")
+
+
+def _repair_recent_forex_daily_bars(symbol: str, bars: List[OHLCV]) -> List[OHLCV]:
+    if not bars:
+        return bars
+    try:
+        intraday_bars, _ = DATA_CACHE.fetch_or_cache(symbol, "1h", "720d")
+    except Exception:
+        return bars
+    rebuilt_recent = _aggregate_bars(intraday_bars or [], 24)
+    if not rebuilt_recent:
+        return bars
+
+    rebuilt_by_day = {str(bar.timestamp or "")[:10]: bar for bar in rebuilt_recent if getattr(bar, "timestamp", "")}
+    if not rebuilt_by_day:
+        return bars
+
+    repaired: List[OHLCV] = []
+    seen_days = set()
+    for bar in bars:
+        day_key = str(getattr(bar, "timestamp", "") or "")[:10]
+        repaired.append(rebuilt_by_day.get(day_key, bar))
+        if day_key:
+            seen_days.add(day_key)
+
+    for bar in rebuilt_recent:
+        day_key = str(getattr(bar, "timestamp", "") or "")[:10]
+        if day_key and day_key not in seen_days:
+            repaired.append(bar)
+            seen_days.add(day_key)
+
+    repaired.sort(key=lambda bar: str(getattr(bar, "timestamp", "") or ""))
+    return repaired
+
+
 class ValidatorRunRequest(BaseModel):
     spec: Dict[str, Any] = Field(..., description="StrategySpec payload")
     date_start: str = Field(..., description="YYYY-MM-DD")
@@ -109,6 +192,15 @@ class ChartOHLCVRequest(BaseModel):
     symbol: str = Field(..., description="Ticker symbol")
     interval: Optional[str] = Field(default="1d")
     period: Optional[str] = Field(default="2y")
+
+
+class CopilotAnalyzeRequest(BaseModel):
+    symbol: str = Field(..., description="Ticker symbol")
+    interval: Optional[str] = Field(default="1wk")
+    period: Optional[str] = Field(default="max")
+    timeframe: Optional[str] = Field(default="W")
+    epsilon_pct: Optional[float] = Field(default=0.05)
+    user_direction: Optional[str] = Field(default=None)
 
 
 class ScannerRunRequest(BaseModel):
@@ -207,6 +299,13 @@ def chart_ohlcv(req: ChartOHLCVRequest) -> Dict[str, Any]:
 
         if aggregate_factor > 0:
             bars = _aggregate_bars(bars, aggregate_factor)
+        elif _looks_like_forex_daily(symbol, interval):
+            # Yahoo's direct 1d forex open/close values behave like rollover
+            # snapshots and produce near-doji candles. Rebuild the recent daily
+            # segment from 1h bars so Training/Chart pages show actual bodies.
+            bars = _repair_recent_forex_daily_bars(symbol, bars)
+
+        bars = _clip_bars_to_period(bars, period)
 
         # Detect intraday
         date_counts: Dict[str, int] = {}
@@ -240,6 +339,7 @@ def chart_ohlcv(req: ChartOHLCVRequest) -> Dict[str, Any]:
                 "high": float(bar.high),
                 "low": float(bar.low),
                 "close": float(bar.close),
+                "volume": float(getattr(bar, "volume", 0) or 0),
             })
 
         return {
@@ -250,6 +350,57 @@ def chart_ohlcv(req: ChartOHLCVRequest) -> Dict[str, Any]:
             "cache_hit": cache_hit,
             "chart_data": chart_data,
         }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": str(exc), "traceback": traceback.format_exc(limit=3)},
+        ) from exc
+
+
+@app.post("/copilot/analyze")
+def copilot_analyze(req: CopilotAnalyzeRequest) -> Dict[str, Any]:
+    """Run the Trading Co-Pilot analysis using the warm interpreter + data cache.
+
+    This mirrors the legacy ``spawn('py', ['-c', ...])`` path in the Node backend
+    but avoids the ~3.4s cold-start cost of importing the scientific stack on
+    every request, and reuses the in-memory OHLCV cache so repeated timeframe
+    switches don't re-hit Yahoo.
+    """
+    try:
+        symbol = str(req.symbol or "").strip().upper()
+        if not symbol:
+            raise ValueError("symbol is required")
+        interval = str(req.interval or "1wk")
+        period = str(req.period or "max")
+        timeframe = str(req.timeframe or "W")
+        epsilon = float(req.epsilon_pct if req.epsilon_pct is not None else 0.05)
+        user_direction = req.user_direction or None
+
+        # yfinance doesn't support 4h natively — fetch 1h and aggregate (parity
+        # with /chart/ohlcv).
+        aggregate_factor = 0
+        fetch_interval = interval
+        if interval == "4h":
+            fetch_interval = "1h"
+            aggregate_factor = 4
+            if period == "max":
+                period = "730d"
+
+        bars, cache_hit = DATA_CACHE.fetch_or_cache(symbol, fetch_interval, period)
+        if aggregate_factor > 0 and bars:
+            bars = _aggregate_bars(bars, aggregate_factor)
+
+        result = generate_copilot_analysis(
+            bars or [],
+            symbol=symbol,
+            timeframe=timeframe,
+            epsilon_pct=epsilon,
+            user_direction=user_direction,
+        )
+        payload = _to_json_safe(result)
+        if isinstance(payload, dict):
+            payload.setdefault("cache_hit", cache_hit)
+        return payload
     except Exception as exc:
         raise HTTPException(
             status_code=500,

@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "concurrently -k -n py,node -c blue,green \"npm run py:service\" \"npm run node:dev\"",
-    "node:dev": "cross-env VALIDATOR_USE_PY_SERVICE=1 tsx src/server.ts",
+    "node:dev": "cross-env VALIDATOR_USE_PY_SERVICE=1 tsx watch src/server.ts",
     "node:dev:no-py": "tsx src/server.ts",
     "scan": "py services/patternScanner.py",
     "py:service": "py services/plugin_service.py --port 8100",

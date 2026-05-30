@@ -153,6 +153,14 @@ export interface FundamentalsSpecialSituation {
   currentToDealSpreadPct: number | null;
 }
 
+export interface FundamentalsRiskFlag {
+  code: string;
+  label: string;
+  severity: 'critical' | 'high' | 'moderate';
+  short: string;
+  detail: string;
+}
+
 export interface FundamentalsScores {
   survivabilityScore: number | null;
   trendScore: number | null;
@@ -234,6 +242,7 @@ export interface FundamentalsSnapshotV2 extends FundamentalsScores {
   statusNote: string;
   riskNote: string;
   tags: FundamentalsTag[];
+  riskFlags?: FundamentalsRiskFlag[] | null;
   specialSituation?: FundamentalsSpecialSituation | null;
   reportedExecution?: FundamentalsReportedExecution | null;
   forwardExpectations?: FundamentalsForwardExpectations | null;
