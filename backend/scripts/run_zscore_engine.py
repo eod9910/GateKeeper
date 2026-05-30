@@ -133,10 +133,10 @@ def assert_schema_version(conn: sqlite3.Connection) -> None:
         actual = int(raw) if raw is not None else None
     except (TypeError, ValueError):
         actual = None
-    if actual != EXPECTED_SCHEMA_VERSION:
+    if actual is None or actual < EXPECTED_SCHEMA_VERSION:
         sys.exit(
             f"[zscore-engine] schema_version mismatch: got {actual!r}, "
-            f"expected {EXPECTED_SCHEMA_VERSION}. Run "
+            f"expected >= {EXPECTED_SCHEMA_VERSION}. Run "
             f"backend/scripts/build_market_intelligence_db.py to migrate."
         )
 

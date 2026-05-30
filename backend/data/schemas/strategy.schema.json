@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pattern-detector.local/schemas/strategy.schema.json",
+  "title": "Pattern Detector Strategy Spec",
+  "description": "Canonical completed strategy contract. Strategy-specific behavior lives inside config objects, but every completed strategy must expose behavior-defining knobs through parameter_manifest or auto-promoted primitive/composite tunables.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "strategy_id",
+    "strategy_version_id",
+    "version",
+    "name",
+    "description",
+    "status",
+    "asset_class",
+    "interval",
+    "universe",
+    "setup_config",
+    "entry_config",
+    "risk_config",
+    "exit_config",
+    "cost_config",
+    "execution_config",
+    "parameter_manifest",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "strategy_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "strategy_version_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*_v[0-9A-Za-z_.-]+$"
+    },
+    "version": {
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "string", "minLength": 1 }
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "testing", "approved", "rejected", "experimental", "live", "deprecated"]
+    },
+    "asset_class": {
+      "type": "string",
+      "enum": ["all", "stocks", "futures", "options", "forex", "crypto"]
+    },
+    "interval": {
+      "type": "string",
+      "enum": ["1mo", "1wk", "1d", "4h", "1h", "15m", "5m", "1m"]
+    },
+    "timeframe": {
+      "type": "string"
+    },
+    "trade_direction": {
+      "type": "string",
+      "enum": ["long", "short", "both"]
+    },
+    "version_mode": {
+      "type": "string",
+      "enum": ["backtest", "production"]
+    },
+    "strategy_tag": {
+      "type": "string",
+      "enum": ["backtest_strategy", "production_strategy"]
+    },
+    "strategy_tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "contains": {
+        "enum": ["backtest_strategy", "production_strategy"]
+      }
+    },
+    "source_signal": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["pattern_id", "composition"],
+      "properties": {
+        "pattern_id": { "type": "string", "minLength": 1 },
+        "composition": { "type": "string", "enum": ["primitive", "composite", "monolithic", "pattern"] },
+        "family": { "type": "string" },
+        "signal_tag": { "type": "string" },
+        "source_category": { "type": "string" },
+        "required_state": { "type": "string" }
+      }
+    },
+    "base_pattern_id": {
+      "type": "string"
+    },
+    "scan_mode": {
+      "type": "string"
+    },
+    "universe": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "structure_config": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "setup_config": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["pattern_type"],
+      "properties": {
+        "pattern_type": { "type": "string", "minLength": 1 }
+      }
+    },
+    "entry_config": {
+      "type": "object",
+      "additionalProperties": true,
+      "minProperties": 1
+    },
+    "risk_config": {
+      "type": "object",
+      "additionalProperties": true,
+      "minProperties": 1
+    },
+    "exit_config": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "cost_config": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["commission_per_trade", "slippage_pct"],
+      "properties": {
+        "commission_per_trade": { "type": "number", "minimum": 0 },
+        "spread_pct": { "type": "number", "minimum": 0 },
+        "slippage_pct": { "type": "number", "minimum": 0 }
+      }
+    },
+    "execution_config": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "fundamental_config": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "comparison_mode": { "type": "string" },
+        "rebalance_frequency": { "type": "string", "enum": ["monthly", "quarterly"] },
+        "forward_bars": { "type": "integer", "minimum": 1 },
+        "min_selected_count": { "type": "integer", "minimum": 0 },
+        "min_excluded_count": { "type": "integer", "minimum": 0 },
+        "variables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fundamentalVariable" }
+        }
+      }
+    },
+    "backtest_config": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "parameter_manifest": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/parameterManifestItem" }
+    },
+    "spec_hash": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_by": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "parameterManifestItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "key",
+        "label",
+        "path",
+        "anatomy",
+        "type",
+        "identity_preserving",
+        "sweep_enabled",
+        "sensitivity_enabled"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anatomy": {
+          "type": "string",
+          "enum": [
+            "structure",
+            "location",
+            "entry_timing",
+            "pattern_gate",
+            "regime_filter",
+            "stop_loss",
+            "take_profit",
+            "risk_controls",
+            "valuation"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["int", "float", "enum", "select", "bool", "string"]
+        },
+        "description": {
+          "type": "string"
+        },
+        "identity_preserving": {
+          "type": "boolean"
+        },
+        "sweep_enabled": {
+          "type": "boolean"
+        },
+        "sensitivity_enabled": {
+          "type": "boolean"
+        },
+        "suggested_values": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": ["string", "number", "boolean"]
+          }
+        },
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "priority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "failure_modes_targeted": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "sweep_enabled": { "const": true } },
+            "required": ["sweep_enabled"]
+          },
+          "then": {
+            "anyOf": [
+              { "required": ["suggested_values"] },
+              { "required": ["min", "max", "step"] }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "enum": ["int", "float"] } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "suggested_values": {
+                "items": { "type": "number" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "fundamentalVariable": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["metric", "operator", "threshold"],
+      "properties": {
+        "metric": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "operator": { "type": "string", "enum": [">=", "<=", ">", "<", "==", "!="] },
+        "threshold": { "type": "number" },
+        "missing_policy": { "type": "string", "enum": ["fail", "pass"] },
+        "sensitivity_enabled": { "type": "boolean" }
+      }
+    }
+  }
+}

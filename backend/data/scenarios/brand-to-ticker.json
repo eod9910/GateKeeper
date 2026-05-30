@@ -5,23 +5,45 @@
     "purpose": "Maps brand_key (used in tracked_concepts.target_key when target_type='brand') to public-company tickers. Loaded into the brand_to_ticker table at startup. The concept-extraction LLM proposes new brand keys; this file is the hand-curated authoritative answer for known brands so the LLM doesn't hallucinate the parent company.",
     "philosophy": "Bias toward consumer-facing brands the Social Arbitrage Engine will actually surface, weighted toward the 5 v1 source-type verticals (audio, sneakers, beauty, watches, photo, pcbuild) plus broader consumer/tech adjacencies. Skip megacap-obvious mappings (e.g. iPhone -> AAPL) that the LLM would never get wrong.",
     "growth_path": [
-      "Phase 0 (this file): ~50 starter rows. Operator audits each. Catches the most common Social Arbitrage names.",
+      "Phase 0 (this file): 238 rows. Operator audits each. Catches the most common Social Arbitrage names across HN/4chan-driven concepts and 5 v1 verticals + AI/dev/cloud/crypto/EV/gaming adjacencies.",
       "Phase 1: LLM concept extractor proposes new brand_keys when it sees an unrecognized brand. Operator reviews via /api/market-intelligence/brands/proposed endpoint. Approved ones land here with source_method='llm_assist' and confidence=0.6.",
       "Phase 2-3: Backtest replay calibrates which brand mappings actually predicted moves. Misses get pruned. Gaps (brands the system saw move but didn't have mapped) get added.",
       "Phase 5: Target ≥200 rows by end of Phase 5 per PRD §Phase 0 deliverables."
     ],
     "totals": {
-      "rows": 50,
-      "by_source_method": { "hand_curated": 50, "llm_assist": 0, "operator_override": 0 },
-      "by_vertical": { "beauty": 8, "audio": 6, "sneakers": 6, "watches": 5, "photo": 5, "pcbuild": 6, "food_beverage": 7, "apparel": 4, "fitness_wellness": 3 }
+      "rows": 238,
+      "by_source_method": {
+        "hand_curated": 238
+      },
+      "by_vertical": {
+        "beauty": 22,
+        "audio": 12,
+        "sneakers": 17,
+        "watches": 13,
+        "photo": 11,
+        "pcbuild": 21,
+        "food_beverage": 17,
+        "apparel": 12,
+        "fitness_wellness": 9,
+        "ai_models": 10,
+        "devtools": 12,
+        "cloud_infra": 11,
+        "semiconductors": 7,
+        "crypto_brokers": 10,
+        "ev_auto": 9,
+        "gaming_media": 12,
+        "restaurants": 8,
+        "lifestyle_home": 12,
+        "fintech_consumer": 7,
+        "ai_hardware": 6
+      }
     },
     "review_checklist_for_user": [
-      "Are the brand_keys in the right normalized form (snake_case, no punctuation)?",
-      "For multi-brand parents (LVMH, Estée Lauder, Newell), are the secondary_tickers right?",
-      "Any obvious brands missing that you know your verticals will surface?",
-      "For brands with no clean public expression (e.g. private companies), should we flag them as 'parent_ticker: null' rather than mapping to the closest competitor?",
-      "Watches: is the Movado/Fossil set right, or should we just default to LVMH/RMS/CFR.SW?",
-      "Audio: should Sennheiser map to Sonova (parent) or be marked private?"
+      "Verticals beyond v1 (ai_models, devtools, cloud_infra, semiconductors, crypto_brokers, ev_auto, gaming_media, restaurants, lifestyle_home, fintech_consumer, ai_hardware) — are these the right buckets for Phase 6 priority?",
+      "Many AI/devtools brands are PRIVATE (parent_ticker=null) — should we map them to the closest publicly-traded competitor as parent_ticker instead of leaving null? Current decision: keep null for cleanliness, use secondary_tickers for comp signal.",
+      "Some Asian listings (.KS, .TW, .T, .SW, .MI) — confirm scanner / portfolio system can route to those. If not, downgrade confidence to <0.5 to avoid auto-promotion.",
+      "Cross-listed brands (e.g. nike + jordan_brand + air_force_one + converse all under NKE): is this granularity right, or should we collapse?",
+      "Brand-key conflicts: nvidia_rtx (specific GPU franchise, original) vs nvidia (parent, new). Keep both? Promoter currently uses target_key directly."
     ],
     "schema": {
       "brand_key": "snake_case stable id; UNIQUE; matches tracked_concepts.target_key when target_type='brand'",
@@ -33,65 +55,2589 @@
       "notes": "Free-form audit notes; not stored in DB"
     }
   },
-
   "brands": [
-    { "brand_key": "elf_cosmetics",        "parent_ticker": "ELF",   "secondary_tickers": ["ULTA", "TGT"],          "confidence": 1.0, "source_method": "hand_curated", "vertical": "beauty",         "notes": "Wholly-owned brand; ELF is essentially a single-brand stock." },
-    { "brand_key": "rare_beauty",          "parent_ticker": "COTY",  "secondary_tickers": ["ULTA", "SBH"],          "confidence": 0.7, "source_method": "hand_curated", "vertical": "beauty",         "notes": "Selena Gomez brand; majority-owned by Coty. Distribution at Sephora (private)." },
-    { "brand_key": "fenty_beauty",         "parent_ticker": "LVMUY", "secondary_tickers": ["ULTA"],                 "confidence": 1.0, "source_method": "hand_curated", "vertical": "beauty",         "notes": "Distributed via Sephora (LVMH); also retail at Ulta." },
-    { "brand_key": "drunk_elephant",       "parent_ticker": "ELC",   "secondary_tickers": ["ULTA"],                 "confidence": 1.0, "source_method": "hand_curated", "vertical": "beauty",         "notes": "Acquired by Estée Lauder in 2019." },
-    { "brand_key": "the_ordinary",         "parent_ticker": "ELC",   "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "beauty",         "notes": "DECIEM brand; majority-owned by Estée Lauder." },
-    { "brand_key": "glossier",             "parent_ticker": null,    "secondary_tickers": ["SEPH_PRIVATE"],         "confidence": 0.3, "source_method": "hand_curated", "vertical": "beauty",         "notes": "PRIVATE COMPANY. No clean public expression. Track as buzz signal only." },
-    { "brand_key": "sol_de_janeiro",       "parent_ticker": "LRLCY", "secondary_tickers": ["ULTA"],                 "confidence": 1.0, "source_method": "hand_curated", "vertical": "beauty",         "notes": "Acquired by L'Oréal (LRLCY) in 2024." },
-    { "brand_key": "rhode_skin",           "parent_ticker": "ELF",   "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "beauty",         "notes": "Hailey Bieber brand; acquired by ELF in 2025 for $1B." },
-
-    { "brand_key": "sonos",                "parent_ticker": "SONO",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "audio",          "notes": "Pure-play public audio brand." },
-    { "brand_key": "harman_kardon",        "parent_ticker": "005930.KS", "secondary_tickers": [],                   "confidence": 0.8, "source_method": "hand_curated", "vertical": "audio",          "notes": "Owned by Samsung; Korean ticker only." },
-    { "brand_key": "bose",                 "parent_ticker": null,    "secondary_tickers": [],                       "confidence": 0.0, "source_method": "hand_curated", "vertical": "audio",          "notes": "PRIVATE. No public expression." },
-    { "brand_key": "sennheiser",           "parent_ticker": "SOON.SW", "secondary_tickers": [],                     "confidence": 0.7, "source_method": "hand_curated", "vertical": "audio",          "notes": "Consumer audio division sold to Sonova (Swiss) in 2021." },
-    { "brand_key": "audio_technica",       "parent_ticker": null,    "secondary_tickers": [],                       "confidence": 0.0, "source_method": "hand_curated", "vertical": "audio",          "notes": "PRIVATE." },
-    { "brand_key": "shure",                "parent_ticker": null,    "secondary_tickers": [],                       "confidence": 0.0, "source_method": "hand_curated", "vertical": "audio",          "notes": "PRIVATE. Track as competitive-pressure signal on SONO/HARM only." },
-
-    { "brand_key": "on_running",           "parent_ticker": "ONON",  "secondary_tickers": ["DKS", "FL"],            "confidence": 1.0, "source_method": "hand_curated", "vertical": "sneakers",       "notes": "Public 2021. Pure-play upside." },
-    { "brand_key": "hoka",                 "parent_ticker": "DECK",  "secondary_tickers": ["DKS"],                  "confidence": 1.0, "source_method": "hand_curated", "vertical": "sneakers",       "notes": "Wholly-owned by Deckers." },
-    { "brand_key": "new_balance",          "parent_ticker": null,    "secondary_tickers": ["FL", "DKS"],            "confidence": 0.0, "source_method": "hand_curated", "vertical": "sneakers",       "notes": "PRIVATE. Track via retail-channel proxies." },
-    { "brand_key": "asics",                "parent_ticker": "7936.T", "secondary_tickers": [],                      "confidence": 0.8, "source_method": "hand_curated", "vertical": "sneakers",       "notes": "Tokyo-listed; ADRs thin." },
-    { "brand_key": "adidas_samba",         "parent_ticker": "ADDYY", "secondary_tickers": ["FL", "DKS"],            "confidence": 1.0, "source_method": "hand_curated", "vertical": "sneakers",       "notes": "Specific franchise within ADDYY; brand_key tracks the model not the parent." },
-    { "brand_key": "salomon_xt6",          "parent_ticker": "AS",    "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "sneakers",       "notes": "Salomon owned by Amer Sports (AS, public 2024)." },
-
-    { "brand_key": "tudor_watches",        "parent_ticker": null,    "secondary_tickers": ["MOV"],                  "confidence": 0.0, "source_method": "hand_curated", "vertical": "watches",        "notes": "Owned by Rolex (PRIVATE). Track as comp signal on Movado." },
-    { "brand_key": "omega_watches",        "parent_ticker": "UHR.SW", "secondary_tickers": [],                      "confidence": 1.0, "source_method": "hand_curated", "vertical": "watches",        "notes": "Owned by Swatch Group (UHR.SW)." },
-    { "brand_key": "tag_heuer",            "parent_ticker": "LVMUY", "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "watches",        "notes": "Owned by LVMH Watches & Jewelry segment." },
-    { "brand_key": "movado",               "parent_ticker": "MOV",   "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "watches",        "notes": "Pure-play public watch group." },
-    { "brand_key": "fossil_watches",       "parent_ticker": "FOSL",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "watches",        "notes": "Pure-play public; struggling but a clean expression vehicle." },
-
-    { "brand_key": "fujifilm_x100",        "parent_ticker": "FUJIY", "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "photo",          "notes": "Specific camera model franchise; X100VI generated documented buzz spike 2024-2025." },
-    { "brand_key": "sony_alpha",           "parent_ticker": "SONY",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "photo",          "notes": "Major franchise; competes with Canon/Nikon." },
-    { "brand_key": "canon_eos",            "parent_ticker": "CAJ",   "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "photo",          "notes": "ADR for Canon Inc." },
-    { "brand_key": "nikon_z",              "parent_ticker": "NINOY", "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "photo",          "notes": "Mirrorless line; ADR thin." },
-    { "brand_key": "leica",                "parent_ticker": null,    "secondary_tickers": [],                       "confidence": 0.0, "source_method": "hand_curated", "vertical": "photo",          "notes": "PRIVATE." },
-
-    { "brand_key": "nvidia_rtx",           "parent_ticker": "NVDA",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "pcbuild",        "notes": "Specific GPU franchise; brand_key tracks the model line not the parent generally." },
-    { "brand_key": "amd_ryzen",            "parent_ticker": "AMD",   "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "pcbuild",        "notes": "" },
-    { "brand_key": "asus_rog",             "parent_ticker": "2357.TW", "secondary_tickers": [],                     "confidence": 0.9, "source_method": "hand_curated", "vertical": "pcbuild",        "notes": "ASUS Republic of Gamers; Taiwan-listed parent." },
-    { "brand_key": "corsair",              "parent_ticker": "CRSR",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "pcbuild",        "notes": "Pure-play public PC peripherals." },
-    { "brand_key": "logitech",             "parent_ticker": "LOGI",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "pcbuild",        "notes": "Public; broader than just gaming but PC-build relevant." },
-    { "brand_key": "razer",                "parent_ticker": null,    "secondary_tickers": ["LOGI", "CRSR"],         "confidence": 0.0, "source_method": "hand_curated", "vertical": "pcbuild",        "notes": "Privatized 2022 (delisted from HKEX). Track as comp signal." },
-
-    { "brand_key": "celsius",              "parent_ticker": "CELH",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "food_beverage",  "notes": "Pure-play public; canonical Camillo-style discovery story 2021-2023." },
-    { "brand_key": "monster_energy",       "parent_ticker": "MNST",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "food_beverage",  "notes": "" },
-    { "brand_key": "liquid_death",         "parent_ticker": null,    "secondary_tickers": ["KO", "PEP"],            "confidence": 0.0, "source_method": "hand_curated", "vertical": "food_beverage",  "notes": "PRIVATE (filed S-1 2025; track for IPO)." },
-    { "brand_key": "olipop",               "parent_ticker": null,    "secondary_tickers": ["KDP"],                  "confidence": 0.0, "source_method": "hand_curated", "vertical": "food_beverage",  "notes": "PRIVATE. Comp signal on KDP given prebiotic-soda category overlap." },
-    { "brand_key": "poppi",                "parent_ticker": "PEP",   "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "food_beverage",  "notes": "Acquired by PepsiCo Mar 2025 for $1.95B." },
-    { "brand_key": "chipotle",             "parent_ticker": "CMG",   "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "food_beverage",  "notes": "Single-brand stock; bench example of consumer-cycle scenario." },
-    { "brand_key": "cava",                 "parent_ticker": "CAVA",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "food_beverage",  "notes": "Public 2023; canonical 'next CMG' candidate." },
-
-    { "brand_key": "lululemon",            "parent_ticker": "LULU",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "apparel",        "notes": "" },
-    { "brand_key": "alo_yoga",             "parent_ticker": null,    "secondary_tickers": ["LULU"],                 "confidence": 0.0, "source_method": "hand_curated", "vertical": "apparel",        "notes": "PRIVATE. Comp signal on LULU." },
-    { "brand_key": "skims",                "parent_ticker": null,    "secondary_tickers": ["NKE"],                  "confidence": 0.0, "source_method": "hand_curated", "vertical": "apparel",        "notes": "PRIVATE; Nike collaboration partnership." },
-    { "brand_key": "vuori",                "parent_ticker": null,    "secondary_tickers": ["LULU"],                 "confidence": 0.0, "source_method": "hand_curated", "vertical": "apparel",        "notes": "PRIVATE. Comp signal on LULU." },
-
-    { "brand_key": "peloton",              "parent_ticker": "PTON",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "fitness_wellness", "notes": "Pure-play public connected fitness." },
-    { "brand_key": "garmin_fenix",         "parent_ticker": "GRMN",  "secondary_tickers": [],                       "confidence": 1.0, "source_method": "hand_curated", "vertical": "fitness_wellness", "notes": "Specific watch franchise; brand_key tracks the model." },
-    { "brand_key": "whoop",                "parent_ticker": null,    "secondary_tickers": ["GRMN", "AAPL"],         "confidence": 0.0, "source_method": "hand_curated", "vertical": "fitness_wellness", "notes": "PRIVATE. Comp signal on GRMN; Apple Watch competitive pressure." }
+    {
+      "brand_key": "elf_cosmetics",
+      "parent_ticker": "ELF",
+      "secondary_tickers": [
+        "ULTA",
+        "TGT"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Wholly-owned brand; ELF is essentially a single-brand stock."
+    },
+    {
+      "brand_key": "rare_beauty",
+      "parent_ticker": "COTY",
+      "secondary_tickers": [
+        "ULTA",
+        "SBH"
+      ],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Selena Gomez brand; majority-owned by Coty. Distribution at Sephora (private)."
+    },
+    {
+      "brand_key": "fenty_beauty",
+      "parent_ticker": "LVMUY",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Distributed via Sephora (LVMH); also retail at Ulta."
+    },
+    {
+      "brand_key": "drunk_elephant",
+      "parent_ticker": "ELC",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Acquired by Estée Lauder in 2019."
+    },
+    {
+      "brand_key": "the_ordinary",
+      "parent_ticker": "ELC",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "DECIEM brand; majority-owned by Estée Lauder."
+    },
+    {
+      "brand_key": "glossier",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "SEPH_PRIVATE"
+      ],
+      "confidence": 0.3,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "PRIVATE COMPANY. No clean public expression. Track as buzz signal only."
+    },
+    {
+      "brand_key": "sol_de_janeiro",
+      "parent_ticker": "LRLCY",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Acquired by L'Oréal (LRLCY) in 2024."
+    },
+    {
+      "brand_key": "rhode_skin",
+      "parent_ticker": "ELF",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Hailey Bieber brand; acquired by ELF in 2025 for $1B."
+    },
+    {
+      "brand_key": "sonos",
+      "parent_ticker": "SONO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "Pure-play public audio brand."
+    },
+    {
+      "brand_key": "harman_kardon",
+      "parent_ticker": "005930.KS",
+      "secondary_tickers": [],
+      "confidence": 0.8,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "Owned by Samsung; Korean ticker only."
+    },
+    {
+      "brand_key": "bose",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "PRIVATE. No public expression."
+    },
+    {
+      "brand_key": "sennheiser",
+      "parent_ticker": "SOON.SW",
+      "secondary_tickers": [],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "Consumer audio division sold to Sonova (Swiss) in 2021."
+    },
+    {
+      "brand_key": "audio_technica",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "PRIVATE."
+    },
+    {
+      "brand_key": "shure",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "PRIVATE. Track as competitive-pressure signal on SONO/HARM only."
+    },
+    {
+      "brand_key": "on_running",
+      "parent_ticker": "ONON",
+      "secondary_tickers": [
+        "DKS",
+        "FL"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Public 2021. Pure-play upside."
+    },
+    {
+      "brand_key": "hoka",
+      "parent_ticker": "DECK",
+      "secondary_tickers": [
+        "DKS"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Wholly-owned by Deckers."
+    },
+    {
+      "brand_key": "new_balance",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "FL",
+        "DKS"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "PRIVATE. Track via retail-channel proxies."
+    },
+    {
+      "brand_key": "asics",
+      "parent_ticker": "7936.T",
+      "secondary_tickers": [],
+      "confidence": 0.8,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Tokyo-listed; ADRs thin."
+    },
+    {
+      "brand_key": "adidas_samba",
+      "parent_ticker": "ADDYY",
+      "secondary_tickers": [
+        "FL",
+        "DKS"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Specific franchise within ADDYY; brand_key tracks the model not the parent."
+    },
+    {
+      "brand_key": "salomon_xt6",
+      "parent_ticker": "AS",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Salomon owned by Amer Sports (AS, public 2024)."
+    },
+    {
+      "brand_key": "tudor_watches",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MOV"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Owned by Rolex (PRIVATE). Track as comp signal on Movado."
+    },
+    {
+      "brand_key": "omega_watches",
+      "parent_ticker": "UHR.SW",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Owned by Swatch Group (UHR.SW)."
+    },
+    {
+      "brand_key": "tag_heuer",
+      "parent_ticker": "LVMUY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Owned by LVMH Watches & Jewelry segment."
+    },
+    {
+      "brand_key": "movado",
+      "parent_ticker": "MOV",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Pure-play public watch group."
+    },
+    {
+      "brand_key": "fossil_watches",
+      "parent_ticker": "FOSL",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Pure-play public; struggling but a clean expression vehicle."
+    },
+    {
+      "brand_key": "fujifilm_x100",
+      "parent_ticker": "FUJIY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "Specific camera model franchise; X100VI generated documented buzz spike 2024-2025."
+    },
+    {
+      "brand_key": "sony_alpha",
+      "parent_ticker": "SONY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "Major franchise; competes with Canon/Nikon."
+    },
+    {
+      "brand_key": "canon_eos",
+      "parent_ticker": "CAJ",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "ADR for Canon Inc."
+    },
+    {
+      "brand_key": "nikon_z",
+      "parent_ticker": "NINOY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "Mirrorless line; ADR thin."
+    },
+    {
+      "brand_key": "leica",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "PRIVATE."
+    },
+    {
+      "brand_key": "nvidia_rtx",
+      "parent_ticker": "NVDA",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Specific GPU franchise; brand_key tracks the model line not the parent generally."
+    },
+    {
+      "brand_key": "amd_ryzen",
+      "parent_ticker": "AMD",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": ""
+    },
+    {
+      "brand_key": "asus_rog",
+      "parent_ticker": "2357.TW",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "ASUS Republic of Gamers; Taiwan-listed parent."
+    },
+    {
+      "brand_key": "corsair",
+      "parent_ticker": "CRSR",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Pure-play public PC peripherals."
+    },
+    {
+      "brand_key": "logitech",
+      "parent_ticker": "LOGI",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Public; broader than just gaming but PC-build relevant."
+    },
+    {
+      "brand_key": "razer",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "LOGI",
+        "CRSR"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Privatized 2022 (delisted from HKEX). Track as comp signal."
+    },
+    {
+      "brand_key": "celsius",
+      "parent_ticker": "CELH",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Pure-play public; canonical Camillo-style discovery story 2021-2023."
+    },
+    {
+      "brand_key": "monster_energy",
+      "parent_ticker": "MNST",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": ""
+    },
+    {
+      "brand_key": "liquid_death",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "KO",
+        "PEP"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "PRIVATE (filed S-1 2025; track for IPO)."
+    },
+    {
+      "brand_key": "olipop",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "KDP"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "PRIVATE. Comp signal on KDP given prebiotic-soda category overlap."
+    },
+    {
+      "brand_key": "poppi",
+      "parent_ticker": "PEP",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Acquired by PepsiCo Mar 2025 for $1.95B."
+    },
+    {
+      "brand_key": "chipotle",
+      "parent_ticker": "CMG",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Single-brand stock; bench example of consumer-cycle scenario."
+    },
+    {
+      "brand_key": "cava",
+      "parent_ticker": "CAVA",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Public 2023; canonical 'next CMG' candidate."
+    },
+    {
+      "brand_key": "lululemon",
+      "parent_ticker": "LULU",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": ""
+    },
+    {
+      "brand_key": "alo_yoga",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "LULU"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "PRIVATE. Comp signal on LULU."
+    },
+    {
+      "brand_key": "skims",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "NKE"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "PRIVATE; Nike collaboration partnership."
+    },
+    {
+      "brand_key": "vuori",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "LULU"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "PRIVATE. Comp signal on LULU."
+    },
+    {
+      "brand_key": "peloton",
+      "parent_ticker": "PTON",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "Pure-play public connected fitness."
+    },
+    {
+      "brand_key": "garmin_fenix",
+      "parent_ticker": "GRMN",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "Specific watch franchise; brand_key tracks the model."
+    },
+    {
+      "brand_key": "whoop",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "GRMN",
+        "AAPL"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "PRIVATE. Comp signal on GRMN; Apple Watch competitive pressure."
+    },
+    {
+      "brand_key": "charlotte_tilbury",
+      "parent_ticker": "PUIGY",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Acquired by Puig 2020; Puig IPO'd 2024 on Spanish exchange."
+    },
+    {
+      "brand_key": "milk_makeup",
+      "parent_ticker": "WAL.MI",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 0.6,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Acquired by Waldencast (publicly traded SPAC, NASDAQ ticker WALD also exists for related entity); confirm exact listing."
+    },
+    {
+      "brand_key": "anastasia_beverly_hills",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "PRIVATE. Comp signal on ULTA."
+    },
+    {
+      "brand_key": "tarte_cosmetics",
+      "parent_ticker": "KO.PA",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 0.6,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Owned by Kose (Japan) since 2014; Tokyo-listed parent only."
+    },
+    {
+      "brand_key": "urban_decay",
+      "parent_ticker": "LRLCY",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "L'Oreal-owned; division within Luxe."
+    },
+    {
+      "brand_key": "mac_cosmetics",
+      "parent_ticker": "ELC",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Estee Lauder-owned flagship brand."
+    },
+    {
+      "brand_key": "kosas",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "ULTA",
+        "SBH"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "PRIVATE. Distribution at Sephora + Ulta."
+    },
+    {
+      "brand_key": "summer_fridays",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "PRIVATE. Strong DTC + Sephora distribution."
+    },
+    {
+      "brand_key": "ouai",
+      "parent_ticker": "PG",
+      "secondary_tickers": [],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Acquired by Procter & Gamble 2024."
+    },
+    {
+      "brand_key": "supergoop",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "PRIVATE; majority owned by Blackstone since 2021."
+    },
+    {
+      "brand_key": "youth_to_the_people",
+      "parent_ticker": "ELC",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Acquired by Estee Lauder 2021."
+    },
+    {
+      "brand_key": "clinique",
+      "parent_ticker": "ELC",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Estee Lauder flagship division."
+    },
+    {
+      "brand_key": "nars_cosmetics",
+      "parent_ticker": "SHISEY",
+      "secondary_tickers": [
+        "ULTA"
+      ],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "Owned by Shiseido (Japan); ADR available."
+    },
+    {
+      "brand_key": "benefit_cosmetics",
+      "parent_ticker": "LVMUY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "beauty",
+      "notes": "LVMH-owned via Sephora division."
+    },
+    {
+      "brand_key": "beats_by_dre",
+      "parent_ticker": "AAPL",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "Apple-owned since 2014; meaningful but small revenue contributor."
+    },
+    {
+      "brand_key": "klipsch",
+      "parent_ticker": "VOXX",
+      "secondary_tickers": [],
+      "confidence": 0.8,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "Owned by VOXX International (later spun under Premium Audio)."
+    },
+    {
+      "brand_key": "jbl",
+      "parent_ticker": "005930.KS",
+      "secondary_tickers": [],
+      "confidence": 0.8,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "JBL is a Harman/Samsung division; Korean ticker only."
+    },
+    {
+      "brand_key": "marshall_amps",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "GTBIY"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "Marshall Group acquired by Zound (private); no clean public expression."
+    },
+    {
+      "brand_key": "schiit_audio",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "PRIVATE. Tracking only as comp signal on consumer audio category."
+    },
+    {
+      "brand_key": "focal",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "SOON.SW"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "audio",
+      "notes": "PRIVATE (French). Comp signal on Sonova in headphones segment."
+    },
+    {
+      "brand_key": "nike",
+      "parent_ticker": "NKE",
+      "secondary_tickers": [
+        "FL",
+        "DKS"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Megacap parent; track per-franchise (Jordan, Air Force) for Social Arb edge."
+    },
+    {
+      "brand_key": "jordan_brand",
+      "parent_ticker": "NKE",
+      "secondary_tickers": [
+        "FL",
+        "DKS"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Specific Nike sub-brand; standalone reporting since 2023."
+    },
+    {
+      "brand_key": "air_force_one",
+      "parent_ticker": "NKE",
+      "secondary_tickers": [
+        "FL"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Nike franchise; brand_key tracks the model."
+    },
+    {
+      "brand_key": "yeezy",
+      "parent_ticker": "ADDYY",
+      "secondary_tickers": [],
+      "confidence": 0.5,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Adidas terminated partnership 2022; residual inventory still moves stock."
+    },
+    {
+      "brand_key": "converse",
+      "parent_ticker": "NKE",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Wholly-owned Nike subsidiary."
+    },
+    {
+      "brand_key": "vans",
+      "parent_ticker": "VFC",
+      "secondary_tickers": [
+        "FL",
+        "DKS"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Owned by VF Corp; biggest VF brand."
+    },
+    {
+      "brand_key": "brooks_running",
+      "parent_ticker": "BRK.B",
+      "secondary_tickers": [
+        "DKS"
+      ],
+      "confidence": 0.6,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Owned by Berkshire Hathaway."
+    },
+    {
+      "brand_key": "saucony",
+      "parent_ticker": "WWW",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Owned by Wolverine Worldwide."
+    },
+    {
+      "brand_key": "allbirds",
+      "parent_ticker": "BIRD",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Public; struggling but pure-play."
+    },
+    {
+      "brand_key": "puma",
+      "parent_ticker": "PMMAF",
+      "secondary_tickers": [
+        "FL"
+      ],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "German parent; ADR thin."
+    },
+    {
+      "brand_key": "fila",
+      "parent_ticker": "081660.KS",
+      "secondary_tickers": [],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "sneakers",
+      "notes": "Korean parent."
+    },
+    {
+      "brand_key": "rolex",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "UHR.SW",
+        "MOV"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "PRIVATE foundation. Comp signal on Swatch + Movado."
+    },
+    {
+      "brand_key": "patek_philippe",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "UHR.SW"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "PRIVATE."
+    },
+    {
+      "brand_key": "audemars_piguet",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "UHR.SW",
+        "CFR.SW"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "PRIVATE."
+    },
+    {
+      "brand_key": "grand_seiko",
+      "parent_ticker": "7182.T",
+      "secondary_tickers": [],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Seiko parent; Tokyo-listed."
+    },
+    {
+      "brand_key": "citizen_watches",
+      "parent_ticker": "7762.T",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Citizen Holdings; Tokyo-listed."
+    },
+    {
+      "brand_key": "casio_g_shock",
+      "parent_ticker": "6952.T",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Casio Computer; specific franchise within parent."
+    },
+    {
+      "brand_key": "garmin_marq",
+      "parent_ticker": "GRMN",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "Garmin luxury watch line."
+    },
+    {
+      "brand_key": "breitling",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "UHR.SW"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "watches",
+      "notes": "PRIVATE; CVC majority since 2017."
+    },
+    {
+      "brand_key": "hasselblad",
+      "parent_ticker": "002572.SZ",
+      "secondary_tickers": [],
+      "confidence": 0.6,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "Owned by DJI (private); Shenzhen ticker is for parent group, confirm before trading."
+    },
+    {
+      "brand_key": "panasonic_lumix",
+      "parent_ticker": "PCRFY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "Panasonic ADR; Lumix is one division."
+    },
+    {
+      "brand_key": "ricoh_gr",
+      "parent_ticker": "RICOY",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "Ricoh ADR; specific franchise within parent."
+    },
+    {
+      "brand_key": "dji",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "GPRO"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "PRIVATE Chinese giant. Comp signal on GoPro."
+    },
+    {
+      "brand_key": "gopro",
+      "parent_ticker": "GPRO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "Public; pure-play action cam."
+    },
+    {
+      "brand_key": "polaroid_originals",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "photo",
+      "notes": "PRIVATE since 2017 (Polish ownership)."
+    },
+    {
+      "brand_key": "intel",
+      "parent_ticker": "INTC",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Megacap; CPU side. Track per-franchise for Social Arb edge (Arc GPUs, etc)."
+    },
+    {
+      "brand_key": "nvidia",
+      "parent_ticker": "NVDA",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Megacap parent; nvidia_rtx tracks the GPU franchise specifically."
+    },
+    {
+      "brand_key": "amd",
+      "parent_ticker": "AMD",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Megacap; CPU + GPU."
+    },
+    {
+      "brand_key": "nzxt",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "CRSR",
+        "LOGI"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "PRIVATE."
+    },
+    {
+      "brand_key": "fractal_design",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "PRIVATE Swedish."
+    },
+    {
+      "brand_key": "lian_li",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "CRSR"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "PRIVATE Taiwanese case manufacturer."
+    },
+    {
+      "brand_key": "msi",
+      "parent_ticker": "2377.TW",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Micro-Star International; Taiwan-listed."
+    },
+    {
+      "brand_key": "gigabyte",
+      "parent_ticker": "2376.TW",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Gigabyte Technology; Taiwan-listed."
+    },
+    {
+      "brand_key": "evga",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "CRSR"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "PRIVATE; exited GPU business 2022."
+    },
+    {
+      "brand_key": "seagate",
+      "parent_ticker": "STX",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Public storage."
+    },
+    {
+      "brand_key": "western_digital",
+      "parent_ticker": "WDC",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Public storage."
+    },
+    {
+      "brand_key": "samsung_ssd",
+      "parent_ticker": "005930.KS",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Samsung Electronics flash division."
+    },
+    {
+      "brand_key": "micron",
+      "parent_ticker": "MU",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Public memory."
+    },
+    {
+      "brand_key": "crucial_memory",
+      "parent_ticker": "MU",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "Micron consumer brand."
+    },
+    {
+      "brand_key": "g_skill",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MU"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "pcbuild",
+      "notes": "PRIVATE Taiwanese DRAM module."
+    },
+    {
+      "brand_key": "openai",
+      "parent_ticker": "MSFT",
+      "secondary_tickers": [
+        "GOOGL"
+      ],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE. Microsoft is largest equity holder + exclusive Azure customer."
+    },
+    {
+      "brand_key": "anthropic",
+      "parent_ticker": "GOOGL",
+      "secondary_tickers": [
+        "AMZN"
+      ],
+      "confidence": 0.6,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE. Google + Amazon both hold major equity stakes."
+    },
+    {
+      "brand_key": "perplexity_ai",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "GOOGL",
+        "MSFT"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE. Comp signal on search incumbents."
+    },
+    {
+      "brand_key": "mistral_ai",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MSFT"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE French. Microsoft strategic investor + Azure partnership."
+    },
+    {
+      "brand_key": "cohere",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "NVDA",
+        "ORCL"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE. NVIDIA + Oracle infrastructure partners."
+    },
+    {
+      "brand_key": "hugging_face",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "NVDA",
+        "AMZN"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE. Hosting hub; comp signal on cloud GPU providers."
+    },
+    {
+      "brand_key": "xai",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "TSLA"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE Musk venture; Tesla shares investor base."
+    },
+    {
+      "brand_key": "stability_ai",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "NVDA"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE; struggling. Image-gen comp signal."
+    },
+    {
+      "brand_key": "inflection_ai",
+      "parent_ticker": "MSFT",
+      "secondary_tickers": [],
+      "confidence": 0.5,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "Effectively absorbed into Microsoft via acqui-hire 2024."
+    },
+    {
+      "brand_key": "scale_ai",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "META"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_models",
+      "notes": "PRIVATE. Meta took $14.3B stake 2024."
+    },
+    {
+      "brand_key": "github",
+      "parent_ticker": "MSFT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "Wholly-owned Microsoft subsidiary."
+    },
+    {
+      "brand_key": "cursor_editor",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MSFT"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE Anysphere. Direct comp signal on GitHub Copilot (MSFT)."
+    },
+    {
+      "brand_key": "vercel",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MSFT",
+        "GOOGL"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE. Comp signal on Azure + GCP hosting."
+    },
+    {
+      "brand_key": "supabase",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MDB",
+        "ORCL"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE OSS Postgres BaaS. Comp signal on MongoDB + Oracle."
+    },
+    {
+      "brand_key": "neon_database",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MDB"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE serverless Postgres."
+    },
+    {
+      "brand_key": "planetscale",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MDB"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE MySQL."
+    },
+    {
+      "brand_key": "render_hosting",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "NET"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE PaaS. Comp signal on Cloudflare."
+    },
+    {
+      "brand_key": "fly_io",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "NET"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE edge compute."
+    },
+    {
+      "brand_key": "railway_app",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE PaaS."
+    },
+    {
+      "brand_key": "linear_app",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "TEAM",
+        "MNDY"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE issue tracker. Comp signal on Atlassian + monday.com."
+    },
+    {
+      "brand_key": "notion",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "MSFT"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE; rumored IPO. Comp signal on Microsoft 365 productivity suite."
+    },
+    {
+      "brand_key": "figma",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "ADBE"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "devtools",
+      "notes": "PRIVATE; Adobe acquisition blocked by EU 2023. Direct comp on Adobe XD."
+    },
+    {
+      "brand_key": "snowflake",
+      "parent_ticker": "SNOW",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public data warehouse."
+    },
+    {
+      "brand_key": "databricks",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "SNOW"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "PRIVATE; rumored 2026 IPO."
+    },
+    {
+      "brand_key": "mongodb",
+      "parent_ticker": "MDB",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public document DB."
+    },
+    {
+      "brand_key": "datadog",
+      "parent_ticker": "DDOG",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public observability."
+    },
+    {
+      "brand_key": "cloudflare",
+      "parent_ticker": "NET",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public edge."
+    },
+    {
+      "brand_key": "fastly",
+      "parent_ticker": "FSLY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public CDN."
+    },
+    {
+      "brand_key": "hashicorp",
+      "parent_ticker": "IBM",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Acquired by IBM 2025; track residual signal under IBM."
+    },
+    {
+      "brand_key": "gitlab",
+      "parent_ticker": "GTLB",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public devops platform."
+    },
+    {
+      "brand_key": "elastic_search",
+      "parent_ticker": "ESTC",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Elastic NV public."
+    },
+    {
+      "brand_key": "confluent_kafka",
+      "parent_ticker": "CFLT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public; managed Kafka."
+    },
+    {
+      "brand_key": "okta",
+      "parent_ticker": "OKTA",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "cloud_infra",
+      "notes": "Public IAM."
+    },
+    {
+      "brand_key": "tsmc",
+      "parent_ticker": "TSM",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "semiconductors",
+      "notes": "Public foundry leader."
+    },
+    {
+      "brand_key": "asml",
+      "parent_ticker": "ASML",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "semiconductors",
+      "notes": "Public EUV lithography monopoly."
+    },
+    {
+      "brand_key": "qualcomm",
+      "parent_ticker": "QCOM",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "semiconductors",
+      "notes": "Public mobile chips."
+    },
+    {
+      "brand_key": "broadcom",
+      "parent_ticker": "AVGO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "semiconductors",
+      "notes": "Public diversified semis."
+    },
+    {
+      "brand_key": "arm_holdings",
+      "parent_ticker": "ARM",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "semiconductors",
+      "notes": "Public IP licensing; SoftBank majority."
+    },
+    {
+      "brand_key": "samsung_semi",
+      "parent_ticker": "005930.KS",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "semiconductors",
+      "notes": "Samsung Electronics memory + foundry division."
+    },
+    {
+      "brand_key": "sk_hynix",
+      "parent_ticker": "000660.KS",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "semiconductors",
+      "notes": "Korean memory."
+    },
+    {
+      "brand_key": "coinbase",
+      "parent_ticker": "COIN",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public US crypto exchange."
+    },
+    {
+      "brand_key": "binance",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "COIN"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "PRIVATE; comp signal on COIN."
+    },
+    {
+      "brand_key": "kraken_exchange",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "COIN"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "PRIVATE; rumored IPO."
+    },
+    {
+      "brand_key": "robinhood_crypto",
+      "parent_ticker": "HOOD",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public broker; crypto is a meaningful revenue line."
+    },
+    {
+      "brand_key": "microstrategy",
+      "parent_ticker": "MSTR",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public; effectively a leveraged BTC vehicle."
+    },
+    {
+      "brand_key": "marathon_digital",
+      "parent_ticker": "MARA",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public BTC miner."
+    },
+    {
+      "brand_key": "riot_blockchain",
+      "parent_ticker": "RIOT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public BTC miner."
+    },
+    {
+      "brand_key": "hut_8",
+      "parent_ticker": "HUT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public BTC miner."
+    },
+    {
+      "brand_key": "cleanspark",
+      "parent_ticker": "CLSK",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public BTC miner."
+    },
+    {
+      "brand_key": "bitfarms",
+      "parent_ticker": "BITF",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "crypto_brokers",
+      "notes": "Public BTC miner."
+    },
+    {
+      "brand_key": "tesla",
+      "parent_ticker": "TSLA",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Megacap EV."
+    },
+    {
+      "brand_key": "rivian",
+      "parent_ticker": "RIVN",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Public EV truck/van."
+    },
+    {
+      "brand_key": "lucid_motors",
+      "parent_ticker": "LCID",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Public luxury EV."
+    },
+    {
+      "brand_key": "nio",
+      "parent_ticker": "NIO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Public Chinese EV ADR."
+    },
+    {
+      "brand_key": "xpeng",
+      "parent_ticker": "XPEV",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Public Chinese EV ADR."
+    },
+    {
+      "brand_key": "li_auto",
+      "parent_ticker": "LI",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Public Chinese EV ADR."
+    },
+    {
+      "brand_key": "byd",
+      "parent_ticker": "BYDDY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Public Chinese EV ADR."
+    },
+    {
+      "brand_key": "fisker",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "RIVN",
+        "LCID"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Bankrupt 2024; comp signal on surviving EV plays."
+    },
+    {
+      "brand_key": "polestar",
+      "parent_ticker": "PSNY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ev_auto",
+      "notes": "Public; Volvo/Geely affiliate."
+    },
+    {
+      "brand_key": "playstation_5",
+      "parent_ticker": "SONY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Sony franchise; specific platform."
+    },
+    {
+      "brand_key": "xbox_series",
+      "parent_ticker": "MSFT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Microsoft franchise."
+    },
+    {
+      "brand_key": "nintendo_switch",
+      "parent_ticker": "NTDOY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Nintendo flagship platform; ADR."
+    },
+    {
+      "brand_key": "steam_deck",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "AMD",
+        "MSI"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Valve hardware (PRIVATE). Component partner: AMD."
+    },
+    {
+      "brand_key": "meta_quest",
+      "parent_ticker": "META",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Reality Labs hardware franchise."
+    },
+    {
+      "brand_key": "apple_vision_pro",
+      "parent_ticker": "AAPL",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Apple AR/VR franchise; specific product."
+    },
+    {
+      "brand_key": "roblox",
+      "parent_ticker": "RBLX",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Public UGC platform."
+    },
+    {
+      "brand_key": "take_two",
+      "parent_ticker": "TTWO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Public publisher (GTA, NBA 2K)."
+    },
+    {
+      "brand_key": "electronic_arts",
+      "parent_ticker": "EA",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Public publisher."
+    },
+    {
+      "brand_key": "ubisoft",
+      "parent_ticker": "UBSFY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "French publisher; ADR."
+    },
+    {
+      "brand_key": "netflix",
+      "parent_ticker": "NFLX",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Public streaming."
+    },
+    {
+      "brand_key": "spotify",
+      "parent_ticker": "SPOT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "gaming_media",
+      "notes": "Public audio streaming."
+    },
+    {
+      "brand_key": "ghost_energy",
+      "parent_ticker": "KDP",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Keurig Dr Pepper distributes Ghost; took minority stake 2023."
+    },
+    {
+      "brand_key": "alani_nu",
+      "parent_ticker": "CELH",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Acquired by Celsius Apr 2025 for $1.8B."
+    },
+    {
+      "brand_key": "c4_energy",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "KO",
+        "PEP"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "PRIVATE Nutrabolt."
+    },
+    {
+      "brand_key": "athletic_brewing",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "BUD",
+        "TAP"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "PRIVATE NA-beer."
+    },
+    {
+      "brand_key": "ag1_athletic_greens",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "PRIVATE supplement powder."
+    },
+    {
+      "brand_key": "magic_spoon",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "GIS",
+        "K"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "PRIVATE high-protein cereal."
+    },
+    {
+      "brand_key": "oatly",
+      "parent_ticker": "OTLY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Public oat milk."
+    },
+    {
+      "brand_key": "beyond_meat",
+      "parent_ticker": "BYND",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "Public plant protein."
+    },
+    {
+      "brand_key": "impossible_foods",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "BYND"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "PRIVATE; comp on BYND."
+    },
+    {
+      "brand_key": "chobani",
+      "parent_ticker": "CHR",
+      "secondary_tickers": [],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "food_beverage",
+      "notes": "IPO'd Oct 2025."
+    },
+    {
+      "brand_key": "shake_shack",
+      "parent_ticker": "SHAK",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public."
+    },
+    {
+      "brand_key": "sweetgreen",
+      "parent_ticker": "SG",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public salad chain."
+    },
+    {
+      "brand_key": "wingstop",
+      "parent_ticker": "WING",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public."
+    },
+    {
+      "brand_key": "dutch_bros",
+      "parent_ticker": "BROS",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public coffee."
+    },
+    {
+      "brand_key": "texas_roadhouse",
+      "parent_ticker": "TXRH",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public steakhouse."
+    },
+    {
+      "brand_key": "first_watch",
+      "parent_ticker": "FWRG",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public breakfast chain."
+    },
+    {
+      "brand_key": "portillos",
+      "parent_ticker": "PTLO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public Chicago hot dogs."
+    },
+    {
+      "brand_key": "krispy_kreme",
+      "parent_ticker": "DNUT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "restaurants",
+      "notes": "Public donuts."
+    },
+    {
+      "brand_key": "aritzia",
+      "parent_ticker": "ATZ.TO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "TSX-listed."
+    },
+    {
+      "brand_key": "abercrombie",
+      "parent_ticker": "ANF",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "Public turnaround story."
+    },
+    {
+      "brand_key": "american_eagle",
+      "parent_ticker": "AEO",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "Public."
+    },
+    {
+      "brand_key": "urban_outfitters",
+      "parent_ticker": "URBN",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "Public; parent of Anthropologie + Free People."
+    },
+    {
+      "brand_key": "uniqlo",
+      "parent_ticker": "FRCOY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "Fast Retailing ADR."
+    },
+    {
+      "brand_key": "zara",
+      "parent_ticker": "ITX.MC",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "Inditex; Madrid-listed."
+    },
+    {
+      "brand_key": "brunello_cucinelli",
+      "parent_ticker": "BC.MI",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "Italian luxury knitwear."
+    },
+    {
+      "brand_key": "on_cloud",
+      "parent_ticker": "ONON",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "apparel",
+      "notes": "Same as on_running brand_key but tracked separately for apparel arm."
+    },
+    {
+      "brand_key": "oura_ring",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "GRMN",
+        "AAPL"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "PRIVATE; rumored IPO 2026."
+    },
+    {
+      "brand_key": "eight_sleep",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "PRIVATE smart mattress."
+    },
+    {
+      "brand_key": "tonal",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "PTON"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "PRIVATE; comp signal on Peloton."
+    },
+    {
+      "brand_key": "hydrow",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "PTON"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "PRIVATE rowing."
+    },
+    {
+      "brand_key": "theragun",
+      "parent_ticker": "MASI",
+      "secondary_tickers": [],
+      "confidence": 0.7,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "Acquired by Masimo (Therabody division)."
+    },
+    {
+      "brand_key": "normatec",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fitness_wellness",
+      "notes": "Owned by Hyperice (PRIVATE)."
+    },
+    {
+      "brand_key": "yeti",
+      "parent_ticker": "YETI",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "Public coolers/drinkware."
+    },
+    {
+      "brand_key": "stanley_cup",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "PWS Holdings owns Stanley (PRIVATE PMI Worldwide)."
+    },
+    {
+      "brand_key": "hydro_flask",
+      "parent_ticker": "HELE",
+      "secondary_tickers": [],
+      "confidence": 0.9,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "Owned by Helen of Troy (HELE)."
+    },
+    {
+      "brand_key": "owala",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "YETI",
+        "HELE"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "PRIVATE drinkware."
+    },
+    {
+      "brand_key": "rh_restoration",
+      "parent_ticker": "RH",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "Public luxury home."
+    },
+    {
+      "brand_key": "away_luggage",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "PRIVATE."
+    },
+    {
+      "brand_key": "warby_parker",
+      "parent_ticker": "WRBY",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "Public eyewear."
+    },
+    {
+      "brand_key": "dyson",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "PRIVATE UK appliance."
+    },
+    {
+      "brand_key": "vitamix",
+      "parent_ticker": null,
+      "secondary_tickers": [],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "PRIVATE blenders."
+    },
+    {
+      "brand_key": "traeger",
+      "parent_ticker": "COOK",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "Public pellet grills."
+    },
+    {
+      "brand_key": "solo_stove",
+      "parent_ticker": "DTC",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "Solo Brands; struggling but public."
+    },
+    {
+      "brand_key": "ninja_kitchen",
+      "parent_ticker": "SN.L",
+      "secondary_tickers": [],
+      "confidence": 0.6,
+      "source_method": "hand_curated",
+      "vertical": "lifestyle_home",
+      "notes": "SharkNinja; LSE listed parent."
+    },
+    {
+      "brand_key": "affirm",
+      "parent_ticker": "AFRM",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "fintech_consumer",
+      "notes": "Public BNPL."
+    },
+    {
+      "brand_key": "klarna",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "AFRM"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fintech_consumer",
+      "notes": "PRIVATE; planned IPO."
+    },
+    {
+      "brand_key": "chime",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "SOFI"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fintech_consumer",
+      "notes": "PRIVATE neobank; planned IPO."
+    },
+    {
+      "brand_key": "sofi",
+      "parent_ticker": "SOFI",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "fintech_consumer",
+      "notes": "Public neobank."
+    },
+    {
+      "brand_key": "cash_app",
+      "parent_ticker": "XYZ",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "fintech_consumer",
+      "notes": "Block (formerly Square) parent."
+    },
+    {
+      "brand_key": "venmo",
+      "parent_ticker": "PYPL",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "fintech_consumer",
+      "notes": "PayPal-owned."
+    },
+    {
+      "brand_key": "ramp",
+      "parent_ticker": null,
+      "secondary_tickers": [
+        "AXP",
+        "AFRM"
+      ],
+      "confidence": 0.0,
+      "source_method": "hand_curated",
+      "vertical": "fintech_consumer",
+      "notes": "PRIVATE corporate cards."
+    },
+    {
+      "brand_key": "super_micro",
+      "parent_ticker": "SMCI",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_hardware",
+      "notes": "Public AI server OEM."
+    },
+    {
+      "brand_key": "dell_servers",
+      "parent_ticker": "DELL",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_hardware",
+      "notes": "Public; AI server beneficiary."
+    },
+    {
+      "brand_key": "hpe_servers",
+      "parent_ticker": "HPE",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_hardware",
+      "notes": "Public; Cray AI exposure."
+    },
+    {
+      "brand_key": "vertiv",
+      "parent_ticker": "VRT",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_hardware",
+      "notes": "Public datacenter cooling."
+    },
+    {
+      "brand_key": "eaton",
+      "parent_ticker": "ETN",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_hardware",
+      "notes": "Public power management; AI capex play."
+    },
+    {
+      "brand_key": "celestica",
+      "parent_ticker": "CLS",
+      "secondary_tickers": [],
+      "confidence": 1.0,
+      "source_method": "hand_curated",
+      "vertical": "ai_hardware",
+      "notes": "Public hyperscaler ODM."
+    },
+    {
+      "brand_key": "bumble",
+      "parent_ticker": "BMBL",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "hinge",
+      "parent_ticker": "MTCH",
+      "confidence": 0.85,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "tinder",
+      "parent_ticker": "MTCH",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "youtube",
+      "parent_ticker": "GOOGL",
+      "confidence": 0.8,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "instagram",
+      "parent_ticker": "META",
+      "confidence": 0.8,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "whatsapp",
+      "parent_ticker": "META",
+      "confidence": 0.75,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "threads",
+      "parent_ticker": "META",
+      "confidence": 0.7,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "icloud",
+      "parent_ticker": "AAPL",
+      "confidence": 0.7,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "airpods",
+      "parent_ticker": "AAPL",
+      "confidence": 0.85,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "aws",
+      "parent_ticker": "AMZN",
+      "confidence": 0.85,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "azure",
+      "parent_ticker": "MSFT",
+      "confidence": 0.85,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "google_cloud",
+      "parent_ticker": "GOOGL",
+      "confidence": 0.8,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "xbox",
+      "parent_ticker": "MSFT",
+      "confidence": 0.75,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "playstation",
+      "parent_ticker": "SONY",
+      "confidence": 0.85,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "uber_eats",
+      "parent_ticker": "UBER",
+      "confidence": 0.8,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "doordash",
+      "parent_ticker": "DASH",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "instacart",
+      "parent_ticker": "CART",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "block_cashapp",
+      "parent_ticker": "XYZ",
+      "confidence": 0.85,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "robinhood",
+      "parent_ticker": "HOOD",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "draftkings",
+      "parent_ticker": "DKNG",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "fanduel",
+      "parent_ticker": "FLUT",
+      "confidence": 0.8,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "carvana",
+      "parent_ticker": "CVNA",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "chewy",
+      "parent_ticker": "CHWY",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "wayfair",
+      "parent_ticker": "W",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "temu",
+      "parent_ticker": "PDD",
+      "confidence": 0.85,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "duolingo",
+      "parent_ticker": "DUOL",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "unity_engine",
+      "parent_ticker": "U",
+      "confidence": 0.9,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "twitch",
+      "parent_ticker": "AMZN",
+      "confidence": 0.6,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "ring_doorbell",
+      "parent_ticker": "AMZN",
+      "confidence": 0.6,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "celsius_energy",
+      "parent_ticker": "CELH",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "hims_hers",
+      "parent_ticker": "HIMS",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "sweet_green",
+      "parent_ticker": "SG",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "cava_grill",
+      "parent_ticker": "CAVA",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "birkenstock",
+      "parent_ticker": "BIRK",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "porsche",
+      "parent_ticker": "POAHY",
+      "confidence": 0.9,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "ferrari",
+      "parent_ticker": "RACE",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "shopify",
+      "parent_ticker": "SHOP",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "pinterest",
+      "parent_ticker": "PINS",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "snapchat",
+      "parent_ticker": "SNAP",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "roku",
+      "parent_ticker": "ROKU",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "zillow",
+      "parent_ticker": "Z",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    },
+    {
+      "brand_key": "expedia",
+      "parent_ticker": "EXPE",
+      "confidence": 0.95,
+      "source_method": "hand_curated"
+    }
   ]
 }

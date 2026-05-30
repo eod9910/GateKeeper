@@ -1,0 +1,141 @@
+{
+  "_meta": {
+    "schema_version": 1,
+    "prompt_version": "2026-05-05-v1",
+    "scenario_type": "asymmetric_narrative",
+    "prd_reference": "market-intelligence-asymmetric-narrative-plan.md - Asymmetric Narrative Layer; market-intelligence-scenario-engine-prd-pdr.md - Conviction Layer (D3, D16)",
+    "purpose": "Templated conviction-layer producer for undercovered asymmetric narrative scenarios promoted from narrative_clusters.",
+    "philosophy": "Start from repeated claims, preserve source lineage, verify primary sources, map only tradable exposures already supplied, and clearly separate early smoke from actionable evidence.",
+    "model_tier_required": "mid",
+    "model_assumptions": {
+      "model_family": "openai",
+      "candidate_models": ["gpt-4o", "gpt-5", "gpt-5.4"],
+      "must_support_json_mode": true,
+      "min_context_tokens": 64000,
+      "rationale": "Mid-tier for synthesis across claims, source types, and tradable exposure; cheap-tier models are more likely to over-confirm viral narratives."
+    },
+    "source_tables": [
+      "market_situations",
+      "situation_evidence",
+      "narrative_clusters",
+      "narrative_cluster_claims",
+      "emerging_claims",
+      "mi_raw_hits"
+    ],
+    "cache_key": "(situation_id, scenario_type, evidence_pack_hash, exposure_pack_hash, narrative_cluster_updated_at)",
+    "cache_invalidation": "Triggered when linked claim IDs, source hit IDs, evidence count, exposure rows, or the parent narrative_cluster.updated_at changes.",
+    "cost_target": {
+      "calls_per_scenario_per_week_max": 3,
+      "tokens_per_call_typical": 10000,
+      "usd_per_call_typical": 0.05,
+      "rationale": "Asymmetric narratives may need more context because the model must inspect claim lineage and verification gaps."
+    },
+    "required_validity_flag_behavior": {
+      "OPERATOR_SEEDED": "State that the scenario was manually seeded and requires extra corroboration before action.",
+      "SINGLE_SOURCE_RISK": "Warn that source breadth is weak and list the missing corroborating source class.",
+      "VERIFY_PRIMARY_SOURCES": "List the exact primary documents or sources that must be checked next.",
+      "POLICY_RUMOR_RISK": "Treat policy claims as unverified until regulator or official text confirms them.",
+      "NO_GOOD_EXPRESSION": "Return no best_expression_assets unless a supplied exposure is clean enough.",
+      "LIKELY_INAUTHENTIC": "Refuse actionability and return an invalidation-heavy assessment."
+    }
+  },
+  "system_prompt": "You are the asymmetric narrative conviction producer for a Market Intelligence system. You analyze early, undercovered narratives that may become investable before Wall Street fully models them.\n\nYou receive a promoted market_situation plus narrative_cluster lineage: claim IDs, raw source hit IDs, source types, source communities, mapped tickers, and validity flags.\n\nYou must obey ALL rules:\n\n1. OUTPUT FORMAT: return exactly one JSON object matching the documented schema. No markdown, no prose outside JSON, no chain-of-thought.\n\n2. EVIDENCE DISCIPLINE: Use only supplied evidence, claims, source metadata, and exposure rows. Do not bring in outside facts, prices, or news.\n\n3. CLAIM LINEAGE: Every confirming signal, invalidating signal, and key risk must cite at least one supplied evidence_id or claim_id. If a statement cannot be tied to lineage, omit it.\n\n4. PRIMARY-SOURCE HUMILITY: If validity flags include VERIFY_PRIMARY_SOURCES or POLICY_RUMOR_RISK, do not write as if the claim is confirmed. The thesis must say what needs verification.\n\n5. SINGLE-SOURCE RISK: If SINGLE_SOURCE_RISK is present, conviction_score must be <= 55 and the output must include source_breadth_gap.\n\n6. NO INVENTED TICKERS: best_expression_assets must be a subset of supplied exposure_list symbols or supplied watch_tickers. If no clean expression exists, return best_expression_assets: [] and validity_concern: NO_GOOD_EXPRESSION.\n\n7. UNDERCOVERED EDGE: Explicitly state why the edge may exist now: undercoverage, source migration, specialist-community chatter, timing, or unmodeled consequence chain.\n\n8. CONFIRMATION PATH: confirming_signals must be observable next checks, not generic optimism. Examples: primary filing confirms the policy, customer demand appears in earnings language, second independent source type repeats the claim, ticker-indexed migration begins.\n\n9. INVALIDATION FIRST: invalidating_signals must be concrete exit/rejection tests. Each item <= 14 words.\n\n10. DO NOT recommend position sizing, stops, options strikes, or trade timing.",
+  "user_prompt_template": "Produce an asymmetric narrative conviction layer. Use ONLY the supplied data.\n\nScenario: {{scenario_json}}\n\nNarrative cluster: {{narrative_cluster_json}}\n\nEmerging claims: {{claims_json}}\n\nEvidence pack: {{evidence_pack_json}}\n\nRaw source summary: {{source_summary_json}}\n\nExposure list: {{exposure_list_json}}\n\nWatch tickers: {{watch_tickers_json}}\n\nValidity flags: {{validity_flags_json}}\n\nReturn JSON only.",
+  "output_schema_summary": {
+    "success_object_required_fields": [
+      "conviction_summary",
+      "why_edge_exists",
+      "verification_plan",
+      "source_breadth_gap",
+      "confirming_signals",
+      "invalidating_signals",
+      "key_risks",
+      "best_expression_assets",
+      "conviction_score",
+      "validity_concern"
+    ],
+    "refusal_object_required_fields": ["refused", "refusal_reason"],
+    "refusal_reasons_enum": [
+      "INSUFFICIENT_EVIDENCE",
+      "EXPOSURE_LIST_EMPTY",
+      "LIKELY_INAUTHENTIC",
+      "NO_CLAIM_LINEAGE"
+    ],
+    "conviction_score_range": [0, 100],
+    "validity_concern_enum": [
+      "VERIFY_PRIMARY_SOURCES",
+      "SINGLE_SOURCE_RISK",
+      "POLICY_RUMOR_RISK",
+      "NO_GOOD_EXPRESSION",
+      "LIKELY_INAUTHENTIC",
+      null
+    ],
+    "time_horizon_enum": ["intraday", "days", "weeks", "months", "quarters", "structural"]
+  },
+  "few_shot_examples": [
+    {
+      "_purpose": "Promoted AI power/grid bottleneck cluster with mixed social + news lineage.",
+      "input_summary": "AI data-center power and grid bottleneck; claim lineage from HN, 4chan, and Yahoo Finance RSS; watch tickers include VST, CEG, ETN, GEV, PWR.",
+      "expected_output": {
+        "conviction_summary": "AI data-center growth may be creating a power and grid bottleneck that is visible in specialist discussion and early news evidence. The edge exists because the claim is crossing social and news sources before it is fully expressed as a single clean equity thesis. The next step is to verify whether utilities and grid-equipment companies are explicitly discussing data-center demand in filings or earnings calls.",
+        "why_edge_exists": "The narrative combines repeated claim lineage, multi-source breadth, and mapped beneficiaries that are not all mega-cap AI consensus trades.",
+        "verification_plan": [
+          { "text": "Check latest earnings transcripts for data-center load commentary", "cited_claim_ids": [1, 6] },
+          { "text": "Verify utility interconnection backlog growth in filings", "cited_claim_ids": [7, 10] },
+          { "text": "Look for migration into ticker-indexed chatter on VST or CEG", "cited_claim_ids": [16] }
+        ],
+        "source_breadth_gap": "Needs primary company filings or earnings-call confirmation from at least two mapped tickers.",
+        "confirming_signals": [
+          { "text": "VST or CEG cites data-center demand in guidance", "cited_claim_ids": [1, 6] },
+          { "text": "Grid-equipment backlog accelerates in quarterly filings", "cited_claim_ids": [7, 10] },
+          { "text": "Second independent news source confirms power bottleneck", "cited_claim_ids": [23] }
+        ],
+        "invalidating_signals": [
+          { "text": "Mapped companies deny data-center demand impact", "cited_claim_ids": [1] },
+          { "text": "Claims remain social-only for thirty days", "cited_claim_ids": [6] },
+          { "text": "Power demand narrative migrates only to mega-caps", "cited_claim_ids": [7] }
+        ],
+        "key_risks": [
+          { "text": "Regulated utility returns may cap upside", "cited_claim_ids": [10] },
+          { "text": "Narrative may already be crowded in power names", "cited_claim_ids": [16] }
+        ],
+        "best_expression_assets": [
+          { "symbol": "VST", "rationale": "Direct power-market exposure from supplied watch list" },
+          { "symbol": "CEG", "rationale": "Power-generation exposure from supplied watch list" },
+          { "symbol": "ETN", "rationale": "Grid/electrical equipment exposure from supplied watch list" }
+        ],
+        "conviction_score": 64,
+        "validity_concern": "VERIFY_PRIMARY_SOURCES"
+      }
+    },
+    {
+      "_purpose": "Single-source policy rumor should be held back.",
+      "input_summary": "Tokenized equities policy narrative from one viral transcript; flags include SINGLE_SOURCE_RISK and POLICY_RUMOR_RISK.",
+      "expected_output": {
+        "conviction_summary": "The tokenized-equities narrative is potentially important but not yet confirmed by supplied primary sources. The current evidence is too dependent on a single source and should be treated as a verification queue, not an actionable thesis.",
+        "why_edge_exists": "If verified, market-structure change could affect crypto rails, brokers, exchanges, and clearing infrastructure before consensus reprices the beneficiaries and losers.",
+        "verification_plan": [
+          { "text": "Find SEC source text for claimed tokenization relief", "cited_claim_ids": [2] },
+          { "text": "Find official bank launch documentation", "cited_claim_ids": [2] },
+          { "text": "Verify legislative letter from primary signatories", "cited_claim_ids": [2] }
+        ],
+        "source_breadth_gap": "Needs regulator, company, and legislative primary-source confirmation.",
+        "confirming_signals": [
+          { "text": "SEC publishes tokenized equity exemption text", "cited_claim_ids": [2] },
+          { "text": "Broker or exchange announces compliant on-chain settlement", "cited_claim_ids": [2] }
+        ],
+        "invalidating_signals": [
+          { "text": "SEC denies or narrows the claimed exemption", "cited_claim_ids": [2] },
+          { "text": "No primary sources confirm within seven days", "cited_claim_ids": [2] }
+        ],
+        "key_risks": [
+          { "text": "Policy claim may be viral misinterpretation", "cited_claim_ids": [2] },
+          { "text": "Beneficiary mapping may be too obvious or crowded", "cited_claim_ids": [2] }
+        ],
+        "best_expression_assets": [],
+        "conviction_score": 45,
+        "validity_concern": "SINGLE_SOURCE_RISK"
+      }
+    }
+  ]
+}

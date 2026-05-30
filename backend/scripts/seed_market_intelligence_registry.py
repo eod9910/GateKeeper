@@ -34,7 +34,7 @@ DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 THEME_TAXONOMY_PATH = ROOT / "backend" / "data" / "scenarios" / "theme-taxonomy.json"
 BRAND_TO_TICKER_PATH = ROOT / "backend" / "data" / "scenarios" / "brand-to-ticker.json"
 
-EXPECTED_SCHEMA_VERSION = 5
+EXPECTED_SCHEMA_VERSION = 6
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
@@ -58,10 +58,10 @@ def _check_schema_version(conn: sqlite3.Connection) -> int:
             "Run build_market_intelligence_db.py to migrate first."
         )
     version = int(row[0])
-    if version != EXPECTED_SCHEMA_VERSION:
+    if version < EXPECTED_SCHEMA_VERSION:
         raise SystemExit(
             f"Schema version mismatch: DB has {version}, "
-            f"this script expects {EXPECTED_SCHEMA_VERSION}."
+            f"this script expects >= {EXPECTED_SCHEMA_VERSION}."
         )
     return version
 

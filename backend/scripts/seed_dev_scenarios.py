@@ -716,9 +716,9 @@ def _check_schema_version(conn: sqlite3.Connection) -> int:
     if row is None:
         raise SystemExit("schema_meta.schema_version missing")
     version = int(row[0])
-    if version != EXPECTED_SCHEMA_VERSION:
+    if version < EXPECTED_SCHEMA_VERSION:
         raise SystemExit(
-            f"Schema version mismatch: DB has {version}, expected {EXPECTED_SCHEMA_VERSION}"
+            f"Schema version mismatch: DB has {version}, expected >= {EXPECTED_SCHEMA_VERSION}"
         )
     return version
 

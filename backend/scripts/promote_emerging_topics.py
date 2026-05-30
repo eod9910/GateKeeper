@@ -66,6 +66,17 @@ BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)
 PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, os.pardir))
 DEFAULT_DB_PATH = os.path.join(BACKEND_DIR, "data", "market-intelligence.sqlite")
 
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from backend.services.topic_ticker_resolver import (  # noqa: E402
+    resolve_target_tickers as _resolve_target_tickers,
+)
+from backend.services.social_arbitrage_scoring import (  # noqa: E402
+    ScoringResult,
+    score_social_arbitrage,
+)
+
 EXPECTED_SCHEMA_VERSION = 5
 SCENARIO_SCHEMA_VERSION = 1  # market_situations.schema_version (NOT meta)
 
@@ -130,10 +141,10 @@ def assert_schema_version(conn: sqlite3.Connection) -> None:
         actual = int(raw) if raw is not None else None
     except (TypeError, ValueError):
         actual = None
-    if actual != EXPECTED_SCHEMA_VERSION:
+    if actual is None or actual < EXPECTED_SCHEMA_VERSION:
         sys.exit(
             f"[promote] schema_version mismatch: got {actual!r}, "
-            f"expected {EXPECTED_SCHEMA_VERSION}. Run "
+            f"expected >= {EXPECTED_SCHEMA_VERSION}. Run "
             f"backend/scripts/build_market_intelligence_db.py to migrate."
         )
 
@@ -155,7 +166,10 @@ def confidence_level_for(score: float) -> str:
 
 
 def derive_confidence(peak_z: float, cross_platform: bool, mention_count: int) -> float:
-    """Heuristic until the conviction layer + authenticity scorer ship."""
+    """Legacy scalar — kept only for `--dry-run` log lines (the actual write
+    path uses `score_social_arbitrage()`, which returns a richer
+    ScoringResult). Once the dry-run logging is rewritten to print the full
+    scoring breakdown, this function can be removed."""
     base = max(0.0, min(0.4 + 0.10 * peak_z, 0.85))
     if cross_platform:
         base += 0.05
@@ -194,6 +208,22 @@ def fetch_unpromoted_emerging(
     ).fetchall()
 
 
+def fetch_emerging_by_ids(
+    conn: sqlite3.Connection, ids: Sequence[int],
+) -> List[sqlite3.Row]:
+    """Operator-driven path: fetch specific emerging_topics rows even if
+    they are already promoted or suppressed. The caller decides whether
+    to force-bypass the auth/coverage gate; this just returns the raw
+    rows without the seeded_situation_id / suppression_reason filter."""
+    if not ids:
+        return []
+    placeholders = ",".join("?" for _ in ids)
+    return conn.execute(
+        f"SELECT * FROM emerging_topics WHERE id IN ({placeholders})",
+        tuple(int(x) for x in ids),
+    ).fetchall()
+
+
 def fetch_concept(conn: sqlite3.Connection, concept_id: int) -> Optional[sqlite3.Row]:
     return conn.execute(
         """
@@ -215,34 +245,6 @@ def fetch_registered_themes(conn: sqlite3.Connection) -> Set[str]:
 # backend/data/scenarios/theme-taxonomy.json, not theme_registry. The
 # scenario detail GET (or a future conviction-layer rollup) can hydrate
 # those at read time. Promotion leaves the columns NULL.
-
-
-def lookup_brand_to_ticker(
-    conn: sqlite3.Connection, candidate_keys: Sequence[str]
-) -> List[str]:
-    """
-    Return parent_ticker(s) for any candidate_keys that match brand_to_ticker.
-    """
-    if not candidate_keys:
-        return []
-    placeholders = ",".join("?" for _ in candidate_keys)
-    rows = conn.execute(
-        f"""
-        SELECT parent_ticker, secondary_tickers_json
-        FROM brand_to_ticker
-        WHERE brand_key IN ({placeholders})
-        """,
-        list(candidate_keys),
-    ).fetchall()
-    seen: List[str] = []
-    for r in rows:
-        if r["parent_ticker"] and r["parent_ticker"] not in seen:
-            seen.append(r["parent_ticker"])
-        secs = loads_json(r["secondary_tickers_json"]) or []
-        for t in secs:
-            if isinstance(t, str) and t and t not in seen:
-                seen.append(t)
-    return seen
 
 
 def fetch_existing_slugs_with_prefix(
@@ -309,34 +311,17 @@ def resolve_time_horizon(concept: sqlite3.Row) -> str:
 
 
 def resolve_target_tickers(
-    conn: sqlite3.Connection, concept: sqlite3.Row
+    conn: sqlite3.Connection,
+    concept: sqlite3.Row,
+    *,
+    primary_theme: Optional[str] = None,
 ) -> Tuple[List[str], str]:
-    """
-    Return (tickers, source_method).
-
-    Resolution order:
-      1. metadata_json.watch_tickers (operator-curated)
-      2. brand_to_ticker by target_key
-      3. brand_to_ticker by concept_key
-      4. empty list
-    """
-    metadata = loads_json(concept["metadata_json"]) or {}
-    if isinstance(metadata, dict):
-        watch = metadata.get("watch_tickers")
-        if isinstance(watch, list):
-            cleaned = [str(t).strip() for t in watch if isinstance(t, str) and t.strip()]
-            if cleaned:
-                return (cleaned, "operator_override")
-
-    candidates = [
-        str(concept["target_key"]).strip().lower(),
-        str(concept["concept_key"]).strip().lower(),
-    ]
-    candidates = [c for c in candidates if c]
-    tickers = lookup_brand_to_ticker(conn, candidates)
-    if tickers:
-        return (tickers, "hand_curated")
-    return ([], "derived")
+    """Thin shim retained for backwards-compatibility with anything that still
+    imports `promote_emerging_topics.resolve_target_tickers`. The real
+    implementation lives in `backend/services/topic_ticker_resolver.py` so
+    non-promoter callers (conviction layer, /emerging-topics endpoints) can
+    use it without dragging in this module's CLI scaffolding."""
+    return _resolve_target_tickers(conn, concept, primary_theme=primary_theme)
 
 
 def make_unique_slug(
@@ -369,15 +354,14 @@ def write_situation_and_signal(
     time_horizon: str,
     tickers: List[str],
     ticker_source_method: str,
-    confidence: float,
+    scoring: ScoringResult,
     score_day: int,
 ) -> Tuple[int, int]:
     """
     Returns (situation_id, signal_id).
     """
     now = now_unix()
-    confidence_level = confidence_level_for(confidence)
-    signal_strength = max(0, min(100, int(round(confidence * 100))))
+    confidence_level = confidence_level_for(scoring.confidence_score)
     peak_z = float(emerging["peak_z_score"])
     cross_platform = bool(int(emerging["cross_platform_corroboration"]))
     corroborating = loads_json(emerging["corroborating_communities_json"]) or []
@@ -400,13 +384,23 @@ def write_situation_and_signal(
 
     slug = make_unique_slug(conn, str(concept["concept_key"]), score_day)
 
+    # Source-breadth heuristic mirrors the cheap proxy the scorer uses; we
+    # also persist it on the row so the API can render it without rerunning
+    # the scoring profile.
+    source_breadth_score = min(1.0, (1 + len(corroborating)) / 4.0)
+
     metadata = {
         "promoted_from_emerging_topic_id": int(emerging["id"]),
         "concept_id": int(concept["id"]),
         "concept_key": str(concept["concept_key"]),
         "ticker_resolution_method": ticker_source_method,
         "watch_tickers": tickers,
+        "scoring": scoring.to_metadata(),
     }
+
+    validity_flags_json = (
+        json.dumps(scoring.validity_flags) if scoring.validity_flags else None
+    )
 
     cur = conn.execute(
         """
@@ -435,26 +429,29 @@ def write_situation_and_signal(
             NULL, ?,
             0,
             ?, ?,
+            ?, NULL,
             NULL, NULL,
-            NULL, NULL,
-            'topic_anomaly', ?, NULL,
+            'topic_anomaly', ?, ?,
             ?, ?, ?,
-            1.0, ?,
+            ?, ?,
             ?, ?, ?, NULL
         )
         """,
         (
             slug, title, summary, primary_theme, scenario_type,
-            signal_strength, confidence, confidence_level,
+            scoring.signal_strength, scoring.confidence_score, confidence_level,
             time_horizon,
             score_day, now,
-            min(1.0, peak_z / 5.0),  # attention_score (cheap heuristic)
-            min(1.0, (1 + len(corroborating)) / 4.0),  # source_breadth_score heuristic
+            scoring.attention_score,
+            source_breadth_score,
             None, None,
+            validity_flags_json,
             int(emerging["id"]),
+            scoring.coverage_tier,
             float(emerging["authenticity_score"]),
             peak_z,
             1 if cross_platform else 0,
+            scoring.edge_multiplier,
             json.dumps(metadata),
             SCENARIO_SCHEMA_VERSION, now, now,
         ),
@@ -476,7 +473,7 @@ def write_situation_and_signal(
             f"emerging_topic:{int(emerging['id'])}",
             str(concept["concept_key"]),
             primary_theme,
-            min(1.0, peak_z / 5.0),
+            scoring.attention_score,
             1.0,
             int(emerging["last_anomaly_at"]),
             now,
@@ -535,8 +532,18 @@ def promote(
     max_promotions: int,
     dry_run: bool,
     verbose: bool,
+    only_ids: Optional[Sequence[int]] = None,
+    force_bypass_thresholds: bool = False,
 ) -> Dict[str, int]:
-    rows = fetch_unpromoted_emerging(conn, max_promotions)
+    if only_ids:
+        rows = fetch_emerging_by_ids(conn, only_ids)
+        if verbose:
+            print(
+                f"[promote] operator-targeted run: ids={list(only_ids)} "
+                f"(force_bypass_thresholds={force_bypass_thresholds})"
+            )
+    else:
+        rows = fetch_unpromoted_emerging(conn, max_promotions)
     if not rows:
         return {
             "candidates": 0,
@@ -554,11 +561,48 @@ def promote(
     skipped_no_concept = 0
     skipped_no_theme = 0
     errors = 0
+    promoted_concept_ids: dict = {}
 
     for emerging in rows:
         try:
+            # Operator-targeted runs that have already produced a situation
+            # are a no-op — the situation_id FK in emerging_topics already
+            # points at it and re-promoting would duplicate the row.
+            if only_ids and emerging["seeded_situation_id"] is not None:
+                if verbose:
+                    print(
+                        f"[promote] emerging_id={emerging['id']} already "
+                        f"promoted to situation_id={emerging['seeded_situation_id']} "
+                        f"— skip (idempotent)"
+                    )
+                continue
+
+            concept_id = int(emerging["concept_id"])
+            existing_sit = conn.execute(
+                "SELECT id FROM market_situations WHERE seeded_emerging_topic_id IN "
+                "(SELECT id FROM emerging_topics WHERE concept_id = ?)",
+                (concept_id,),
+            ).fetchone()
+            if concept_id in promoted_concept_ids or existing_sit:
+                existing_id = promoted_concept_ids.get(
+                    concept_id, existing_sit[0] if existing_sit else None
+                )
+                if verbose:
+                    print(
+                        f"[promote] emerging_id={emerging['id']} concept_id="
+                        f"{concept_id} already has situation #{existing_id} — "
+                        f"skip (dedup)"
+                    )
+                if existing_id is not None:
+                    conn.execute(
+                        "UPDATE emerging_topics SET seeded_situation_id = ? "
+                        "WHERE id = ? AND seeded_situation_id IS NULL",
+                        (existing_id, int(emerging["id"])),
+                    )
+                continue
+
             auth = float(emerging["authenticity_score"])
-            if auth < auth_threshold:
+            if auth < auth_threshold and not force_bypass_thresholds:
                 skipped_auth += 1
                 if verbose:
                     print(
@@ -586,19 +630,64 @@ def promote(
 
             scenario_type = resolve_scenario_type(concept)
             time_horizon = resolve_time_horizon(concept)
-            tickers, ticker_source = resolve_target_tickers(conn, concept)
-            confidence = derive_confidence(
+            tickers, ticker_source = resolve_target_tickers(
+                conn, concept, primary_theme=primary_theme
+            )
+
+            # If the concept's primary entity is a brand/product that resolved
+            # only via theme_fallback (i.e., the brand itself is private / has
+            # no parent_ticker), mark it so the UI can filter or deprioritize.
+            target_type = str(concept["target_type"] or "").lower()
+            is_private_entity = (
+                target_type in ("brand", "product")
+                and ticker_source == "theme_fallback"
+            )
+
+            scoring = score_social_arbitrage(
+                conn,
                 peak_z=float(emerging["peak_z_score"]),
                 cross_platform=bool(int(emerging["cross_platform_corroboration"])),
                 mention_count=int(emerging["total_mentions"]),
+                authenticity_score=(
+                    float(emerging["authenticity_score"])
+                    if emerging["authenticity_score"] is not None
+                    else None
+                ),
+                tickers=tickers,
             )
+
+            if is_private_entity:
+                scoring.validity_flags.append("PRIVATE_ENTITY")
+
+            # Untradable coverage tier OR multiplier collapsed to 0 ⇒ skip
+            # entirely. The promoter is the right place to enforce this
+            # because it owns the INSERT — the scorer just signals.
+            #
+            # Operator force-bypass overrides this: surface the scenario
+            # anyway so a human can investigate. The validity flags will
+            # still be present on the resulting situation row for audit.
+            if (
+                scoring.edge_multiplier <= 0.0
+                or scoring.authenticity_multiplier <= 0.0
+            ) and not force_bypass_thresholds:
+                skipped_auth += 1
+                if verbose:
+                    print(
+                        f"[promote] emerging_id={emerging['id']} suppressed "
+                        f"(edge={scoring.edge_multiplier} auth_mult="
+                        f"{scoring.authenticity_multiplier} flags="
+                        f"{scoring.validity_flags})"
+                    )
+                continue
 
             if dry_run:
                 print(
                     f"[promote] DRY-RUN would emit situation: "
                     f"concept={concept['concept_key']} theme={primary_theme} "
                     f"type={scenario_type} horizon={time_horizon} "
-                    f"tickers={tickers} confidence={confidence:.2f}"
+                    f"tickers={tickers} score={scoring.scenario_score:.1f} "
+                    f"conf={scoring.confidence_score:.2f} "
+                    f"tier={scoring.coverage_tier} flags={scoring.validity_flags}"
                 )
                 promoted += 1
                 continue
@@ -612,7 +701,7 @@ def promote(
                 time_horizon=time_horizon,
                 tickers=tickers,
                 ticker_source_method=ticker_source,
-                confidence=confidence,
+                scoring=scoring,
                 score_day=int(emerging["last_anomaly_at"]),
             )
             update_emerging_after_promotion(
@@ -622,11 +711,14 @@ def promote(
                 resolved_target_type=str(concept["target_type"]),
                 resolved_tickers=tickers,
             )
+            promoted_concept_ids[concept_id] = situation_id
             promoted += 1
             print(
                 f"[promote] promoted emerging_id={emerging['id']} -> "
                 f"situation_id={signal_id and situation_id} "
-                f"({concept['concept_key']} z={float(emerging['peak_z_score']):.2f})"
+                f"({concept['concept_key']} z={float(emerging['peak_z_score']):.2f} "
+                f"score={scoring.scenario_score:.1f} tier={scoring.coverage_tier} "
+                f"edge={scoring.edge_multiplier} auth_mult={scoring.authenticity_multiplier})"
             )
 
         except Exception as exc:  # noqa: BLE001
@@ -665,6 +757,29 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
                    help="cap promotions per run (default 50)")
     p.add_argument("--dry-run", action="store_true",
                    help="compute everything, write nothing")
+    p.add_argument(
+        "--emerging-id",
+        action="append",
+        type=int,
+        default=None,
+        help=(
+            "Operator-targeted run: promote only the listed emerging_topic id(s). "
+            "Repeat the flag for multiple ids. Bypasses the default queue order "
+            "and the seeded_situation_id IS NULL filter (already-promoted rows "
+            "are still skipped idempotently)."
+        ),
+    )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Operator override: bypass the auth-threshold + edge_multiplier + "
+            "authenticity_multiplier suppression gates. Validity flags are "
+            "still recorded on the resulting situation for audit. Intended for "
+            "use only with --emerging-id when an operator has manually verified "
+            "a borderline topic."
+        ),
+    )
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -680,6 +795,8 @@ def main(argv: Sequence[str]) -> int:
             max_promotions=args.max_promotions,
             dry_run=args.dry_run,
             verbose=args.verbose,
+            only_ids=args.emerging_id,
+            force_bypass_thresholds=args.force,
         )
         print(
             "[promote] done: "

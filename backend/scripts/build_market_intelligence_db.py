@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create / migrate the market-intelligence SQLite database.
 
-Implements the 13-table schema defined in
+Implements the Market Intelligence schema defined in
 .planning/plans/ACTIVE/market-intelligence-scenario-engine-prd-pdr.md
 (section "Backend Data Model").
 
@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = ROOT / "backend" / "data" / "market-intelligence.sqlite"
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 
 
 # Each entry is (table_name, CREATE TABLE statement). Ordered so foreign-key
@@ -427,7 +427,8 @@ TABLES: List[Tuple[str, str]] = [
                 suppression_reason IS NULL OR suppression_reason IN (
                     'LIKELY_INAUTHENTIC',
                     'NO_COVERAGE_ELIGIBLE_TICKERS',
-                    'MEGA_COVERED_ONLY'
+                    'MEGA_COVERED_ONLY',
+                    'DUPLICATE_CONCEPT'
                 )
             ),
             created_at                      INTEGER NOT NULL,
@@ -506,6 +507,197 @@ TABLES: List[Tuple[str, str]] = [
             matched_concept_ids_json TEXT,
             raw_payload_json        TEXT,
             UNIQUE (source_type, source_post_id)
+        )
+        """,
+    ),
+
+    # ------------------------------------------------------------------
+    # hit_embeddings (Phase 1.5 Macro Engine — embedding + entity
+    # extraction cache for mi_raw_hits rows).
+    #
+    # Stores the sentence-transformer embedding vector (as a JSON float
+    # array) and the extracted entity set per hit. The clustering job
+    # reads these to match new events against open Macro scenarios.
+    # ------------------------------------------------------------------
+    (
+        "hit_embeddings",
+        """
+        CREATE TABLE IF NOT EXISTS hit_embeddings (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            hit_id          INTEGER NOT NULL UNIQUE REFERENCES mi_raw_hits(id) ON DELETE CASCADE,
+            embedding_json  TEXT NOT NULL,
+            entities_json   TEXT NOT NULL,
+            model_name      TEXT NOT NULL,
+            embedded_at     INTEGER NOT NULL
+        )
+        """,
+    ),
+
+    # ------------------------------------------------------------------
+    # emerging_claims (Asymmetric Narrative Radar v7)
+    #
+    # Extracted, structured claims from raw source hits. This is the bridge
+    # between "a post/video/article exists" and "an investable narrative may
+    # be forming." Claims preserve raw-hit lineage and are clustered before
+    # anything becomes a market_situation.
+    # ------------------------------------------------------------------
+    (
+        "emerging_claims",
+        """
+        CREATE TABLE IF NOT EXISTS emerging_claims (
+            id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+            claim_text                  TEXT NOT NULL,
+            claim_type                  TEXT NOT NULL CHECK (
+                claim_type IN (
+                    'policy_change',
+                    'technology_adoption',
+                    'product_adoption',
+                    'consumer_behavior_shift',
+                    'market_structure_shift',
+                    'earnings_demand_signal',
+                    'supply_chain_signal',
+                    'risk_signal',
+                    'other'
+                )
+            ),
+            source_hit_ids_json         TEXT NOT NULL,
+            detected_entities_json      TEXT,
+            detected_brands_json        TEXT,
+            detected_tickers_json       TEXT,
+            detected_themes_json        TEXT,
+            event_dates_json            TEXT,
+            confidence                  REAL NOT NULL DEFAULT 0.0 CHECK (
+                confidence BETWEEN 0.0 AND 1.0
+            ),
+            verification_status         TEXT NOT NULL DEFAULT 'unverified' CHECK (
+                verification_status IN (
+                    'unverified',
+                    'needs_primary_source',
+                    'partially_verified',
+                    'verified',
+                    'disputed',
+                    'invalidated'
+                )
+            ),
+            validity_flags_json         TEXT,
+            extraction_method           TEXT NOT NULL CHECK (
+                extraction_method IN (
+                    'rule_based',
+                    'llm_assist',
+                    'operator_seeded',
+                    'imported'
+                )
+            ),
+            extraction_model            TEXT,
+            content_hash                TEXT NOT NULL UNIQUE,
+            first_seen_at               INTEGER NOT NULL,
+            last_seen_at                INTEGER NOT NULL,
+            created_at                  INTEGER NOT NULL,
+            updated_at                  INTEGER NOT NULL
+        )
+        """,
+    ),
+
+    # ------------------------------------------------------------------
+    # narrative_clusters (Asymmetric Narrative Radar v7)
+    #
+    # Groups related claims into an investable thesis candidate. Clusters use
+    # WATCH -> RESEARCH -> SCENARIO_READY -> PROMOTED so early smoke can be
+    # tracked without being misrepresented as an actionable scenario.
+    # ------------------------------------------------------------------
+    (
+        "narrative_clusters",
+        """
+        CREATE TABLE IF NOT EXISTS narrative_clusters (
+            id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug                        TEXT NOT NULL UNIQUE,
+            title                       TEXT NOT NULL,
+            summary                     TEXT NOT NULL,
+            primary_theme               TEXT REFERENCES theme_registry(theme_key),
+            status                      TEXT NOT NULL CHECK (
+                status IN (
+                    'WATCH',
+                    'RESEARCH',
+                    'SCENARIO_READY',
+                    'PROMOTED',
+                    'INVALIDATED',
+                    'ARCHIVED'
+                )
+            ),
+            source_breadth              REAL NOT NULL DEFAULT 0.0 CHECK (
+                source_breadth BETWEEN 0.0 AND 1.0
+            ),
+            attention_velocity          REAL,
+            novelty_score               REAL CHECK (
+                novelty_score IS NULL OR novelty_score BETWEEN 0.0 AND 1.0
+            ),
+            mainstream_coverage_score   REAL CHECK (
+                mainstream_coverage_score IS NULL OR mainstream_coverage_score BETWEEN 0.0 AND 1.0
+            ),
+            undercoverage_score         REAL CHECK (
+                undercoverage_score IS NULL OR undercoverage_score BETWEEN 0.0 AND 1.0
+            ),
+            authenticity_score          REAL CHECK (
+                authenticity_score IS NULL OR authenticity_score BETWEEN 0.0 AND 1.0
+            ),
+            tradable_exposure_status    TEXT NOT NULL DEFAULT 'unknown' CHECK (
+                tradable_exposure_status IN (
+                    'unknown',
+                    'none',
+                    'possible',
+                    'mapped',
+                    'no_good_expression'
+                )
+            ),
+            verification_status         TEXT NOT NULL DEFAULT 'unverified' CHECK (
+                verification_status IN (
+                    'unverified',
+                    'needs_primary_source',
+                    'partially_verified',
+                    'verified',
+                    'disputed',
+                    'invalidated'
+                )
+            ),
+            mapped_tickers_json         TEXT,
+            validity_flags_json         TEXT,
+            promotion_situation_id      INTEGER REFERENCES market_situations(id) ON DELETE SET NULL,
+            metadata_json               TEXT,
+            first_seen_at               INTEGER NOT NULL,
+            last_seen_at                INTEGER NOT NULL,
+            created_at                  INTEGER NOT NULL,
+            updated_at                  INTEGER NOT NULL,
+            archived_at                 INTEGER
+        )
+        """,
+    ),
+
+    # ------------------------------------------------------------------
+    # narrative_cluster_claims (Asymmetric Narrative Radar v7)
+    #
+    # Many-to-many join between narrative clusters and their supporting
+    # claims. The weight column lets the clusterer down-rank weak or duplicate
+    # claims without deleting lineage.
+    # ------------------------------------------------------------------
+    (
+        "narrative_cluster_claims",
+        """
+        CREATE TABLE IF NOT EXISTS narrative_cluster_claims (
+            cluster_id          INTEGER NOT NULL REFERENCES narrative_clusters(id) ON DELETE CASCADE,
+            claim_id            INTEGER NOT NULL REFERENCES emerging_claims(id) ON DELETE CASCADE,
+            relationship        TEXT NOT NULL DEFAULT 'supporting' CHECK (
+                relationship IN (
+                    'supporting',
+                    'contradicting',
+                    'duplicate',
+                    'context'
+                )
+            ),
+            weight              REAL NOT NULL DEFAULT 1.0 CHECK (
+                weight BETWEEN 0.0 AND 1.0
+            ),
+            added_at            INTEGER NOT NULL,
+            PRIMARY KEY (cluster_id, claim_id)
         )
         """,
     ),
@@ -598,6 +790,11 @@ INDEXES: List[Tuple[str, str]] = [
      "CREATE INDEX IF NOT EXISTS idx_authenticity_signals_topic_time "
      "ON authenticity_signals (emerging_topic_id, as_of DESC)"),
 
+    # hit_embeddings: fast join on hit_id and model filter.
+    ("idx_hit_embeddings_hit_id",
+     "CREATE UNIQUE INDEX IF NOT EXISTS idx_hit_embeddings_hit_id "
+     "ON hit_embeddings (hit_id)"),
+
     # mi_raw_hits (schema_version 2): time-windowed and community-scoped reads.
     ("idx_mi_raw_hits_posted_at",
      "CREATE INDEX IF NOT EXISTS idx_mi_raw_hits_posted_at "
@@ -608,6 +805,31 @@ INDEXES: List[Tuple[str, str]] = [
     ("idx_mi_raw_hits_source_type_time",
      "CREATE INDEX IF NOT EXISTS idx_mi_raw_hits_source_type_time "
      "ON mi_raw_hits (source_type, posted_at DESC)"),
+
+    # emerging_claims: fetch unverified claims, claim-type slices, and
+    # ticker/theme-aware followups.
+    ("idx_emerging_claims_status_time",
+     "CREATE INDEX IF NOT EXISTS idx_emerging_claims_status_time "
+     "ON emerging_claims (verification_status, last_seen_at DESC)"),
+    ("idx_emerging_claims_type_time",
+     "CREATE INDEX IF NOT EXISTS idx_emerging_claims_type_time "
+     "ON emerging_claims (claim_type, last_seen_at DESC)"),
+
+    # narrative_clusters: operator radar views and promotion queue.
+    ("idx_narrative_clusters_status_updated",
+     "CREATE INDEX IF NOT EXISTS idx_narrative_clusters_status_updated "
+     "ON narrative_clusters (status, updated_at DESC)"),
+    ("idx_narrative_clusters_theme_status",
+     "CREATE INDEX IF NOT EXISTS idx_narrative_clusters_theme_status "
+     "ON narrative_clusters (primary_theme, status) WHERE primary_theme IS NOT NULL"),
+    ("idx_narrative_clusters_promotion",
+     "CREATE INDEX IF NOT EXISTS idx_narrative_clusters_promotion "
+     "ON narrative_clusters (promotion_situation_id) WHERE promotion_situation_id IS NOT NULL"),
+
+    # narrative_cluster_claims: cluster detail and reverse claim lookup.
+    ("idx_narrative_cluster_claims_claim",
+     "CREATE INDEX IF NOT EXISTS idx_narrative_cluster_claims_claim "
+     "ON narrative_cluster_claims (claim_id)"),
 ]
 
 

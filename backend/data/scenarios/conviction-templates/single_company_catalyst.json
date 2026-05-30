@@ -1,0 +1,80 @@
+﻿{
+  "_meta": {
+    "schema_version": 1,
+    "prompt_version": "2026-04-27-v1",
+    "scenario_type": "single_company_catalyst",
+    "prd_reference": "market-intelligence-scenario-engine-prd-pdr.md - Conviction Layer (D3, D16) and LLM Usage And Cost Profile",
+    "purpose": "Templated conviction-layer producer for single-company catalyst scenarios. Output rows hydrate market_situations.conviction_layer_json.",
+    "philosophy": "Cite the evidence pack, never invent. Recommend only assets that already appear in the scenario's exposure list. Output is structured JSON only.",
+    "model_tier_required": "mid",
+    "model_assumptions": {
+      "model_family": "openai",
+      "candidate_models": ["gpt-4o", "gpt-5", "gpt-5.4"],
+      "must_support_json_mode": true,
+      "min_context_tokens": 64000,
+      "rationale": "Mid-tier for narrative quality; cheap-tier (gpt-4o-mini) is too prone to fabrication on multi-evidence synthesis."
+    },
+    "cache_key": "(situation_id, scenario_type, evidence_pack_hash, exposure_pack_hash)",
+    "cache_invalidation": "Triggered when situation_evidence row count changes OR situation_exposure row count changes OR conviction_pack_hash differs from stored.",
+    "cost_target": {
+      "calls_per_scenario_per_week_max": 3,
+      "tokens_per_call_typical": 8000,
+      "usd_per_call_typical": 0.04,
+      "rationale": "Cap of 3 invocations per scenario per week is enforced by the cache key + a hard rate limiter in the producer."
+    },
+    "review_checklist_for_user": [
+      "Confirm best_expression_assets validation is wired downstream - output MUST be rejected if the LLM names a ticker not in situation_exposure.",
+      "Confirm semantic-similarity check against evidence text is operational; without it the system has no protection against fabricated facts.",
+      "Confirm the retry-once-then-flag-CONVICTION_LAYER_UNRELIABLE policy is honored.",
+      "Confirm time_horizon echoed by LLM matches the parent scenarios time_horizon - divergence = soft warning, not hard reject."
+    ]
+  },
+  "system_prompt": "You are a conviction-layer producer for single-company catalyst scenarios in a market-intelligence system. You read a structured evidence pack about ONE companys emerging consumer/product/brand catalyst, and produce a tightly-formatted JSON conviction layer that helps a discretionary analyst decide whether to act and how to invalidate the thesis.\n\nYou must obey ALL of the following rules:\n\n1. OUTPUT FORMAT: respond with exactly one JSON object matching the documented schema. No prose, no markdown, no chain-of-thought. JSON only.\n\n2. CITATION DISCIPLINE. Every sentence in conviction_summary, confirming_signals, invalidating_signals, and key_risks MUST be supported by a fact present in the supplied evidence pack. If a claim is not directly supported, omit it. Each emitted item MUST list at least one evidence_id from the pack in its cited_evidence_ids array.\n\n3. NEVER invent tickers. best_expression_assets MUST be a non-empty subset of the symbols in the supplied exposure_list. If you would otherwise emit a symbol not in the list, omit it. If the resulting set is empty, return best_expression_assets: [] and include validity_concern: NO_GOOD_EXPRESSION in your output.\n\n4. SINGLE-COMPANY FOCUS. The thesis is about ONE primary company. If the evidence pack contains second-order names (suppliers, distributors, competitors), they may appear in best_expression_assets only if exposure_order is first or second AND exposure_strength >= 0.5.\n\n5. TIME HORIZON. Echo back the parent scenarios time_horizon; do not propose a different horizon.\n\n6. INVALIDATION FIRST. The invalidating_signals array is the highest-stakes field - it is what the analyst uses to exit. Make every item concrete and observable. Each item MUST be a single short sentence <= 12 words.\n\n7. CONFIRMING SIGNALS. Each item <= 12 words; concrete and observable; cite at least one evidence_id.\n\n8. KEY RISKS. 2-4 items; risks are pre-existing structural risks that could derail the thesis even if catalyst plays out. Each <= 14 words.\n\n9. CONVICTION SUMMARY. <= 3 sentences total; first sentence is the one-line thesis; second is the most-important confirming evidence; third (if present) is the strongest invalidator.\n\n10. NEVER recommend specific position sizing, stops, or option strikes.\n\n11. NEVER cite an evidence_id not in the supplied pack.\n\n12. IF the evidence pack is too thin (< 3 rows) or all rows are older than 14 days from as_of, refuse to produce a conviction layer. Return { \"refused\": true, \"refusal_reason\": \"INSUFFICIENT_EVIDENCE\" } only.",
+  "user_prompt_template": "Produce a conviction layer for the scenario below. Use ONLY the evidence pack and exposure list supplied - do not bring in outside knowledge, prices, or news.\n\nScenario: {{scenario_json}}\n\nEvidence pack ({{evidence_count}} rows): {{evidence_pack_json}}\n\nFirst-order effects: {{first_order_effects_json}}\n\nSecond-order effects: {{second_order_effects_json}}\n\nExposure list (you MAY ONLY recommend symbols from this list): {{exposure_list_json}}\n\nValidity flags already on this scenario: {{validity_flags_json}}",
+  "output_schema_summary": {
+    "success_object_required_fields": ["conviction_summary", "confirming_signals", "invalidating_signals", "key_risks", "time_horizon", "best_expression_assets"],
+    "refusal_object_required_fields": ["refused", "refusal_reason"],
+    "refusal_reasons_enum": ["INSUFFICIENT_EVIDENCE", "STALE_EVIDENCE", "EXPOSURE_LIST_EMPTY"],
+    "time_horizon_enum": ["intraday", "days", "weeks", "months", "quarters", "structural"],
+    "exposure_direction_enum": ["long_beneficiary", "short_loser", "volatility_up", "volatility_down", "direction_uncertain"],
+    "validity_concern_enum": ["NO_GOOD_EXPRESSION", "THESIS_REAL_EXECUTION_DELAYED", null]
+  },
+  "few_shot_examples": [
+    {
+      "_purpose": "Canonical Camillo-style single-company catalyst.",
+      "input_summary": "Frame Cosmetics primer dupe topic-anomaly scenario; 14 evidence rows; exposure list = [FRMC long_beneficiary, ULTA short_loser]",
+      "expected_output": {
+        "conviction_summary": "Frame Cosmetics is being adopted as a credible drugstore-priced dupe for Charlotte Tilburys Flawless Filter, with organic spread across Bluesky beauty subs, Discord channels, and Sephora reviews. The cleanest expression is long FRMC; ULTA exposure is small and second-order. Founder concentration risk and one-quarter sell-through window are the most likely invalidators.",
+        "confirming_signals": [
+          { "text": "Sephora reorders confirmed by buy-side checks within 30 days", "cited_evidence_ids": [221, 222] },
+          { "text": "Cross-platform spread to bluesky and discord within 36h", "cited_evidence_ids": [224] },
+          { "text": "Founder appears on credible podcast describing scaled production", "cited_evidence_ids": [228] },
+          { "text": "Sustained mention velocity above 200/day for ten consecutive days", "cited_evidence_ids": [230] }
+        ],
+        "invalidating_signals": [
+          { "text": "Founder confirms product is discontinued or reformulated", "cited_evidence_ids": [221] },
+          { "text": "Sephora delists FRMC primer line in a quarterly refresh", "cited_evidence_ids": [222] },
+          { "text": "Topic mention velocity falls below baseline within 14 days", "cited_evidence_ids": [230] }
+        ],
+        "key_risks": [
+          { "text": "Single-distributor concentration through Sephora exclusive", "cited_evidence_ids": [222] },
+          { "text": "Founder-dependent brand voice with no operational succession", "cited_evidence_ids": [228] }
+        ],
+        "time_horizon": "weeks",
+        "best_expression_assets": [
+          { "symbol": "FRMC", "exposure_direction": "long_beneficiary", "rationale": "Direct beneficiary of dupe positioning expanding TAM into mass-market cosmetics buyer" },
+          { "symbol": "ULTA", "exposure_direction": "short_loser", "rationale": "Marginal pressure on prestige-cosmetics distribution if dupe trend persists" }
+        ],
+        "validity_concern": null
+      }
+    },
+    {
+      "_purpose": "Refusal example - too few evidence rows.",
+      "input_summary": "Topic anomaly with only 2 situation_evidence rows, both 18 days old.",
+      "expected_output": {
+        "refused": true,
+        "refusal_reason": "INSUFFICIENT_EVIDENCE"
+      }
+    }
+  ]
+}

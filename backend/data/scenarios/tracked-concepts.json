@@ -125,6 +125,258 @@
         "expected_communities": ["hackernews"],
         "watch_tickers": []
       }
+    },
+    {
+      "concept_key": "financial_tokenization",
+      "target_type": "category",
+      "target_key": "tokenized_market_structure",
+      "display_label": "Tokenized equities / market structure",
+      "metadata": {
+        "rationale": "Tokenized equities, on-chain settlement, and 24-hour trading could reshape brokerage, exchange, clearing, custody, and stablecoin economics.",
+        "search_terms": ["tokenized stocks", "tokenized equities", "on-chain stocks", "blockchain settlement", "SEC tokenized stocks"],
+        "expected_communities": ["hackernews", "fourchan_biz", "bluesky", "discord_public", "forums"],
+        "watch_tickers": ["COIN", "HOOD", "ICE", "NDAQ", "CME", "IBKR", "SCHW"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "twenty_four_hour_trading",
+      "target_type": "behavior",
+      "target_key": "around_the_clock_equity_trading",
+      "display_label": "24-hour equity trading adoption",
+      "metadata": {
+        "rationale": "Around-the-clock equity trading can change retail behavior, broker economics, exchange competition, liquidity, and volatility patterns.",
+        "search_terms": ["24 hour trading", "overnight trading stocks", "after hours trading platform", "round the clock trading", "24/7 stock trading"],
+        "expected_communities": ["hackernews", "fourchan_biz", "bluesky", "discord_public"],
+        "watch_tickers": ["HOOD", "IBKR", "SCHW", "COIN", "ICE", "NDAQ", "CME"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "stablecoin_banking_rails",
+      "target_type": "category",
+      "target_key": "stablecoin_banking_infrastructure",
+      "display_label": "Stablecoin banking rails",
+      "metadata": {
+        "rationale": "Stablecoin-native banking and payment rails could create new financial infrastructure winners and threaten legacy payment/banking workflows.",
+        "search_terms": ["stablecoin bank", "stablecoin payments", "stablecoin banking", "fiat stablecoin API", "USDC payments"],
+        "expected_communities": ["hackernews", "fourchan_biz", "bluesky", "discord_public"],
+        "watch_tickers": ["COIN", "HOOD", "PYPL", "SQ", "V", "MA"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "quantum_computing_commercialization",
+      "target_type": "category",
+      "target_key": "quantum_computing",
+      "display_label": "Quantum computing commercialization",
+      "metadata": {
+        "rationale": "Quantum computing can move from research narrative to investable basket quickly when technical milestones, government spending, or customer wins appear.",
+        "search_terms": ["quantum computing", "qubits", "quantum advantage", "quantum breakthrough", "quantum commercialization"],
+        "expected_communities": ["hackernews", "fourchan_biz", "fourchan_g", "bluesky", "forums"],
+        "watch_tickers": ["IONQ", "RGTI", "QBTS", "QUBT", "IBM", "GOOGL"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "nuclear_smr_power_demand",
+      "target_type": "category",
+      "target_key": "nuclear_smr_power",
+      "display_label": "Nuclear / SMR power demand",
+      "metadata": {
+        "rationale": "AI power demand and grid constraints can pull nuclear, uranium, and small modular reactor narratives into investable focus.",
+        "search_terms": ["small modular reactor", "SMR nuclear", "nuclear power data center", "uranium demand", "AI nuclear power"],
+        "expected_communities": ["hackernews", "bluesky", "forums", "discord_public"],
+        "watch_tickers": ["CCJ", "CEG", "VST", "BWXT", "LEU", "UUUU", "DNN", "URA"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "ai_power_grid_bottleneck",
+      "target_type": "category",
+      "target_key": "ai_grid_power_constraint",
+      "display_label": "AI data-center power/grid bottleneck",
+      "metadata": {
+        "rationale": "Data-center power scarcity can create second-order winners in utilities, grid equipment, nuclear, power services, and energy infrastructure.",
+        "search_terms": ["AI data center power", "data center electricity", "grid bottleneck AI", "power shortage data center", "AI energy demand"],
+        "expected_communities": ["hackernews", "bluesky", "forums", "discord_public"],
+        "watch_tickers": ["VST", "CEG", "ETN", "GEV", "PWR", "NEE", "SO"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "defense_ai_operating_system",
+      "target_type": "category",
+      "target_key": "defense_ai_platforms",
+      "display_label": "Defense AI operating systems",
+      "metadata": {
+        "rationale": "Defense AI platforms can become operational infrastructure for military, intelligence, and government workflows before investors fully model the TAM.",
+        "search_terms": ["defense AI", "military AI", "battlefield AI", "Palantir AIP defense", "government AI platform"],
+        "expected_communities": ["hackernews", "bluesky", "forums", "discord_public"],
+        "watch_tickers": ["PLTR", "LMT", "RTX", "NOC", "GD", "LHX"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "autonomous_drones_counter_drone",
+      "target_type": "category",
+      "target_key": "autonomous_drones_counter_drone",
+      "display_label": "Autonomous drones / counter-drone systems",
+      "metadata": {
+        "rationale": "Drone warfare and counter-drone defense are changing procurement, autonomy, sensors, munitions, and battlefield electronics.",
+        "search_terms": ["autonomous drones", "counter drone", "drone warfare", "loitering munition", "anti drone defense"],
+        "expected_communities": ["hackernews", "bluesky", "forums", "discord_public"],
+        "watch_tickers": ["AVAV", "KTOS", "LMT", "RTX", "NOC", "PLTR"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "robotics_labor_automation",
+      "target_type": "category",
+      "target_key": "robotics_labor_automation",
+      "display_label": "Robotics / labor automation",
+      "metadata": {
+        "rationale": "Labor scarcity, AI, and better hardware can create adoption inflections in warehouses, factories, logistics, restaurants, and care settings.",
+        "search_terms": ["humanoid robot", "warehouse robotics", "robot labor", "factory automation AI", "restaurant automation"],
+        "expected_communities": ["hackernews", "fourchan_g", "bluesky", "forums"],
+        "watch_tickers": ["TER", "ROK", "SYM", "ISRG", "AMZN", "TSLA"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "ai_drug_discovery",
+      "target_type": "category",
+      "target_key": "ai_drug_discovery",
+      "display_label": "AI drug discovery",
+      "metadata": {
+        "rationale": "AI-native discovery platforms can reprice quickly when partnerships, trial starts, or target-validation evidence becomes credible.",
+        "search_terms": ["AI drug discovery", "generative AI biotech", "AI designed drug", "protein design AI", "AI molecule discovery"],
+        "expected_communities": ["hackernews", "bluesky", "forums", "discord_public"],
+        "watch_tickers": ["RXRX", "SDGR", "ABSI", "EXAI", "CERT", "NVDA"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "ai_clinical_trials",
+      "target_type": "category",
+      "target_key": "ai_clinical_trials",
+      "display_label": "AI-enabled clinical trials",
+      "metadata": {
+        "rationale": "AI can improve patient recruitment, trial design, monitoring, and data operations, creating less obvious picks-and-shovels beneficiaries.",
+        "search_terms": ["AI clinical trials", "clinical trial automation", "patient recruitment AI", "AI trial design", "synthetic control arm"],
+        "expected_communities": ["hackernews", "bluesky", "forums"],
+        "watch_tickers": ["IQV", "MEDP", "VEEV", "RXRX", "SDGR"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "radiopharma_cancer_therapy",
+      "target_type": "category",
+      "target_key": "radiopharma",
+      "display_label": "Radiopharma cancer therapy",
+      "metadata": {
+        "rationale": "Radioligand therapies can create major oncology, isotope supply, manufacturing, and diagnostic imaging winners before broad investors understand the bottlenecks.",
+        "search_terms": ["radiopharma", "radioligand therapy", "radioisotope cancer therapy", "theranostics", "actinium therapy"],
+        "expected_communities": ["bluesky", "forums", "hackernews"],
+        "watch_tickers": ["NVS", "LLY", "BMY", "GEHC", "CATX"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
+    },
+    {
+      "concept_key": "precision_medicine_diagnostics",
+      "target_type": "category",
+      "target_key": "precision_diagnostics",
+      "display_label": "Precision medicine diagnostics",
+      "metadata": {
+        "rationale": "Testing, sequencing, liquid biopsy, and companion diagnostics can be leading indicators for oncology and rare-disease treatment adoption.",
+        "search_terms": ["liquid biopsy", "companion diagnostic", "precision medicine test", "genomic testing", "minimal residual disease test"],
+        "expected_communities": ["bluesky", "forums", "hackernews"],
+        "watch_tickers": ["GH", "NTRA", "EXAS", "ILMN", "TMO", "A"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "gene_editing_delivery",
+      "target_type": "category",
+      "target_key": "gene_editing_delivery",
+      "display_label": "Gene editing delivery systems",
+      "metadata": {
+        "rationale": "The delivery layer, not the editing mechanism alone, may determine which gene-editing platforms become commercially viable.",
+        "search_terms": ["gene editing delivery", "CRISPR delivery", "base editing delivery", "lipid nanoparticle gene editing", "in vivo editing"],
+        "expected_communities": ["hackernews", "bluesky", "forums"],
+        "watch_tickers": ["CRSP", "BEAM", "EDIT", "NTLA", "VERV", "MRNA"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "synthetic_biology_tools",
+      "target_type": "category",
+      "target_key": "synthetic_biology",
+      "display_label": "Synthetic biology tools",
+      "metadata": {
+        "rationale": "Biofoundries, DNA synthesis, protein engineering, and lab automation can become platform bottlenecks if synthetic biology demand reaccelerates.",
+        "search_terms": ["synthetic biology", "biofoundry", "DNA synthesis", "protein engineering", "lab automation biology"],
+        "expected_communities": ["hackernews", "bluesky", "forums"],
+        "watch_tickers": ["TWST", "DNA", "TXG", "TMO", "A"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "critical_minerals_processing",
+      "target_type": "category",
+      "target_key": "critical_minerals_processing",
+      "display_label": "Critical minerals processing",
+      "metadata": {
+        "rationale": "Domestic processing bottlenecks for rare earths, lithium, copper, and graphite can create underfollowed supply-chain winners.",
+        "search_terms": ["critical minerals processing", "rare earth processing", "lithium refining", "graphite processing", "domestic mineral supply chain"],
+        "expected_communities": ["fourchan_biz", "bluesky", "forums"],
+        "watch_tickers": ["MP", "ALB", "SQM", "FCX", "SCCO", "LAC"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "water_infrastructure",
+      "target_type": "category",
+      "target_key": "water_infrastructure",
+      "display_label": "Water infrastructure / scarcity",
+      "metadata": {
+        "rationale": "Water scarcity, PFAS treatment, municipal replacement cycles, and industrial water demand can drive less crowded infrastructure beneficiaries.",
+        "search_terms": ["water infrastructure", "PFAS treatment", "water scarcity", "desalination", "municipal water upgrade"],
+        "expected_communities": ["bluesky", "forums", "hackernews"],
+        "watch_tickers": ["XYL", "AWR", "AWK", "WTS", "ECL"],
+        "asymmetric_seed": true,
+        "priority": "medium"
+      }
+    },
+    {
+      "concept_key": "consumer_product_breakout",
+      "target_type": "behavior",
+      "target_key": "consumer_product_breakout",
+      "display_label": "Consumer product / brand breakout",
+      "metadata": {
+        "rationale": "Organic product obsession can appear in lifestyle channels before revenue acceleration shows up in financial statements.",
+        "search_terms": ["everyone is using", "I switched to", "this brand is everywhere", "obsessed with this product", "going viral product"],
+        "expected_communities": ["bluesky", "forums", "discord_public"],
+        "watch_tickers": ["BROS", "CELH", "ONON", "CAVA", "ELF", "LULU", "ABNB"],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
     }
   ]
 }
