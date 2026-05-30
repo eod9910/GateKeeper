@@ -4,6 +4,7 @@ import {
   loadSocialIntelligenceScheduleConfig,
   runSocialIntelligenceCollectionNow,
   runSocialIntelligenceFinalizeNow,
+  runRedditCollectionNow,
   saveSocialIntelligenceScheduleConfig,
 } from '../services/socialIntelligenceScheduler';
 
@@ -57,6 +58,21 @@ router.post('/run-collect', (_req: Request, res: Response) => {
 router.post('/run-finalize', (_req: Request, res: Response) => {
   try {
     const result = runSocialIntelligenceFinalizeNow('manual');
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        ...getSocialIntelligenceScheduleStatus(),
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || String(err) });
+  }
+});
+
+router.post('/run-reddit', (_req: Request, res: Response) => {
+  try {
+    const result = runRedditCollectionNow('manual');
     res.json({
       success: true,
       data: {

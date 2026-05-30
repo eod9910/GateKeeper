@@ -15,6 +15,9 @@ export interface SocialIntelligenceScheduleConfig {
   finalize_enabled: boolean;
   finalize_time_of_day: string;
   finalize_timezone: string;
+  reddit_enabled: boolean;
+  reddit_frequency: SocialIntradayFrequency;
+  reddit_subreddits: string;
 }
 
 export interface SocialIntelligenceRuntimeState {
@@ -33,16 +36,21 @@ const SCHEDULER_NAMESPACE = 'social_intelligence_scheduler';
 const CONFIG_DOCUMENT_KEY = 'config';
 const COLLECT_RUNTIME_DOCUMENT_KEY = 'collect_runtime';
 const FINALIZE_RUNTIME_DOCUMENT_KEY = 'finalize_runtime';
+const REDDIT_RUNTIME_DOCUMENT_KEY = 'reddit_runtime';
 const COLLECT_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'collect_social_intraday.py');
 const FINALIZE_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'build_social_daily_snapshot.py');
+const REDDIT_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'collect_reddit_social.py');
 
 let _collectCron: ScheduledTask | null = null;
 let _finalizeCron: ScheduledTask | null = null;
+let _redditCron: ScheduledTask | null = null;
 let _config: SocialIntelligenceScheduleConfig | null = null;
 let _collectProcess: ChildProcess | null = null;
 let _finalizeProcess: ChildProcess | null = null;
+let _redditProcess: ChildProcess | null = null;
 let _collectRuntime: SocialIntelligenceRuntimeState = loadRuntimeState(COLLECT_RUNTIME_DOCUMENT_KEY) || { running: false };
 let _finalizeRuntime: SocialIntelligenceRuntimeState = loadRuntimeState(FINALIZE_RUNTIME_DOCUMENT_KEY) || { running: false };
+let _redditRuntime: SocialIntelligenceRuntimeState = loadRuntimeState(REDDIT_RUNTIME_DOCUMENT_KEY) || { running: false };
 
 if (_collectRuntime.running) {
   _collectRuntime = { ..._collectRuntime, running: false, pid: null };
@@ -51,6 +59,10 @@ if (_collectRuntime.running) {
 if (_finalizeRuntime.running) {
   _finalizeRuntime = { ..._finalizeRuntime, running: false, pid: null };
   saveRuntimeState(FINALIZE_RUNTIME_DOCUMENT_KEY, _finalizeRuntime);
+}
+if (_redditRuntime.running) {
+  _redditRuntime = { ..._redditRuntime, running: false, pid: null };
+  saveRuntimeState(REDDIT_RUNTIME_DOCUMENT_KEY, _redditRuntime);
 }
 
 function getPythonLauncher(): string {
@@ -67,6 +79,9 @@ function defaultConfig(): SocialIntelligenceScheduleConfig {
     finalize_enabled: true,
     finalize_time_of_day: '16:30',
     finalize_timezone: 'America/Los_Angeles',
+    reddit_enabled: false,
+    reddit_frequency: 'manual',
+    reddit_subreddits: 'wallstreetbets,stocks,investing',
   };
 }
 
@@ -85,6 +100,11 @@ function sanitizeConfig(input: any): SocialIntelligenceScheduleConfig {
     finalize_enabled: input?.finalize_enabled !== undefined ? Boolean(input.finalize_enabled) : base.finalize_enabled,
     finalize_time_of_day: /^\d{2}:\d{2}$/.test(finalizeTime) ? finalizeTime : base.finalize_time_of_day,
     finalize_timezone: String(input?.finalize_timezone ?? base.finalize_timezone).trim() || base.finalize_timezone,
+    reddit_enabled: input?.reddit_enabled !== undefined ? Boolean(input.reddit_enabled) : base.reddit_enabled,
+    reddit_frequency: ['manual', '15min', '30min', 'hourly'].includes(String(input?.reddit_frequency || '').trim().toLowerCase())
+      ? String(input.reddit_frequency).trim().toLowerCase() as SocialIntradayFrequency
+      : base.reddit_frequency,
+    reddit_subreddits: String(input?.reddit_subreddits ?? base.reddit_subreddits).trim() || base.reddit_subreddits,
   };
 }
 
@@ -137,6 +157,14 @@ function buildDailyCronExpression(config: SocialIntelligenceScheduleConfig): str
   return `${minute} ${hour} * * *`;
 }
 
+function buildRedditCronExpression(config: SocialIntelligenceScheduleConfig): string | null {
+  if (!config.enabled || !config.reddit_enabled || config.reddit_frequency === 'manual') return null;
+  if (config.reddit_frequency === '15min') return '*/15 * * * *';
+  if (config.reddit_frequency === '30min') return '*/30 * * * *';
+  if (config.reddit_frequency === 'hourly') return '0 * * * *';
+  return null;
+}
+
 function stopSchedules(): void {
   if (_collectCron) {
     _collectCron.stop();
@@ -145,6 +173,10 @@ function stopSchedules(): void {
   if (_finalizeCron) {
     _finalizeCron.stop();
     _finalizeCron = null;
+  }
+  if (_redditCron) {
+    _redditCron.stop();
+    _redditCron = null;
   }
 }
 
@@ -160,6 +192,12 @@ function ensureSchedules(config: SocialIntelligenceScheduleConfig): void {
   if (finalizeExpression && cron.validate(finalizeExpression)) {
     _finalizeCron = cron.schedule(finalizeExpression, () => void runSocialIntelligenceFinalizeNow('scheduled'), {
       timezone: config.finalize_timezone || 'America/Los_Angeles',
+    });
+  }
+  const redditExpression = buildRedditCronExpression(config);
+  if (redditExpression && cron.validate(redditExpression)) {
+    _redditCron = cron.schedule(redditExpression, () => void runRedditCollectionNow('scheduled'), {
+      timezone: config.intraday_timezone || 'America/Los_Angeles',
     });
   }
 }
@@ -201,20 +239,25 @@ function formatScheduleDescription(config: SocialIntelligenceScheduleConfig | nu
   const finalize = !config.enabled || !config.finalize_enabled
     ? 'Daily finalize disabled'
     : `Daily finalize ${config.finalize_time_of_day} (${config.finalize_timezone})`;
-  return `${intraday}; ${finalize}`;
+  const reddit = !config.enabled || !config.reddit_enabled || config.reddit_frequency === 'manual'
+    ? 'Reddit manual only'
+    : `Reddit ${config.reddit_frequency}`;
+  return `${intraday}; ${finalize}; ${reddit}`;
 }
 
 function startProcess(
   scriptPath: string,
   args: string[],
-  runtimeKey: typeof COLLECT_RUNTIME_DOCUMENT_KEY | typeof FINALIZE_RUNTIME_DOCUMENT_KEY,
+  runtimeKey: typeof COLLECT_RUNTIME_DOCUMENT_KEY | typeof FINALIZE_RUNTIME_DOCUMENT_KEY | typeof REDDIT_RUNTIME_DOCUMENT_KEY,
   currentRuntime: SocialIntelligenceRuntimeState,
   setRuntime: (state: SocialIntelligenceRuntimeState) => void,
   assignProcess: (proc: ChildProcess | null) => void,
   source: 'manual' | 'scheduled',
   startMessage: string,
 ): { started: boolean; message: string } {
-  const active = runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectProcess : _finalizeProcess;
+  const active = runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectProcess
+    : runtimeKey === REDDIT_RUNTIME_DOCUMENT_KEY ? _redditProcess
+    : _finalizeProcess;
   if (active) {
     return { started: false, message: 'Job already running.' };
   }
@@ -237,27 +280,23 @@ function startProcess(
     last_error: null,
     last_message: startMessage,
   });
+  const currentRt = () => runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectRuntime
+    : runtimeKey === REDDIT_RUNTIME_DOCUMENT_KEY ? _redditRuntime
+    : _finalizeRuntime;
   child.stdout.on('data', (chunk) => {
     const text = String(chunk || '').trim();
     if (!text) return;
-    setRuntime({
-      ...(runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectRuntime : _finalizeRuntime),
-      last_message: text,
-    });
+    setRuntime({ ...currentRt(), last_message: text });
   });
   child.stderr.on('data', (chunk) => {
     const text = String(chunk || '').trim();
     if (!text) return;
-    setRuntime({
-      ...(runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectRuntime : _finalizeRuntime),
-      last_error: text,
-      last_message: text,
-    });
+    setRuntime({ ...currentRt(), last_error: text, last_message: text });
   });
   child.on('error', (err: any) => {
     assignProcess(null);
     setRuntime({
-      ...(runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectRuntime : _finalizeRuntime),
+      ...currentRt(),
       running: false,
       pid: null,
       last_finished_at: new Date().toISOString(),
@@ -268,12 +307,12 @@ function startProcess(
   child.on('exit', (code) => {
     assignProcess(null);
     setRuntime({
-      ...(runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectRuntime : _finalizeRuntime),
+      ...currentRt(),
       running: false,
       pid: null,
       last_finished_at: new Date().toISOString(),
       last_exit_code: code ?? 0,
-      last_error: (code ?? 0) === 0 ? null : ((runtimeKey === COLLECT_RUNTIME_DOCUMENT_KEY ? _collectRuntime : _finalizeRuntime).last_error || `Process exited with code ${code}`),
+      last_error: (code ?? 0) === 0 ? null : (currentRt().last_error || `Process exited with code ${code}`),
     });
   });
   return { started: true, message: startMessage };
@@ -287,6 +326,11 @@ function setCollectRuntime(state: SocialIntelligenceRuntimeState): void {
 function setFinalizeRuntime(state: SocialIntelligenceRuntimeState): void {
   _finalizeRuntime = { ...state };
   saveRuntimeState(FINALIZE_RUNTIME_DOCUMENT_KEY, _finalizeRuntime);
+}
+
+function setRedditRuntime(state: SocialIntelligenceRuntimeState): void {
+  _redditRuntime = { ...state };
+  saveRuntimeState(REDDIT_RUNTIME_DOCUMENT_KEY, _redditRuntime);
 }
 
 export function runSocialIntelligenceCollectionNow(source: 'manual' | 'scheduled' = 'manual'): { started: boolean; message: string } {
@@ -323,10 +367,29 @@ export function runSocialIntelligenceFinalizeNow(source: 'manual' | 'scheduled' 
   );
 }
 
+export function runRedditCollectionNow(source: 'manual' | 'scheduled' = 'manual'): { started: boolean; message: string } {
+  const config = loadSocialIntelligenceScheduleConfig();
+  const args: string[] = [];
+  if (config.reddit_subreddits) {
+    args.push('--subreddits', config.reddit_subreddits);
+  }
+  return startProcess(
+    REDDIT_SCRIPT,
+    args,
+    REDDIT_RUNTIME_DOCUMENT_KEY,
+    _redditRuntime,
+    setRedditRuntime,
+    (proc) => { _redditProcess = proc; },
+    source,
+    '[Reddit] Collecting Reddit social posts...',
+  );
+}
+
 export function getSocialIntelligenceScheduleStatus(): {
   config: SocialIntelligenceScheduleConfig;
   collect_runtime: SocialIntelligenceRuntimeState;
   finalize_runtime: SocialIntelligenceRuntimeState;
+  reddit_runtime: SocialIntelligenceRuntimeState;
   schedule_description: string;
 } {
   const config = loadSocialIntelligenceScheduleConfig();
@@ -334,6 +397,7 @@ export function getSocialIntelligenceScheduleStatus(): {
     config,
     collect_runtime: { ..._collectRuntime },
     finalize_runtime: { ..._finalizeRuntime },
+    reddit_runtime: { ..._redditRuntime },
     schedule_description: formatScheduleDescription(config),
   };
 }
