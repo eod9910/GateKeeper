@@ -1,0 +1,173 @@
+{
+  "strategy_id": "pullback_uptrend_entry_composite",
+  "strategy_version_id": "pullback_uptrend_entry_composite_v2_stateful",
+  "version": "2_stateful",
+  "name": "Pullback in Uptrend Entry Composite - Stateful (v2 migration)",
+  "description": "Stateful migration of pullback_uptrend_entry_composite_v2. The timing stage uses MACD divergence, which is sequence-dependent: once the last two RDP swing lows form a bullish divergence, the stateless engine can keep firing the same divergence across multiple prefix windows and double-count entries. This migration arms on the divergence event and opens a 5-bar watch window. Entry is only allowed while the strategy is in an emit-enabled phase and the full composite still passes, preserving the SPY expansion regime gate.",
+  "status": "testing",
+  "composition": "composite",
+  "artifact_type": "indicator",
+  "category": "indicator_signals",
+  "pattern_id": "pullback_uptrend_entry_composite",
+  "asset_class": "stocks",
+  "interval": "1d",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "setup_config": {
+    "pattern_type": "pullback_uptrend_entry_composite",
+    "composite_spec": {
+      "intent": "entry",
+      "stages": [
+        {
+          "id": "timing",
+          "pattern_id": "macd_divergence_primitive_v2",
+          "params": {
+            "divergence_type": "bullish"
+          }
+        },
+        {
+          "id": "regime",
+          "pattern_id": "regime_filter",
+          "params": {
+            "reference_symbol": "SPY",
+            "required_regime": "expansion"
+          }
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "timing",
+          "regime"
+        ]
+      }
+    },
+    "state_machine": {
+      "initial_phase": "idle",
+      "watch_bars": 5,
+      "invalidate_on": "",
+      "emit_on": [
+        "armed",
+        "watching"
+      ],
+      "transitions": [
+        {
+          "from": "idle",
+          "on_primitive": "macd_divergence_primitive_v2",
+          "to": "armed",
+          "action": {
+            "set_watch_bars": 5,
+            "set_flag": "divergence_confirmed"
+          }
+        },
+        {
+          "from": "armed",
+          "on_primitive": "macd_divergence_primitive_v2",
+          "to": "watching"
+        }
+      ]
+    }
+  },
+  "entry_config": {
+    "entry_type": "market_on_close"
+  },
+  "risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 2,
+    "take_profit_R": 4,
+    "max_hold_bars": 30,
+    "max_concurrent_positions": 3
+  },
+  "exit_config": {
+    "target_type": "R_multiple",
+    "target_level": 4,
+    "time_stop_bars": 30,
+    "trailing": null
+  },
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {
+    "auto_breakeven_r": 1,
+    "production_lock": true
+  },
+  "created_at": "2026-03-19T00:00:00.000Z",
+  "updated_at": "2026-03-19T00:00:00.000Z",
+  "_migration_notes": {
+    "migrated_from": "pullback_uptrend_entry_composite_v2",
+    "why_stateless_was_wrong": "The MACD divergence timing stage is event-based, but the stateless engine re-evaluates the same divergence on every bar prefix after the confirming swing pair exists. That causes duplicate entries for the same divergence event and misattributes timing in backtests. The regime gate itself is stateless-safe; the broken piece is the divergence timing.",
+    "expected_effect_on_backtest": "Trade count should drop because repeated entries from the same divergence event disappear. Expectancy may improve or remain similar if the removed duplicates were mostly churn around the original signal.",
+    "remaining_limitation": "This relies on MACD divergence continuing to fire across the short watch window. A future improvement would be an explicit divergence_confirmed event from the primitive so the watch phase can open on the confirmation bar and emit only on downstream trigger conditions."
+  },
+  "parameter_manifest": [
+    {
+      "key": "watch_bars",
+      "label": "Divergence Watch Window (bars)",
+      "path": "setup_config.state_machine.watch_bars",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        3,
+        5,
+        8
+      ],
+      "min": 2,
+      "max": 15,
+      "step": 1,
+      "priority": 90,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    },
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon %",
+      "path": "structure_config.swing_epsilon_pct",
+      "anatomy": "structure",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.01,
+        0.02,
+        0.03
+      ],
+      "min": 0.01,
+      "max": 0.15,
+      "step": 0.01,
+      "priority": 100,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    },
+    {
+      "key": "required_regime",
+      "label": "Required Regime",
+      "path": "setup_config.composite_spec.stages.1.params.required_regime",
+      "anatomy": "regime_filter",
+      "type": "enum",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": false,
+      "suggested_values": [
+        "expansion",
+        "neutral",
+        "contraction"
+      ],
+      "priority": 60,
+      "failure_modes_targeted": [
+        "high_drawdown"
+      ]
+    }
+  ]
+}

@@ -42,7 +42,7 @@ except Exception:
 
 from backtestEngine import run_backtest_on_bars, trades_to_dicts, _entry_signal_indices_from_spec, _safe_float
 from robustnessTests import expectancy, out_of_sample, walk_forward, monte_carlo
-from fundamentals_pit_query import run_fundamental_validation
+from fundamentals_pit_query import run_fundamental_validation, run_valuation_state_validation
 from platform_sdk.ohlcv import OHLCV
 from platform_sdk.rdp import clear_rdp_cache, clear_rdp_precomputed, rdp_cache_stats, set_backtest_mode as _set_rdp_backtest_mode
 from platform_sdk.swing_structure import set_backtest_mode as _set_swing_backtest_mode
@@ -1717,6 +1717,26 @@ def run_pipeline(
                 "status": "error",
                 "reason": str(exc),
             }
+    valuation_validation = {"enabled": False, "status": "disabled"}
+    if str((spec.get("setup_config") or {}).get("pattern_type") or "").strip() == "valuation_state_primitive":
+        _emit_progress(0.90, "computing_valuation", "Running PIT valuation basket validation...")
+        try:
+            valuation_validation = run_valuation_state_validation(
+                spec,
+                {sym: bars for sym, bars in processed_data_cache.items() if bars},
+                date_start=date_start,
+                date_end=date_end,
+            )
+            if fundamental_validation.get("enabled") is not True:
+                fundamental_validation = valuation_validation
+        except Exception as exc:
+            valuation_validation = {
+                "enabled": True,
+                "status": "error",
+                "reason": str(exc),
+            }
+            if fundamental_validation.get("enabled") is not True:
+                fundamental_validation = valuation_validation
 
     _emit_progress(0.92, "finalizing_report", "Building report...")
 
@@ -1764,6 +1784,7 @@ def run_pipeline(
             "parameter_sensitivity": sens,
         },
         "fundamental_validation": fundamental_validation,
+        "valuation_validation": valuation_validation,
         "execution_stats": {
             "rules_active": bool(spec.get("execution_config")),
             "breakeven_triggers": exec_totals["breakeven_triggers"],

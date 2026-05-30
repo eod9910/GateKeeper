@@ -25,6 +25,45 @@ import { buildValidatorComparisonDiagnostics } from '../services/validatorCompar
 import { pruneSweepVariantsByReportId } from '../services/sweepEngine';
 
 const router = Router();
+const BACKTEST_STRATEGY_TAG = 'backtest_strategy';
+const VALIDATOR_TIER_KEYS = new Set(['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3']);
+
+function normalizeValidatorTier(input: any): string {
+  const tier = String(input || '').trim().toLowerCase();
+  return VALIDATOR_TIER_KEYS.has(tier) ? tier : '';
+}
+
+function hasBacktestStrategyTag(strategy: any): boolean {
+  const tags = [
+    strategy?.strategy_tag,
+    ...(Array.isArray(strategy?.strategy_tags) ? strategy.strategy_tags : []),
+  ].map((tag) => String(tag || '').trim()).filter(Boolean);
+  return tags.includes(BACKTEST_STRATEGY_TAG);
+}
+
+function stampBacktestStrategyTag(strategy: any): any {
+  const existingTags = Array.isArray(strategy?.strategy_tags) ? strategy.strategy_tags : [];
+  const tags = new Set(
+    existingTags
+      .map((tag: any) => String(tag || '').trim())
+      .filter(Boolean)
+      .filter((tag: string) => tag !== 'production_strategy' && tag !== BACKTEST_STRATEGY_TAG),
+  );
+  tags.add(BACKTEST_STRATEGY_TAG);
+  return {
+    ...strategy,
+    version_mode: 'backtest',
+    strategy_tag: BACKTEST_STRATEGY_TAG,
+    strategy_tags: Array.from(tags),
+  };
+}
+
+function shouldExposeStrategyInValidator(strategy: any, tierEvidenceByStrategy: Map<string, Set<string>>): boolean {
+  const strategyVersionId = String(strategy?.strategy_version_id || '').trim();
+  if (!strategyVersionId) return false;
+  if (hasBacktestStrategyTag(strategy)) return true;
+  return Boolean(tierEvidenceByStrategy.get(strategyVersionId)?.size);
+}
 
 /**
  * Kill a child process and its entire process tree.
@@ -574,19 +613,6 @@ function isTier1EvidenceExpansionEligible(report: any): boolean {
   return reasons.length > 0 && reasons.every((reason: any) => /too few trades/i.test(String(reason || '')));
 }
 
-function validateStrategyPayload(input: any): string | null {
-  if (!input || typeof input !== 'object') return 'strategy payload must be an object';
-  if (!input.strategy_id || typeof input.strategy_id !== 'string') return 'strategy_id is required';
-  if (!input.name || typeof input.name !== 'string') return 'name is required';
-  if (input.version != null && Number.isNaN(Number(input.version))) return 'version must be numeric';
-  if (input.interval != null && typeof input.interval !== 'string') return 'interval must be a string';
-  if (input.universe != null && parseUniverse(input.universe) === null) return 'universe must be an array of valid symbols';
-  if (input.status != null && !['draft', 'testing', 'approved', 'rejected'].includes(input.status)) {
-    return 'status must be one of: draft, testing, approved, rejected';
-  }
-  return null;
-}
-
 async function runValidatorPipeline(
   strategy: StrategySpec,
   dateStart: string,
@@ -832,10 +858,14 @@ router.get('/strategies', async (req: Request, res: Response) => {
 
     const allReports = await storage.getAllValidationReports();
     const passedTiersByStrategy = new Map<string, Set<string>>();
+    const tierEvidenceByStrategy = new Map<string, Set<string>>();
     for (const report of allReports) {
       const strategyVersionId = String(report?.strategy_version_id || '').trim();
-      const tier = String(report?.config?.validation_tier || '').trim().toLowerCase();
+      const tier = normalizeValidatorTier(report?.config?.validation_tier);
       if (!strategyVersionId || !tier) continue;
+      const evidenceBucket = tierEvidenceByStrategy.get(strategyVersionId) || new Set<string>();
+      evidenceBucket.add(tier);
+      tierEvidenceByStrategy.set(strategyVersionId, evidenceBucket);
       if (String(report?.pass_fail || '').toUpperCase() !== 'PASS') continue;
       const bucket = passedTiersByStrategy.get(strategyVersionId) || new Set<string>();
       bucket.add(tier);
@@ -861,13 +891,19 @@ router.get('/strategies', async (req: Request, res: Response) => {
         if (String(savedOverride.status || '').toLowerCase() === 'rejected') {
           continue;
         }
-        mergedStrategies.push({
+        if (!shouldExposeStrategyInValidator(savedOverride, tierEvidenceByStrategy)) {
+          continue;
+        }
+        mergedStrategies.push(stampBacktestStrategyTag({
           ...savedOverride,
           source: savedOverride.strategy_version_id?.startsWith('research_') ? 'research' : 'saved',
-        });
+        }));
         continue;
       }
-      mergedStrategies.push(strategy);
+      if (!shouldExposeStrategyInValidator(strategy, tierEvidenceByStrategy)) {
+        continue;
+      }
+      mergedStrategies.push(stampBacktestStrategyTag(strategy));
     }
 
     const mergedIds = new Set(mergedStrategies.map((s: any) => s.strategy_version_id));
@@ -879,10 +915,11 @@ router.get('/strategies', async (req: Request, res: Response) => {
         if (status !== 'testing' && status !== 'approved' && status !== 'active') continue;
       }
       if (String(s.status || '').toLowerCase() === 'rejected') continue;
-      mergedStrategies.push({
+      if (!shouldExposeStrategyInValidator(s, tierEvidenceByStrategy)) continue;
+      mergedStrategies.push(stampBacktestStrategyTag({
         ...s,
         source: s.strategy_version_id?.startsWith('research_') ? 'research' : 'saved',
-      });
+      }));
     }
 
     // Tag strategies with their source and tier progress
@@ -957,29 +994,10 @@ router.get('/strategy/:id', async (req: Request, res: Response) => {
 });
 
 router.post('/strategy', async (req: Request, res: Response) => {
-  try {
-    const validationError = validateStrategyPayload(req.body);
-    if (validationError) {
-      return res.status(400).json({ success: false, error: validationError } as ApiResponse<null>);
-    }
-
-    const strategy: StrategySpec = req.body;
-    const all = await storage.getAllStrategies();
-    const siblings = all.filter((s) => s.strategy_id === strategy.strategy_id);
-    if (!strategy.strategy_version_id) {
-      const maxVersion = siblings.reduce((max, s) => Math.max(max, Number(s.version) || 0), 0);
-      strategy.version = maxVersion + 1;
-      strategy.strategy_version_id = `${strategy.strategy_id}_v${strategy.version}`;
-    }
-    strategy.created_at = strategy.created_at || new Date().toISOString();
-    strategy.updated_at = new Date().toISOString();
-    Object.assign(strategy, applyParameterManifest(strategy));
-
-    const id = await storage.saveStrategy(strategy);
-    res.json({ success: true, data: { strategy_version_id: id } });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message } as ApiResponse<null>);
-  }
+  res.status(410).json({
+    success: false,
+    error: 'Validator no longer creates strategies. Use POST /api/strategies from Strategy Builder, then run the saved strategy through Validator.',
+  } as ApiResponse<null>);
 });
 
 router.get('/tier-config', async (req: Request, res: Response) => {
@@ -1017,7 +1035,19 @@ router.get('/tier-config', async (req: Request, res: Response) => {
 
 router.post('/run', async (req: Request, res: Response) => {
   try {
-    const { strategy_version_id, date_start, date_end, universe, tier, asset_class, interval, skip_tier_gate, force_refresh } = req.body;
+    const {
+      strategy_version_id,
+      date_start,
+      date_end,
+      universe,
+      tier,
+      asset_class,
+      interval,
+      skip_tier_gate,
+      force_refresh,
+      valuation_forward_bars,
+      valuation_rebalance_frequency,
+    } = req.body;
     const activeRuns = Array.from(runJobs.values()).filter((j) => j.status === 'queued' || j.status === 'running').length;
     if (activeRuns >= MAX_CONCURRENT_RUNS) {
       return res.status(429).json({
@@ -1060,6 +1090,23 @@ router.post('/run', async (req: Request, res: Response) => {
     }
     if (force_refresh != null && typeof force_refresh !== 'boolean') {
       return res.status(400).json({ success: false, error: 'force_refresh must be a boolean' } as ApiResponse<null>);
+    }
+    const valuationForwardBars = valuation_forward_bars == null
+      ? null
+      : Number(valuation_forward_bars);
+    if (
+      valuationForwardBars != null &&
+      (!Number.isFinite(valuationForwardBars) || valuationForwardBars < 1 || valuationForwardBars > 520)
+    ) {
+      return res.status(400).json({ success: false, error: 'valuation_forward_bars must be between 1 and 520' } as ApiResponse<null>);
+    }
+    const valuationRebalanceFrequency = String(valuation_rebalance_frequency || '').trim().toLowerCase();
+    if (
+      valuationRebalanceFrequency &&
+      valuationRebalanceFrequency !== 'monthly' &&
+      valuationRebalanceFrequency !== 'quarterly'
+    ) {
+      return res.status(400).json({ success: false, error: 'valuation_rebalance_frequency must be monthly or quarterly' } as ApiResponse<null>);
     }
 
     const strategy = await resolveStrategy(strategy_version_id);
@@ -1176,6 +1223,13 @@ router.post('/run', async (req: Request, res: Response) => {
           ...(strategy as any),
           interval: effectiveInterval,
         };
+        if (valuationForwardBars != null || valuationRebalanceFrequency) {
+          (strategyForRun as any).fundamental_config = {
+            ...((strategy as any).fundamental_config || {}),
+            ...(valuationForwardBars != null ? { forward_bars: Math.round(valuationForwardBars) } : {}),
+            ...(valuationRebalanceFrequency ? { rebalance_frequency: valuationRebalanceFrequency } : {}),
+          };
+        }
         const { report, trades } = await runValidatorPipeline(
           strategyForRun,
           ds,

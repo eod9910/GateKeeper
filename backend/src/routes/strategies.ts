@@ -79,6 +79,29 @@ function normalizeStrategyRiskExitAliases(spec: StrategySpec): StrategySpec {
   return next as StrategySpec;
 }
 
+function normalizeStrategyVersionTag(spec: StrategySpec): StrategySpec {
+  const next = spec as any;
+  const explicitMode = String(next.version_mode || '').trim().toLowerCase();
+  const scanMode = String(next.scan_mode || '').trim().toLowerCase();
+  const mode = explicitMode === 'production' || scanMode === 'production_execution_plan'
+    ? 'production'
+    : 'backtest';
+  const strategyTag = mode === 'production' ? 'production_strategy' : 'backtest_strategy';
+  const existingTags = Array.isArray(next.strategy_tags) ? next.strategy_tags : [];
+  const tags = new Set(
+    existingTags
+      .map((tag: any) => String(tag || '').trim())
+      .filter(Boolean)
+      .filter((tag: string) => tag !== 'production_strategy' && tag !== 'backtest_strategy'),
+  );
+  tags.add(strategyTag);
+
+  next.version_mode = mode;
+  next.strategy_tag = strategyTag;
+  next.strategy_tags = Array.from(tags);
+  return next as StrategySpec;
+}
+
 function buildRegistryStrategy(entry: any, def: any, updatedAt: string): StrategySpec {
   return applyParameterManifest({
     strategy_id: entry.pattern_id,
@@ -522,7 +545,7 @@ router.post('/', async (req: Request, res: Response) => {
     spec.status = spec.status || 'draft';
     spec.created_at = spec.created_at || new Date().toISOString();
     spec.updated_at = new Date().toISOString();
-    Object.assign(spec, applyParameterManifest(normalizeStrategyRiskExitAliases(spec)));
+    Object.assign(spec, applyParameterManifest(normalizeStrategyRiskExitAliases(normalizeStrategyVersionTag(spec))));
 
     const id = await storage.saveStrategy(spec);
 
@@ -531,7 +554,9 @@ router.post('/', async (req: Request, res: Response) => {
       data: {
         strategy_version_id: id,
         version: spec.version,
-        status: spec.status
+        status: spec.status,
+        strategy_tag: (spec as any).strategy_tag,
+        version_mode: (spec as any).version_mode,
       }
     });
   } catch (error: any) {
@@ -584,7 +609,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       merged.universe = parseUniverse(merged.universe) || [];
     }
     merged.asset_class = parseAssetClass(merged.asset_class) || undefined;
-    Object.assign(merged, applyParameterManifest(normalizeStrategyRiskExitAliases(merged)));
+    Object.assign(merged, applyParameterManifest(normalizeStrategyRiskExitAliases(normalizeStrategyVersionTag(merged))));
 
     await storage.saveStrategy(merged, true);
 

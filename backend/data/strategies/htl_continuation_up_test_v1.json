@@ -72,5 +72,10 @@
     ]
   },
   "parameter_manifest": [],
-  "spec_hash": "987ee64b2647ee1d40ef80fb89283421945fbd4b388fa1efe3c3e863b18ae10b"
+  "spec_hash": "987ee64b2647ee1d40ef80fb89283421945fbd4b388fa1efe3c3e863b18ae10b",
+  "version_mode": "backtest",
+  "strategy_tag": "backtest_strategy",
+  "strategy_tags": [
+    "backtest_strategy"
+  ]
 }

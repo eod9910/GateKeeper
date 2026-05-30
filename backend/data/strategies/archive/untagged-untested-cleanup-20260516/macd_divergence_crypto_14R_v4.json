@@ -1,8 +1,10 @@
 {
   "strategy_id": "macd_divergence_crypto_14R",
-  "name": "MACD Divergence Pullback - Crypto v3",
-  "description": "ATR 2x stop, 7R TP, max 3 concurrent. Crypto variant: MACD divergence pullback with regime filter. Testing 14R take profit on crypto pairs.",
-  "status": "rejected",
+  "strategy_version_id": "macd_divergence_crypto_14R_v4",
+  "version": 4,
+  "name": "MACD Divergence Pullback - Crypto - No Regime v4",
+  "description": "ATR 2x stop, 2.5R TP. Promoted from sweep sweep_1cb94949-8. Crypto variant: MACD divergence pullback without SPY regime filter. Pure divergence signal on crypto pairs.\n\nPromoted from sweep sweep_1cb94949-8 via Take Profit R=2.5.",
+  "status": "draft",
   "asset_class": "crypto",
   "interval": "1d",
   "universe": [],
@@ -21,21 +23,12 @@
           "params": {
             "divergence_type": "bullish"
           }
-        },
-        {
-          "id": "regime",
-          "pattern_id": "regime_filter",
-          "params": {
-            "reference_symbol": "SPY",
-            "required_regime": "expansion"
-          }
         }
       ],
       "reducer": {
         "op": "AND",
         "inputs": [
-          "timing",
-          "regime"
+          "timing"
         ]
       }
     }
@@ -46,30 +39,19 @@
   "risk_config": {
     "stop_type": "atr_multiple",
     "atr_multiplier": 2,
-    "take_profit_R": 7,
-    "max_hold_bars": 30,
+    "take_profit_R": 2.5,
+    "max_hold_bars": 60,
     "max_concurrent_positions": 3
   },
-  "exit_config": {
-    "target_type": "R_multiple",
-    "target_level": 4,
-    "time_stop_bars": 30,
-    "trailing": null
-  },
+  "exit_config": {},
   "cost_config": {
     "commission_per_trade": 0,
     "slippage_pct": 0.001
   },
-  "execution_config": {
-    "auto_breakeven_r": 1,
-    "production_lock": true
-  },
-  "created_at": "2026-02-22T10:00:00.000Z",
-  "updated_at": "2026-03-16T05:43:21.409Z",
-  "source": "saved",
-  "version": 3,
-  "strategy_version_id": "macd_divergence_crypto_14R_v3",
-  "spec_hash": "6bc182e1ceb2990575ee5700a91433760c955ffea21edf41ea0cdf8b68a5c52c",
+  "execution_config": {},
+  "created_at": "2026-03-16T10:06:30.935Z",
+  "updated_at": "2026-03-16T10:06:30.935Z",
+  "spec_hash": "5620a44821dacf918572a5df70d94e2b9df425d9842a4dcf796cf22dcafccd20",
   "parameter_manifest": [
     {
       "key": "swing_epsilon_pct",
@@ -97,7 +79,7 @@
     {
       "key": "required_regime",
       "label": "Required Regime",
-      "path": "setup_config.composite_spec.stages.1.params.required_regime",
+      "path": "setup_config.required_regime",
       "anatomy": "regime_filter",
       "type": "enum",
       "identity_preserving": true,
@@ -113,10 +95,5 @@
         "high_drawdown"
       ]
     }
-  ],
-  "version_mode": "backtest",
-  "strategy_tag": "backtest_strategy",
-  "strategy_tags": [
-    "backtest_strategy"
   ]
 }

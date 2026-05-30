@@ -170,5 +170,10 @@
       ]
     }
   ],
-  "spec_hash": "9ffa3166f537d7b22e0bb20aa3c406272844e78576d616997c85b57eefb87402"
+  "spec_hash": "9ffa3166f537d7b22e0bb20aa3c406272844e78576d616997c85b57eefb87402",
+  "version_mode": "backtest",
+  "strategy_tag": "backtest_strategy",
+  "strategy_tags": [
+    "backtest_strategy"
+  ]
 }

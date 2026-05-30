@@ -31,6 +31,21 @@ export interface SweepVariantParamValue {
   value: any;
 }
 
+export interface SweepValuationMetrics {
+  enabled: boolean;
+  status: string;
+  forward_bars: number | null;
+  selected_avg_pct: number | null;
+  excluded_avg_pct: number | null;
+  spread_pct: number | null;
+  hit_rate_pct: number | null;
+  t_stat: number | null;
+  rebalance_periods: number | null;
+  selected_obs: number | null;
+  excluded_obs: number | null;
+  no_valuation: number | null;
+}
+
 export interface SweepVariant {
   variant_id: string;
   strategy_version_id: string;
@@ -51,6 +66,7 @@ export interface SweepVariant {
     oos_degradation_pct: number;
     pass_fail: string;
     fitness_score: number;
+    valuation?: SweepValuationMetrics;
   } | null;
   error?: string;
 }
@@ -125,7 +141,11 @@ async function migrateLegacySweepsIfNeeded(): Promise<void> {
 }
 
 function metricsNeedBackfill(metrics: SweepVariant['metrics'] | null | undefined): boolean {
-  return Boolean(metrics && (metrics.pass_fail === undefined || metrics.oos_degradation_pct === undefined));
+  return Boolean(metrics && (
+    metrics.pass_fail === undefined ||
+    metrics.oos_degradation_pct === undefined ||
+    metrics.valuation === undefined
+  ));
 }
 
 async function backfillSweepMetrics(sweep: SweepReport): Promise<boolean> {
@@ -379,7 +399,30 @@ async function fetchReportMetrics(reportId: string): Promise<SweepVariant['metri
       oos_degradation_pct: r.robustness?.out_of_sample?.oos_degradation_pct ?? 0,
       pass_fail: r.pass_fail ?? 'FAIL',
       fitness_score: 0,
+      valuation: undefined as SweepValuationMetrics | undefined,
     };
+    const valuation = r.valuation_validation || {};
+    if (valuation.enabled) {
+      const selected = valuation.selected || {};
+      const excluded = valuation.excluded || {};
+      const spread = valuation.spread || {};
+      const observations = valuation.observations || {};
+      const cfg = valuation.config || {};
+      summary.valuation = {
+        enabled: Boolean(valuation.enabled),
+        status: String(valuation.status || ''),
+        forward_bars: cfg.forward_bars == null ? null : Number(cfg.forward_bars),
+        selected_avg_pct: selected.avg_forward_return_pct == null ? null : Number(selected.avg_forward_return_pct),
+        excluded_avg_pct: excluded.avg_forward_return_pct == null ? null : Number(excluded.avg_forward_return_pct),
+        spread_pct: spread.avg_return_spread_pct == null ? null : Number(spread.avg_return_spread_pct),
+        hit_rate_pct: spread.hit_rate == null ? null : Number(spread.hit_rate) * 100,
+        t_stat: spread.t_stat == null ? null : Number(spread.t_stat),
+        rebalance_periods: Number(spread.periods ?? selected.periods ?? 0),
+        selected_obs: observations.selected == null ? null : Number(observations.selected),
+        excluded_obs: observations.excluded == null ? null : Number(observations.excluded),
+        no_valuation: observations.no_valuation == null ? null : Number(observations.no_valuation),
+      };
+    }
     summary.fitness_score = computeSweepFitnessScore(r, summary);
     return summary;
   } catch {

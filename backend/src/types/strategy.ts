@@ -304,7 +304,8 @@ export type StrategyParameterAnatomy =
   | 'regime_filter'
   | 'stop_loss'
   | 'take_profit'
-  | 'risk_controls';
+  | 'risk_controls'
+  | 'valuation';
 
 export type StrategyParameterValueType = 'int' | 'float' | 'enum' | 'bool' | 'string';
 
@@ -365,7 +366,11 @@ export interface StrategySpec {
   spec_hash?: string;                   // SHA-256 of config payload
 
   // What to scan
+  base_pattern_id?: string;              // legacy/generated composite family id
   scan_mode?: string;                   // legacy compat: 'wyckoff' | 'swing' | etc.
+  version_mode?: 'backtest' | 'production' | string;
+  strategy_tag?: 'backtest_strategy' | 'production_strategy' | string;
+  strategy_tags?: string[];
   trade_direction?: string;             // 'long' | 'short' | 'both'
   interval?: string;                    // canonical timeframe key ("1wk", "1d", "4h")
   timeframe?: string;                   // DEPRECATED — use interval. Kept for backward compat.
@@ -382,6 +387,7 @@ export interface StrategySpec {
   execution_config?: ExecutionConfig;       // harvest + behavioral lock layer
   parameter_manifest?: StrategyParameterManifestItem[];
   fundamental_config?: FundamentalConfig;   // PIT basket validation layer
+  backtest_config?: { [key: string]: any }; // legacy/generated validator runtime config
 
   // Legacy flat configs (backward compat with validator mock data)
   params?: { [key: string]: any };

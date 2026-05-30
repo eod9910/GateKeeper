@@ -1,55 +1,67 @@
 {
-  "strategy_id": "head_shoulders_context_pattern",
-  "strategy_version_id": "head_shoulders_context_pattern_v1",
-  "version": 1,
-  "name": "Head and Shoulders (Pattern)",
-  "description": "Experimental bearish head-and-shoulders retrace detector. Uses RDP-confirmed swing structure to find a H-L-H-L-H top, requires a break below protected structure, then anchors Fibonacci from the right shoulder to the post-break low and only surfaces the setup when price is retracing into the configured OTE zone.",
-  "status": "rejected",
+  "strategy_id": "dcf_long_strategy",
+  "name": "DCF Long Primitive Strategy",
+  "status": "draft",
   "asset_class": "stocks",
-  "interval": "1d",
-  "universe": [],
+  "interval": "1wk",
+  "description": "Wrap dcf_long as a testable strategy for Validator.",
+  "version_mode": "backtest",
+  "scan_mode": "validator_backtest",
+  "trade_direction": "long",
+  "source_signal": {
+    "pattern_id": "dcf_long",
+    "composition": "primitive",
+    "family": "fundamental_primitive",
+    "signal_tag": "fundamental",
+    "source_category": "fundamental_primitive",
+    "required_state": ""
+  },
   "structure_config": {
-    "swing_method": "rdp",
-    "swing_epsilon_pct": 0.08,
-    "use_exact_epsilon": true
+    "source_signal_id": "dcf_long",
+    "source_signal_name": "DCF Long",
+    "source_composition": "primitive",
+    "source_family": "fundamental_primitive",
+    "source_signal_tag": "fundamental"
   },
   "setup_config": {
-    "pattern_type": "head_shoulders_context_pattern",
-    "lookback_bars": 220,
-    "pivot_source": "rdp",
-    "swing_epsilon_pct": 0.08,
-    "use_exact_epsilon": true,
-    "shoulder_tolerance_pct": 0.08,
-    "head_dominance_pct": 0.015,
-    "neckline_tolerance_pct": 0.08,
-    "break_min_pct": 0.01,
-    "entry_zone_min_level": 0.618,
-    "entry_zone_max_level": 0.786,
-    "min_score": 0.6,
-    "max_candidates": 2
+    "pattern_type": "dcf_long",
+    "source_signal": {
+      "pattern_id": "dcf_long",
+      "composition": "primitive",
+      "family": "fundamental_primitive",
+      "signal_tag": "fundamental",
+      "source_category": "fundamental_primitive",
+      "required_state": ""
+    }
   },
   "entry_config": {
-    "entry_type": "ote_retrace"
+    "entry_type": "market_on_close",
+    "required_state": ""
   },
   "risk_config": {
+    "risk_per_trade_pct": 0.01,
     "stop_type": "atr_multiple",
-    "atr_length": 14,
+    "stop_value": 2,
     "atr_multiplier": 2,
-    "take_profit_R": 3,
-    "max_hold_bars": 60,
-    "max_concurrent_positions": 3
+    "take_profit_R": 2,
+    "max_hold_bars": 30,
+    "trailing_stop": null
   },
-  "exit_config": {},
+  "exit_config": {
+    "target_type": "r_multiple",
+    "target_level": 2,
+    "time_stop_bars": 30,
+    "trailing": null
+  },
   "cost_config": {
-    "commission_per_trade": 0,
-    "slippage_pct": 0.001
+    "commission_per_trade": 1,
+    "slippage_pct": 0.05
   },
-  "execution_config": {},
-  "backtest_config": {
-    "direction": "short"
+  "execution_config": {
+    "production_lock": false,
+    "order_type": "market"
   },
-  "created_at": "2026-03-27T04:03:47.777Z",
-  "updated_at": "2026-03-27T04:03:47.780Z",
+  "universe": [],
   "parameter_manifest": [
     {
       "key": "max_concurrent_positions",
@@ -152,10 +164,9 @@
       ]
     }
   ],
-  "spec_hash": "f13cbe85802996b43b836b1739de39d99ead15c57c30c705c653b6f4966d6814",
-  "version_mode": "backtest",
-  "strategy_tag": "backtest_strategy",
-  "strategy_tags": [
-    "backtest_strategy"
-  ]
+  "version": 1,
+  "strategy_version_id": "dcf_long_strategy_v1",
+  "created_at": "2026-05-16T20:15:38.859Z",
+  "updated_at": "2026-05-16T20:15:38.894Z",
+  "spec_hash": "1788957ddce750bc422a0ff5812780356ae1eac1fd36b13887540d68646853c3"
 }

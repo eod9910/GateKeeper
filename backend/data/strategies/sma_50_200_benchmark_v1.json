@@ -165,5 +165,10 @@
         "high_drawdown"
       ]
     }
+  ],
+  "version_mode": "backtest",
+  "strategy_tag": "backtest_strategy",
+  "strategy_tags": [
+    "backtest_strategy"
   ]
 }

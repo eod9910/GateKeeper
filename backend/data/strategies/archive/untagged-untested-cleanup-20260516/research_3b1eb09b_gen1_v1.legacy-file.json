@@ -1,55 +1,66 @@
 {
-  "strategy_id": "head_shoulders_context_pattern",
-  "strategy_version_id": "head_shoulders_context_pattern_v1",
-  "version": 1,
-  "name": "Head and Shoulders (Pattern)",
-  "description": "Experimental bearish head-and-shoulders retrace detector. Uses RDP-confirmed swing structure to find a H-L-H-L-H top, requires a break below protected structure, then anchors Fibonacci from the right shoulder to the post-break low and only surfaces the setup when price is retracing into the configured OTE zone.",
-  "status": "rejected",
-  "asset_class": "stocks",
-  "interval": "1d",
+  "strategy_id": "research_3b1eb09b_gen1",
+  "name": "Wiggle Breakout RDP Strategy",
+  "description": "Identifies breakouts from structural bases in small-cap stocks using RDP and WIGGLE_SCORE.",
+  "interval": "1wk",
+  "trade_direction": "long",
   "universe": [],
-  "structure_config": {
-    "swing_method": "rdp",
-    "swing_epsilon_pct": 0.08,
-    "use_exact_epsilon": true
-  },
   "setup_config": {
-    "pattern_type": "head_shoulders_context_pattern",
-    "lookback_bars": 220,
-    "pivot_source": "rdp",
-    "swing_epsilon_pct": 0.08,
-    "use_exact_epsilon": true,
-    "shoulder_tolerance_pct": 0.08,
-    "head_dominance_pct": 0.015,
-    "neckline_tolerance_pct": 0.08,
-    "break_min_pct": 0.01,
-    "entry_zone_min_level": 0.618,
-    "entry_zone_max_level": 0.786,
-    "min_score": 0.6,
-    "max_candidates": 2
-  },
-  "entry_config": {
-    "entry_type": "ote_retrace"
+    "pattern_type": "wiggle_breakout_rdp",
+    "composite_spec": {
+      "intent": "entry",
+      "mode": "pipeline",
+      "stages": [
+        {
+          "id": "node_0",
+          "pattern_id": "rdp_wiggle_base",
+          "params": {}
+        },
+        {
+          "id": "node_1",
+          "pattern_id": "regime_filter",
+          "params": {}
+        }
+      ],
+      "edges": [
+        {
+          "from": "node_0",
+          "from_port": "escape_idx",
+          "to": "node_1",
+          "to_port": "entry_trigger"
+        }
+      ],
+      "reducer": {
+        "op": "AND",
+        "inputs": [
+          "node_0",
+          "node_1"
+        ]
+      }
+    }
   },
   "risk_config": {
-    "stop_type": "atr_multiple",
-    "atr_length": 14,
+    "stop_type": "atr",
     "atr_multiplier": 2,
-    "take_profit_R": 3,
-    "max_hold_bars": 60,
-    "max_concurrent_positions": 3
+    "take_profit_R": 2,
+    "max_hold_bars": 20,
+    "risk_per_trade_pct": 0.01
   },
-  "exit_config": {},
-  "cost_config": {
-    "commission_per_trade": 0,
+  "costs": {
+    "commission_per_trade": 5,
     "slippage_pct": 0.001
   },
-  "execution_config": {},
   "backtest_config": {
-    "direction": "short"
+    "min_history_bars": 60,
+    "signal_source": "composite"
   },
-  "created_at": "2026-03-27T04:03:47.777Z",
-  "updated_at": "2026-03-27T04:03:47.780Z",
+  "strategy_version_id": "research_3b1eb09b_gen1_v1",
+  "version": 1,
+  "status": "rejected",
+  "created_at": "2026-03-22T04:38:41.764Z",
+  "updated_at": "2026-03-27T04:15:07.872Z",
+  "created_by": "research_agent",
+  "asset_class": "stocks",
   "parameter_manifest": [
     {
       "key": "max_concurrent_positions",
@@ -152,10 +163,5 @@
       ]
     }
   ],
-  "spec_hash": "f13cbe85802996b43b836b1739de39d99ead15c57c30c705c653b6f4966d6814",
-  "version_mode": "backtest",
-  "strategy_tag": "backtest_strategy",
-  "strategy_tags": [
-    "backtest_strategy"
-  ]
+  "spec_hash": "934df6474c87e19778ac26fa3b5627a8ff66ffb726393fb121ef35979703a113"
 }

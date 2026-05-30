@@ -129,5 +129,10 @@
       "max": 1
     }
   ],
-  "spec_hash": "c4a0cc961baee60d67ca0d82864900c62bf9bc82d3677e8a4d81491d965340ba"
+  "spec_hash": "c4a0cc961baee60d67ca0d82864900c62bf9bc82d3677e8a4d81491d965340ba",
+  "version_mode": "backtest",
+  "strategy_tag": "backtest_strategy",
+  "strategy_tags": [
+    "backtest_strategy"
+  ]
 }

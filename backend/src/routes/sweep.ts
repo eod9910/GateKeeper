@@ -106,6 +106,13 @@ const SWEEP_PRESETS: Record<string, SweepParamDef[]> = {
       values: [13, 26, 39, 52],
     },
   ],
+  dcf_valuation_hold_bars: [
+    {
+      label: 'DCF Valuation Hold Bars',
+      param_path: 'fundamental_config.forward_bars',
+      values: [13, 20, 26, 40, 52, 60, 75, 90, 104],
+    },
+  ],
   rsi_oversold: [
     {
       label: 'RSI Oversold Level',

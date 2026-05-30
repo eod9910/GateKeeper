@@ -1,0 +1,223 @@
+{
+  "strategy_id": "wyckoff_accumulation_rdp",
+  "strategy_version_id": "wyckoff_accumulation_rdp_v1_stateful",
+  "version": "1_stateful",
+  "name": "Wyckoff Accumulation (RDP) — Stateful (v1 migration)",
+  "description": "Stateful migration of wyckoff_accumulation_rdp_v1. The original strategy uses a 'pullback_lookforward' window (200 bars) that is only meaningful if the engine remembers the first breakout bar and counts forward from it. The stateless engine cannot do this — it re-evaluates the full Wyckoff pattern on every bar, meaning the 'pullback' entry fires on the same bar the plugin returns it, without enforcing that the first markup actually occurred before the pullback. This migration adds a state machine that: (1) arms when the Wyckoff plugin reports a first markup confirmation, (2) opens a 200-bar watch window for the pullback, (3) emits entry_ready during the watching phase (pullback window active), (4) resets to idle if the watch window expires without a pullback or if price makes a new major low (invalidation).",
+  "status": "testing",
+  "composition": "monolithic",
+  "artifact_type": "pattern",
+  "category": "chart_patterns",
+  "pattern_id": "wyckoff_accumulation_rdp",
+  "asset_class": "stocks",
+  "interval": "1wk",
+  "universe": [],
+  "structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05,
+    "swing_first_peak_decline": 0.5,
+    "swing_subsequent_decline": 0.25,
+    "base_min_duration": 15,
+    "base_max_duration": 500,
+    "base_max_range_pct": 0.8,
+    "base_volatility_threshold": 0.1
+  },
+  "setup_config": {
+    "pattern_type": "wyckoff_accumulation_rdp",
+    "min_prominence": 0.2,
+    "peak_lookback": 50,
+    "min_markdown_pct": 0.7,
+    "markdown_lookback": 300,
+    "base_resistance_closes": 3,
+    "markup_lookforward": 100,
+    "markup_min_breakout_bars": 2,
+    "pullback_lookforward": 200,
+    "pullback_retracement_min": 0.3,
+    "pullback_retracement_max": 5,
+    "double_bottom_tolerance": 1.05,
+    "breakout_multiplier": 1.02,
+    "score_min": 0,
+    "market_cap_tier": "all",
+    "min_market_cap_billions": 0,
+    "min_avg_volume_k": 0,
+    "state_machine": {
+      "initial_phase": "idle",
+      "watch_bars": 200,
+      "invalidate_on": "",
+      "emit_on": [
+        "watching"
+      ],
+      "transitions": [
+        {
+          "from": "idle",
+          "on_primitive": "wyckoff_accumulation_rdp",
+          "to": "armed",
+          "action": {
+            "set_watch_bars": 200,
+            "set_flag": "first_breakout_confirmed"
+          }
+        },
+        {
+          "from": "armed",
+          "on_primitive": "wyckoff_accumulation_rdp",
+          "to": "watching",
+          "action": {
+            "set_flag": "pullback_window_open"
+          }
+        }
+      ]
+    }
+  },
+  "entry_config": {
+    "entry_type": "breakout",
+    "breakout_pct_above": 0.02,
+    "confirmation_bars": 1
+  },
+  "risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_multiplier": 2,
+    "take_profit_R": 2,
+    "max_hold_bars": 30
+  },
+  "exit_config": {
+    "target_type": "R_multiple",
+    "target_level": 2,
+    "time_stop_bars": 30,
+    "trailing": null
+  },
+  "cost_config": {
+    "commission_per_trade": 0,
+    "slippage_pct": 0.001
+  },
+  "execution_config": {
+    "auto_breakeven_r": 1,
+    "production_lock": true
+  },
+  "created_at": "2026-03-19T00:00:00.000Z",
+  "updated_at": "2026-03-19T17:48:50.048Z",
+  "_migration_notes": {
+    "migrated_from": "wyckoff_accumulation_rdp_v1",
+    "why_stateless_was_wrong": "The Wyckoff plugin internally uses pullback_lookforward=200 to search forward from the first breakout bar. In the stateless engine this is simulated inside the plugin on each prefix call. Because prefix windows slide bar-by-bar, the plugin can 'find' the pullback at any point in the window and return entry_ready=True without enforcing that the first breakout occurred at a specific absolute bar index. This creates phantom entries: the backtest picks up the second breakout on a bar where the first breakout anchor is at the wrong position relative to the actual data. The stateful version arms the engine at the confirmed first breakout bar and only emits entry_ready within the 200-bar watch window from that anchor.",
+    "expected_effect_on_backtest": "Significant reduction in trade count (many current signals are phantom second-breakouts). Win rate should improve as only structurally correct pullback setups are accepted. Drawdown may change in either direction depending on which phantom trades were winners.",
+    "remaining_limitation": "The Wyckoff plugin needs to expose a first_breakout_confirmed flag in its candidate output so the state machine can distinguish the arm bar from the entry bar. Currently the state machine arms on the first bar the plugin returns entry_ready=True and waits 200 bars for a second firing. This is a reasonable approximation for v1."
+  },
+  "parameter_manifest": [
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon %",
+      "path": "structure_config.swing_epsilon_pct",
+      "anatomy": "structure",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.01,
+        0.02,
+        0.03
+      ],
+      "min": 0.01,
+      "max": 0.15,
+      "step": 0.01,
+      "priority": 100,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    },
+    {
+      "key": "watch_bars",
+      "label": "Pullback Watch Window (bars)",
+      "path": "setup_config.state_machine.watch_bars",
+      "anatomy": "entry_timing",
+      "type": "int",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        100,
+        150,
+        200
+      ],
+      "min": 50,
+      "max": 300,
+      "step": 25,
+      "priority": 85,
+      "failure_modes_targeted": [
+        "high_sensitivity",
+        "low_trade_count"
+      ]
+    },
+    {
+      "key": "pullback_retracement_min",
+      "label": "Min Retracement",
+      "path": "setup_config.pullback_retracement_min",
+      "anatomy": "location",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0.2,
+        0.25,
+        0.3
+      ],
+      "min": 0.2,
+      "max": 0.5,
+      "step": 0.05,
+      "priority": 85,
+      "failure_modes_targeted": [
+        "high_drawdown",
+        "high_sensitivity"
+      ]
+    },
+    {
+      "key": "min_market_cap_billions",
+      "label": "Min Market Cap ($B)",
+      "path": "setup_config.min_market_cap_billions",
+      "anatomy": "regime_filter",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        1,
+        2,
+        5,
+        10
+      ],
+      "min": 0,
+      "max": 50,
+      "step": 0.5,
+      "priority": 75,
+      "failure_modes_targeted": [
+        "thin_float_noise"
+      ]
+    },
+    {
+      "key": "min_avg_volume_k",
+      "label": "Min Avg Volume (K)",
+      "path": "setup_config.min_avg_volume_k",
+      "anatomy": "regime_filter",
+      "type": "float",
+      "identity_preserving": true,
+      "sweep_enabled": true,
+      "sensitivity_enabled": true,
+      "suggested_values": [
+        0,
+        250,
+        500,
+        1000
+      ],
+      "min": 0,
+      "max": 5000,
+      "step": 100,
+      "priority": 74,
+      "failure_modes_targeted": [
+        "thin_float_noise"
+      ]
+    }
+  ],
+  "spec_hash": "3dc6d2a3fa67a1f3d02518305b28df52d5a45b32554d20328774fdf2ad2c6069"
+}

@@ -278,7 +278,10 @@ function sanitizeChartBar(bar: unknown): ChartBar | null {
   if ((typeof time !== 'string' && typeof time !== 'number') || open == null || high == null || low == null || close == null) {
     return null;
   }
-  return { time, open, high, low, close };
+  const volume = asNullableNumber(obj.volume);
+  const out: ChartBar = { time, open, high, low, close };
+  if (volume != null && volume >= 0) out.volume = volume;
+  return out;
 }
 
 function sanitizeRawChartBar(bar: unknown): RawChartBar | null {
@@ -576,6 +579,20 @@ export function normalizeFundamentalsSnapshot(payload: unknown): FundamentalsSna
     specialSituation: sanitizeSpecialSituation(obj.specialSituation),
     valuationSnapshot: sanitizeValuationSnapshot(obj.valuationSnapshot),
     historicalStatements: sanitizeHistoricalStatements(obj.historicalStatements),
+    riskFlags: Array.isArray(obj.riskFlags)
+      ? obj.riskFlags
+          .filter((f: unknown) => {
+            const fo = asObject(f);
+            return fo && typeof fo.code === 'string' && typeof fo.label === 'string';
+          })
+          .map((f: any) => ({
+            code: String(f.code),
+            label: String(f.label),
+            severity: f.severity === 'critical' || f.severity === 'high' || f.severity === 'moderate' ? f.severity : 'moderate',
+            short: typeof f.short === 'string' ? f.short : '',
+            detail: typeof f.detail === 'string' ? f.detail : '',
+          }))
+      : null,
     stockdex: obj.stockdex && typeof obj.stockdex === 'object' ? (obj.stockdex as Record<string, unknown>) : null,
   };
 }

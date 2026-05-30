@@ -148,11 +148,15 @@ function resolvePathForParam(strategy: StrategySpec, key: string): string {
   if (strategy.structure_config && Object.prototype.hasOwnProperty.call(strategy.structure_config, normalized)) {
     return `structure_config.${normalized}`;
   }
+  if (strategy.fundamental_config && Object.prototype.hasOwnProperty.call(strategy.fundamental_config, normalized)) {
+    return `fundamental_config.${normalized}`;
+  }
   return `setup_config.${normalized}`;
 }
 
 function resolveAnatomyForParam(key: string, path: string): StrategyParameterManifestItem['anatomy'] {
   const text = `${key} ${path}`.toLowerCase();
+  if (text.includes('valuation') || text.includes('dcf') || text.includes('fair_value') || text.includes('fundamental_config')) return 'valuation';
   if (text.includes('regime') || text.includes('filter') || text.includes('gate')) return 'regime_filter';
   if (text.includes('stop')) return 'stop_loss';
   if (text.includes('take_profit') || text.includes('target') || text.includes('max_hold')) return 'take_profit';
@@ -632,7 +636,7 @@ function wyckoffAccumulationMajorManifest(strategy: StrategySpec, familyDef?: Pa
 }
 
 function obRegimeLongManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
-  return [
+  const items = [
     createManifestItem(strategy, { key: 'required_regime', label: 'Required Regime', type: 'enum', options: ['expansion', 'distribution', 'any'] }, {
       path: findCompositeStageParamPath(strategy, /regime/, 'required_regime'),
       anatomy: 'regime_filter',
@@ -677,7 +681,7 @@ function obRegimeLongManifest(strategy: StrategySpec): StrategyParameterManifest
 }
 
 function rdpFibPullbackCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
-  return [
+  const items = [
     createManifestItem(strategy, { key: 'swing_epsilon_pct', label: 'RDP Epsilon %', type: 'float', min: 0.01, max: 0.15, step: 0.01 }, {
       path: 'structure_config.swing_epsilon_pct',
       anatomy: 'structure',
@@ -726,7 +730,7 @@ function rdpFibPullbackCompositeManifest(strategy: StrategySpec): StrategyParame
 }
 
 function trendFollowingRegimeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
-  return [
+  const items = [
     createManifestItem(strategy, { key: 'fast_period', label: 'Fast MA Length', type: 'int', min: 5, max: 100, step: 1 }, {
       path: findCompositeStageParamPath(strategy, /timing|cross|ma/, 'fast_period'),
       anatomy: 'structure',
@@ -765,7 +769,7 @@ function trendFollowingRegimeManifest(strategy: StrategySpec): StrategyParameter
 }
 
 function rdpExhaustionCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
-  return [
+  const items = [
     createManifestItem(strategy, { key: 'energy_swing_epsilon_pct', label: 'Swing Epsilon %', type: 'float', min: 0.01, max: 0.15, step: 0.01 }, {
       path: 'setup_config.composite_spec.branches.0.condition.params_first.epsilon_pct',
       anatomy: 'structure',
@@ -808,7 +812,7 @@ function rdpExhaustionCompositeManifest(strategy: StrategySpec): StrategyParamet
 }
 
 function baseBreakoutEntryCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
-  return [
+  const items = [
     createManifestItem(strategy, { key: 'swing_epsilon_pct', label: 'RDP Epsilon %', type: 'float', min: 0.01, max: 0.15, step: 0.01 }, {
       path: 'structure_config.swing_epsilon_pct',
       anatomy: 'structure',
@@ -850,7 +854,7 @@ function baseBreakoutEntryCompositeManifest(strategy: StrategySpec): StrategyPar
 }
 
 function rdpFibPullbackRsiCompositeManifest(strategy: StrategySpec): StrategyParameterManifestItem[] {
-  return [
+  const items = [
     createManifestItem(strategy, { key: 'swing_epsilon_pct', label: 'RDP Epsilon %', type: 'float', min: 0.01, max: 0.15, step: 0.01 }, {
       path: 'structure_config.swing_epsilon_pct',
       anatomy: 'structure',
