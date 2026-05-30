@@ -93,6 +93,83 @@ export interface TrainingSimulationConfig {
   tieBreakPolicy?: ForwardTieBreakPolicy;
 }
 
+export interface SemanticVocabulary {
+  setupFamilies?: string[];
+  setupTags?: string[];
+  contextTags?: string[];
+  managementTags?: string[];
+  confidenceBuckets?: string[];
+}
+
+export interface SemanticFamilyRule {
+  setupFamily: string;
+  requiredDrawings?: TrainingDrawingType[];
+  requiredSetupTags?: string[];
+  requiredContextTags?: string[];
+  requireManagementPlan?: boolean;
+}
+
+export interface SemanticRequirements {
+  requireSetupFamily?: boolean;
+  requireThesis?: boolean;
+  requireInvalidation?: boolean;
+  requireConfidence?: boolean;
+  requireManagementPlan?: boolean;
+  minSetupTags?: number;
+  minContextTags?: number;
+  familyRules?: SemanticFamilyRule[];
+}
+
+export interface SemanticDeclaration {
+  schemaVersion: string;
+  declaredAt?: string;
+  setupFamily?: string;
+  thesis?: string;
+  notes?: string;
+  invalidation?: string;
+  side: TrainingSide;
+  confidence?: string;
+  managementPlan?: string;
+  setupTags?: string[];
+  contextTags?: string[];
+  managementTags?: string[];
+  chartSnapshotRef?: string | null;
+}
+
+export interface SemanticReview {
+  reviewedAt: string;
+  notes?: string;
+  mistakes?: string[];
+  hindsightTags?: string[];
+  followThroughGrade?: string;
+}
+
+export interface ContractSnapshot {
+  id: string;
+  name: string;
+  version: string;
+  semanticVocabulary?: SemanticVocabulary;
+  semanticRequirements?: SemanticRequirements;
+}
+
+export type TrainingStopModel = 'atr_multiple';
+export type TrainingTargetModel = 'r_multiple';
+
+export interface TrainingSessionStrategyTemplate {
+  family: string;
+  strategyVariant?: string;
+  indicatorSet?: string[];
+  entryModel?: string;
+  retracementPct?: number;
+  stopModel?: TrainingStopModel;
+  stopAtrMultiple?: number;
+  targetModel?: TrainingTargetModel;
+  targetRMultiple?: number;
+  confidence?: string;
+  requiredAnchorType?: TrainingDrawingType;
+  notes?: string;
+}
+
 export interface StrategyContract {
   id: string;
   name: string;
@@ -107,6 +184,8 @@ export interface StrategyContract {
   cooldownPolicy: CooldownPolicy;
   scoreWeights: ScoreWeights;
   simulation?: TrainingSimulationConfig;
+  semanticVocabulary?: SemanticVocabulary;
+  semanticRequirements?: SemanticRequirements;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -114,13 +193,20 @@ export interface StrategyContract {
 
 export interface RuleEvaluation {
   id: string;
-  type: TrainingRuleDefinition['type'] | 'basic_ordering' | 'entry_bar_exists' | 'cooldown_lock';
+  type: TrainingRuleDefinition['type'] | 'basic_ordering' | 'entry_bar_exists' | 'cooldown_lock' | 'semantic_declaration';
   description: string;
   severity: TrainingRuleSeverity;
   passed: boolean;
   actual?: any;
   expected?: any;
   pointsDelta?: number;
+}
+
+export interface TpLevelResult {
+  hit: boolean;
+  barIndex?: number;
+  barTime?: string;
+  rMultiple?: number;
 }
 
 export interface ForwardResolution {
@@ -138,6 +224,8 @@ export interface ForwardResolution {
   mae: number;
   mfe: number;
   resolverVersion: string;
+  tp2?: TpLevelResult;
+  tp3?: TpLevelResult;
 }
 
 export interface ScoreSnapshot {
@@ -160,6 +248,8 @@ export interface TrainingAttempt {
   entry: number;
   stop: number;
   takeProfit: number;
+  takeProfit2?: number;
+  takeProfit3?: number;
   riskPct?: number;
   rewardRisk?: number;
   entryBarIndex: number;
@@ -171,6 +261,10 @@ export interface TrainingAttempt {
   status: TrainingAttemptStatus;
   uiState?: TrainingUiState;
   chartSnapshotRef?: string | null;
+  semanticDeclaration?: SemanticDeclaration;
+  semanticReview?: SemanticReview;
+  contractSnapshot?: ContractSnapshot;
+  strategyTemplateSnapshot?: TrainingSessionStrategyTemplate;
   bars?: TrainingBar[];
   resolution?: ForwardResolution;
   scoreSnapshot?: ScoreSnapshot;
@@ -190,6 +284,9 @@ export interface TrainingSessionStats {
   disciplineTrend: number;
   cooldownActive: boolean;
   cooldownUntil?: string | null;
+  tp1HitRate?: number;
+  tp2HitRate?: number;
+  tp3HitRate?: number;
 }
 
 export interface TrainingSession {
@@ -199,6 +296,7 @@ export interface TrainingSession {
   endedAt?: string;
   contractId: string;
   contractVersion: string;
+  strategyTemplate?: TrainingSessionStrategyTemplate;
   attemptIds: string[];
   stats: TrainingSessionStats;
   cooldownUntil?: string | null;
@@ -223,13 +321,17 @@ export interface AttemptDraft {
   entry: number;
   stop: number;
   takeProfit: number;
+  takeProfit2?: number;
+  takeProfit3?: number;
   riskPct?: number;
   entryBarIndex: number;
   entryBarTime?: string;
   drawings?: TrainingDrawing[];
+  semanticDeclaration?: SemanticDeclaration;
   bars: TrainingBar[];
   maxHoldBars?: number;
   tieBreakPolicy?: ForwardTieBreakPolicy;
+  entryModel?: 'touch' | 'first_reclaim' | 'close_back_through';
 }
 
 export interface AttemptValidationResult {
@@ -257,4 +359,91 @@ export interface TrainingStatsAggregate {
   processAdherence: number;
   compositeScoreAvg: number;
   sessions: number;
+}
+
+export type TrainingBacktestReportMode = 'all' | 'contract' | 'session';
+export type TrainingBacktestConfidence = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface TrainingBacktestBreakdownItem {
+  key: string;
+  count: number;
+  pct: number;
+}
+
+export interface TrainingBacktestScope {
+  mode: TrainingBacktestReportMode;
+  contractId?: string;
+  sessionId?: string;
+  sessions: number;
+  attempts: number;
+  qualifiedAttempts: number;
+  blockedAttempts: number;
+  resolvedAttempts: number;
+  filledTrades: number;
+  noFillTrades: number;
+  generatedAt: string;
+}
+
+export interface TrainingBacktestTradesSummary {
+  total_trades: number;
+  winners: number;
+  losers: number;
+  scratches: number;
+  no_fill_trades: number;
+  win_rate: number;
+  avg_win_R: number;
+  avg_loss_R: number;
+  expectancy_R: number;
+  payoff_ratio: number;
+  profit_factor: number;
+  largest_win_R: number;
+  largest_loss_R: number;
+  avg_hold_bars: number;
+  median_hold_bars: number;
+}
+
+export interface TrainingBacktestRiskSummary {
+  max_drawdown_R: number;
+  max_drawdown_pct: number;
+  longest_losing_streak: number;
+  avg_losing_streak: number;
+  longest_winning_streak: number;
+  time_under_water_trades: number;
+  expected_recovery_trades: number;
+}
+
+export interface TrainingBacktestDisciplineSummary {
+  process_adherence: number;
+  discipline_trend: number;
+  composite_score_avg: number;
+  contract_pass_rate: number;
+  blocked_attempt_rate: number;
+  avg_risk_pct: number;
+  avg_reward_risk: number;
+}
+
+export interface TrainingBacktestConfidenceSummary {
+  label: TrainingBacktestConfidence;
+  resolved_trades: number;
+  message: string;
+}
+
+export interface TrainingBacktestBreakdownItem {
+  key: string;
+  count: number;
+  pct: number;
+}
+
+export interface TrainingBacktestReport {
+  scope: TrainingBacktestScope;
+  trades_summary: TrainingBacktestTradesSummary;
+  risk_summary: TrainingBacktestRiskSummary;
+  discipline_summary: TrainingBacktestDisciplineSummary;
+  breakdowns: {
+    exit_reasons: TrainingBacktestBreakdownItem[];
+    by_symbol: TrainingBacktestBreakdownItem[];
+    by_timeframe: TrainingBacktestBreakdownItem[];
+    by_side: TrainingBacktestBreakdownItem[];
+  };
+  confidence: TrainingBacktestConfidenceSummary;
 }

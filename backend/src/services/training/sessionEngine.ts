@@ -3,9 +3,11 @@ import {
   StrategyContract,
   TrainingAttempt,
   TrainingSession,
+  TrainingSessionStrategyTemplate,
   TrainingStatsAggregate,
 } from '../../types';
 import {
+  deleteSession,
   getSession,
   listAttempts,
   listAttemptsBySession,
@@ -16,13 +18,18 @@ import {
 } from './storage';
 import { summarizeSessionStats } from './scoringEngine';
 
-export async function startTrainingSession(contract: StrategyContract, userId = 'local-user'): Promise<TrainingSession> {
+export async function startTrainingSession(
+  contract: StrategyContract,
+  userId = 'local-user',
+  strategyTemplate?: TrainingSessionStrategyTemplate,
+): Promise<TrainingSession> {
   const session: TrainingSession = {
     sessionId: randomUUID(),
     userId,
     startedAt: new Date().toISOString(),
     contractId: contract.id,
     contractVersion: contract.version,
+    strategyTemplate,
     attemptIds: [],
     stats: summarizeSessionStats([]),
     cooldownUntil: null,
@@ -32,7 +39,7 @@ export async function startTrainingSession(contract: StrategyContract, userId = 
     type: 'session_started',
     sessionId: session.sessionId,
     contractId: contract.id,
-    payload: { userId, contractVersion: contract.version },
+    payload: { userId, contractVersion: contract.version, strategyTemplate },
   });
   return session;
 }
@@ -41,6 +48,10 @@ export async function endTrainingSession(sessionId: string): Promise<TrainingSes
   const session = await getSession(sessionId);
   if (!session) return null;
   const attempts = await listAttemptsBySession(sessionId);
+  if (attempts.length === 0) {
+    await deleteSession(sessionId);
+    return { ...session, endedAt: new Date().toISOString(), stats: summarizeSessionStats([], null) };
+  }
   const updated: TrainingSession = {
     ...session,
     endedAt: new Date().toISOString(),

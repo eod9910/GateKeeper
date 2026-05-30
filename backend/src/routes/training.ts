@@ -2,13 +2,19 @@ import { randomUUID } from 'crypto';
 import { Router, Request, Response } from 'express';
 import {
   AttemptDraft,
+  ContractSnapshot,
+  SemanticDeclaration,
   StrategyContract,
   TrainingAttempt,
   TrainingBar,
   TrainingDrawing,
+  TrainingDrawingType,
+  TrainingSession,
+  TrainingSessionStrategyTemplate,
 } from '../types';
 import { evaluateAttempt, validateContract } from '../services/training/contractEngine';
 import { resolveForward } from '../services/training/forwardResolver';
+import { buildTrainingBacktestReport } from '../services/training/reportEngine';
 import { buildScoreSnapshot } from '../services/training/scoringEngine';
 import { attachAttemptToSession, buildTrainingStats, endTrainingSession, refreshSession, startTrainingSession } from '../services/training/sessionEngine';
 import {
@@ -94,6 +100,27 @@ const DEFAULT_CONTRACTS: StrategyContract[] = [
     },
     scoreWeights: { process: 0.7, outcome: 0.3 },
     simulation: { maxHoldBars: 20, tieBreakPolicy: 'stop_first' },
+    semanticVocabulary: {
+      setupFamilies: ['breakout'],
+      setupTags: ['opening_break', 'range_break', 'retest_entry', 'impulse_confirmed'],
+      contextTags: ['trend_intact', 'compression', 'range_expansion', 'volume_support'],
+      managementTags: ['hold_full', 'scale_out', 'move_to_be'],
+      confidenceBuckets: ['A', 'B', 'C'],
+    },
+    semanticRequirements: {
+      requireSetupFamily: false,
+      requireThesis: false,
+      requireInvalidation: false,
+      requireConfidence: false,
+      minSetupTags: 0,
+      minContextTags: 0,
+      familyRules: [
+        {
+          setupFamily: 'breakout',
+          requiredDrawings: ['box'],
+        },
+      ],
+    },
     notes: 'Draw a base box around the consolidation zone. Go long on a break above the top, or short on a break below the bottom.',
   },
 
@@ -102,7 +129,7 @@ const DEFAULT_CONTRACTS: StrategyContract[] = [
   {
     id: 'pullback_v1',
     name: 'Pullback',
-    version: '1.2.0',
+    version: '1.4.0',
     active: true,
     symbolScope: [],
     timeframeScope: ['1D', '1WK', '4H', '1H'],
@@ -119,12 +146,13 @@ const DEFAULT_CONTRACTS: StrategyContract[] = [
         severity: 'block',
       },
       {
-        id: 'entry_beyond_50',
-        type: 'entry_beyond_fib_level',
+        id: 'entry_near_fib',
+        type: 'entry_near_fib_retracement',
         drawingId: 'pullback_fib',
-        level: 0.5,
-        description: 'Long: entry must be at or below the 50% Fib level. Short: entry must be at or above.',
-        severity: 'block',
+        level: 0.786,
+        tolerancePct: 25,
+        description: 'Entry should be near a Fib retracement level (61.8% or 78.6%).',
+        severity: 'warning',
       },
       {
         id: 'tp_direction',
@@ -164,7 +192,28 @@ const DEFAULT_CONTRACTS: StrategyContract[] = [
     },
     scoreWeights: { process: 0.7, outcome: 0.3 },
     simulation: { maxHoldBars: 20, tieBreakPolicy: 'stop_first' },
-    notes: 'Draw a Fibonacci retracement across the pullback. Enter at or beyond the 50% retracement level. Stop beyond the swing extreme, target in the trade direction.',
+    semanticVocabulary: {
+      setupFamilies: ['pullback'],
+      setupTags: ['first_touch', 'late_entry', 'discount_zone', 'reclaim_trigger', 'lvn_retest'],
+      contextTags: ['trend_intact', 'discount_zone', 'retest', 'momentum_pause', 'higher_timeframe_support'],
+      managementTags: ['hold_full', 'scale_out', 'move_to_be'],
+      confidenceBuckets: ['A', 'B', 'C'],
+    },
+    semanticRequirements: {
+      requireSetupFamily: false,
+      requireThesis: false,
+      requireInvalidation: false,
+      requireConfidence: false,
+      minSetupTags: 0,
+      minContextTags: 0,
+      familyRules: [
+        {
+          setupFamily: 'pullback',
+          requiredDrawings: ['fib'],
+        },
+      ],
+    },
+    notes: 'Draw a Fibonacci retracement. Long: swing high to swing low, enter near 78.6% or 61.8%. Short: swing low to swing high. Stop is 1 ATR past 100%, TP at the 0% level.',
   },
 
   // ── Fade (Mean Reversion) ────────────────────────────────────────
@@ -172,7 +221,7 @@ const DEFAULT_CONTRACTS: StrategyContract[] = [
   {
     id: 'fade_v1',
     name: 'Fade / Mean Reversion',
-    version: '1.2.0',
+    version: '1.3.0',
     active: true,
     symbolScope: [],
     timeframeScope: ['1D', '1WK', '4H', '1H'],
@@ -234,6 +283,31 @@ const DEFAULT_CONTRACTS: StrategyContract[] = [
     },
     scoreWeights: { process: 0.7, outcome: 0.3 },
     simulation: { maxHoldBars: 20, tieBreakPolicy: 'stop_first' },
+    semanticVocabulary: {
+      setupFamilies: ['fade', 'reversal'],
+      setupTags: ['range_extreme', 'mean_reversion', 'first_touch', 'failed_break'],
+      contextTags: ['range_bound', 'exhaustion', 'liquidity_sweep', 'value_reentry'],
+      managementTags: ['hold_full', 'scale_out', 'move_to_be'],
+      confidenceBuckets: ['A', 'B', 'C'],
+    },
+    semanticRequirements: {
+      requireSetupFamily: false,
+      requireThesis: false,
+      requireInvalidation: false,
+      requireConfidence: false,
+      minSetupTags: 0,
+      minContextTags: 0,
+      familyRules: [
+        {
+          setupFamily: 'fade',
+          requiredDrawings: ['box'],
+        },
+        {
+          setupFamily: 'reversal',
+          requiredDrawings: ['box'],
+        },
+      ],
+    },
     notes: 'Draw a range/consolidation box. Long: fade near the bottom edge. Short: fade near the top edge. Target the opposite side of the range.',
   },
 ];
@@ -275,43 +349,128 @@ function toDrawings(input: any): TrainingDrawing[] {
     .filter((drawing) => drawing.id && drawing.type);
 }
 
+function toStringArray(input: any): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function toDrawingType(input: any): TrainingDrawingType | undefined {
+  const value = String(input || '').trim();
+  return value === 'box' || value === 'line' || value === 'point' || value === 'fib'
+    ? value
+    : undefined;
+}
+
+function toStrategyTemplate(input: any, contract: StrategyContract): TrainingSessionStrategyTemplate | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const family = String(input.family || '').trim();
+  if (!family) return undefined;
+
+  const requiredAnchorType = input.requiredAnchorType
+    ? toDrawingType(input.requiredAnchorType)
+    : (contract.requiredDrawings || []).find((drawing) => drawing && drawing.required)?.type;
+
+  return {
+    family,
+    strategyVariant: input.strategyVariant ? String(input.strategyVariant).trim() : undefined,
+    indicatorSet: toStringArray(input.indicatorSet),
+    entryModel: input.entryModel ? String(input.entryModel).trim() : undefined,
+    retracementPct: input.retracementPct != null ? Number(input.retracementPct) : undefined,
+    stopModel: String(input.stopModel || 'atr_multiple').trim() === 'atr_multiple' ? 'atr_multiple' : 'atr_multiple',
+    stopAtrMultiple: input.stopAtrMultiple != null ? Number(input.stopAtrMultiple) : undefined,
+    targetModel: String(input.targetModel || 'r_multiple').trim() === 'r_multiple' ? 'r_multiple' : 'r_multiple',
+    targetRMultiple: input.targetRMultiple != null ? Number(input.targetRMultiple) : undefined,
+    confidence: input.confidence ? String(input.confidence).trim() : undefined,
+    requiredAnchorType: requiredAnchorType,
+    notes: input.notes ? String(input.notes).trim() : undefined,
+  };
+}
+
+function toSemanticDeclaration(input: any, side: 'long' | 'short'): SemanticDeclaration | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  return {
+    schemaVersion: String(input.schemaVersion || 'v1').trim() || 'v1',
+    declaredAt: input.declaredAt ? String(input.declaredAt).trim() : undefined,
+    setupFamily: input.setupFamily ? String(input.setupFamily).trim() : undefined,
+    thesis: input.thesis ? String(input.thesis).trim() : undefined,
+    notes: input.notes ? String(input.notes).trim() : undefined,
+    invalidation: input.invalidation ? String(input.invalidation).trim() : undefined,
+    side,
+    confidence: input.confidence ? String(input.confidence).trim() : undefined,
+    managementPlan: input.managementPlan ? String(input.managementPlan).trim() : undefined,
+    setupTags: toStringArray(input.setupTags),
+    contextTags: toStringArray(input.contextTags),
+    managementTags: toStringArray(input.managementTags),
+    chartSnapshotRef: input.chartSnapshotRef ? String(input.chartSnapshotRef).trim() : null,
+  };
+}
+
+function mergeSemanticContractDefaults(contract: StrategyContract): StrategyContract {
+  const builtin = DEFAULT_CONTRACTS.find((candidate) => candidate.id === contract.id);
+  if (!builtin) return contract;
+  return {
+    ...contract,
+    semanticVocabulary: contract.semanticVocabulary || builtin.semanticVocabulary,
+    semanticRequirements: contract.semanticRequirements || builtin.semanticRequirements,
+  };
+}
+
+function buildContractSnapshot(contract: StrategyContract): ContractSnapshot {
+  return {
+    id: contract.id,
+    name: contract.name,
+    version: contract.version,
+    semanticVocabulary: contract.semanticVocabulary,
+    semanticRequirements: contract.semanticRequirements,
+  };
+}
+
 async function loadActiveContract(contractId: string): Promise<StrategyContract> {
   await ensureSampleContracts(DEFAULT_CONTRACTS);
   const contract = await getContract(contractId);
   if (!contract) {
     throw new Error(`Contract ${contractId} not found.`);
   }
-  return contract;
+  return mergeSemanticContractDefaults(contract);
 }
 
 function buildAttemptDraft(reqBody: any): AttemptDraft {
   const bars = toBars(reqBody?.bars);
   const entryBarIndex = Number(reqBody?.entryBarIndex);
   const entryBarTime = String(reqBody?.entryBarTime || bars[entryBarIndex]?.time || '').trim();
+  const side = reqBody?.side === 'short' ? 'short' : 'long';
 
   return {
     sessionId: String(reqBody?.sessionId || '').trim(),
     contractId: String(reqBody?.contractId || '').trim(),
     symbol: String(reqBody?.symbol || '').trim().toUpperCase(),
     timeframe: String(reqBody?.timeframe || '').trim(),
-    side: reqBody?.side === 'short' ? 'short' : 'long',
+    side,
     entry: Number(reqBody?.entry),
     stop: Number(reqBody?.stop),
     takeProfit: Number(reqBody?.takeProfit),
+    takeProfit2: reqBody?.takeProfit2 != null ? Number(reqBody.takeProfit2) : undefined,
+    takeProfit3: reqBody?.takeProfit3 != null ? Number(reqBody.takeProfit3) : undefined,
     riskPct: reqBody?.riskPct != null ? Number(reqBody.riskPct) : undefined,
     entryBarIndex,
     entryBarTime,
     drawings: toDrawings(reqBody?.drawings),
+    semanticDeclaration: toSemanticDeclaration(reqBody?.semanticDeclaration, side),
     bars,
     maxHoldBars: reqBody?.maxHoldBars != null ? Number(reqBody.maxHoldBars) : undefined,
     tieBreakPolicy: reqBody?.tieBreakPolicy,
+    entryModel: (['touch', 'first_reclaim', 'close_back_through'].includes(reqBody?.entryModel)
+      ? reqBody.entryModel
+      : undefined) as AttemptDraft['entryModel'],
   };
 }
 
 router.get('/contracts', async (_req: Request, res: Response) => {
   try {
     await ensureSampleContracts(DEFAULT_CONTRACTS);
-    const contracts = await listContracts();
+    const contracts = (await listContracts()).map(mergeSemanticContractDefaults);
     res.json({ success: true, data: contracts });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -348,7 +507,8 @@ router.post('/sessions/start', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'contractId is required.' });
     }
     const contract = await loadActiveContract(contractId);
-    const session = await startTrainingSession(contract, String(req.body?.userId || 'local-user'));
+    const strategyTemplate = toStrategyTemplate(req.body?.strategyTemplate, contract);
+    const session = await startTrainingSession(contract, String(req.body?.userId || 'local-user'), strategyTemplate);
     res.json({ success: true, data: session });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -447,20 +607,33 @@ router.post('/attempts/run', async (req: Request, res: Response) => {
       entry: draft.entry,
       stop: draft.stop,
       takeProfit: draft.takeProfit,
+      takeProfit2: draft.takeProfit2,
+      takeProfit3: draft.takeProfit3,
       riskPct: validation.derived.riskPct,
       rewardRisk: validation.derived.rewardRisk,
       entryBarIndex: draft.entryBarIndex,
       entryBarTime: draft.entryBarTime || draft.bars[draft.entryBarIndex]?.time || now,
       drawings: draft.drawings || [],
+      semanticDeclaration: draft.semanticDeclaration,
       ruleEvaluations: validation.evaluations,
       violations: validation.evaluations.filter((item) => !item.passed).map((item) => item.description),
       rewards: validation.evaluations.filter((item) => item.passed).map((item) => item.description),
       status: validation.ready ? 'entered' : 'blocked',
       uiState: validation.state,
       bars: draft.bars,
-      chartSnapshotRef: null,
+      chartSnapshotRef: `training-attempt://${attemptId}/chart`,
+      contractSnapshot: buildContractSnapshot(contract),
+      strategyTemplateSnapshot: session.strategyTemplate,
       createdAt: now,
     };
+
+    if (attempt.semanticDeclaration) {
+      attempt.semanticDeclaration = {
+        ...attempt.semanticDeclaration,
+        declaredAt: now,
+        chartSnapshotRef: attempt.chartSnapshotRef,
+      };
+    }
 
     if (validation.ready) {
       attempt = {
@@ -471,9 +644,12 @@ router.post('/attempts/run', async (req: Request, res: Response) => {
           entry: draft.entry,
           stop: draft.stop,
           takeProfit: draft.takeProfit,
+          takeProfit2: draft.takeProfit2,
+          takeProfit3: draft.takeProfit3,
           startIndex: draft.entryBarIndex,
           maxHoldBars: draft.maxHoldBars ?? contract.simulation?.maxHoldBars,
           tieBreakPolicy: draft.tieBreakPolicy ?? contract.simulation?.tieBreakPolicy,
+          entryModel: draft.entryModel,
         }),
         status: 'resolved',
         uiState: 'RESOLVED',
@@ -526,6 +702,44 @@ router.get('/stats', async (req: Request, res: Response) => {
     const contractId = req.query.contractId ? String(req.query.contractId) : undefined;
     const stats = await buildTrainingStats(contractId);
     res.json({ success: true, data: stats });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/report', async (req: Request, res: Response) => {
+  try {
+    const sessionId = req.query.sessionId ? String(req.query.sessionId).trim() : undefined;
+    const contractId = req.query.contractId ? String(req.query.contractId).trim() : undefined;
+
+    let attempts: TrainingAttempt[] = [];
+    let sessions: TrainingSession[] = [];
+
+    if (sessionId) {
+      const session = await getSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ success: false, error: 'Session not found.' });
+      }
+      attempts = await listAttemptsBySession(sessionId);
+      sessions = [session];
+    } else {
+      const allAttempts = await listAttempts();
+      const allSessions = await listSessions();
+      attempts = contractId
+        ? allAttempts.filter((attempt) => attempt.contractId === contractId)
+        : allAttempts;
+      sessions = contractId
+        ? allSessions.filter((session) => session.contractId === contractId)
+        : allSessions;
+    }
+
+    const report = buildTrainingBacktestReport({
+      attempts,
+      sessions,
+      contractId,
+      sessionId,
+    });
+    res.json({ success: true, data: report });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

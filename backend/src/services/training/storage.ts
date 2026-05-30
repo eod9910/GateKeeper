@@ -89,6 +89,11 @@ export async function saveSession(session: TrainingSession): Promise<TrainingSes
   return session;
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const filePath = path.join(SESSIONS_DIR, `${sessionId}.json`);
+  try { await fs.unlink(filePath); } catch (_) { /* ignore if missing */ }
+}
+
 export async function listAttempts(): Promise<TrainingAttempt[]> {
   const attempts = await readDirJson<TrainingAttempt>(ATTEMPTS_DIR);
   return attempts.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
@@ -126,7 +131,7 @@ export async function ensureSampleContracts(defaults: StrategyContract[]): Promi
   await ensureTrainingDirs();
   for (const contract of defaults) {
     const existing = await getContract(contract.id);
-    if (!existing) {
+    if (!existing || existing.version !== contract.version) {
       await saveContract(contract);
     }
   }

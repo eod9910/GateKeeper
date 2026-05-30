@@ -52,6 +52,13 @@ export function summarizeSessionStats(attempts: TrainingAttempt[], cooldownUntil
     ? recent.reduce((sum, attempt) => sum + (attempt.scoreSnapshot?.processScore || computeProcessScore(attempt.ruleEvaluations)), 0) / recent.length
     : 0;
 
+  // TP hit-rate tracking: among filled trades, how often was each TP level reached?
+  const filled = resolved.filter((a) => a.resolution?.entryHit);
+  const filledCount = filled.length;
+  const tp1Hits = filled.filter((a) => a.resolution?.exitReason === 'tp_hit').length;
+  const tp2Hits = filled.filter((a) => a.resolution?.tp2?.hit).length;
+  const tp3Hits = filled.filter((a) => a.resolution?.tp3?.hit).length;
+
   return {
     attempts: attemptsCount,
     resolvedAttempts: resolvedCount,
@@ -64,6 +71,9 @@ export function summarizeSessionStats(attempts: TrainingAttempt[], cooldownUntil
     disciplineTrend: round(recentProcess),
     cooldownActive: !!cooldownUntil && Date.parse(cooldownUntil) > Date.now(),
     cooldownUntil: cooldownUntil || null,
+    tp1HitRate: filledCount ? round((tp1Hits / filledCount) * 100) : undefined,
+    tp2HitRate: filledCount ? round((tp2Hits / filledCount) * 100) : undefined,
+    tp3HitRate: filledCount ? round((tp3Hits / filledCount) * 100) : undefined,
   };
 }
 

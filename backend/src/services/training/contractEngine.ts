@@ -2,6 +2,7 @@ import {
   AttemptDraft,
   AttemptValidationResult,
   RuleEvaluation,
+  SemanticFamilyRule,
   StrategyContract,
   TrainingDrawing,
   TrainingRuleDefinition,
@@ -40,6 +41,179 @@ function fibLevelPrice(drawing: TrainingDrawing | undefined, level: number): num
   const price2 = Number(drawing.price2);
   if (!Number.isFinite(price1) || !Number.isFinite(price2)) return null;
   return price1 + (price2 - price1) * level;
+}
+
+function asList(values: string[] | undefined): string[] {
+  return Array.isArray(values) ? values.map((value) => String(value || '').trim()).filter(Boolean) : [];
+}
+
+function hasRequiredDrawings(drawings: TrainingDrawing[], requiredTypes: string[]): boolean {
+  if (!requiredTypes.length) return true;
+  const availableTypes = new Set((drawings || []).map((drawing) => String(drawing.type || '').trim().toLowerCase()));
+  return requiredTypes.every((type) => availableTypes.has(String(type || '').trim().toLowerCase()));
+}
+
+function familyRuleForDraft(contract: StrategyContract, draft: AttemptDraft): SemanticFamilyRule | null {
+  const declaration = draft.semanticDeclaration;
+  const family = String(declaration?.setupFamily || '').trim().toLowerCase();
+  const rules = contract.semanticRequirements?.familyRules || [];
+  return rules.find((rule) => String(rule.setupFamily || '').trim().toLowerCase() === family) || null;
+}
+
+function evaluateSemanticDeclaration(contract: StrategyContract, draft: AttemptDraft): RuleEvaluation[] {
+  const requirements = contract.semanticRequirements;
+  if (!requirements) return [];
+
+  const declaration = draft.semanticDeclaration;
+  const setupTags = asList(declaration?.setupTags);
+  const contextTags = asList(declaration?.contextTags);
+  const managementTags = asList(declaration?.managementTags);
+  const activeFamilyRule = familyRuleForDraft(contract, draft);
+  const evaluations: RuleEvaluation[] = [];
+
+  evaluations.push({
+    id: 'semantic_declaration_present',
+    type: 'semantic_declaration',
+    description: 'Trade declaration must be completed before running the attempt.',
+    severity: 'block',
+    passed: !!declaration,
+    actual: !!declaration,
+    expected: true,
+  });
+
+  if (!declaration) {
+    return evaluations;
+  }
+
+  if (requirements.requireSetupFamily) {
+    evaluations.push({
+      id: 'semantic_setup_family',
+      type: 'semantic_declaration',
+      description: 'Setup family must be declared.',
+      severity: 'block',
+      passed: !!String(declaration.setupFamily || '').trim(),
+      actual: declaration.setupFamily || null,
+      expected: 'non-empty setup family',
+    });
+  }
+
+  if (requirements.requireThesis) {
+    evaluations.push({
+      id: 'semantic_thesis',
+      type: 'semantic_declaration',
+      description: 'Trade thesis must be written before outcome is known.',
+      severity: 'block',
+      passed: !!String(declaration.thesis || '').trim(),
+      actual: declaration.thesis || null,
+      expected: 'non-empty thesis',
+    });
+  }
+
+  if (requirements.requireInvalidation) {
+    evaluations.push({
+      id: 'semantic_invalidation',
+      type: 'semantic_declaration',
+      description: 'Invalidation statement must be declared.',
+      severity: 'block',
+      passed: !!String(declaration.invalidation || '').trim(),
+      actual: declaration.invalidation || null,
+      expected: 'non-empty invalidation',
+    });
+  }
+
+  if (requirements.requireConfidence) {
+    evaluations.push({
+      id: 'semantic_confidence',
+      type: 'semantic_declaration',
+      description: 'Confidence bucket must be declared.',
+      severity: 'block',
+      passed: !!String(declaration.confidence || '').trim(),
+      actual: declaration.confidence || null,
+      expected: 'non-empty confidence bucket',
+    });
+  }
+
+  if (requirements.requireManagementPlan) {
+    evaluations.push({
+      id: 'semantic_management_plan',
+      type: 'semantic_declaration',
+      description: 'Management plan must be declared.',
+      severity: 'block',
+      passed: !!String(declaration.managementPlan || '').trim(),
+      actual: declaration.managementPlan || null,
+      expected: 'non-empty management plan',
+    });
+  }
+
+  if ((requirements.minSetupTags || 0) > 0) {
+    evaluations.push({
+      id: 'semantic_setup_tags',
+      type: 'semantic_declaration',
+      description: `At least ${requirements.minSetupTags} setup tag(s) must be selected.`,
+      severity: 'block',
+      passed: setupTags.length >= Number(requirements.minSetupTags || 0),
+      actual: setupTags,
+      expected: Number(requirements.minSetupTags || 0),
+    });
+  }
+
+  if ((requirements.minContextTags || 0) > 0) {
+    evaluations.push({
+      id: 'semantic_context_tags',
+      type: 'semantic_declaration',
+      description: `At least ${requirements.minContextTags} context tag(s) must be selected.`,
+      severity: 'block',
+      passed: contextTags.length >= Number(requirements.minContextTags || 0),
+      actual: contextTags,
+      expected: Number(requirements.minContextTags || 0),
+    });
+  }
+
+  if (activeFamilyRule) {
+    evaluations.push({
+      id: 'semantic_family_rule_drawings',
+      type: 'semantic_declaration',
+      description: 'Declared setup family must include its required drawing proof.',
+      severity: 'block',
+      passed: hasRequiredDrawings(draft.drawings || [], (activeFamilyRule.requiredDrawings || []).map((type) => String(type))),
+      actual: (draft.drawings || []).map((drawing) => drawing.type),
+      expected: activeFamilyRule.requiredDrawings || [],
+    });
+
+    evaluations.push({
+      id: 'semantic_family_rule_setup_tags',
+      type: 'semantic_declaration',
+      description: 'Declared setup family must include its required setup tags.',
+      severity: 'warning',
+      passed: asList(activeFamilyRule.requiredSetupTags).every((tag) => setupTags.includes(tag)),
+      actual: setupTags,
+      expected: activeFamilyRule.requiredSetupTags || [],
+    });
+
+    evaluations.push({
+      id: 'semantic_family_rule_context_tags',
+      type: 'semantic_declaration',
+      description: 'Declared setup family must include its required context tags.',
+      severity: 'warning',
+      passed: asList(activeFamilyRule.requiredContextTags).every((tag) => contextTags.includes(tag)),
+      actual: contextTags,
+      expected: activeFamilyRule.requiredContextTags || [],
+    });
+
+    if (activeFamilyRule.requireManagementPlan) {
+      evaluations.push({
+        id: 'semantic_family_rule_management',
+        type: 'semantic_declaration',
+        description: 'Declared setup family requires a management plan.',
+        severity: 'block',
+        passed: !!String(declaration.managementPlan || '').trim() || managementTags.length > 0,
+        actual: declaration.managementPlan || managementTags,
+        expected: 'management plan or management tags',
+      });
+    }
+  }
+
+  return evaluations;
 }
 
 function evaluateRule(rule: TrainingRuleDefinition, draft: AttemptDraft): RuleEvaluation {
@@ -315,6 +489,8 @@ export function evaluateAttempt(contract: StrategyContract, draft: AttemptDraft,
     if (rule.enabled === false) continue;
     evaluations.push(evaluateRule(rule, draft));
   }
+
+  evaluations.push(...evaluateSemanticDeclaration(contract, draft));
 
   const derived = rewardRisk(draft.side, draft.entry, draft.stop, draft.takeProfit);
   const riskPct = draft.entry ? (Math.abs(draft.entry - draft.stop) / draft.entry) * 100 : 0;
