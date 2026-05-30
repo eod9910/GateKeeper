@@ -1,12 +1,12 @@
 // =========================================================================
-// watch-list.js — Shared scanner Watch List store
-// Persists scanner hits in localStorage across Scanner and Trading Desk.
+// watch-list.js — Shared Watch List store
+// Persists entries to the backend API with localStorage as local cache.
 // =========================================================================
 
 const WATCH_LIST_KEY = 'scanner-watchlist-v1';
-const WATCH_LIST_TTL_MS = 5 * 24 * 60 * 60 * 1000; // 5 trading days
+let _wlCache = null;
 
-function _wlLoad() {
+function _wlLoadLocal() {
   try {
     const raw = localStorage.getItem(WATCH_LIST_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -15,50 +15,109 @@ function _wlLoad() {
   }
 }
 
-function _wlSave(entries) {
+function _wlSaveLocal(entries) {
   try {
     localStorage.setItem(WATCH_LIST_KEY, JSON.stringify(entries));
   } catch {}
+  _wlCache = entries;
+}
+
+async function _wlFetchFromServer() {
+  try {
+    const res = await fetch('/api/watchlist');
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      _wlSaveLocal(json.data);
+      return json.data;
+    }
+  } catch {}
+  return null;
+}
+
+async function _wlPostToServer(entry) {
+  try {
+    const res = await fetch('/api/watchlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    });
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      _wlSaveLocal(json.data);
+      return json.data;
+    }
+  } catch {}
+  return null;
+}
+
+async function _wlDeleteFromServer(symbol) {
+  try {
+    const res = await fetch('/api/watchlist/' + encodeURIComponent(symbol), { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success && Array.isArray(json.data)) {
+      _wlSaveLocal(json.data);
+      return json.data;
+    }
+  } catch {}
+  return null;
+}
+
+async function _wlClearOnServer() {
+  try {
+    const res = await fetch('/api/watchlist', { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      _wlSaveLocal([]);
+      return [];
+    }
+  } catch {}
+  return null;
+}
+
+function _wlGetCached() {
+  if (_wlCache) return _wlCache;
+  _wlCache = _wlLoadLocal();
+  return _wlCache;
 }
 
 function _wlPrune(entries) {
-  const cutoff = Date.now() - WATCH_LIST_TTL_MS;
-  return entries.filter((e) => new Date(e.saved_at).getTime() > cutoff);
+  const source = Array.isArray(entries) ? entries : [];
+  const now = new Date().toISOString();
+  const seen = new Set();
+  return source
+    .map((entry) => {
+      const symbol = String(entry?.symbol || '').toUpperCase().trim();
+      if (!symbol) return null;
+      const savedAt = new Date(entry?.saved_at || '').getTime();
+      return {
+        ...entry,
+        symbol,
+        saved_at: Number.isFinite(savedAt) ? entry.saved_at : now,
+      };
+    })
+    .filter((entry) => {
+      if (!entry || seen.has(entry.symbol)) return false;
+      seen.add(entry.symbol);
+      return true;
+    });
 }
 
-/**
- * Returns all non-expired Watch List entries, sorted newest first.
- */
 function watchListGetAll() {
-  const entries = _wlPrune(_wlLoad());
-  _wlSave(entries);
-  return entries.slice().sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
+  return _wlPrune(_wlGetCached()).slice().sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
 }
 
-/**
- * Returns true if the symbol is already on the Watch List.
- */
 function watchListHas(symbol) {
   if (!symbol) return false;
   const needle = String(symbol).toUpperCase().trim();
-  return _wlPrune(_wlLoad()).some((e) => e.symbol === needle);
+  return _wlGetCached().some((e) => e.symbol === needle);
 }
 
-/**
- * Adds or updates a Watch List entry for a scanner hit.
- * @param {object} entry
- *   symbol        {string}  — ticker
- *   score         {number}  — composite score
- *   composite_id  {string}  — pattern / composite id used for the scan
- *   interval      {string}  — e.g. "1d"
- *   price_box     {object}  — { top, bottom } price levels from output_ports
- *   entry_price   {number}  — last close / suggested entry
- *   note          {string}  — optional free-text note
- */
 function watchListAdd(entry) {
   if (!entry || !entry.symbol) return;
   const symbol = String(entry.symbol).toUpperCase().trim();
-  let entries = _wlPrune(_wlLoad());
+
+  // Optimistic local update
+  let entries = _wlPrune(_wlGetCached());
   entries = entries.filter((e) => e.symbol !== symbol);
   entries.unshift({
     symbol,
@@ -67,31 +126,55 @@ function watchListAdd(entry) {
     interval: String(entry.interval || '1d'),
     price_box: entry.price_box || null,
     entry_price: Number(entry.entry_price) || 0,
+    stop_price: entry.stop_price != null ? Number(entry.stop_price) : undefined,
+    take_profit: entry.take_profit != null ? Number(entry.take_profit) : undefined,
+    take_profit_2: entry.take_profit_2 != null ? Number(entry.take_profit_2) : undefined,
+    take_profit_3: entry.take_profit_3 != null ? Number(entry.take_profit_3) : undefined,
+    direction: entry.direction != null ? Number(entry.direction) : undefined,
+    instrument_type: entry.instrument_type || undefined,
+    futures_margin: entry.futures_margin != null ? Number(entry.futures_margin) : undefined,
+    point_value: entry.point_value != null ? Number(entry.point_value) : undefined,
+    tick_size: entry.tick_size != null ? Number(entry.tick_size) : undefined,
+    risk_percent: entry.risk_percent != null ? Number(entry.risk_percent) : undefined,
+    manual_size: entry.manual_size != null ? Number(entry.manual_size) : undefined,
     note: String(entry.note || ''),
     saved_at: new Date().toISOString(),
   });
-  _wlSave(entries);
+  _wlSaveLocal(entries);
   _wlNotify();
+
+  // Persist to server in background
+  _wlPostToServer(entries[0]);
 }
 
-/**
- * Removes a symbol from the Watch List.
- */
 function watchListRemove(symbol) {
   if (!symbol) return;
   const needle = String(symbol).toUpperCase().trim();
-  const entries = _wlPrune(_wlLoad()).filter((e) => e.symbol !== needle);
-  _wlSave(entries);
+  const entries = _wlPrune(_wlGetCached()).filter((e) => e.symbol !== needle);
+  _wlSaveLocal(entries);
   _wlNotify();
+  _wlDeleteFromServer(needle);
 }
 
-/**
- * Clears all Watch List entries.
- */
 function watchListClear() {
-  _wlSave([]);
+  _wlSaveLocal([]);
   _wlNotify();
+  _wlClearOnServer();
 }
+
+// ── Boot: hydrate from server ─────────────────────────────────────────────
+_wlFetchFromServer().then((serverData) => {
+  if (serverData) {
+    // Merge any localStorage-only entries into server data
+    const local = _wlLoadLocal();
+    const serverSymbols = new Set(serverData.map((e) => e.symbol));
+    const missing = local.filter((e) => e.symbol && !serverSymbols.has(e.symbol));
+    if (missing.length > 0) {
+      missing.forEach((e) => _wlPostToServer(e));
+    }
+    _wlNotify();
+  }
+});
 
 // ── Change notification (lightweight pub/sub) ─────────────────────────────
 const _wlListeners = new Set();
