@@ -19,6 +19,7 @@ let strategyTierProgressIndex = {};
 /** Strategy version ID currently configured for the execution bridge (active/live strategy). */
 let activeStrategyVersionId = null;
 let activeRunJobId = null;
+let activeRunContext = null;
 let runPollTimer = null;
 let strategyEditorMode = 'new';
 let validatorChatMessages = [];
@@ -33,6 +34,20 @@ const VALIDATION_TIER_LABELS = {
   tier1bs: 'Tier 1BS - Evidence Expansion + Sensitivity',
   tier2: 'Tier 2 - Core Validation',
   tier3: 'Tier 3 - Robustness',
+  large_cap_known: 'Large Cap (Known)',
+  sp500: 'S&P 500',
+  sp400: 'S&P 400',
+  sp600: 'S&P 600',
+  valuation_regime_undervalued_sample100: 'DCF: Undervalued Sample 100',
+  valuation_regime_undervalued: 'DCF: Undervalued',
+  valuation_regime_fair_sample100: 'DCF: Fair Value Sample 100',
+  valuation_regime_fair: 'DCF: Fair Value',
+  valuation_regime_overvalued_sample100: 'DCF: Overvalued Sample 100',
+  valuation_regime_overvalued: 'DCF: Overvalued',
+  regime_expansion: 'Regime: Expansion',
+  regime_distribution: 'Regime: Distribution',
+  regime_accumulation: 'Regime: Accumulation',
+  regime_markdown: 'Regime: Markdown',
 };
 const VALIDATION_TIER_DESCRIPTIONS = {
   tier1: 'Fast mixed-cap kill test on 52 stocks: 13 large + 13 mid + 13 small + 13 micro.',
@@ -41,7 +56,68 @@ const VALIDATION_TIER_DESCRIPTIONS = {
   tier1bs: 'Same 100-stock mixed-cap Tier 1B universe, but with parameter sensitivity analysis.',
   tier2: 'Core mixed-cap validation on 200 stocks: 50 large + 50 mid + 50 small + 50 micro. Requires Tier 1 or Tier 1B PASS.',
   tier3: 'Non-overlapping mixed-cap holdout robustness test on 180 stocks: 45 large + 45 mid + 45 small + 45 micro. Requires Tier 2 PASS.',
+  large_cap_known: 'Quick large-cap spot check.',
+  sp500: 'Large-cap benchmark universe.',
+  sp400: 'Mid-cap benchmark universe.',
+  sp600: 'Small-cap benchmark universe.',
+  valuation_regime_undervalued_sample100: 'Fast 100-name DCF undervalued bucket.',
+  valuation_regime_undervalued: 'Full DCF undervalued regime universe.',
+  valuation_regime_fair_sample100: 'Fast 100-name DCF fair-value bucket.',
+  valuation_regime_fair: 'Full DCF fair-value regime universe.',
+  valuation_regime_overvalued_sample100: 'Fast 100-name DCF overvalued bucket.',
+  valuation_regime_overvalued: 'Full DCF overvalued regime universe.',
+  regime_expansion: 'Trend-friendly expansion regime.',
+  regime_distribution: 'Fading uptrend distribution regime.',
+  regime_accumulation: 'Recovering accumulation regime.',
+  regime_markdown: 'Declining markdown regime.',
 };
+const RUN_TIER_BADGE_LABELS = {
+  tier1: 'Tier 1 Mixed Cap',
+  tier1s: 'Tier 1S Mixed Cap',
+  tier1b: 'Tier 1B Mixed Cap',
+  tier1bs: 'Tier 1BS Mixed Cap',
+  tier2: 'Tier 2 Mixed Cap',
+  tier3: 'Tier 3 Mixed Cap',
+  large_cap_known: 'Known Large Caps',
+  sp500: 'S&P 500 Large Caps',
+  sp400: 'S&P 400 Mid Caps',
+  sp600: 'S&P 600 Small Caps',
+  valuation_regime_undervalued_sample100: 'DCF Undervalued Sample',
+  valuation_regime_undervalued: 'DCF Undervalued',
+  valuation_regime_fair_sample100: 'DCF Fair Value Sample',
+  valuation_regime_fair: 'DCF Fair Value',
+  valuation_regime_overvalued_sample100: 'DCF Overvalued Sample',
+  valuation_regime_overvalued: 'DCF Overvalued',
+  regime_expansion: 'Expansion Regime',
+  regime_distribution: 'Distribution Regime',
+  regime_accumulation: 'Accumulation Regime',
+  regime_markdown: 'Markdown Regime',
+};
+const VALIDATION_TIER_GROUPS = [
+  {
+    label: 'Validation Ladder',
+    keys: ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3'],
+  },
+  {
+    label: 'Benchmark Universes',
+    keys: ['large_cap_known', 'sp500', 'sp400', 'sp600'],
+  },
+  {
+    label: 'Regime Universes',
+    keys: [
+      'valuation_regime_undervalued_sample100',
+      'valuation_regime_undervalued',
+      'valuation_regime_fair_sample100',
+      'valuation_regime_fair',
+      'valuation_regime_overvalued_sample100',
+      'valuation_regime_overvalued',
+      'regime_expansion',
+      'regime_distribution',
+      'regime_accumulation',
+      'regime_markdown',
+    ],
+  },
+];
 const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
@@ -238,7 +314,14 @@ async function loadStrategies() {
       apiGet('/active-strategy').catch(() => null),
     ]);
     strategies = (Array.isArray(loadedStrategies) ? loadedStrategies : [])
-      .filter((strategy) => String(strategy?.status || '').toLowerCase() !== 'draft');
+      .filter((strategy) => {
+        const status = String(strategy?.status || '').toLowerCase();
+        const tags = [
+          strategy?.strategy_tag,
+          ...(Array.isArray(strategy?.strategy_tags) ? strategy.strategy_tags : []),
+        ].map((tag) => String(tag || '').trim());
+        return status !== 'draft' || tags.includes('backtest_strategy');
+      });
     activeStrategyVersionId = typeof activeId === 'string' && activeId.trim() ? activeId.trim() : null;
     if (selectedStrategy?.strategy_version_id) {
       selectedStrategy = strategies.find((s) => s.strategy_version_id === selectedStrategy.strategy_version_id) || null;
@@ -376,6 +459,25 @@ function getStrategyTierBadges(strategy) {
       title: `Passed ${tier.toUpperCase()}`,
     }];
   });
+}
+
+function getRunTierBadgeLabel(tierKey, fallbackLabel = '') {
+  const key = String(tierKey || '').trim().toLowerCase();
+  return RUN_TIER_BADGE_LABELS[key] || fallbackLabel || VALIDATION_TIER_LABELS[key] || key.toUpperCase();
+}
+
+function activeRunBadgeForStrategy(strategy) {
+  if (!activeRunJobId || !activeRunContext) return null;
+  const selectedVersion = String(strategy?.strategy_version_id || '').trim();
+  const runningVersion = String(activeRunContext.strategy_version_id || '').trim();
+  if (selectedVersion && runningVersion && selectedVersion !== runningVersion) return null;
+  const label = getRunTierBadgeLabel(activeRunContext.tier, activeRunContext.tier_label);
+  if (!label) return null;
+  const count = Number(activeRunContext.symbol_count || 0);
+  return {
+    label,
+    title: count > 0 ? `Running ${label} on ${count} symbols` : `Running ${label}`,
+  };
 }
 
 function getStrategyStageBucket(strategy) {
@@ -560,22 +662,80 @@ function normalizeAssetClassKey(value) {
 function buildFallbackTierConfig(assetClass) {
   const key = normalizeAssetClassKey(assetClass);
   const byClass = FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS[key] || FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS.stocks;
+  const tiers = {};
+  for (const tierKey of Object.keys(VALIDATION_TIER_LABELS)) {
+    tiers[tierKey] = {
+      key: tierKey,
+      label: VALIDATION_TIER_LABELS[tierKey] || tierKey,
+      description: VALIDATION_TIER_DESCRIPTIONS[tierKey] || '',
+      symbols: Array.isArray(byClass[tierKey]) ? byClass[tierKey].slice() : [],
+    };
+  }
   return {
     asset_class: key,
-    tiers: {
-      tier1: { key: 'tier1', label: VALIDATION_TIER_LABELS.tier1, description: VALIDATION_TIER_DESCRIPTIONS.tier1, symbols: byClass.tier1.slice() },
-      tier1s: { key: 'tier1s', label: VALIDATION_TIER_LABELS.tier1s, description: VALIDATION_TIER_DESCRIPTIONS.tier1s, symbols: byClass.tier1s.slice() },
-      tier1b: { key: 'tier1b', label: VALIDATION_TIER_LABELS.tier1b, description: VALIDATION_TIER_DESCRIPTIONS.tier1b, symbols: byClass.tier1b.slice() },
-      tier1bs: { key: 'tier1bs', label: VALIDATION_TIER_LABELS.tier1bs, description: VALIDATION_TIER_DESCRIPTIONS.tier1bs, symbols: (byClass.tier1bs || byClass.tier1b).slice() },
-      tier2: { key: 'tier2', label: VALIDATION_TIER_LABELS.tier2, description: VALIDATION_TIER_DESCRIPTIONS.tier2, symbols: byClass.tier2.slice() },
-      tier3: { key: 'tier3', label: VALIDATION_TIER_LABELS.tier3, description: VALIDATION_TIER_DESCRIPTIONS.tier3, symbols: byClass.tier3.slice() },
-    },
+    tiers,
   };
+}
+
+function getRunTierRawValue() {
+  const select = document.getElementById('run-validation-tier');
+  return String(select?.value || DEFAULT_VALIDATION_TIER).trim().toLowerCase();
+}
+
+function getRunTierOptionLabel(key, tier) {
+  const label = tier?.label || VALIDATION_TIER_LABELS[key] || key;
+  const symbols = Array.isArray(tier?.symbols) ? tier.symbols : [];
+  if (!symbols.length || /\b\d+\s+(stocks|symbols|names)\b/i.test(label)) {
+    return label;
+  }
+  return `${label} — ${symbols.length} symbols`;
+}
+
+function refreshRunTierSelectOptions(preferredValue = null) {
+  const select = document.getElementById('run-validation-tier');
+  if (!select) return;
+  const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
+  const tiers = config?.tiers || {};
+  const requested = String(preferredValue || select.value || DEFAULT_VALIDATION_TIER).trim().toLowerCase();
+  const seen = new Set();
+  select.innerHTML = '';
+
+  for (const group of VALIDATION_TIER_GROUPS) {
+    const keys = group.keys.filter((key) => tiers[key]);
+    if (!keys.length) continue;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = group.label;
+    for (const key of keys) {
+      seen.add(key);
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = getRunTierOptionLabel(key, tiers[key]);
+      optgroup.appendChild(option);
+    }
+    select.appendChild(optgroup);
+  }
+
+  const extraKeys = Object.keys(tiers).filter((key) => !seen.has(key));
+  if (extraKeys.length) {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = 'Other Universes';
+    for (const key of extraKeys) {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = getRunTierOptionLabel(key, tiers[key]);
+      optgroup.appendChild(option);
+    }
+    select.appendChild(optgroup);
+  }
+
+  select.value = tiers[requested] ? requested : DEFAULT_VALIDATION_TIER;
+  updateTierOptionLocks();
 }
 
 async function loadTierConfigForSelectedStrategy() {
   if (!selectedStrategy?.strategy_version_id) {
     activeTierConfig = null;
+    refreshRunTierSelectOptions();
     return;
   }
   const fallback = buildFallbackTierConfig(selectedStrategy.asset_class);
@@ -583,6 +743,7 @@ async function loadTierConfigForSelectedStrategy() {
     const data = await apiGet(`/tier-config?strategy_version_id=${encodeURIComponent(selectedStrategy.strategy_version_id)}`);
     if (!data || typeof data !== 'object' || !data.tiers) {
       activeTierConfig = fallback;
+      refreshRunTierSelectOptions();
       return;
     }
     activeTierConfig = data;
@@ -590,19 +751,23 @@ async function loadTierConfigForSelectedStrategy() {
     console.warn('Tier config fetch failed, using fallback:', err);
     activeTierConfig = fallback;
   }
+  refreshRunTierSelectOptions();
 }
 
 function onRunAssetClassChange() {
   const acEl = document.getElementById('run-validation-asset-class');
   if (!acEl) return;
   const ac = acEl.value || 'stocks';
+  const requestedTier = getRunTierRawValue();
   activeTierConfig = buildFallbackTierConfig(ac);
+  refreshRunTierSelectOptions(requestedTier);
   if (selectedStrategy?.strategy_version_id) {
     apiGet(`/tier-config?strategy_version_id=${encodeURIComponent(selectedStrategy.strategy_version_id)}&asset_class=${encodeURIComponent(ac)}`)
       .then(data => {
         if (data && typeof data === 'object' && data.tiers) {
           activeTierConfig = data;
         }
+        refreshRunTierSelectOptions(requestedTier);
         updateRunTierDescription();
       })
       .catch(() => updateRunTierDescription());
@@ -611,9 +776,9 @@ function onRunAssetClassChange() {
 }
 
 function getRunTierKey() {
-  const select = document.getElementById('run-validation-tier');
-  const key = select?.value || DEFAULT_VALIDATION_TIER;
-  return VALIDATION_TIER_LABELS[key] ? key : DEFAULT_VALIDATION_TIER;
+  const key = getRunTierRawValue();
+  const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
+  return (config?.tiers?.[key] || VALIDATION_TIER_LABELS[key]) ? key : DEFAULT_VALIDATION_TIER;
 }
 
 function getTierContext(tierKey) {
@@ -636,7 +801,7 @@ function renderRunTierLibrary(selectedTierKey) {
   const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
   const assetClass = normalizeAssetClassKey(config?.asset_class || selectedStrategy?.asset_class);
   const selectedKey = String(selectedTierKey || '').trim().toLowerCase();
-  const keys = ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3'];
+  const keys = Object.keys(config?.tiers || {});
 
   let html = `
     <div class="run-tier-library-header">Symbol Library (${escHtml(assetClass)})</div>
@@ -838,6 +1003,40 @@ function selectReport(reportId) {
   renderReportContent();
 }
 
+function intervalToApproxDays(interval) {
+  const key = String(interval || '').trim().toLowerCase();
+  if (key === '1wk') return 7;
+  if (key === '1mo') return 30.44;
+  if (key === '3mo') return 91.31;
+  if (key === '5d') return 5;
+  if (key === '1d') return 1;
+  if (key.endsWith('h')) return Math.max(1 / 24, Number(key.replace('h', '')) / 24);
+  if (key.endsWith('m')) return Math.max(1 / 1440, Number(key.replace('m', '')) / 1440);
+  return null;
+}
+
+function formatApproxDuration(days) {
+  const value = Number(days);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  if (value < 45) {
+    const weeks = value / 7;
+    return `~${weeks >= 10 ? Math.round(weeks) : Number(weeks.toFixed(1))} weeks`;
+  }
+  if (value < 365) {
+    return `~${Math.round(value / 30.44)} months`;
+  }
+  const years = value / 365.25;
+  return `~${years >= 10 ? Math.round(years) : Number(years.toFixed(1))} years`;
+}
+
+function formatValuationHoldLabel(forwardBars, interval) {
+  const bars = Math.max(0, Math.round(Number(forwardBars || 0)));
+  if (!bars) return '';
+  const barDays = intervalToApproxDays(interval);
+  const duration = barDays ? formatApproxDuration(bars * barDays) : '';
+  return duration ? `${bars} bars (${duration})` : `${bars} bars`;
+}
+
 function renderReportDetail(report) {
   const r = report || {};
   const ts = r.trades_summary || {};
@@ -848,8 +1047,14 @@ function renderReportDetail(report) {
   const wf = rob.walk_forward || {};
   const mc = rob.monte_carlo || {};
   const ps = rob.parameter_sensitivity || {};
+  const valuation = r.valuation_validation || {};
+  const valuationCfg = valuation.config || {};
   const universe = Array.isArray(cfg.universe) ? cfg.universe : [];
   const timeframes = Array.isArray(cfg.timeframes) ? cfg.timeframes : [];
+  const primaryTimeframe = timeframes[0] || '';
+  const valuationHoldLabel = valuation.enabled
+    ? formatValuationHoldLabel(valuationCfg.forward_bars, primaryTimeframe)
+    : '';
   const costs = cfg.costs || {};
   const validationTier = cfg.validation_tier || 'N/A';
   const assetClass = cfg.asset_class || 'N/A';
@@ -872,7 +1077,9 @@ function renderReportDetail(report) {
       <div>
         <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">
           ${escHtml(cfg.date_start || 'N/A')} &rarr; ${escHtml(cfg.date_end || 'N/A')} &middot;
-          ${escHtml(timeframes.join(', ') || 'N/A')} &middot; ${escHtml(String(universe.length))} symbols
+          ${escHtml(timeframes.join(', ') || 'N/A')}
+          ${valuationHoldLabel ? ` &middot; Valuation hold: ${escHtml(valuationHoldLabel)}` : ''}
+          &middot; ${escHtml(String(universe.length))} symbols
         </div>
         <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;">
           Tier: ${escHtml(String(validationTier))} &middot; Asset Class: ${escHtml(String(assetClass))}
@@ -882,6 +1089,13 @@ function renderReportDetail(report) {
         </div>
       </div>
       <div style="margin-left:auto;display:flex;gap:var(--space-8);align-items:center;flex-shrink:0;">
+        <button
+          class="btn btn-ghost btn-sm"
+          style="color:var(--color-accent);"
+          onclick="sendSelectedStrategyToSweep()"
+          title="Open this strategy in Parameter Sweep"
+          ${selectedStrategy?.strategy_version_id ? '' : 'disabled'}
+        >Send to Sweep</button>
         <button
           class="btn btn-ghost btn-sm"
           style="color:var(--color-warning, #d2a95d);"
@@ -923,6 +1137,42 @@ function renderReportDetail(report) {
   html += metricCard('Best Trade', formatR(ts.largest_win_R), true);
   html += metricCard('Worst Trade', formatR(ts.largest_loss_R), false);
   html += `</div>`;
+
+  if (valuation.enabled && valuation.status === 'completed') {
+    const selected = valuation.selected || {};
+    const excluded = valuation.excluded || {};
+    const spread = valuation.spread || {};
+    const observations = valuation.observations || {};
+    const vcfg = valuation.config || {};
+    const holdLabel = formatValuationHoldLabel(vcfg.forward_bars, primaryTimeframe);
+    html += `<div class="section-title">Valuation Basket Test</div>`;
+    html += `<div class="metrics-grid cols-5" style="margin-bottom:var(--space-12);">`;
+    html += metricCard('Selected Avg', num(selected.avg_forward_return_pct).toFixed(2) + '%', num(selected.avg_forward_return_pct) > 0);
+    html += metricCard('Excluded Avg', num(excluded.avg_forward_return_pct).toFixed(2) + '%');
+    html += metricCard('Spread', num(spread.avg_return_spread_pct).toFixed(2) + '%', num(spread.avg_return_spread_pct) > 0);
+    html += metricCard('Hit Rate', formatPct(spread.hit_rate), num(spread.hit_rate) >= 0.5);
+    html += metricCard('T-Stat', num(spread.t_stat).toFixed(2), Math.abs(num(spread.t_stat)) >= 2);
+    html += `</div>`;
+    html += `<div class="metrics-grid cols-4" style="margin-bottom:var(--space-12);">`;
+    html += metricCard('Rebalance Periods', intNum(spread.periods || selected.periods));
+    html += metricCard('Selected Obs.', intNum(observations.selected));
+    html += metricCard('Excluded Obs.', intNum(observations.excluded));
+    html += metricCard('No Valuation', intNum(observations.no_valuation));
+    html += `</div>`;
+    html += `
+      <div class="metric-card" style="font-size:var(--text-caption);color:var(--color-text-muted);line-height:1.6;">
+        Tests DCF as a permission-to-buy basket: rebalance ${escHtml(vcfg.rebalance_frequency || 'monthly')},
+        hold ${escHtml(holdLabel || `${intNum(vcfg.forward_bars)} bars`)}, select symbols where DCF state is
+        <span class="text-mono">${escHtml(vcfg.target_state || 'undervalued')}</span>
+        at ${num(vcfg.gap_threshold_pct).toFixed(1)}% threshold, compare against symbols with known non-selected valuation states.
+      </div>
+    `;
+  } else if (valuation.enabled && valuation.status) {
+    html += `<div class="section-title">Valuation Basket Test</div>`;
+    html += `<div class="metric-card" style="font-size:var(--text-small);color:var(--color-text-muted);">
+      ${escHtml(valuation.reason || `Valuation basket status: ${valuation.status}`)}
+    </div>`;
+  }
   
   // --- RISK SUMMARY ---
   html += `<div class="section-title">Risk Summary</div>`;
@@ -1189,7 +1439,7 @@ function runValidation() {
   document.getElementById('run-date-end').value = '2025-12-31';
   const tierEl = document.getElementById('run-validation-tier');
   if (tierEl) {
-    tierEl.value = DEFAULT_VALIDATION_TIER;
+    refreshRunTierSelectOptions(DEFAULT_VALIDATION_TIER);
   }
   const intervalEl = document.getElementById('run-validation-interval');
   if (intervalEl && selectedStrategy?.interval) {
@@ -1198,6 +1448,30 @@ function runValidation() {
   const acEl = document.getElementById('run-validation-asset-class');
   if (acEl) {
     acEl.value = selectedStrategy?.asset_class || 'stocks';
+  }
+  const valuationForwardBarsEl = document.getElementById('run-valuation-forward-bars');
+  if (valuationForwardBarsEl) {
+    const forwardBars = String(
+      selectedStrategy?.fundamental_config?.forward_bars ||
+      selectedStrategy?.setup_config?.forward_bars ||
+      13
+    );
+    if (!Array.from(valuationForwardBarsEl.options || []).some((option) => option.value === forwardBars)) {
+      const option = document.createElement('option');
+      option.value = forwardBars;
+      option.textContent = `${forwardBars} bars`;
+      valuationForwardBarsEl.appendChild(option);
+    }
+    valuationForwardBarsEl.value = forwardBars;
+  }
+  const valuationRebalanceEl = document.getElementById('run-valuation-rebalance');
+  if (valuationRebalanceEl) {
+    const rebalance = String(
+      selectedStrategy?.fundamental_config?.rebalance_frequency ||
+      selectedStrategy?.setup_config?.rebalance_frequency ||
+      'monthly'
+    ).toLowerCase();
+    valuationRebalanceEl.value = rebalance === 'quarterly' ? 'quarterly' : 'monthly';
   }
   updateRunTierDescription();
   
@@ -1334,6 +1608,8 @@ async function submitRunValidation() {
   const tierKey = getRunTierKey();
   const context = getTierContext(tierKey);
   if (!context) return;
+  const valuationForwardBars = Math.max(1, Math.round(Number(document.getElementById('run-valuation-forward-bars')?.value || 13)));
+  const valuationRebalanceFrequency = String(document.getElementById('run-valuation-rebalance')?.value || 'monthly').trim().toLowerCase();
   if (tierKey === 'tier1b' && !isTier1BEligibleReport(getLatestTierReport('tier1'))) {
     alert('Tier 1B requires a Tier 1 result that looks viable but lacks enough trades.');
     return;
@@ -1357,11 +1633,19 @@ async function submitRunValidation() {
       tier: tierKey,
       interval: document.getElementById('run-validation-interval')?.value || undefined,
       asset_class: document.getElementById('run-validation-asset-class')?.value || undefined,
+      valuation_forward_bars: valuationForwardBars,
+      valuation_rebalance_frequency: valuationRebalanceFrequency === 'quarterly' ? 'quarterly' : 'monthly',
     });
 
     activeRunJobId = result.job_id;
     const runAssetClass = normalizeAssetClassKey(result.asset_class || context.assetClass);
     const runSymbolCount = Number(result.symbol_count || context.symbols.length || 0);
+    activeRunContext = {
+      strategy_version_id: selectedStrategy.strategy_version_id,
+      tier: tierKey,
+      tier_label: context.tierLabel,
+      symbol_count: runSymbolCount,
+    };
     setRunStatus(`Running ${context.tierLabel} (${runAssetClass}, ${runSymbolCount} symbols) (${activeRunJobId})...`, '', 8);
     await pollRunJob(activeRunJobId);
   } catch (err) {
@@ -1385,6 +1669,7 @@ async function cancelValidationRun() {
     runPollTimer = null;
   }
   activeRunJobId = null;
+  activeRunContext = null;
   setRunStatus('');
 }
 
@@ -1405,6 +1690,12 @@ async function reconnectActiveRun(targetJobId = null, targetStrategyVersionId = 
       await selectStrategy(job.strategy_version_id);
     }
     activeRunJobId = job.job_id;
+    activeRunContext = {
+      strategy_version_id: job.strategy_version_id || selectedStrategy?.strategy_version_id || '',
+      tier: job.tier || '',
+      tier_label: getRunTierBadgeLabel(job.tier || ''),
+      symbol_count: Number(job.symbol_count || 0),
+    };
     const pct = Math.round((Number(job.progress || 0)) * 100);
     const stage = job.stage ? job.stage.replaceAll('_', ' ') : '';
     const detail = job.detail || '';
@@ -1880,11 +2171,13 @@ function setRunStatus(message, warning = '', progressPct = null) {
   }
 
   if (info && selectedStrategy) {
-    const tierBadges = getStrategyTierBadges(selectedStrategy);
+    const runBadge = activeRunBadgeForStrategy(selectedStrategy);
+    const tierBadges = runBadge ? [] : getStrategyTierBadges(selectedStrategy);
     // Keep strategy header clean; run state is shown in the dedicated progress block.
     info.innerHTML = `
       <span style="font-weight:600;font-size:var(--text-body);">${escHtml(selectedStrategy.name)}</span>
       <span class="status-badge ${selectedStrategy.status}">${selectedStrategy.status}</span>
+      ${runBadge ? `<span class="tier-badge" title="${escHtml(runBadge.title)}">${escHtml(runBadge.label)}</span>` : ''}
       ${tierBadges.map((badge) => `<span class="tier-badge" title="${escHtml(badge.title)}">${escHtml(badge.label)}</span>`).join('')}
     `;
   } else if (!message) {
@@ -1939,6 +2232,7 @@ async function pollRunJob(jobId) {
             clearInterval(runPollTimer);
             runPollTimer = null;
             activeRunJobId = null;
+            activeRunContext = null;
             setRunStatus('');
             reject(new Error(`Validation run ${jobId} no longer exists on the backend. If the server was restarted, rerun validation.`));
             return;
@@ -1946,6 +2240,12 @@ async function pollRunJob(jobId) {
           throw new Error(error);
         }
         const job = payload.data;
+        activeRunContext = {
+          strategy_version_id: job.strategy_version_id || activeRunContext?.strategy_version_id || selectedStrategy?.strategy_version_id || '',
+          tier: job.tier || activeRunContext?.tier || '',
+          tier_label: getRunTierBadgeLabel(job.tier || activeRunContext?.tier || '', activeRunContext?.tier_label || ''),
+          symbol_count: Number(job.symbol_count || activeRunContext?.symbol_count || 0),
+        };
         consecutiveErrors = 0;
         // Recover to normal poll speed after errors
         if (pollInterval !== 2000) {
@@ -1975,6 +2275,7 @@ async function pollRunJob(jobId) {
           clearInterval(runPollTimer);
           runPollTimer = null;
           activeRunJobId = null;
+          activeRunContext = null;
           setRunStatus('');
           reject(new Error(job.error || 'Validation job failed'));
           return;
@@ -1989,6 +2290,7 @@ async function pollRunJob(jobId) {
           syncStrategyValidationFromReports(selectedStrategy?.strategy_version_id, reports);
 
           activeRunJobId = null;
+          activeRunContext = null;
           setRunStatus('');
           renderReportContent();
           updateStrategyInfo();
@@ -2120,6 +2422,15 @@ async function tombstoneSelectedStrategy() {
   }
 }
 
+function sendSelectedStrategyToSweep() {
+  const strategyVersionId = String(selectedStrategy?.strategy_version_id || '').trim();
+  if (!strategyVersionId) {
+    alert('Select a strategy before sending it to Sweep.');
+    return;
+  }
+  window.location.href = `sweep.html?strategy_version_id=${encodeURIComponent(strategyVersionId)}`;
+}
+
 function openStrategyPage() {
   if (selectedStrategy?.strategy_version_id) {
     const id = encodeURIComponent(selectedStrategy.strategy_version_id);
@@ -2178,10 +2489,16 @@ function defaultStrategyDraft() {
 }
 
 function openStrategyEditor(mode = 'new') {
+  if (mode === 'edit' && selectedStrategy?.source_signal?.pattern_id) {
+    window.location.href = `strategy-builder.html?source=${encodeURIComponent(selectedStrategy.source_signal.pattern_id)}`;
+    return;
+  }
+  window.location.href = 'strategy-builder.html';
+  return;
   strategyEditorMode = mode;
   const title = document.getElementById('strategy-modal-title');
   const applyStatusBtn = document.getElementById('sb-apply-status-btn');
-  title.textContent = mode === 'edit' ? 'Edit Strategy (Save as New Version)' : 'New Strategy Builder';
+  title.textContent = 'Strategy Builder moved';
   if (applyStatusBtn) {
     applyStatusBtn.style.display = mode === 'edit' && selectedStrategy ? 'inline-flex' : 'none';
   }
@@ -2208,6 +2525,8 @@ function openStrategyEditor(mode = 'new') {
 }
 
 async function generateDraftFromPrompt() {
+  window.location.href = 'strategy-builder.html';
+  return;
   const prompt = document.getElementById('sb-prompt').value.trim();
   if (!prompt) {
     alert('Enter a prompt first.');
@@ -2278,6 +2597,8 @@ function syncFromJsonToForm() {
 }
 
 async function saveStrategyDraft() {
+  window.location.href = 'strategy-builder.html';
+  return;
   syncFromFormToJson();
 
   let payload;
@@ -2591,6 +2912,7 @@ window.toggleChatPanel = toggleChatPanel;
 window.toggleStrategyStageBucket = toggleStrategyStageBucket;
 window.deleteReport = deleteReport;
 window.tombstoneSelectedStrategy = tombstoneSelectedStrategy;
+window.sendSelectedStrategyToSweep = sendSelectedStrategyToSweep;
 
 function toggleStrategyPanel() {
   const panel  = document.getElementById('strategy-panel');

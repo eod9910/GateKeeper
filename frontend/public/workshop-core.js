@@ -30,6 +30,67 @@ const WORKSHOP_VALIDATION_FIELDS = {
 };
 const WORKSHOP_ID_REGEX = /^[a-z][a-z0-9_]*$/;
 const WORKSHOP_CATEGORY_REGEX = /^[a-z][a-z0-9_]*$/;
+const WORKSHOP_SIGNAL_TAG_LABELS = {
+  technical: 'Technical Analysis',
+  fundamental: 'Fundamental Analysis',
+  pattern: 'Pattern',
+  composite: 'Composite',
+};
+const WORKSHOP_BUILT_IN_FUNDAMENTAL_SIGNALS = [
+  {
+    pattern_id: 'dcf_long',
+    name: 'DCF Long',
+    description: 'Long-side fundamental primitive for DCF undervaluation.',
+    search_tags: ['fundamental', 'fundamental_metric', 'dcf', 'fair_value', 'undervalued', 'long'],
+    trade_bias: 'long',
+  },
+  {
+    pattern_id: 'dcf_short',
+    name: 'DCF Short',
+    description: 'Short-side fundamental primitive for DCF overvaluation.',
+    search_tags: ['fundamental', 'fundamental_metric', 'dcf', 'fair_value', 'overvalued', 'short'],
+    trade_bias: 'short',
+  },
+  {
+    pattern_id: 'pe_ratio_metric',
+    name: 'P/E Ratio',
+    description: 'Single-metric fundamental primitive for price to earnings.',
+    search_tags: ['fundamental', 'fundamental_metric', 'valuation', 'pe', 'p_e', 'price_to_earnings', 'earnings'],
+  },
+  {
+    pattern_id: 'price_to_sales_metric',
+    name: 'Price / Sales',
+    description: 'Single-metric fundamental primitive for price to sales.',
+    search_tags: ['fundamental', 'fundamental_metric', 'valuation', 'price_to_sales', 'p_s', 'sales', 'revenue'],
+  },
+  {
+    pattern_id: 'eps_metric',
+    name: 'Earnings Per Share',
+    description: 'Single-metric fundamental primitive for earnings per share.',
+    search_tags: ['fundamental', 'fundamental_metric', 'eps', 'earnings_per_share', 'earnings'],
+  },
+].map((row) => ({
+  ...row,
+  row_key: row.pattern_id,
+  source: 'built_in',
+  draft_id: '',
+  category: 'fundamental_analysis',
+  category_name: 'Fundamental Analysis',
+  definition_file: '(built in)',
+  status: 'available',
+  artifact_type: 'indicator',
+  composition: 'primitive',
+  indicator_role: 'fundamental_metric',
+  canonical_role: 'fundamental_metric',
+  library_tier: 'core_stable',
+  autonomy_safe: true,
+  state_compatible: false,
+  cost_class: 'low',
+  source_kind: 'built_in_fundamental_metric',
+  scanner_favorite: false,
+  signal_tag: 'fundamental',
+  source_category: 'fundamental_primitive',
+}));
 
 let currentWorkshopTab = 'builder';
 let indicatorLibrary = {
@@ -248,6 +309,69 @@ function parseDateSafe(value) {
   return Number.isFinite(ts) ? ts : 0;
 }
 
+function isFundamentalLibraryRow(row) {
+  const explicitTag = String(row?.signal_tag || '').trim().toLowerCase();
+  if (explicitTag === 'fundamental') return true;
+
+  const category = String(row?.category || '').trim().toLowerCase();
+  const sourceKind = String(row?.source_kind || '').trim().toLowerCase();
+  const role = String(row?.indicator_role || row?.canonical_role || '').trim().toLowerCase();
+  if (category === 'fundamental_analysis' || sourceKind === 'built_in_fundamental_metric' || role === 'fundamental_metric') return true;
+
+  const haystack = [
+    row?.pattern_id,
+    row?.name,
+    row?.category,
+    row?.indicator_role,
+    row?.canonical_role,
+    ...(Array.isArray(row?.search_tags) ? row.search_tags : []),
+  ].join(' ').toLowerCase();
+  if (/\b(filter|quality|survivability|regime|gate)\b/.test(haystack)) return false;
+  return /\b(valuation|dcf|fair_value|p\/e|pe_ratio|price_to_earnings|earnings|revenue|cash flow|free_cash_flow|fcf|roe|eps|sales|price_to_sales|debt_to_equity)\b/.test(haystack);
+}
+
+function getLibrarySignalTag(row) {
+  const explicitTag = String(row?.signal_tag || '').trim().toLowerCase();
+  if (['technical', 'fundamental', 'pattern', 'composite'].includes(explicitTag)) return explicitTag;
+
+  const explicitCategory = String(row?.source_category || '').trim().toLowerCase();
+  if (explicitCategory === 'technical_primitive' || explicitCategory === 'technical_analysis') return 'technical';
+  if (explicitCategory === 'fundamental_primitive' || explicitCategory === 'fundamental_analysis') return 'fundamental';
+  if (explicitCategory === 'pattern') return 'pattern';
+  if (explicitCategory === 'composite') return 'composite';
+
+  const artifactType = String(row?.artifact_type || 'indicator').trim().toLowerCase();
+  const composition = String(row?.composition || '').trim().toLowerCase();
+  if (composition === 'composite') return 'composite';
+  if (artifactType === 'pattern') return 'pattern';
+  if (isFundamentalLibraryRow(row)) return 'fundamental';
+  return 'technical';
+}
+
+function getLibrarySourceCategory(row) {
+  const tag = getLibrarySignalTag(row);
+  if (tag === 'technical') return 'technical_analysis';
+  if (tag === 'fundamental') return 'fundamental_analysis';
+  return tag;
+}
+
+function getLibrarySourceCategoryLabel(row) {
+  return WORKSHOP_SIGNAL_TAG_LABELS[getLibrarySignalTag(row)] || toLabelCase(getLibrarySourceCategory(row));
+}
+
+function enrichLibrarySignalRow(row) {
+  const signalTag = getLibrarySignalTag(row);
+  const sourceCategory = getLibrarySourceCategory({ ...row, signal_tag: signalTag });
+  const searchTags = Array.isArray(row.search_tags) ? row.search_tags : [];
+  const normalizedTags = Array.from(new Set([signalTag, sourceCategory, ...searchTags].filter(Boolean)));
+  return {
+    ...row,
+    signal_tag: signalTag,
+    source_category: sourceCategory,
+    search_tags: normalizedTags,
+  };
+}
+
 function normalizeLocalDraftRecord(record) {
   if (!record || typeof record !== 'object') return null;
   const patternName = String(record.pattern_name || '').trim() || 'New Plugin';
@@ -263,7 +387,7 @@ function normalizeLocalDraftRecord(record) {
   const composition = String(parsedDef.composition || 'composite').trim() || 'composite';
   const artifactType = String(parsedDef.artifact_type || 'indicator').trim() || 'indicator';
 
-  return {
+  return enrichLibrarySignalRow({
     draft_id: draftId,
     saved_at: savedAt,
     pattern_name: patternName,
@@ -279,7 +403,11 @@ function normalizeLocalDraftRecord(record) {
     definition_file: '(local draft)',
     composition,
     artifact_type: artifactType,
-  };
+    indicator_role: String(parsedDef.indicator_role || '').trim(),
+    canonical_role: String(parsedDef.canonical_role || parsedDef.indicator_role || '').trim(),
+    source_kind: String(parsedDef.source_kind || '').trim(),
+    search_tags: Array.isArray(parsedDef.search_tags) ? parsedDef.search_tags : [],
+  });
 }
 
 function loadLocalDraftsFromStorage() {
@@ -517,7 +645,7 @@ async function initializeIndicatorLibrary(force = false) {
         const patternId = String(pattern.pattern_id || '').trim();
         const categoryId = String(pattern.category || 'custom').trim() || 'custom';
         const status = String(pattern.status || 'unknown').trim() || 'unknown';
-        return {
+        return enrichLibrarySignalRow({
           row_key: patternId,
           source: 'registered',
           draft_id: '',
@@ -538,7 +666,9 @@ async function initializeIndicatorLibrary(force = false) {
           source_kind: String(pattern.source_kind || '').trim(),
           search_tags: Array.isArray(pattern.search_tags) ? pattern.search_tags : [],
           scanner_favorite: pattern.scanner_favorite === true,
-        };
+          signal_tag: String(pattern.signal_tag || '').trim(),
+          source_category: String(pattern.source_category || '').trim(),
+        });
       })
       .filter((row) => !!row.pattern_id)
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -568,7 +698,11 @@ async function initializeIndicatorLibrary(force = false) {
 function getAllLibraryRows() {
   const drafts = Array.isArray(indicatorLibrary.localDrafts) ? indicatorLibrary.localDrafts : [];
   const registered = Array.isArray(indicatorLibrary.rows) ? indicatorLibrary.rows : [];
-  return [...drafts, ...registered];
+  const registeredIds = new Set(registered.map((row) => row.pattern_id));
+  const builtIns = WORKSHOP_BUILT_IN_FUNDAMENTAL_SIGNALS
+    .filter((row) => !registeredIds.has(row.pattern_id))
+    .map((row) => enrichLibrarySignalRow(row));
+  return [...drafts, ...builtIns, ...registered];
 }
 
 function findLibraryRowByKey(rowKey) {
@@ -585,7 +719,7 @@ function populateIndicatorLibraryFilters() {
 
   const categoryPairs = new Map();
   getAllLibraryRows().forEach((row) => {
-    categoryPairs.set(row.category, row.category_name || toLabelCase(row.category));
+    categoryPairs.set(row.source_category, getLibrarySourceCategoryLabel(row));
   });
 
   categorySelect.innerHTML = '<option value="">All</option>';
@@ -672,6 +806,13 @@ function compareLibraryRows(a, b, sortMode = 'favorites_first') {
     return aName;
   }
 
+  if (mode === 'category') {
+    const categoryCompare = getLibrarySourceCategoryLabel(a).localeCompare(getLibrarySourceCategoryLabel(b));
+    if (categoryCompare !== 0) return categoryCompare;
+    if (aFavorite !== bFavorite) return aFavorite - bFavorite;
+    return aName;
+  }
+
   if (mode === 'name') return aName;
 
   if (aFavorite !== bFavorite) return aFavorite - bFavorite;
@@ -681,11 +822,10 @@ function compareLibraryRows(a, b, sortMode = 'favorites_first') {
 function getFilteredIndicatorRows() {
   const filters = getLibraryFilters();
   return getAllLibraryRows().filter((row) => {
-    if (filters.type === 'primitive' && row.composition !== 'primitive') return false;
+    if (filters.type === 'primitive' && row.source_category === 'composite') return false;
     // "Composites" = composite indicators only (not patterns, primitives, or presets)
     if (filters.type === 'composite' && (row.composition !== 'composite' || row.artifact_type !== 'indicator')) return false;
-    if (filters.type === 'pattern' && row.artifact_type !== 'pattern') return false;
-    if (filters.category && row.category !== filters.category) return false;
+    if (filters.category && row.source_category !== filters.category) return false;
     if (filters.status && row.status !== filters.status) return false;
     if (filters.favorites === 'favorites' && row.scanner_favorite !== true) return false;
     if (filters.favorites === 'not_favorites' && row.scanner_favorite === true) return false;
@@ -697,6 +837,8 @@ function getFilteredIndicatorRows() {
       row.name,
       row.category,
       row.category_name,
+      row.source_category,
+      row.signal_tag,
       row.status,
       row.artifact_type,
       row.composition,
@@ -763,6 +905,7 @@ function renderIndicatorLibraryList(filteredRows) {
     const chips = [];
     const role = getLibraryRowRole(row);
     const source = getLibraryRowSourceLabel(row);
+    chips.push(`<span class="workshop-library-chip workshop-library-chip--tag">${escapeHtml(getLibrarySourceCategoryLabel(row))}</span>`);
     if (role) chips.push(`<span class="workshop-library-chip workshop-library-chip--role">${escapeHtml(toLabelCase(role))}</span>`);
     if (source) chips.push(`<span class="workshop-library-chip workshop-library-chip--source">${escapeHtml(toLabelCase(source))}</span>`);
     if (row.library_tier) chips.push(`<span class="workshop-library-chip workshop-library-chip--tier">${escapeHtml(toLabelCase(row.library_tier))}</span>`);
@@ -773,11 +916,11 @@ function renderIndicatorLibraryList(filteredRows) {
     const groupRows = rows
       .map((row) => {
         const active = row.row_key === indicatorLibrary.selectedPatternId ? ' active' : '';
-        const sourceLabel = row.source === 'draft' ? 'Local Draft' : 'Registered';
-        const sourceClass = row.source === 'draft' ? 'is-draft' : 'is-registered';
-        const favoriteToggle = row.source !== 'draft'
+        const sourceLabel = row.source === 'draft' ? 'Local Draft' : row.source === 'built_in' ? 'Built In' : 'Registered';
+        const sourceClass = row.source === 'draft' ? 'is-draft' : row.source === 'built_in' ? 'is-built-in' : 'is-registered';
+        const favoriteToggle = row.source === 'registered'
           ? `<button class="btn btn-ghost workshop-library-favorite-toggle" data-pattern-id="${escapeHtml(row.pattern_id)}" data-next-favorite="${row.scanner_favorite ? 'false' : 'true'}" type="button" title="${row.scanner_favorite ? 'Remove from scanner favorites' : 'Add to scanner favorites'}">${row.scanner_favorite ? '★' : '☆'}</button>`
-          : '';
+          : '<button class="btn btn-ghost workshop-library-favorite-toggle is-placeholder" type="button" tabindex="-1" aria-hidden="true">*</button>';
         return `
           <div class="workshop-library-row-shell${active}">
             ${favoriteToggle}
@@ -789,7 +932,7 @@ function renderIndicatorLibraryList(filteredRows) {
               <div class="workshop-library-row-id">${escapeHtml(row.pattern_id)}</div>
               <div class="workshop-library-row-chipline">${buildRowChips(row)}</div>
               <div class="workshop-library-row-meta">
-                <span>${escapeHtml(row.category_name || toLabelCase(row.category))}</span>
+                <span>${escapeHtml(getLibrarySourceCategoryLabel(row))}</span>
                 <span>${escapeHtml(toLabelCase(row.status || 'unknown'))}</span>
               </div>
             </button>
@@ -851,7 +994,7 @@ function renderIndicatorLibraryDetail(rowKey) {
     : indicatorLibrary.detailsById[row.pattern_id];
   const isLoading = row.source === 'draft' ? false : indicatorLibrary.loadingDetailId === row.pattern_id;
 
-  const description = detail && typeof detail.description === 'string' ? detail.description : '';
+  const description = detail && typeof detail.description === 'string' ? detail.description : String(row.description || '');
   const tunableCount = detail && Array.isArray(detail.tunable_params) ? detail.tunable_params.length : 0;
   const tfCount = detail && Array.isArray(detail.suggested_timeframes) ? detail.suggested_timeframes.length : 0;
   const minBars = detail && detail.min_data_bars != null ? String(detail.min_data_bars) : 'N/A';
@@ -863,6 +1006,8 @@ function renderIndicatorLibraryDetail(rowKey) {
   const autonomySafe = detail?.autonomy_safe ?? row.autonomy_safe;
   const stateCompatible = detail?.state_compatible ?? row.state_compatible;
   const searchTags = Array.isArray(detail?.search_tags) ? detail.search_tags : (Array.isArray(row.search_tags) ? row.search_tags : []);
+  const canUsePluginActions = row.source === 'registered';
+  const canLoadBuilder = row.source !== 'built_in';
 
   detailEl.innerHTML = `
     <div class="workshop-library-detail-top">
@@ -871,11 +1016,12 @@ function renderIndicatorLibraryDetail(rowKey) {
           <div class="workshop-library-detail-title">${escapeHtml(row.name)}</div>
           <div class="workshop-library-detail-subtitle">${escapeHtml(row.pattern_id)}</div>
         </div>
-        ${row.source !== 'draft'
+        ${canUsePluginActions
           ? `<button id="workshop-scanner-favorite-btn" class="btn workshop-library-scanner-toggle" type="button">${row.scanner_favorite ? '★ In Scanner' : '☆ Add To Scanner'}</button>`
           : ''}
       </div>
       <div class="workshop-library-detail-chipline">
+        <span class="workshop-library-chip workshop-library-chip--tag">${escapeHtml(getLibrarySourceCategoryLabel(row))}</span>
         <span class="workshop-library-chip workshop-library-chip--role">${escapeHtml(toLabelCase(effectiveRole))}</span>
         ${libraryTier ? `<span class="workshop-library-chip workshop-library-chip--tier">${escapeHtml(toLabelCase(libraryTier))}</span>` : ''}
         ${sourceKind ? `<span class="workshop-library-chip workshop-library-chip--source">${escapeHtml(toLabelCase(sourceKind))}</span>` : ''}
@@ -883,7 +1029,7 @@ function renderIndicatorLibraryDetail(rowKey) {
       </div>
     </div>
 
-    ${row.source !== 'draft'
+    ${canUsePluginActions
       ? `<section class="workshop-library-detail-section">
           <div class="workshop-library-status-card ${row.scanner_favorite ? 'is-favorited' : ''}">
             <div class="workshop-library-status-title">${row.scanner_favorite ? 'Included In Scanner Favorites' : 'Not In Scanner Favorites'}</div>
@@ -897,6 +1043,8 @@ function renderIndicatorLibraryDetail(rowKey) {
     <section class="workshop-library-detail-section">
       <div class="workshop-library-section-title">Key Facts</div>
       <div class="workshop-library-facts-grid">
+        <div class="workshop-library-fact-card"><span class="label">Signal Tag</span><div>${escapeHtml(toLabelCase(row.signal_tag))}</div></div>
+        <div class="workshop-library-fact-card"><span class="label">Primitive Category</span><div>${escapeHtml(getLibrarySourceCategoryLabel(row))}</div></div>
         <div class="workshop-library-fact-card"><span class="label">Category</span><div>${escapeHtml(row.category_name || toLabelCase(row.category))}</div></div>
         <div class="workshop-library-fact-card"><span class="label">Status</span><div>${escapeHtml(toLabelCase(row.status))}</div></div>
         <div class="workshop-library-fact-card"><span class="label">Autonomy</span><div>${escapeHtml(autonomySafe === true ? 'Yes' : autonomySafe === false ? 'No' : 'Unknown')}</div></div>
@@ -914,17 +1062,17 @@ function renderIndicatorLibraryDetail(rowKey) {
     <section class="workshop-library-detail-section">
       <div class="workshop-library-section-title">Actions</div>
       <div class="workshop-library-detail-actions">
-      <button id="workshop-load-builder-btn" class="btn btn-primary" type="button">${row.source === 'draft' ? 'Load Draft to Indicator Builder' : 'Load to Indicator Builder'}</button>
-      ${row.composition !== 'composite' && row.source !== 'draft'
+      ${canLoadBuilder ? `<button id="workshop-load-builder-btn" class="btn btn-primary" type="button">${row.source === 'draft' ? 'Load Draft to Indicator Builder' : 'Load to Indicator Builder'}</button>` : ''}
+      ${row.composition !== 'composite' && canUsePluginActions
         ? '<button id="workshop-build-composite-btn" class="btn workshop-library-action-accent" type="button" title="Start a new composite indicator using this primitive as a stage">Build Composite</button>'
         : ''}
-      <button id="workshop-load-strategy-btn" class="btn" type="button" title="Open Strategy Page to build a strategy using this indicator">Build Strategy</button>
+      <button id="workshop-load-strategy-btn" class="btn" type="button" title="Open Strategy Builder to wrap this signal">Build Strategy</button>
       ${row.source === 'draft'
         ? '<button id="workshop-delete-draft-btn" class="btn btn-ghost" type="button">Delete Draft</button>'
-        : '<button id="workshop-refresh-detail-btn" class="btn btn-ghost" type="button">Refresh Detail</button>'}
-      ${row.source !== 'draft' ? '<button id="workshop-edit-indicator-btn" class="btn btn-ghost" type="button">Edit</button>' : ''}
-      ${row.source !== 'draft' ? '<button id="workshop-edit-json-btn" class="btn btn-ghost" type="button">Edit JSON</button>' : ''}
-      ${row.source !== 'draft' ? '<button id="workshop-delete-indicator-btn" class="btn btn-ghost" style="color:var(--color-red,#ef4444);" type="button">Delete</button>' : ''}
+        : canUsePluginActions ? '<button id="workshop-refresh-detail-btn" class="btn btn-ghost" type="button">Refresh Detail</button>' : ''}
+      ${canUsePluginActions ? '<button id="workshop-edit-indicator-btn" class="btn btn-ghost" type="button">Edit</button>' : ''}
+      ${canUsePluginActions ? '<button id="workshop-edit-json-btn" class="btn btn-ghost" type="button">Edit JSON</button>' : ''}
+      ${canUsePluginActions ? '<button id="workshop-delete-indicator-btn" class="btn btn-ghost" style="color:var(--color-red,#ef4444);" type="button">Delete</button>' : ''}
       </div>
     </section>
     ${isLoading ? '<p class="workshop-test-placeholder">Loading full definition...</p>' : ''}
@@ -943,8 +1091,7 @@ function renderIndicatorLibraryDetail(rowKey) {
   const loadStrategyBtn = document.getElementById('workshop-load-strategy-btn');
   if (loadStrategyBtn) {
     loadStrategyBtn.addEventListener('click', () => {
-      const seedText = `Create a breakout strategy using the existing \`${row.pattern_id}\` primitive.\n\nSetup Rules:\n- Use the \`${row.pattern_id}\` primitive.\n\nEntry Logic:\n- Enter on the first weekly close above the breakout point.\n\nExit Logic:\n- Stop Loss: ATR-based trailing stop (multiplier: 2.0).\n- Take Profit: Fixed target of 3.0R.\n- Max Hold Time: 20 bars.`;
-      window.location.href = `strategy.html?seed=${encodeURIComponent(seedText)}`;
+      window.location.href = `strategy-builder.html?source=${encodeURIComponent(row.pattern_id)}`;
     });
   }
 
@@ -1232,7 +1379,7 @@ async function selectIndicatorFromLibrary(rowKey, forceRefresh = false) {
 
   const row = findLibraryRowByKey(rowKey);
   if (!row) return;
-  if (row.source === 'draft') {
+  if (row.source === 'draft' || row.source === 'built_in') {
     renderIndicatorLibraryDetail(rowKey);
     return;
   }

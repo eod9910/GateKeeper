@@ -306,6 +306,22 @@ function _roleToStageId(role, existingStages) {
 // Composite definition scaffolding
 // -------------------------------------------------------------------------
 
+function _defaultCompositeStateSpec(intent) {
+  const normalized = String(intent || 'entry').trim().toLowerCase();
+  if (normalized === 'entry') {
+    return {
+      emits_state: true,
+      default_state: 'entry_ready',
+      allowed_states: ['setup_detected', 'waiting_for_trigger', 'entry_ready', 'invalidated', 'cooldown'],
+    };
+  }
+  return {
+    emits_state: true,
+    default_state: `${normalized}_ready`,
+    allowed_states: [`${normalized}_ready`, 'invalidated', 'cooldown'],
+  };
+}
+
 function _scaffoldCompositeDefinition() {
   const nameEl = document.getElementById('composite-name');
   const idEl = document.getElementById('composite-id');
@@ -318,7 +334,7 @@ function _scaffoldCompositeDefinition() {
     pattern_id: patternId,
     name: name,
     category: 'indicator_signals',
-    description: `Composite ${intent} indicator.`,
+    description: `Composite ${intent} signal.`,
     author: 'user',
     version: '1.0.0',
     plugin_file: 'plugins/composite_runner.py',
@@ -330,6 +346,7 @@ function _scaffoldCompositeDefinition() {
       pattern_type: patternId,
       composite_spec: {
         intent: intent,
+        state_spec: _defaultCompositeStateSpec(intent),
         stages: [],
         reducer: { op: 'AND', inputs: [] },
       },
@@ -383,6 +400,7 @@ function onCompositeIntentChange() {
   if (_compositeDefinition) {
     if (_compositeDefinition.default_setup_params?.composite_spec) {
       _compositeDefinition.default_setup_params.composite_spec.intent = intent;
+      _compositeDefinition.default_setup_params.composite_spec.state_spec = _defaultCompositeStateSpec(intent);
     }
     _compositeDefinition.indicator_role = `${intent}_composite`;
     _compositeDefinition.default_entry = {
@@ -524,7 +542,7 @@ async function registerCompositeDefinition() {
   const def = _compositeDefinition;
   const patternId = def.pattern_id;
 
-  const ok = confirm(`Register composite indicator?\n\n${def.name} (${patternId})\n\nThis will publish it to the indicator library.`);
+  const ok = confirm(`Register composite signal?\n\n${def.name} (${patternId})\n\nThis will publish it to the signal library.`);
   if (!ok) return;
 
   const thinCode = [
@@ -563,7 +581,7 @@ async function registerCompositeDefinition() {
     const assignedId = String(data?.data?.pattern_id || patternId);
     _showCompositeBadge(true, `Registered: ${assignedId}`);
 
-    _compositeChatMessages.push({ sender: 'ai', text: `Composite indicator "${def.name}" (${assignedId}) has been registered to the library.` });
+    _compositeChatMessages.push({ sender: 'ai', text: `Composite signal "${def.name}" (${assignedId}) has been registered to the library.` });
     _renderCompositeChat();
   } catch (error) {
     _showCompositeBadge(false, `Registration error: ${error?.message || 'Unknown'}`);
@@ -606,7 +624,7 @@ function _initCompositeChat() {
   if (_compositeChatMessages.length === 0) {
     _compositeChatMessages.push({
       sender: 'ai',
-      text: 'I am the Composite Architect. I help you wire primitives together into composite indicators.\n\nTell me what kind of composite you want to build (Entry, Exit, Analysis, Regime) and I will recommend the right primitives and generate the JSON definition.',
+      text: 'I am the Composite Architect. I help you wire primitives together into composite signals, including stateful signals like setup_detected, waiting_for_trigger, entry_ready, invalidated, or cooldown.\n\nComposites describe signal state only. Entry rules, exits, stops, targets, sizing, costs, and execution settings belong in Strategy Builder.',
     });
   }
   _renderCompositeChat();
@@ -804,7 +822,7 @@ function seedCompositeFromPrimitive(primitiveId, primitiveRole, primitiveName, d
     pattern_id: compositeId.endsWith('_composite') ? compositeId : compositeId + '_composite',
     name: compositeName,
     category: 'indicator_signals',
-    description: `Composite ENTRY indicator built around ${primitiveName || primitiveId}.`,
+    description: `Composite ENTRY signal built around ${primitiveName || primitiveId}.`,
     author: 'user',
     version: '1.0.0',
     plugin_file: 'plugins/composite_runner.py',
@@ -816,6 +834,7 @@ function seedCompositeFromPrimitive(primitiveId, primitiveRole, primitiveName, d
       pattern_type: compositeId.endsWith('_composite') ? compositeId : compositeId + '_composite',
       composite_spec: {
         intent: 'entry',
+        state_spec: _defaultCompositeStateSpec('entry'),
         stages: [
           { id: primitiveRole === 'anchor_structure' ? 'structure' : (primitiveRole || 'stage_1'), pattern_id: primitiveId },
         ],
@@ -853,13 +872,13 @@ function seedCompositeFromPrimitive(primitiveId, primitiveRole, primitiveName, d
   _updateCompositeRegisterButton();
 
   // Fire a kickoff chat message
-  const kickoff = `I want to build a composite entry indicator using the \`${primitiveId}\` primitive (role: ${primitiveRole || 'unknown'}) as one of the stages.
+  const kickoff = `I want to build a composite entry signal using the \`${primitiveId}\` primitive (role: ${primitiveRole || 'unknown'}) as one of the stages.
 
 The template is already loaded. Please:
 1. Review the available primitives and recommend the best additional stages (Structure, Location, Trigger) to complete this composite.
-2. Generate the final composite JSON definition.
+2. Generate the final composite JSON definition with a state_spec that emits entry_ready when all stages agree.
 
-Do NOT write any Python code — composites only need a JSON definition.`;
+Do NOT write any Python code. Do NOT add entry, exit, stop, target, sizing, cost, or execution rules; those belong in Strategy Builder.`;
 
   _compositeChatMessages = [];
   _initCompositeChat();

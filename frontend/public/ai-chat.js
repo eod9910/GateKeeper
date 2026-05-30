@@ -38,6 +38,8 @@ const scannerChatAttachments = {
   'scanner-chat-input': null,
   'fundamentals-chat-input': null,
 };
+let scannerAutoLedgerTimer = null;
+let scannerAutoLedgerRequestId = 0;
 
 function getDefaultScannerAnalysts() {
   return [
@@ -579,6 +581,11 @@ function clearScannerChatSession(symbol, timeframe) {
   const aiPanel = document.getElementById('ai-panel');
   const scannerInput = document.getElementById('scanner-chat-input');
   const fundamentalsInput = document.getElementById('fundamentals-chat-input');
+  scannerAutoLedgerRequestId += 1;
+  if (scannerAutoLedgerTimer) {
+    clearTimeout(scannerAutoLedgerTimer);
+    scannerAutoLedgerTimer = null;
+  }
 
   clearScannerAILevels();
   resetScannerChatVisualState();
@@ -607,6 +614,83 @@ function clearScannerChatSession(symbol, timeframe) {
 
   setScannerChatStatus('Ready');
   setScannerChatStatus('Ready', 'fundamentals-chat-status');
+}
+
+function buildAutoLedgerOverviewPrompt(symbol, timeframe) {
+  return [
+    `Load the Ledger overview report for ${symbol || 'this symbol'} immediately.`,
+    'Give me the overall company view, financial picture, valuation posture, survivability, reported execution, forward expectations, social buzz, option-flow context if available, and the scanner setup context.',
+    'Use the fundamentals snapshot cards as structured evidence. Be concise but complete, and separate facts, interpretation, judgment, and invalidation.',
+    timeframe ? `Scanner timeframe: ${timeframe}.` : '',
+  ].filter(Boolean).join(' ');
+}
+
+function scheduleScannerLedgerAutoOverview(candidate) {
+  if (!candidate?.symbol) return;
+  const symbol = String(candidate.symbol || '').trim().toUpperCase();
+  const timeframe = candidate.timeframe || 'N/A';
+  const requestId = ++scannerAutoLedgerRequestId;
+  if (scannerAutoLedgerTimer) {
+    clearTimeout(scannerAutoLedgerTimer);
+    scannerAutoLedgerTimer = null;
+  }
+  scannerAutoLedgerTimer = setTimeout(async () => {
+    const active = candidates?.[currentIndex];
+    const activeSymbol = String(active?.symbol || '').trim().toUpperCase();
+    if (!active || activeSymbol !== symbol || requestId !== scannerAutoLedgerRequestId) return;
+    await runScannerLedgerAutoOverview(active, requestId);
+  }, 350);
+}
+
+async function runScannerLedgerAutoOverview(candidate, requestId) {
+  if (!candidate?.symbol) return;
+  const symbol = String(candidate.symbol || '').trim().toUpperCase();
+  const messagesId = 'scanner-chat-messages';
+  const statusId = 'ai-status';
+  const messages = document.getElementById(messagesId);
+  if (messages && !messages.textContent.trim()) {
+    await appendScannerChatMessage(`Loading Ledger overview for ${symbol}...`, 'ai', messagesId, { animate: false });
+  }
+  setScannerChatStatus('Loading Ledger report', statusId);
+  try {
+    const fundamentals = await ensureScannerFundamentals(symbol);
+    const active = candidates?.[currentIndex];
+    const activeSymbol = String(active?.symbol || '').trim().toUpperCase();
+    if (!active || activeSymbol !== symbol || requestId !== scannerAutoLedgerRequestId) return;
+    if (!fundamentals) {
+      await appendScannerChatMessage(`Fundamentals snapshot was unavailable for ${symbol}. Ledger can continue with scanner context only, but the overview report is incomplete.`, 'ai', messagesId, { animate: false });
+    }
+    const detector = buildDetectorContext(candidate);
+    const rawPrompt = buildAutoLedgerOverviewPrompt(symbol, candidate.timeframe || 'N/A');
+    const message = buildScannerMessage(rawPrompt, candidate, detector, fundamentals);
+    const settings = getStoredCopilotSettings();
+    const context = buildScannerChatContext(fundamentals, messagesId);
+    const response = await fetch('/api/vision/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        context,
+        analyst: 'financial_analyst',
+        role: null,
+        aiModel: settings.aiModel,
+        chartImage: null,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+    const responseText = String(data.data?.response || 'No response.');
+    const latest = candidates?.[currentIndex];
+    if (String(latest?.symbol || '').trim().toUpperCase() !== symbol || requestId !== scannerAutoLedgerRequestId) return;
+    setScannerChatStatus('Typing', statusId);
+    await appendScannerChatMessage(responseText, 'ai', messagesId, { animate: true });
+    setScannerChatStatus('Ready', statusId);
+  } catch (err) {
+    await appendScannerChatMessage(`Ledger overview failed: ${err.message}`, 'ai', messagesId, { animate: false });
+    setScannerChatStatus('Error', statusId);
+  }
 }
 
 function clearFundamentalsChatSession() {

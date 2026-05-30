@@ -94,6 +94,32 @@
       transition: opacity 0.3s;
     }
     .save-status.visible { opacity: 1; }
+
+    .mi-jobs-table { width: 100%; border-collapse: collapse; font-size: var(--text-caption); }
+    .mi-jobs-table th, .mi-jobs-table td {
+      padding: 6px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .mi-jobs-table th {
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--color-text-subtle);
+      font-weight: 500;
+    }
+    .mi-jobs-table td { font-family: var(--font-mono, 'JetBrains Mono', monospace); }
+    .mi-jobs-table tr:hover { background: var(--color-surface-hover); }
+    .mi-job-kind { font-size: 9px; padding: 1px 6px; border-radius: 3px; }
+    .mi-job-kind.collector { background: rgba(93,122,146,0.15); color: #7a9bb8; }
+    .mi-job-kind.engine    { background: rgba(79,170,114,0.15); color: #4faa72; }
+    .mi-job-kind.rollup    { background: rgba(155,109,200,0.15); color: #9b6dc8; }
+    .mi-job-enabled  { color: var(--color-positive); }
+    .mi-job-disabled { color: var(--color-text-subtle); }
+    .mi-stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--color-border-subtle); }
+    .mi-stat-row:last-child { border-bottom: none; }
+    .mi-stat-key { color: var(--color-text-muted); font-size: var(--text-caption); }
+    .mi-stat-val { font-family: var(--font-mono, 'JetBrains Mono', monospace); font-size: var(--text-caption); }
   </style>
 </head>
 <body>
@@ -144,6 +170,7 @@
             <button class="settings-nav-item" onclick="showTab('risk')">Risk Rules</button>
             <button class="settings-nav-item" onclick="showTab('ai')">AI</button>
             <button class="settings-nav-item" onclick="showTab('automation')">Automation</button>
+            <button class="settings-nav-item" onclick="showTab('mi')">Market Intel</button>
           </nav>
 
           <!-- Right content -->
@@ -591,6 +618,10 @@
                       <input type="checkbox" id="s-ledger-hydration-refresh-consumer-cycle" checked>
                       <label class="settings-label" for="s-ledger-hydration-refresh-consumer-cycle" style="cursor:pointer;">Refresh consumer-cycle classifications after hydration</label>
                     </div>
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-ledger-hydration-refresh-social-intelligence" checked>
+                      <label class="settings-label" for="s-ledger-hydration-refresh-social-intelligence" style="cursor:pointer;">Refresh full clean-universe social intelligence after hydration</label>
+                    </div>
                   <div class="settings-field full">
                     <label class="settings-label">Current Status</label>
                     <div id="s-ledger-hydration-status" class="text-muted" style="font-size:var(--text-small);">Loading hydration status...</div>
@@ -599,18 +630,20 @@
                   <div class="settings-field full" style="justify-content:flex-end;">
                     <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
                       <button class="btn btn-primary btn-sm" type="button" onclick="saveHydrationScheduleSettings()">Save Hydration Schedule</button>
-                      <button class="btn btn-ghost btn-sm" type="button" onclick="runHydrationNow()">Run Now</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="runHydrationNow()">Run Full Chain</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="runValuationRefreshNow()">Run Valuations Only</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="runYahooIdentityRefreshNow()">Run Yahoo Identity Only</button>
                       <button class="btn btn-ghost btn-sm" type="button" onclick="loadHydrationScheduleSettings()">Refresh Status</button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="settings-section">
-                <div class="settings-section-title">Consumer Cycle Classification</div>
-                <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
-                  Rebuild the symbol-to-cycle taxonomy used by the Consumer Cycle page. This classifies tradable stocks into cycle buckets, specific categories, and spend classes, and writes a review queue for weak-confidence names.
-                </div>
+                <div class="settings-section">
+                  <div class="settings-section-title">Consumer Cycle Classification</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                    Rebuild the symbol-to-cycle taxonomy used by the Consumer Cycle page. This classifies tradable stocks into cycle buckets, specific categories, and spend classes, and writes a review queue for weak-confidence names.
+                  </div>
                 <div class="settings-grid">
                   <div class="settings-field full">
                     <label class="settings-label">Current Status</label>
@@ -624,7 +657,287 @@
                     </div>
                   </div>
                 </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-title">Social Intelligence</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                    Continuously collect StockTwits and Yahoo Finance community posts for the clean universe, then finalize one official daily social snapshot for screening and backtests.
+                  </div>
+                  <div class="settings-grid">
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-social-intel-enabled" onchange="toggleSocialScheduleFields()">
+                      <label class="settings-label" for="s-social-intel-enabled" style="cursor:pointer;">Enable scheduled social collection</label>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-social-intel-frequency">Intraday Collection Frequency</label>
+                      <select id="s-social-intel-frequency" class="select select-sm" onchange="toggleSocialScheduleFields()">
+                        <option value="manual">Manual only</option>
+                        <option value="15min">Every 15 minutes</option>
+                        <option value="30min">Every 30 minutes</option>
+                        <option value="hourly">Hourly</option>
+                      </select>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-social-intel-timezone">Intraday Timezone</label>
+                      <input type="text" id="s-social-intel-timezone" class="input input-sm" value="America/Los_Angeles">
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-social-intel-limit">Intraday Limit</label>
+                      <input type="number" id="s-social-intel-limit" class="input input-sm" value="0" min="0">
+                      <span class="settings-hint">0 = full tracked clean universe</span>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-social-intel-sleep-ms">Sleep Between Symbols (ms)</label>
+                      <input type="number" id="s-social-intel-sleep-ms" class="input input-sm" value="350" min="0" step="50">
+                    </div>
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-social-intel-finalize-enabled" checked onchange="toggleSocialScheduleFields()">
+                      <label class="settings-label" for="s-social-intel-finalize-enabled" style="cursor:pointer;">Run daily final social snapshot</label>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-social-intel-finalize-time">Daily Finalize Time</label>
+                      <input type="time" id="s-social-intel-finalize-time" class="input input-sm" value="16:30">
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-social-intel-finalize-timezone">Finalize Timezone</label>
+                      <input type="text" id="s-social-intel-finalize-timezone" class="input input-sm" value="America/Los_Angeles">
+                    </div>
+                    <div class="settings-field full">
+                      <label class="settings-label">Current Status</label>
+                      <div id="s-social-intel-status" class="text-muted" style="font-size:var(--text-small);">Loading social-intelligence status...</div>
+                      <div id="s-social-intel-meta" class="settings-hint"></div>
+                    </div>
+                    <div class="settings-field full">
+                      <label class="settings-label">Daily Finalizer Status</label>
+                      <div id="s-social-intel-finalize-status" class="text-muted" style="font-size:var(--text-small);">Loading social finalizer status...</div>
+                      <div id="s-social-intel-finalize-meta" class="settings-hint"></div>
+                    </div>
+                    <div class="settings-field full" style="justify-content:flex-end;">
+                      <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" type="button" onclick="saveSocialScheduleSettings()">Save Social Schedule</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="runSocialCollectNow()">Run Collect Now</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="runSocialFinalizeNow()">Run Finalize Now</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="loadSocialScheduleSettings()">Refresh Status</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-title">Reddit Collection</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                    Collect posts from finance subreddits using Reddit's public JSON endpoints (no auth required, 10 req/min).
+                    Extracts ticker mentions and feeds them into the same social intelligence pipeline as StockTwits and Yahoo Finance.
+                  </div>
+                  <div class="settings-grid">
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-reddit-enabled" onchange="toggleRedditFields()">
+                      <label class="settings-label" for="s-reddit-enabled" style="cursor:pointer;">Enable scheduled Reddit collection</label>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-reddit-frequency">Collection Frequency</label>
+                      <select id="s-reddit-frequency" class="select select-sm">
+                        <option value="manual">Manual only</option>
+                        <option value="15min">Every 15 minutes</option>
+                        <option value="30min">Every 30 minutes</option>
+                        <option value="hourly">Hourly</option>
+                      </select>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-reddit-subreddits">Subreddits</label>
+                      <input type="text" id="s-reddit-subreddits" class="input input-sm" value="wallstreetbets,stocks,investing" placeholder="wallstreetbets,stocks,investing">
+                      <span class="settings-hint">Comma-separated subreddit names</span>
+                    </div>
+                    <div class="settings-field full">
+                      <label class="settings-label">Reddit Status</label>
+                      <div id="s-reddit-status" class="text-muted" style="font-size:var(--text-small);">Loading Reddit status...</div>
+                      <div id="s-reddit-meta" class="settings-hint"></div>
+                    </div>
+                    <div class="settings-field full" style="justify-content:flex-end;">
+                      <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="runRedditCollectNow()">Run Reddit Collect Now</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="loadSocialScheduleSettings()">Refresh Status</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-title">SEC EDGAR Filings</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                    Poll SEC EDGAR for Form 4 insider transactions and SC 13D activist stakes.
+                    Free API, no auth — filters to your clean universe and generates alerts for cluster buying, large purchases, and new activist positions.
+                  </div>
+                  <div class="settings-grid">
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-edgar-enabled" onchange="toggleEdgarFields()">
+                      <label class="settings-label" for="s-edgar-enabled" style="cursor:pointer;">Enable scheduled EDGAR collection</label>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-edgar-frequency">Collection Frequency</label>
+                      <select id="s-edgar-frequency" class="select select-sm">
+                        <option value="manual">Manual only</option>
+                        <option value="hourly">Hourly</option>
+                        <option value="4h">Every 4 hours</option>
+                        <option value="daily">Daily</option>
+                      </select>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-edgar-lookback">Lookback (hours)</label>
+                      <input type="number" id="s-edgar-lookback" class="input input-sm" value="48" min="1" max="168">
+                      <span class="settings-hint">How far back to check for new filings</span>
+                    </div>
+                    <div class="settings-field" id="edgar-time-field" style="display:none;">
+                      <label class="settings-label" for="s-edgar-time">Time of Day (daily)</label>
+                      <input type="time" id="s-edgar-time" class="input input-sm" value="18:00">
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label" for="s-edgar-timezone">Timezone</label>
+                      <input type="text" id="s-edgar-timezone" class="input input-sm" value="America/New_York">
+                    </div>
+                    <div class="settings-field full">
+                      <label class="settings-label">Collection Status</label>
+                      <div id="s-edgar-status" class="text-muted" style="font-size:var(--text-small);">Loading EDGAR status...</div>
+                      <div id="s-edgar-meta" class="settings-hint"></div>
+                    </div>
+                    <div class="settings-field full" style="justify-content:flex-end;">
+                      <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" type="button" onclick="saveEdgarSettings()">Save EDGAR Schedule</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="runEdgarCollectNow()">Run Collect Now</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="loadEdgarSettings()">Refresh Status</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-title">13F Institutional Holdings</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                    Tracks quarterly 13F filings from notable hedge funds and institutional managers
+                    (Berkshire, Citadel, Renaissance, etc.) to see what the smart money is holding.
+                    Updated quarterly — filings are due 45 days after quarter end.
+                  </div>
+                  <div class="settings-grid">
+                    <div class="settings-field full">
+                      <label class="settings-label">Collection Status</label>
+                      <div id="s-13f-status" class="text-muted" style="font-size:var(--text-small);">Loading 13F status...</div>
+                    </div>
+                    <div class="settings-field full" style="justify-content:flex-end;">
+                      <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" type="button" onclick="run13fCollectNow()">Collect 13F Holdings</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="load13fStatus()">Refresh Status</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-title">DCF Calibration Engine</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                    Tracks every DCF valuation's assumptions and compares them against actual earnings outcomes.
+                    After a quarter of data, computes systematic bias corrections by sector and market cap band that automatically
+                    improve future DCF accuracy. Zero LLM cost — all computation is deterministic.
+                  </div>
+                  <div class="settings-grid">
+                    <div class="settings-field">
+                      <label class="settings-label">Predictions Logged</label>
+                      <div id="s-calibration-predictions" class="text-muted" style="font-size:var(--text-small);font-variant-numeric:tabular-nums;">—</div>
+                      <span class="settings-hint">Populated on each valuation refresh + interactive DCF</span>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label">Calibration Errors</label>
+                      <div id="s-calibration-errors" class="text-muted" style="font-size:var(--text-small);font-variant-numeric:tabular-nums;">—</div>
+                      <span class="settings-hint">Predicted vs. actual comparisons</span>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label">Active Adjustments</label>
+                      <div id="s-calibration-adjustments" class="text-muted" style="font-size:var(--text-small);font-variant-numeric:tabular-nums;">—</div>
+                      <span class="settings-hint">Bias corrections applied to future DCFs</span>
+                    </div>
+                    <div class="settings-field">
+                      <label class="settings-label">Status</label>
+                      <div id="s-calibration-status" class="text-muted" style="font-size:var(--text-small);">Loading...</div>
+                    </div>
+                    <div class="settings-field full" id="s-calibration-bias-table-container" style="display:none;">
+                      <label class="settings-label">Top Bias Corrections</label>
+                      <div id="s-calibration-bias-table" style="font-size:var(--text-caption);font-family:var(--font-mono);line-height:1.6;color:var(--color-text-subtle);max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                    <div class="settings-field full" style="justify-content:flex-end;">
+                      <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="runCalibrationNow()">Run Calibration Now</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="loadCalibrationStatus()">Refresh Status</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
+            </div>
+
+            <!-- MARKET INTELLIGENCE TAB -->
+            <div id="tab-mi" class="settings-tab">
+
+              <div class="settings-section">
+                <div class="settings-section-title">Scheduler Master Switch</div>
+                <div class="settings-grid">
+                  <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                    <input type="checkbox" id="s-mi-master-switch">
+                    <label class="settings-label" for="s-mi-master-switch" style="cursor:pointer;">Enable Market Intelligence scheduler</label>
+                  </div>
+                  <div class="settings-field full" style="justify-content:flex-end;">
+                    <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                      <button class="btn btn-primary btn-sm" type="button" onclick="saveMiSchedulerMaster()">Save</button>
+                      <button class="btn btn-primary btn-sm" type="button" onclick="enableAllMiJobs()">Enable All Jobs</button>
+                      <button class="btn btn-ghost btn-sm" type="button" onclick="loadMiSchedulerStatus()">Refresh</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-section">
+                <div class="settings-section-title">Pipeline Activity</div>
+                <div id="s-mi-activity-summary" style="font-size:var(--text-small);color:var(--color-text-muted);margin-bottom:var(--space-8);">Loading...</div>
+                <div id="s-mi-pipeline-stats" style="font-size:var(--text-small);color:var(--color-text-muted);"></div>
+                </div>
+
+                <div class="settings-section">
+                  <div class="settings-section-title">Options Flow Scanner</div>
+                  <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                    Collects daily options chain data for optionable symbols in the clean universe,
+                    stores raw contract snapshots, and refreshes the optionability map.
+                  </div>
+                  <div class="settings-grid">
+                    <div class="settings-field full">
+                      <label class="settings-label">Manual Collection Status</label>
+                      <div id="s-options-flow-status" class="text-muted" style="font-size:var(--text-small);">Loading options flow status...</div>
+                    </div>
+                    <div class="settings-field full">
+                      <label class="settings-label">Scheduler Jobs</label>
+                      <div id="s-options-flow-scheduler-status" class="text-muted" style="font-size:var(--text-small);">Loading scheduler status...</div>
+                    </div>
+                    <div class="settings-field full">
+                      <label class="settings-label">Universe / Chain Coverage</label>
+                      <div id="s-options-flow-optionability-status" class="text-muted" style="font-size:var(--text-small);">Loading optionability status...</div>
+                    </div>
+                    <div class="settings-field full" style="justify-content:flex-end;">
+                      <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" type="button" onclick="runOptionsFlowDailyHydration()">Run Daily Chain Hydration</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="runOptionsFlowOptionabilityRefresh()">Refresh Optionability Map</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="runOptionsFlowCollect()">Manual Hydrate Optionable Universe</button>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick="loadOptionsFlowStatus()">Refresh Status</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                <div class="settings-section-title">Scheduled Jobs</div>
+                <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-bottom:var(--space-12);">
+                  Toggle individual jobs or trigger a manual run. Changes take effect immediately.
+                </div>
+                <div id="s-mi-jobs-list" style="font-size:var(--text-small);color:var(--color-text-muted);">Loading scheduler status...</div>
+              </div>
+
             </div>
 
             <!-- Save bar -->

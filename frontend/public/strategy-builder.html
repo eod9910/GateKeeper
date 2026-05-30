@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en" data-page-id="strategy-builder" data-disable-global-help="true">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strategy Builder - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .strategy-builder-content { padding:var(--space-16) var(--space-24); }
+    .builder-layout { display:grid; grid-template-columns:minmax(0, 1fr) 520px; gap:var(--space-16); height:calc(100vh - 126px); overflow:hidden; }
+    .builder-panel { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+    .builder-panel-header { padding:var(--space-12) var(--space-16); border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between; gap:var(--space-12); }
+    .builder-panel-title { font-size:var(--text-caption); color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.08em; font-family:var(--font-mono); font-weight:700; }
+    .builder-body { padding:var(--space-16); overflow:auto; min-height:0; }
+    .builder-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-12); }
+    .builder-field-full { grid-column:1 / -1; }
+    .builder-label { display:block; font-size:var(--text-caption); color:var(--color-text-muted); text-transform:uppercase; letter-spacing:.08em; font-family:var(--font-mono); font-weight:700; margin-bottom:var(--space-6); }
+    .builder-input, .builder-select, .builder-textarea { width:100%; box-sizing:border-box; }
+    .builder-textarea { min-height:88px; resize:vertical; }
+    .builder-help { margin-top:var(--space-4); color:var(--color-text-subtle); font-size:var(--text-caption); line-height:1.35; }
+    .builder-section-title { grid-column:1 / -1; margin-top:var(--space-4); padding-top:var(--space-12); border-top:1px solid var(--color-border); color:var(--color-text-muted); font-family:var(--font-mono); font-size:var(--text-caption); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .builder-hidden { display:none !important; }
+    .builder-json { flex:1; width:100%; min-height:0; box-sizing:border-box; background:var(--color-void); color:var(--color-text); border:0; padding:var(--space-16); font-family:var(--font-mono); font-size:12px; line-height:1.55; resize:none; outline:none; }
+    .builder-body, .builder-json { scrollbar-color: var(--color-border) var(--color-surface); }
+    .builder-actions { display:flex; gap:var(--space-8); flex-wrap:wrap; align-items:center; justify-content:flex-end; margin-top:var(--space-16); }
+    .builder-status { min-height:20px; margin-top:var(--space-10); font-size:var(--text-caption); color:var(--color-text-subtle); }
+    @media (max-width: 1100px) { .builder-layout { grid-template-columns:1fr; height:auto; overflow:visible; } .builder-panel { min-height:420px; } }
+  </style>
+</head>
+<body data-disable-global-help="true">
+  <div class="app">
+    <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div class="sidebar-header">
+        <a href="/scanner" class="sidebar-logo" aria-label="Home">
+          <span class="logo-mark">PD</span>
+          <span class="sidebar-label-text">Pattern Detector</span>
+        </a>
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/scanner" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Scanner</span>
+        </a>
+        <a href="/trading-desk" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Trading Desk</span>
+        </a>
+        <a href="/position-book" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Position Book</span>
+        </a>
+        <a href="/validator" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Validator</span>
+        </a>
+        <a href="/indicator-studio" class="sidebar-nav-item active" aria-current="page">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Indicator Studio</span>
+        </a>
+        <a href="/auto-labeler" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Auto Labeler</span>
+        </a>
+        <a href="/research-studio" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Research Studio</span>
+        </a>
+        <a href="/parameter-sweep" class="sidebar-nav-item">
+          <span class="nav-dot"></span>
+          <span class="sidebar-label-text">Parameter Sweep</span>
+        </a>
+        <a href="/sweep-history" class="sidebar-nav-sub-item"><span class="sidebar-label-text">Sweep History</span></a>
+        <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+        <a href="/market-intelligence" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Market Intelligence</span></a>
+        <a href="/consumer-cycle" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Consumer Cycle</span></a>
+        <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text"> Settings</span></a>
+      </nav>
+    </aside>
+
+    <main class="app-main" id="main-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Strategy Builder</h1>
+          <span class="text-muted" style="font-size:var(--text-caption);">Wrap one primitive or composite signal in entry, exit, risk, cost, and execution rules.</span>
+        </div>
+        <div class="workshop-header-actions">
+          <div class="workshop-tabbar" role="tablist" aria-label="Indicator Studio views">
+            <button class="workshop-tab" type="button" onclick="window.location.href='/indicator-studio'">Primitive Builder</button>
+            <button class="workshop-tab" type="button" onclick="window.location.href='/indicator-studio#composite'">Composite Builder</button>
+            <button class="workshop-tab active" type="button">Strategy Builder</button>
+            <button class="workshop-tab" type="button" onclick="window.location.href='/validator'">Validator</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="content workshop-content strategy-builder-content">
+        <div class="builder-layout">
+          <section class="builder-panel">
+            <div class="builder-panel-header">
+              <span class="builder-panel-title">Strategy Wrapper</span>
+              <span class="text-muted" style="font-size:var(--text-caption);">Primitive or composite in, strategy spec out</span>
+            </div>
+            <div class="builder-body">
+              <div class="builder-grid">
+                <div class="builder-field-full">
+                  <label class="builder-label" for="sb-version-mode">Version Mode</label>
+                  <select id="sb-version-mode" class="select builder-select">
+                    <option value="backtest">Backtest Version - Validator</option>
+                    <option value="production">Production Version - Execution Plan</option>
+                  </select>
+                  <div id="sb-version-mode-help" class="builder-help">Backtest Version keeps one stop and one exit so Validator can test expectancy cleanly.</div>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-source-id">Source Signal</label>
+                  <select id="sb-source-id" class="select builder-select"></select>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-source-type">Source Category</label>
+                  <select id="sb-source-type" class="select builder-select">
+                    <option value="technical_primitive">Technical Analysis</option>
+                    <option value="fundamental_primitive">Fundamental Analysis</option>
+                    <option value="pattern">Pattern</option>
+                    <option value="composite">Composite</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-required-state">Required State</label>
+                  <input id="sb-required-state" class="input builder-input" placeholder="entry_ready">
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-direction">Direction</label>
+                  <select id="sb-direction" class="select builder-select">
+                    <option value="long">long</option>
+                    <option value="short">short</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-name">Strategy Name</label>
+                  <input id="sb-name" class="input builder-input" placeholder="Base Breakout Long">
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-strategy-id">Strategy ID</label>
+                  <input id="sb-strategy-id" class="input builder-input" placeholder="base_breakout_long">
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-asset-class">Asset Class</label>
+                  <select id="sb-asset-class" class="select builder-select">
+                    <option value="stocks">stocks</option>
+                    <option value="futures">futures</option>
+                    <option value="options">options</option>
+                    <option value="forex">forex</option>
+                    <option value="crypto">crypto</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-interval">Interval</label>
+                  <select id="sb-interval" class="select builder-select">
+                    <option value="1h">1h</option>
+                    <option value="4h">4h</option>
+                    <option value="1d">1d</option>
+                    <option value="1wk" selected>1wk</option>
+                    <option value="1mo">1mo</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-entry-type">Entry</label>
+                  <select id="sb-entry-type" class="select builder-select">
+                    <option value="market_on_close">market_on_close</option>
+                    <option value="next_open">next_open</option>
+                    <option value="limit_on_signal_level">limit_on_signal_level</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-stop-type">Stop Type</label>
+                  <select id="sb-stop-type" class="select builder-select">
+                    <option value="atr_multiple">atr_multiple</option>
+                    <option value="fixed_pct">fixed_pct</option>
+                    <option value="fixed_amount">fixed_amount</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-stop-value" id="sb-stop-value-label">ATR Multiple</label>
+                  <input id="sb-stop-value" class="input builder-input" type="number" step="0.01" value="2">
+                  <div id="sb-stop-value-help" class="builder-help">Example: 2 means a 2x ATR stop.</div>
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-trailing-type">Trailing Stop</label>
+                  <select id="sb-trailing-type" class="select builder-select">
+                    <option value="none">none</option>
+                    <option value="trailing_pct">trailing_pct</option>
+                    <option value="trailing_atr">trailing_atr</option>
+                  </select>
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-trailing-value" id="sb-trailing-value-label">Trailing Value</label>
+                  <input id="sb-trailing-value" class="input builder-input" type="number" step="0.1" value="">
+                  <div id="sb-trailing-value-help" class="builder-help">Leave blank when trailing stop is none.</div>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-max-hold">Max Hold Bars</label>
+                  <input id="sb-max-hold" class="input builder-input" type="number" step="1" value="30">
+                </div>
+                <div class="builder-backtest-field">
+                  <label class="builder-label" for="sb-exit-type">Exit Type</label>
+                  <select id="sb-exit-type" class="select builder-select">
+                    <option value="r_multiple">r_multiple</option>
+                    <option value="fixed_pct">fixed_pct</option>
+                  </select>
+                </div>
+                <div class="builder-backtest-field">
+                  <label class="builder-label" for="sb-exit-value" id="sb-exit-value-label">Exit R Multiple</label>
+                  <input id="sb-exit-value" class="input builder-input" type="number" step="0.1" value="2">
+                  <div id="sb-exit-value-help" class="builder-help">Example: 2 means exit at 2R.</div>
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-risk-pct">Risk Per Trade</label>
+                  <input id="sb-risk-pct" class="input builder-input" type="number" step="0.001" value="0.01">
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-slippage">Slippage %</label>
+                  <input id="sb-slippage" class="input builder-input" type="number" step="0.01" value="0.05">
+                </div>
+                <div>
+                  <label class="builder-label" for="sb-commission">Commission</label>
+                  <input id="sb-commission" class="input builder-input" type="number" step="0.01" value="0">
+                </div>
+                <div class="builder-section-title builder-production-field">Production Exit Plan</div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-target-type">Target Type</label>
+                  <select id="sb-target-type" class="select builder-select">
+                    <option value="fixed_pct">fixed_pct</option>
+                    <option value="r_multiple">r_multiple</option>
+                  </select>
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-tp1-value" id="sb-tp1-value-label">TP1 Target %</label>
+                  <input id="sb-tp1-value" class="input builder-input" type="number" step="0.1" value="10">
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-tp1-exit-pct">TP1 Exit %</label>
+                  <input id="sb-tp1-exit-pct" class="input builder-input" type="number" step="1" value="33">
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-tp2-value" id="sb-tp2-value-label">TP2 Target %</label>
+                  <input id="sb-tp2-value" class="input builder-input" type="number" step="0.1" value="20">
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-tp2-exit-pct">TP2 Exit %</label>
+                  <input id="sb-tp2-exit-pct" class="input builder-input" type="number" step="1" value="33">
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-tp3-value" id="sb-tp3-value-label">TP3 Target %</label>
+                  <input id="sb-tp3-value" class="input builder-input" type="number" step="0.1" value="30">
+                </div>
+                <div class="builder-production-field">
+                  <label class="builder-label" for="sb-tp3-exit-pct">TP3 Exit %</label>
+                  <input id="sb-tp3-exit-pct" class="input builder-input" type="number" step="1" value="34">
+                  <div id="sb-target-help" class="builder-help">Fixed percent values are entered as whole percents. Example: 10 means +10% for a long or -10% for a short.</div>
+                </div>
+                <div class="builder-field-full">
+                  <label class="builder-label" for="sb-universe">Universe</label>
+                  <input id="sb-universe" class="input builder-input" placeholder="SPY, QQQ, IWM">
+                </div>
+                <div class="builder-field-full">
+                  <label class="builder-label" for="sb-description">Description</label>
+                  <textarea id="sb-description" class="input builder-textarea" placeholder="What thesis is this strategy testing?"></textarea>
+                </div>
+              </div>
+              <div class="builder-actions">
+                <button class="btn btn-ghost" type="button" onclick="updateStrategyBuilderJson()">Update JSON</button>
+                <button class="btn btn-primary" type="button" onclick="saveStrategyBuilderSpec()">Save Strategy</button>
+              </div>
+              <div id="sb-status" class="builder-status"></div>
+            </div>
+          </section>
+
+          <section class="builder-panel" style="display:flex;flex-direction:column;">
+            <div class="builder-panel-header">
+              <span class="builder-panel-title">Generated Strategy JSON</span>
+            </div>
+            <textarea id="sb-json" class="builder-json" spellcheck="false"></textarea>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="strategy-builder.js"></script>
+</body>
+</html>

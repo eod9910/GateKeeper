@@ -428,11 +428,11 @@
       <div class="page-header">
         <div>
           <h1 class="page-title">Strategy Details</h1>
-          <span class="text-muted" style="font-size:var(--text-caption);">Separate view for strategy config and status</span>
+          <span class="text-muted" style="font-size:var(--text-caption);">Inspect saved strategy specs and send them to Validator.</span>
         </div>
         <div style="display:flex;gap:var(--space-12);align-items:center;align-self:flex-start;padding-top:4px;">
           <a href="/validator" class="btn btn-ghost btn-sm">← Validator</a>
-          <a href="strategy.html"  class="btn btn-ghost btn-sm" style="color:var(--color-accent);border-color:var(--color-accent);">Strategy Page</a>
+          <a href="strategy-builder.html" class="btn btn-ghost btn-sm">Strategy Builder</a>
           <a href="validator-symbol-library.html" class="btn btn-ghost btn-sm">Symbol Library</a>
         </div>
       </div>
@@ -444,8 +444,8 @@
               <span class="lh-label">Strategies</span>
               <div class="lh-actions" style="display:flex;gap:var(--space-6);align-items:center;">
                 <span id="strategy-count" class="text-mono">0</span>
-                <button id="btn-top-strategy" class="btn btn-ghost btn-sm" onclick="openStrategyEditor('edit')" disabled style="font-size:10px;padding:2px 6px;">Edit</button>
-                <button id="btn-top-new-strategy" class="btn btn-ghost btn-sm" onclick="openStrategyEditor('new')" style="font-size:10px;padding:2px 6px;color:var(--color-positive);">+ New</button>
+                <button id="btn-top-strategy" class="btn btn-ghost btn-sm" onclick="openSelectedStrategyInValidator()" disabled style="font-size:10px;padding:2px 6px;">Validate</button>
+                <a href="strategy-builder.html" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;color:var(--color-positive);">Builder</a>
                 <button class="cc-toggle-btn" id="strategy-left-toggle-btn" onclick="toggleStrategyList()" title="Collapse strategies panel" style="margin-left:var(--space-4);padding-left:var(--space-8);border-left:1px solid var(--color-border);">&#8249;</button>
               </div>
               <span class="lh-vert-label" onclick="toggleStrategyList()">Strategies</span>

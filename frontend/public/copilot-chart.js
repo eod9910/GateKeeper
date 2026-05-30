@@ -338,7 +338,10 @@
       candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
         upColor: '#22c55e',
         downColor: '#ef4444',
-        borderVisible: false,
+        // Explicit border colors so sub-pixel bodies (common on forex / cash
+        // indices) still render. See training-module.js for the full reason.
+        borderUpColor: '#22c55e',
+        borderDownColor: '#ef4444',
         wickUpColor: '#22c55e',
         wickDownColor: '#ef4444',
       });
@@ -369,29 +372,35 @@
           setEntry(price);
         } else if (markerMode === 'stopLoss') {
           setStopLoss(price);
-          // Manual stop placed — clear programmatic stop type so dropdown reads "manual"
           if (typeof window._stockRiskClearStop === 'function') window._stockRiskClearStop();
         } else if (markerMode === 'takeProfit') {
           setTakeProfit(price);
-          // Manual TP placed — clear programmatic TP type
           if (typeof window._stockRiskClearTP === 'function') window._stockRiskClearTP();
+        } else if (markerMode === 'takeProfit2') {
+          setTakeProfit2(price);
+        } else if (markerMode === 'takeProfit3') {
+          setTakeProfit3(price);
         }
         
-        // Clear mode after setting
-        setMarkerMode(null);
+        // Auto-advance: TP1 → TP2 → TP3 → done
+        if (markerMode === 'takeProfit') {
+          setMarkerMode('takeProfit2');
+        } else if (markerMode === 'takeProfit2') {
+          setMarkerMode('takeProfit3');
+        } else {
+          setMarkerMode(null);
+        }
         updateCalculations();
       });
       
-      // Crosshair move handler for drawing tool live preview + live P&L
+      // Crosshair move handler.
+      // The Key Levels "open P&L" tracks the real current price (via _rtTick),
+      // NOT the mouse. The opt-in toolbar P&L probe, however, intentionally
+      // reads the hovered price so the trader can preview profit at any level.
       chart.subscribeCrosshairMove((param) => {
-        // Update live P&L with the price under the crosshair (or last bar close)
-        if (param.point && entryPrice) {
+        if (param.point && entryPrice && typeof window.renderToolbarPnLProbe === 'function') {
           const hoverPrice = candleSeries.coordinateToPrice(param.point.y);
-          if (hoverPrice !== null) updateLivePnL(hoverPrice);
-        } else if (param.seriesData && param.seriesData.size > 0) {
-          // Use last bar close when crosshair leaves chart
-          const barData = param.seriesData.get(candleSeries);
-          if (barData && barData.close) updateLivePnL(barData.close);
+          if (hoverPrice !== null) window.renderToolbarPnLProbe(hoverPrice);
         }
 
         if (!activeDrawingTool || !drawingState.placing || !param.point) return;
@@ -550,30 +559,66 @@
       addChatMessage(`Loaded ${candidate.symbol}. I see this is flagged as a ${candidate.pattern_type || 'Wyckoff'} pattern. Click the symbol header or use Plan Exits to set the initial stop-loss and take-profit before sending it to Execution Desk.`, 'ai');
     }
 
+    // Has the trader chosen a direction (Long/Short) yet?
+    function _deskDirectionChosen() {
+      try { if (typeof tradeDirection === 'number') return tradeDirection !== 0; } catch (e) {}
+      var ids = ['btn-chart-long', 'btn-chart-short', 'btn-direction-long', 'btn-direction-short'];
+      return ids.some(function (id) {
+        var el = document.getElementById(id);
+        return el && el.classList.contains('active');
+      });
+    }
+
+    // Briefly draw attention to the Long/Short toggle so the trader knows what to do first.
+    function _flashDirectionButtons() {
+      ['btn-chart-long', 'btn-chart-short'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.classList.add('direction-toggle-btn--needed');
+        setTimeout(function () { el.classList.remove('direction-toggle-btn--needed'); }, 2400);
+      });
+    }
+
     // Set marker mode
     function setMarkerMode(mode) {
+      // Direction-first rule: the trader must commit to Long or Short before
+      // placing any entry / stop / take-profit level.
+      var placementModes = ['entry', 'stopLoss', 'takeProfit', 'takeProfit2', 'takeProfit3'];
+      if (placementModes.indexOf(mode) !== -1 && !_deskDirectionChosen()) {
+        _flashDirectionButtons();
+        if (typeof addChatMessage === 'function') {
+          addChatMessage('Choose your direction first — tap LONG or SHORT before placing an entry, stop, or take profit.', 'ai');
+        }
+        return;
+      }
+
       markerMode = mode;
       
       // Update button active states
       var btnEntry = document.getElementById('btn-entry');
       var btnStop = document.getElementById('btn-stop-loss');
       var btnTP = document.getElementById('btn-take-profit');
+      var btnTP2 = document.getElementById('btn-take-profit-2');
+      var btnTP3 = document.getElementById('btn-take-profit-3');
       
-      [btnEntry, btnStop, btnTP].forEach(function(btn) {
+      [btnEntry, btnStop, btnTP, btnTP2, btnTP3].forEach(function(btn) {
         if (btn) btn.classList.remove('active');
       });
       
       if (mode === 'entry' && btnEntry) btnEntry.classList.add('active');
       if (mode === 'stopLoss' && btnStop) btnStop.classList.add('active');
       if (mode === 'takeProfit' && btnTP) btnTP.classList.add('active');
+      if (mode === 'takeProfit2' && btnTP2) btnTP2.classList.add('active');
+      if (mode === 'takeProfit3' && btnTP3) btnTP3.classList.add('active');
 
       if (mode) {
-        // Only show the chat hint if this level hasn't been set yet
         var alreadySet = (mode === 'entry' && entryPrice) ||
                          (mode === 'stopLoss' && stopLossPrice) ||
-                         (mode === 'takeProfit' && takeProfitPrice);
+                         (mode === 'takeProfit' && takeProfitPrice) ||
+                         (mode === 'takeProfit2' && takeProfit2Price) ||
+                         (mode === 'takeProfit3' && takeProfit3Price);
         if (!alreadySet) {
-          const modeNames = { entry: 'entry', stopLoss: 'stop loss', takeProfit: 'take profit' };
+          const modeNames = { entry: 'entry', stopLoss: 'stop loss', takeProfit: 'TP1', takeProfit2: 'TP2', takeProfit3: 'TP3' };
           addChatMessage(`Click on the chart to set your ${modeNames[mode]} level.`, 'ai');
         }
       }
@@ -591,10 +636,17 @@
       return spec ? spec.tickSize : 0.01;
     }
 
+    function getPriceDecimals() {
+      const tick = getTickStep();
+      const s = tick.toString();
+      const dot = s.indexOf('.');
+      return dot < 0 ? 0 : s.length - dot - 1;
+    }
+
     // Update the step attribute on all price inputs to match instrument tick size
     function updatePriceInputSteps() {
       const step = getTickStep();
-      const inputs = ['entry-price-input', 'stop-loss-price-input', 'take-profit-price-input'];
+      const inputs = ['entry-price-input', 'stop-loss-price-input', 'take-profit-price-input', 'take-profit-2-price-input', 'take-profit-3-price-input'];
       inputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.step = step;
@@ -605,7 +657,7 @@
     function setEntry(price) {
       entryPrice = price;
       const inputEl = document.getElementById('entry-price-input');
-      if (inputEl) inputEl.value = price.toFixed(2);
+      if (inputEl) inputEl.value = price.toFixed(getPriceDecimals());
       
       // Remove old line and add new
       if (entryLine) {
@@ -620,22 +672,20 @@
         title: 'ENTRY',
       });
       updateLivePnL();
-      if (typeof window.syncTradeDirectionFromDeskLevels === 'function') window.syncTradeDirectionFromDeskLevels();
+      // Direction is chosen explicitly by the trader (Long/Short) BEFORE placing
+      // levels — placing a level must never change the chosen direction.
       if (typeof window.syncRiskPlanFromDeskLevels === 'function') window.syncRiskPlanFromDeskLevels();
       if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
       if (typeof window.syncTradePlanStoreFromDesk === 'function') window.syncTradePlanStoreFromDesk('entry_set');
-      // If a programmatic stop type is selected, recalculate now that we have an entry
-      if (typeof window.applyStockRiskConfig === 'function') {
-        const stopType = document.getElementById('stock-stop-type')?.value;
-        if (stopType) window.applyStockRiskConfig();
-      }
+      // Stop and TP auto-calc removed — levels should be placed independently.
+      // The stop/target type dropdowns have their own onchange handlers.
     }
 
     // Set stop loss level
     function setStopLoss(price) {
       stopLossPrice = price;
       const inputEl = document.getElementById('stop-loss-price-input');
-      if (inputEl) inputEl.value = price.toFixed(2);
+      if (inputEl) inputEl.value = price.toFixed(getPriceDecimals());
       
       // Remove old line and add new
       if (stopLossLine) {
@@ -650,19 +700,18 @@
         title: 'STOP',
       });
       updateLivePnL();
-      if (typeof window.syncTradeDirectionFromDeskLevels === 'function') window.syncTradeDirectionFromDeskLevels();
       if (typeof window.syncRiskPlanFromDeskLevels === 'function') window.syncRiskPlanFromDeskLevels();
       if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
       if (typeof window.syncTradePlanStoreFromDesk === 'function') window.syncTradePlanStoreFromDesk('stop_set');
+      // TP auto-calc removed — levels should be placed independently.
     }
 
-    // Set take profit level
+    // Set take profit level (TP1)
     function setTakeProfit(price) {
       takeProfitPrice = price;
       const inputEl = document.getElementById('take-profit-price-input');
-      if (inputEl) inputEl.value = price.toFixed(2);
+      if (inputEl) inputEl.value = price.toFixed(getPriceDecimals());
       
-      // Remove old line and add new
       if (takeProfitLine) {
         candleSeries.removePriceLine(takeProfitLine);
       }
@@ -672,13 +721,54 @@
         lineWidth: 2,
         lineStyle: LightweightCharts.LineStyle.Dashed,
         axisLabelVisible: true,
-        title: 'TARGET',
+        title: 'TP1',
       });
       updateLivePnL();
-      if (typeof window.syncTradeDirectionFromDeskLevels === 'function') window.syncTradeDirectionFromDeskLevels();
       if (typeof window.syncRiskPlanFromDeskLevels === 'function') window.syncRiskPlanFromDeskLevels();
       if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
       if (typeof window.syncTradePlanStoreFromDesk === 'function') window.syncTradePlanStoreFromDesk('target_set');
+    }
+
+    // Set take profit 2 level
+    function setTakeProfit2(price) {
+      takeProfit2Price = price;
+      const inputEl = document.getElementById('take-profit-2-price-input');
+      if (inputEl) inputEl.value = price.toFixed(getPriceDecimals());
+
+      if (takeProfit2Line) {
+        candleSeries.removePriceLine(takeProfit2Line);
+      }
+      takeProfit2Line = candleSeries.createPriceLine({
+        price: price,
+        color: '#4ade80',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: 'TP2',
+      });
+      updateLivePnL();
+      if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
+    }
+
+    // Set take profit 3 level
+    function setTakeProfit3(price) {
+      takeProfit3Price = price;
+      const inputEl = document.getElementById('take-profit-3-price-input');
+      if (inputEl) inputEl.value = price.toFixed(getPriceDecimals());
+
+      if (takeProfit3Line) {
+        candleSeries.removePriceLine(takeProfit3Line);
+      }
+      takeProfit3Line = candleSeries.createPriceLine({
+        price: price,
+        color: '#86efac',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: 'TP3',
+      });
+      updateLivePnL();
+      if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
     }
     
     // Check if mouse Y is near a price line
@@ -687,6 +777,8 @@
         { line: entryLine, type: 'entry', price: entryPrice },
         { line: stopLossLine, type: 'stopLoss', price: stopLossPrice },
         { line: takeProfitLine, type: 'takeProfit', price: takeProfitPrice },
+        { line: takeProfit2Line, type: 'takeProfit2', price: takeProfit2Price },
+        { line: takeProfit3Line, type: 'takeProfit3', price: takeProfit3Price },
       ];
       
       for (const item of lines) {
@@ -760,6 +852,8 @@
       const entryInput = document.getElementById('entry-price-input');
       const stopInput = document.getElementById('stop-loss-price-input');
       const tpInput = document.getElementById('take-profit-price-input');
+      const tp2Input = document.getElementById('take-profit-2-price-input');
+      const tp3Input = document.getElementById('take-profit-3-price-input');
 
       // Update step sizes based on instrument
       updatePriceInputSteps();
@@ -767,14 +861,24 @@
       // Helper: debounce rapid input (e.g., typing digits) to avoid thrashing chart lines
       function onPriceInputChange(inputEl, setFn) {
         let debounceTimer = null;
+        // Direction-first rule also applies to typed levels.
+        const applyVal = (val) => {
+          if (!_deskDirectionChosen()) {
+            _flashDirectionButtons();
+            if (typeof addChatMessage === 'function') {
+              addChatMessage('Choose your direction first — tap LONG or SHORT before setting an entry, stop, or take profit.', 'ai');
+            }
+            inputEl.value = '';
+            return;
+          }
+          setFn(val);
+          updateCalculations();
+        };
         const handler = () => {
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
             const val = parseFloat(inputEl.value);
-            if (!isNaN(val) && val > 0) {
-              setFn(val);
-              updateCalculations();
-            }
+            if (!isNaN(val) && val > 0) applyVal(val);
           }, 150);
         };
         inputEl.addEventListener('input', handler);
@@ -783,10 +887,7 @@
           if (e.key === 'Enter') {
             clearTimeout(debounceTimer);
             const val = parseFloat(inputEl.value);
-            if (!isNaN(val) && val > 0) {
-              setFn(val);
-              updateCalculations();
-            }
+            if (!isNaN(val) && val > 0) applyVal(val);
             inputEl.blur();
           }
         });
@@ -795,9 +896,11 @@
       if (entryInput) onPriceInputChange(entryInput, setEntry);
       if (stopInput) onPriceInputChange(stopInput, setStopLoss);
       if (tpInput) onPriceInputChange(tpInput, setTakeProfit);
+      if (tp2Input) onPriceInputChange(tp2Input, setTakeProfit2);
+      if (tp3Input) onPriceInputChange(tp3Input, setTakeProfit3);
 
       // Mouse wheel on focused input adjusts by tick step
-      [entryInput, stopInput, tpInput].forEach(el => {
+      [entryInput, stopInput, tpInput, tp2Input, tp3Input].forEach(el => {
         if (!el) return;
         el.addEventListener('wheel', (e) => {
           if (document.activeElement !== el) return; // only when focused
@@ -806,7 +909,7 @@
           const current = parseFloat(el.value) || 0;
           const newVal = e.deltaY < 0 ? current + step : current - step;
           if (newVal > 0) {
-            el.value = newVal.toFixed(2);
+            el.value = newVal.toFixed(getPriceDecimals());
             el.dispatchEvent(new Event('input'));
           }
         });
@@ -814,15 +917,26 @@
     }
 
     // Update line position during drag
+    var _suppressAutoRecalc = false;
+
     function updateDraggedLine(type, newPrice) {
-      if (type === 'entry') {
-        setEntry(newPrice);
-      } else if (type === 'stopLoss') {
-        setStopLoss(newPrice);
-      } else if (type === 'takeProfit') {
-        setTakeProfit(newPrice);
+      _suppressAutoRecalc = true;
+      try {
+        if (type === 'entry') {
+          setEntry(newPrice);
+        } else if (type === 'stopLoss') {
+          setStopLoss(newPrice);
+        } else if (type === 'takeProfit') {
+          setTakeProfit(newPrice);
+        } else if (type === 'takeProfit2') {
+          setTakeProfit2(newPrice);
+        } else if (type === 'takeProfit3') {
+          setTakeProfit3(newPrice);
+        }
+        updateCalculations();
+      } finally {
+        _suppressAutoRecalc = false;
       }
-      updateCalculations();
     }
     
     // Initialize drawing canvas
@@ -1023,7 +1137,7 @@
       document.getElementById('chart-container').classList.add('drawing-active');
       
       const clicks = tool === 'hline' ? '1 click' : '2 clicks';
-      document.getElementById('drawing-status').textContent = `${clicks} Â· Esc cancel`;
+      document.getElementById('drawing-status').textContent = `${clicks} \u00b7 Esc cancel`;
     }
     
     function cancelDrawing() {
@@ -1156,7 +1270,7 @@
         
         drawingCtx.font = '10px sans-serif';
         drawingCtx.fillStyle = toolColors.fib;
-        drawingCtx.fillText(`${(level * 100).toFixed(1)}% - $${price.toFixed(2)}`, 5, y - 3);
+        drawingCtx.fillText(`${(level * 100).toFixed(1)}% - $${price.toFixed(getPriceDecimals())}`, 5, y - 3);
       }
     }
     
@@ -1202,7 +1316,7 @@
       drawingCtx.setLineDash([]);
       drawingCtx.font = 'bold 11px sans-serif';
       drawingCtx.fillStyle = d.color || toolColors.hline;
-      const label = `$${d.price.toFixed(2)}`;
+      const label = `$${d.price.toFixed(getPriceDecimals())}`;
       const textWidth = drawingCtx.measureText(label).width;
       drawingCtx.fillRect(drawingCanvas.width - textWidth - 10, y - 8, textWidth + 8, 16);
       drawingCtx.fillStyle = '#111827';
@@ -1300,7 +1414,7 @@
         // Label
         drawingCtx.font = 'bold 11px sans-serif';
         drawingCtx.fillStyle = color;
-        drawingCtx.fillText(`${(level * 100).toFixed(1)}%  $${price.toFixed(2)}`, 5, y - 4);
+        drawingCtx.fillText(`${(level * 100).toFixed(1)}%  $${price.toFixed(getPriceDecimals())}`, 5, y - 4);
       }
       
       // Small "edit" indicator at top-right of fib area
@@ -1572,17 +1686,25 @@
       entryPrice = null;
       stopLossPrice = null;
       takeProfitPrice = null;
+      takeProfit2Price = null;
+      takeProfit3Price = null;
       isDragging = false;
       dragLineType = null;
       verdictRequested = false;
       window.lastVerdict = null;
+      if (typeof window.clearOpenPositionPnL === 'function') window.clearOpenPositionPnL();
+      if (typeof window.clearToolbarPnLProbe === 'function') window.clearToolbarPnLProbe();
       
       const entryInput = document.getElementById('entry-price-input');
       const stopInput = document.getElementById('stop-loss-price-input');
       const tpInput = document.getElementById('take-profit-price-input');
+      const tp2Input = document.getElementById('take-profit-2-price-input');
+      const tp3Input = document.getElementById('take-profit-3-price-input');
       if (entryInput) entryInput.value = '';
       if (stopInput) stopInput.value = '';
       if (tpInput) tpInput.value = '';
+      if (tp2Input) tp2Input.value = '';
+      if (tp3Input) tp3Input.value = '';
       document.getElementById('risk-reward').textContent = '--';
       
       if (entryLine) {
@@ -1596,6 +1718,14 @@
       if (takeProfitLine) {
         candleSeries.removePriceLine(takeProfitLine);
         takeProfitLine = null;
+      }
+      if (takeProfit2Line) {
+        candleSeries.removePriceLine(takeProfit2Line);
+        takeProfit2Line = null;
+      }
+      if (takeProfit3Line) {
+        candleSeries.removePriceLine(takeProfit3Line);
+        takeProfit3Line = null;
       }
       
       document.getElementById('position-sizing').classList.add('hidden');
@@ -1614,6 +1744,7 @@
 
     // Clear everything â€” full reset to default state
     function clearChart() {
+      if (typeof window._rtStopChartUpdates === 'function') window._rtStopChartUpdates();
       if (typeof window.cancelPendingCopilotAnalysis === 'function') window.cancelPendingCopilotAnalysis();
       if (typeof window.clearCopilotAnalysisState === 'function') window.clearCopilotAnalysisState();
       if (typeof window.resetCopilotAnalysisPanel === 'function') window.resetCopilotAnalysisPanel();
@@ -1652,7 +1783,7 @@
       if (typeof updateBreadcrumb === 'function') updateBreadcrumb();
       
       // Reset Key Levels panel
-      ['kl-entry','kl-stop','kl-t1','kl-t2','kl-rr'].forEach(function(id) {
+      ['kl-entry','kl-stop','kl-t1','kl-t2','kl-target-pct','kl-rr'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.textContent = '--';
       });
@@ -1730,8 +1861,92 @@
       }
     }
 
-    // Explicit global exports so external modules (copilot-core.js) can call these
-    window.setStopLoss   = setStopLoss;
-    window.setTakeProfit = setTakeProfit;
-    window.setEntry      = setEntry;
+    // ========== REAL-TIME CHART UPDATES ==========
 
+    let _rtSymbol = null;
+    let _rtInterval = null;
+    let _rtTimerId = null;
+    const RT_POLL_MS = 5000;
+
+    function _rtStart(symbol, interval) {
+      _rtStop();
+      if (!symbol) return;
+      _rtSymbol = symbol.toUpperCase();
+      _rtInterval = interval || '1d';
+      _rtTimerId = setInterval(_rtTick, RT_POLL_MS);
+    }
+
+    function _rtStop() {
+      if (_rtTimerId) { clearInterval(_rtTimerId); _rtTimerId = null; }
+      _rtSymbol = null;
+    }
+
+    async function _rtTick() {
+      if (!_rtSymbol || !candleSeries) return;
+      try {
+        const res = await fetch('/api/quotes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbols: [_rtSymbol] }),
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        const quote = json?.data?.[_rtSymbol];
+        if (!quote) return;
+
+        const price = Number(quote.regularMarketPrice ?? quote.price ?? quote.last);
+        const high  = Number(quote.regularMarketDayHigh ?? quote.dayHigh ?? price);
+        const low   = Number(quote.regularMarketDayLow ?? quote.dayLow ?? price);
+        const open  = Number(quote.regularMarketOpen ?? quote.open ?? price);
+        if (!price || !Number.isFinite(price)) return;
+
+        const bars = window._copilotChartBars;
+        if (!bars || bars.length === 0) return;
+
+        const lastBar = bars[bars.length - 1];
+        const now = Math.floor(Date.now() / 1000);
+        const barDuration = _rtBarDuration(_rtInterval);
+        const currentBarStart = Math.floor(now / barDuration) * barDuration;
+
+        if (_rtInterval === '1d') {
+          candleSeries.update({
+            time: lastBar.time,
+            open: lastBar.open,
+            high: Math.max(lastBar.high, price),
+            low: Math.min(lastBar.low, price),
+            close: price,
+          });
+        } else {
+          if (lastBar.time >= currentBarStart) {
+            candleSeries.update({
+              time: lastBar.time,
+              open: lastBar.open,
+              high: Math.max(lastBar.high, price),
+              low: Math.min(lastBar.low, price),
+              close: price,
+            });
+          } else {
+            const newBar = { time: currentBarStart, open: price, high: price, low: price, close: price };
+            bars.push(newBar);
+            candleSeries.update(newBar);
+          }
+        }
+
+        if (typeof updateLivePnL === 'function') updateLivePnL(price);
+      } catch {}
+    }
+
+    function _rtBarDuration(interval) {
+      const map = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 };
+      return map[interval] || 86400;
+    }
+
+    window._rtStartChartUpdates = _rtStart;
+    window._rtStopChartUpdates  = _rtStop;
+
+    // Explicit global exports so external modules (copilot-core.js) can call these
+    window.setStopLoss    = setStopLoss;
+    window.setTakeProfit  = setTakeProfit;
+    window.setTakeProfit2 = setTakeProfit2;
+    window.setTakeProfit3 = setTakeProfit3;
+    window.setEntry       = setEntry;

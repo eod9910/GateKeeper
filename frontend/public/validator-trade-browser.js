@@ -418,6 +418,7 @@ function _tbInitChart() {
       contextId: 'trade-browser',
       symbol: '',
       interval: '1d',
+      containerEl: container,
     });
     _ciPopulateIndicatorSelect();
   }

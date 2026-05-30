@@ -17,6 +17,7 @@ function _ciEnsureContext(id) {
       chart: null, series: null, symbol: '', interval: '1wk',
       indicators: [], data: [], cachedSwing: null,
       basePaneIndex: 0,
+      containerEl: null,
     });
   }
   return _ciContexts.get(id);
@@ -31,6 +32,7 @@ function ciBindToChart(chart, series, opts) {
   ctx.series = series;
   ctx.symbol = (opts && opts.symbol) || '';
   ctx.interval = (opts && opts.interval) || '1d';
+  ctx.containerEl = (opts && opts.containerEl) || ctx.containerEl || null;
   _ciActiveContextId = id;
   return id;
 }
@@ -227,6 +229,15 @@ function computeBollinger(chartData, period, stdDev) {
   return { upper, middle, lower };
 }
 
+function _ciToMs(time) {
+  if (typeof time === 'number') return time < 1e12 ? time * 1000 : time;
+  if (typeof time === 'object' && time && time.year != null) {
+    return Date.UTC(time.year, (time.month || 1) - 1, time.day || 1);
+  }
+  const ms = Date.parse(String(time));
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
 // ── JS-computed structure indicators ────────────────────────────────────
 
 function computeOrderBlocks(chartData, swingPoints) {
@@ -421,7 +432,6 @@ const CHART_INDICATORS = {
     ],
     colors: ['#2962FF', '#2962FF', '#2962FF'],
   },
-
   // ── Structure Indicators (backend-computed) ──
   swing: {
     name: 'Swing Structure (Unified)',
@@ -548,6 +558,15 @@ const CHART_INDICATORS = {
 
 function _ciGetDef(type) {
   return CHART_INDICATORS[type] || _dynamicIndicators[type] || null;
+}
+
+function _ciEmitIndicatorChange() {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  try {
+    window.dispatchEvent(new CustomEvent('ci-indicators-changed', {
+      detail: { contextId: _ciActiveContextId },
+    }));
+  } catch (e) {}
 }
 
 function _ciAllIndicators() {
@@ -1130,6 +1149,7 @@ function addChartIndicator(type, params) {
 
   _ciUpdateBadges();
   _ciPopulateIndicatorSelect();
+  _ciEmitIndicatorChange();
 
   if (ctx.data.length > 0) {
     _ciRenderIndicator(ind, ctx.data);
@@ -1166,6 +1186,7 @@ function removeChartIndicator(id) {
   }
   _ciUpdateBadges();
   _ciPopulateIndicatorSelect();
+  _ciEmitIndicatorChange();
   setTimeout(() => _ciUpdatePaneLabels(), 100);
 }
 
@@ -1182,6 +1203,7 @@ function removeAllChartIndicators() {
   document.querySelectorAll('.ci-pane-label').forEach(el => el.remove());
   _ciUpdateBadges();
   _ciPopulateIndicatorSelect();
+  _ciEmitIndicatorChange();
 }
 
 function getActiveIndicators() {
@@ -1434,11 +1456,13 @@ let _ciLabelObserver = null;
 let _ciLabelReposPending = false;
 
 function _ciFindChartDomEl() {
+  const ctx = _ciCtx();
+  if (ctx?.containerEl) return ctx.containerEl;
   const chart = _ciGetChart();
   if (chart) {
     try { const el = chart.chartElement ? chart.chartElement() : null; if (el) return el; } catch (e) {}
   }
-  return document.getElementById('pattern-chart') || document.getElementById('tb-chart-container');
+  return document.getElementById('pattern-chart') || document.getElementById('tb-chart-container') || document.getElementById('training-chart');
 }
 
 function _ciStartLabelTracking() {
@@ -1571,6 +1595,7 @@ function _ciToggleIndicator(type) {
   }
   _ciRenderIndicatorPanel();
   _ciPopulateIndicatorSelect();
+  _ciEmitIndicatorChange();
 }
 
 function _ciPopulateIndicatorSelect() {

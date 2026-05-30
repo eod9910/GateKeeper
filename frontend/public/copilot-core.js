@@ -12,6 +12,8 @@
     let entryPrice = null;
     let stopLossPrice = null;
     let takeProfitPrice = null;
+    let takeProfit2Price = null;
+    let takeProfit3Price = null;
     let entryLine = null;
     
     // Order type: 'market' (open) or 'limit' (planned)
@@ -22,6 +24,8 @@
     let drawingLines = []; // Store line references for cleanup
     let stopLossLine = null;
     let takeProfitLine = null;
+    let takeProfit2Line = null;
+    let takeProfit3Line = null;
 
     // Initialize
     // ── Watch List panel (Trading Desk sidebar) ──────────────────────────
@@ -31,13 +35,61 @@
     function tdWatchListLoad(symbol) {
       const sym = String(symbol || '').toUpperCase().trim();
       if (!sym) return;
-      // Close drawer first, then load on next tick so the input isn't stolen
+
+      const allEntries = typeof watchListGetAll === 'function' ? watchListGetAll() : [];
+      const wlEntry = allEntries.find(e => e.symbol === sym);
+
       if (typeof toggleWlDrawer === 'function') toggleWlDrawer(false);
-      setTimeout(() => {
+      setTimeout(async () => {
         const input = document.getElementById('copilot-symbol');
         if (input) input.value = sym;
+        // Restore the saved timeframe so the chart matches the marked-up plan
+        if (wlEntry && wlEntry.interval) {
+          const intervalEl = document.getElementById('copilot-interval');
+          if (intervalEl) intervalEl.value = wlEntry.interval;
+        }
         if (typeof autoPopulateInstrumentSettings === 'function') autoPopulateInstrumentSettings(sym);
-        if (typeof runCopilotAnalysis === 'function') runCopilotAnalysis();
+        if (typeof runCopilotAnalysis === 'function') await runCopilotAnalysis();
+
+        if (wlEntry) {
+          // Restore per-chart instrument settings AFTER analysis — runCopilotAnalysis
+          // calls autoPopulateInstrumentSettings which would otherwise reset these to
+          // the contract defaults. Saved values are authoritative (hand-tuned).
+          const _setVal = (id, v) => { if (v == null) return; const el = document.getElementById(id); if (el) el.value = v; };
+          if (wlEntry.instrument_type) {
+            _setVal('instrument-type', wlEntry.instrument_type);
+            const itEl = document.getElementById('instrument-type');
+            if (itEl) itEl.dispatchEvent(new Event('change'));
+          }
+          _setVal('futures-margin', wlEntry.futures_margin);
+          _setVal('futures-point-value', wlEntry.point_value);
+          _setVal('futures-tick-size', wlEntry.tick_size);
+          _setVal('risk-percent', wlEntry.risk_percent);
+          if (wlEntry.manual_size) _setVal('manual-position-size', wlEntry.manual_size);
+
+          // Force manual chart placement so auto-recalc (R-multiple / % targets,
+          // ATR stops) does NOT overwrite the saved markup during restore.
+          ['trade-target-type', 'stock-tp-type', 'stock-stop-type'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+          });
+
+          // Apply the exact saved levels
+          if (wlEntry.entry_price && typeof window.setEntry === 'function') window.setEntry(wlEntry.entry_price);
+          if (wlEntry.stop_price && typeof window.setStopLoss === 'function') window.setStopLoss(wlEntry.stop_price);
+          if (wlEntry.take_profit && typeof window.setTakeProfit === 'function') window.setTakeProfit(wlEntry.take_profit);
+          if (wlEntry.take_profit_2 && typeof window.setTakeProfit2 === 'function') window.setTakeProfit2(wlEntry.take_profit_2);
+          if (wlEntry.take_profit_3 && typeof window.setTakeProfit3 === 'function') window.setTakeProfit3(wlEntry.take_profit_3);
+
+          // Set direction LAST so it sticks. Use the no-analysis variant —
+          // setTradeDirection() would auto-trigger a re-analysis that re-derives
+          // fib levels and clobbers the restored markup.
+          if (wlEntry.direction && typeof window.applyTradeDirectionWithoutAnalysis === 'function') {
+            window.applyTradeDirectionWithoutAnalysis(wlEntry.direction);
+            if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
+            if (typeof updateLivePnL === 'function') updateLivePnL();
+          }
+        }
       }, 50);
     }
 
@@ -51,9 +103,47 @@
       if (typeof watchListClear === 'function') watchListClear();
     }
 
-    window.tdWatchListLoad      = tdWatchListLoad;
-    window.tdWatchListRemoveOne = tdWatchListRemoveOne;
-    window.tdWatchListClearAll  = tdWatchListClearAll;
+    function tdSaveCurrentToWatchList() {
+      const sym = (document.getElementById('copilot-symbol')?.value || '').trim().toUpperCase();
+      if (!sym) { alert('Load a symbol first.'); return; }
+      const entry  = parseFloat(document.getElementById('entry-price-input')?.value) || undefined;
+      const stop   = parseFloat(document.getElementById('stop-loss-price-input')?.value) || undefined;
+      const tp1    = parseFloat(document.getElementById('take-profit-price-input')?.value) || undefined;
+      const tp2    = parseFloat(document.getElementById('take-profit-2-price-input')?.value) || undefined;
+      const tp3    = parseFloat(document.getElementById('take-profit-3-price-input')?.value) || undefined;
+      const dir    = typeof tradeDirection === 'number' ? tradeDirection : 0;
+      const settings = typeof getSettings === 'function' ? getSettings() : {};
+
+      const intervalEl = document.getElementById('copilot-interval');
+
+      if (typeof watchListAdd === 'function') {
+        watchListAdd({
+          symbol: sym,
+          interval: (intervalEl && intervalEl.value) || settings.interval || '1d',
+          entry_price: entry,
+          stop_price: stop,
+          take_profit: tp1,
+          take_profit_2: tp2,
+          take_profit_3: tp3,
+          direction: dir,
+          instrument_type: settings.instrumentType || 'stock',
+          // Per-chart instrument settings so the saved markup reloads exactly
+          futures_margin: settings.futuresMargin,
+          point_value: settings.futuresPointValue,
+          tick_size: settings.futuresTickSize,
+          risk_percent: settings.riskPercent,
+          manual_size: (typeof getManualPositionSizeValue === 'function' ? getManualPositionSizeValue() : null) || undefined,
+        });
+      }
+
+      const btn = document.getElementById('btn-wl-save');
+      if (btn) { btn.textContent = '★ Saved!'; setTimeout(() => { btn.innerHTML = '&#9733; Save'; }, 1500); }
+    }
+
+    window.tdWatchListLoad              = tdWatchListLoad;
+    window.tdWatchListRemoveOne         = tdWatchListRemoveOne;
+    window.tdWatchListClearAll          = tdWatchListClearAll;
+    window.tdSaveCurrentToWatchList     = tdSaveCurrentToWatchList;
 
     document.addEventListener('DOMContentLoaded', async () => {
       loadSettings();
@@ -85,40 +175,27 @@
 
       const _bootstrapSymbol = (_urlSymbol || _scannerHandoff?.symbol || '').trim().toUpperCase();
       const _bootstrapInterval = (_urlInterval || _scannerHandoff?.interval || '').trim();
-      const _activeTradePlan = window.TradePlanStore?.getActivePlan ? window.TradePlanStore.getActivePlan() : null;
-      const _matchingTradePlan = _activeTradePlan?.symbol
-        && (!_bootstrapSymbol || String(_activeTradePlan.symbol).trim().toUpperCase() === _bootstrapSymbol)
-          ? _activeTradePlan
-          : (!_bootstrapSymbol ? _activeTradePlan : null);
-
-      if (_matchingTradePlan && typeof window.queueTradePlanBootstrap === 'function') {
-        window.queueTradePlanBootstrap(_matchingTradePlan);
-      }
-
+      // Only auto-load a chart if explicitly passed via URL params or scanner handoff.
+      // On a plain refresh, start with a clean empty chart.
       if (_bootstrapSymbol) {
+        const _activeTradePlan = window.TradePlanStore?.getActivePlan ? window.TradePlanStore.getActivePlan() : null;
+        const _matchingTradePlan = _activeTradePlan?.symbol
+          && String(_activeTradePlan.symbol).trim().toUpperCase() === _bootstrapSymbol
+            ? _activeTradePlan
+            : null;
+
+        if (_matchingTradePlan && typeof window.queueTradePlanBootstrap === 'function') {
+          window.queueTradePlanBootstrap(_matchingTradePlan);
+        }
+
         const symbolInput   = document.getElementById('copilot-symbol');
         const intervalSelect = document.getElementById('copilot-interval');
         if (symbolInput) symbolInput.value = _bootstrapSymbol;
         if (intervalSelect && _bootstrapInterval) {
-          // Set the matching option if it exists, otherwise leave default
           const option = Array.from(intervalSelect.options).find(o => o.value === _bootstrapInterval);
           if (option) intervalSelect.value = _bootstrapInterval;
         }
-        // Correct instrument type based on the symbol — overrides any stale saved setting
         autoPopulateInstrumentSettings(_bootstrapSymbol);
-        if (typeof runCopilotAnalysis === 'function') {
-          runCopilotAnalysis();
-        }
-      } else if (_matchingTradePlan?.symbol) {
-        const symbolInput = document.getElementById('copilot-symbol');
-        const intervalSelect = document.getElementById('copilot-interval');
-        const planSym = String(_matchingTradePlan.symbol).trim().toUpperCase();
-        if (symbolInput) symbolInput.value = planSym;
-        if (intervalSelect && _matchingTradePlan.interval) {
-          const option = Array.from(intervalSelect.options).find((item) => item.value === _matchingTradePlan.interval);
-          if (option) intervalSelect.value = _matchingTradePlan.interval;
-        }
-        autoPopulateInstrumentSettings(planSym);
         if (typeof runCopilotAnalysis === 'function') {
           runCopilotAnalysis();
         }
@@ -137,14 +214,48 @@
       'MNQ': 'MNQ=F',
       'MYM': 'MYM=F',
       'M2K': 'M2K=F',
+      'ES': 'ES=F',
+      'NQ': 'NQ=F',
+      'YM': 'YM=F',
+      'RTY': 'RTY=F',
+      '6C': '6C=F',
+      '6E': '6E=F',
+      '6J': '6J=F',
+      '6B': '6B=F',
+      'M6B': 'M6B=F',
+      'M6E': 'M6E=F',
+      'M6A': 'M6A=F',
+      'M6J': 'M6J=F',
+      '6A': '6A=F',
+      '6S': '6S=F',
+      '6N': '6N=F',
+      '6M': '6M=F',
+      'GC': 'GC=F',
+      'SI': 'SI=F',
+      'CL': 'CL=F',
+      'NG': 'NG=F',
     };
+
+    // Map contract-month symbols (e.g. 6CU26, ESZ25) to their continuous symbol
+    function normalizeContractMonth(symbol) {
+      var match = symbol.match(/^([A-Z0-9]{1,4})[FGHJKMNQUVXZ]\d{2,4}$/);
+      if (match) {
+        var root = match[1];
+        if (MARKET_SYMBOL_ALIASES[root]) return MARKET_SYMBOL_ALIASES[root];
+        return root + '=F';
+      }
+      return null;
+    }
 
     function normalizeTradingDeskSymbol(raw) {
       const input = String(raw || '').trim().toUpperCase();
       if (!input) return '';
       const collapsed = input.replace(/\s+/g, '');
       const unslashed = collapsed.replace(/^\//, '');
-      return MARKET_SYMBOL_ALIASES[unslashed] || unslashed;
+      if (MARKET_SYMBOL_ALIASES[unslashed]) return MARKET_SYMBOL_ALIASES[unslashed];
+      var monthNorm = normalizeContractMonth(unslashed);
+      if (monthNorm) return monthNorm;
+      return unslashed;
     }
 
     window.normalizeTradingDeskSymbol = normalizeTradingDeskSymbol;
@@ -178,6 +289,20 @@
       'ZC=F':   { type: 'futures', name: 'Corn',                    pointValue: 50,    tickSize: 0.25, margin: 1500  },
       'ZW=F':   { type: 'futures', name: 'Wheat',                   pointValue: 50,    tickSize: 0.25, margin: 2000  },
       'ZS=F':   { type: 'futures', name: 'Soybeans',                pointValue: 50,    tickSize: 0.25, margin: 2500  },
+      // --- Currency Futures ---
+      '6C=F':   { type: 'futures', name: 'Canadian Dollar',          pointValue: 100000, tickSize: 0.00005, margin: 2676  },
+      '6E=F':   { type: 'futures', name: 'Euro FX',                  pointValue: 125000, tickSize: 0.00005, margin: 2800  },
+      '6J=F':   { type: 'futures', name: 'Japanese Yen',             pointValue: 12500000, tickSize: 0.0000005, margin: 3300 },
+      '6B=F':   { type: 'futures', name: 'British Pound',            pointValue: 62500,  tickSize: 0.0001,  margin: 2600  },
+      '6A=F':   { type: 'futures', name: 'Australian Dollar',        pointValue: 100000, tickSize: 0.0001,  margin: 1800  },
+      '6S=F':   { type: 'futures', name: 'Swiss Franc',              pointValue: 125000, tickSize: 0.0001,  margin: 3500  },
+      '6N=F':   { type: 'futures', name: 'New Zealand Dollar',       pointValue: 100000, tickSize: 0.0001,  margin: 1500  },
+      '6M=F':   { type: 'futures', name: 'Mexican Peso',             pointValue: 500000, tickSize: 0.000010,margin: 1200  },
+      // --- Micro FX ---
+      'M6B=F':  { type: 'futures', name: 'Micro British Pound',      pointValue: 6250,   tickSize: 0.0001,  margin: 209   },
+      'M6E=F':  { type: 'futures', name: 'Micro Euro FX',            pointValue: 12500,  tickSize: 0.00005, margin: 280   },
+      'M6A=F':  { type: 'futures', name: 'Micro Australian Dollar',  pointValue: 10000,  tickSize: 0.0001,  margin: 180   },
+      'M6J=F':  { type: 'futures', name: 'Micro Japanese Yen',       pointValue: 1250000,tickSize: 0.0000005,margin: 330  },
       // --- Bonds / Rates ---
       'ZN=F':   { type: 'futures', name: '10-Year T-Note',          pointValue: 1000,  tickSize: 0.015625, margin: 2000 },
       'ZB=F':   { type: 'futures', name: '30-Year T-Bond',          pointValue: 1000,  tickSize: 0.03125,  margin: 3500 },
@@ -290,6 +415,7 @@
       }
 
       saveSettings();
+      if (typeof syncInstrumentPnlSummary === 'function') syncInstrumentPnlSummary();
     }
 
     function initCopilotSymbolAutocomplete() {
@@ -300,12 +426,78 @@
       // Auto-populate on blur (when user finishes typing)
       input.addEventListener('change', () => autoPopulateInstrumentSettings(input.value.trim()));
 
-      function getSymbolsList() {
-        const allSymbols = new Set();
-        Object.values(COPILOT_SYMBOL_LISTS).forEach(list => list.forEach(s => allSymbols.add(s)));
-        savedChartsList.forEach(item => item.symbol && allSymbols.add(item.symbol));
-        return Array.from(allSymbols).sort();
+      // Build a searchable catalog: symbol + name for fuzzy matching
+      function getSearchableCatalog() {
+        const catalog = [];
+        const seen = new Set();
+
+        // CONTRACT_SPECS entries (futures, forex, crypto) — highest priority
+        for (const [sym, spec] of Object.entries(CONTRACT_SPECS)) {
+          if (!seen.has(sym)) {
+            seen.add(sym);
+            catalog.push({ symbol: sym, name: spec.name || '', type: spec.type || '' });
+          }
+        }
+
+        // Symbol lists from API
+        Object.values(COPILOT_SYMBOL_LISTS).forEach(list => {
+          list.forEach(s => {
+            if (!seen.has(s)) { seen.add(s); catalog.push({ symbol: s, name: '', type: '' }); }
+          });
+        });
+
+        // Saved charts
+        savedChartsList.forEach(item => {
+          if (item.symbol && !seen.has(item.symbol)) {
+            seen.add(item.symbol);
+            catalog.push({ symbol: item.symbol, name: '', type: '' });
+          }
+        });
+
+        return catalog;
       }
+
+      // Common company / instrument name aliases for popular tickers
+      const COMMON_NAMES = {
+        'AAPL': 'Apple',
+        'MSFT': 'Microsoft',
+        'GOOGL': 'Google Alphabet',
+        'GOOG': 'Google Alphabet',
+        'AMZN': 'Amazon',
+        'TSLA': 'Tesla',
+        'META': 'Meta Facebook',
+        'NVDA': 'Nvidia',
+        'AMD': 'Advanced Micro Devices',
+        'NFLX': 'Netflix',
+        'JPM': 'JPMorgan Chase',
+        'BAC': 'Bank of America',
+        'V': 'Visa',
+        'MA': 'Mastercard',
+        'DIS': 'Disney',
+        'WMT': 'Walmart',
+        'KO': 'Coca-Cola Coke',
+        'PEP': 'Pepsi PepsiCo',
+        'BA': 'Boeing',
+        'INTC': 'Intel',
+        'CSCO': 'Cisco',
+        'CRM': 'Salesforce',
+        'PYPL': 'PayPal',
+        'UBER': 'Uber',
+        'ABNB': 'Airbnb',
+        'SQ': 'Block Square',
+        'COIN': 'Coinbase',
+        'PLTR': 'Palantir',
+        'RIVN': 'Rivian',
+        'SNAP': 'Snapchat Snap',
+        'SHOP': 'Shopify',
+        'ROKU': 'Roku',
+        'SPY': 'S&P 500 ETF',
+        'QQQ': 'Nasdaq 100 ETF',
+        'IWM': 'Russell 2000 ETF',
+        'GLD': 'Gold ETF',
+        'XLE': 'Energy ETF',
+        'XLF': 'Financial ETF',
+      };
 
       let selectedIdx = -1;
       let filtered = [];
@@ -318,9 +510,36 @@
           selectedIdx = -1;
           return;
         }
-        const symbolsList = getSymbolsList();
-        filtered = symbolsList.filter(s => s.toUpperCase().startsWith(qq) || s.toUpperCase().includes(qq));
-        filtered = filtered.slice(0, 12);
+
+        const catalog = getSearchableCatalog();
+        const matches = [];
+
+        for (const item of catalog) {
+          const symUp = item.symbol.toUpperCase();
+          const nameUp = (item.name || '').toUpperCase();
+          const aliasUp = (COMMON_NAMES[item.symbol] || COMMON_NAMES[item.symbol.replace('=F','').replace('=X','').replace('-USD','')] || '').toUpperCase();
+          const typeUp = (item.type || '').toUpperCase();
+          const searchable = symUp + ' ' + nameUp + ' ' + aliasUp + ' ' + typeUp;
+
+          if (symUp.startsWith(qq)) {
+            matches.push({ ...item, rank: 0 }); // exact prefix on symbol
+          } else if (symUp.includes(qq)) {
+            matches.push({ ...item, rank: 1 }); // symbol contains
+          } else if (nameUp.includes(qq) || aliasUp.includes(qq)) {
+            matches.push({ ...item, rank: 2 }); // name/alias match
+          } else {
+            // Multi-word: all query words must appear somewhere
+            const words = qq.split(/\s+/);
+            if (words.length > 1 && words.every(w => searchable.includes(w))) {
+              matches.push({ ...item, rank: 3 });
+            }
+          }
+        }
+
+        matches.sort((a, b) => a.rank - b.rank || a.symbol.localeCompare(b.symbol));
+        filtered = matches.slice(0, 15).map(m => m.symbol);
+        const displayItems = matches.slice(0, 15);
+
         if (highlightIdx === undefined) selectedIdx = -1;
         else selectedIdx = Math.max(-1, Math.min(highlightIdx, filtered.length - 1));
 
@@ -331,9 +550,12 @@
           return;
         }
 
-        suggestionsEl.innerHTML = filtered.map((sym, i) =>
-          `<div style="padding:var(--space-8) var(--space-12);cursor:pointer;font-size:var(--text-small);font-family:var(--font-mono);background:${i === selectedIdx ? 'var(--color-accent-dim, rgba(99,102,241,.18))' : 'transparent'};color:${i === selectedIdx ? 'var(--color-text)' : 'var(--color-text-muted)'};" data-symbol="${sym}" data-idx="${i}" onmouseover="this.style.background='var(--color-accent-dim,rgba(99,102,241,.18))';this.style.color='var(--color-text)'" onmouseout="this.style.background='${i === selectedIdx ? 'var(--color-accent-dim,rgba(99,102,241,.18))' : 'transparent'}';this.style.color='${i === selectedIdx ? 'var(--color-text)' : 'var(--color-text-muted)'}'">${sym}</div>`
-        ).join('');
+        suggestionsEl.innerHTML = displayItems.map((item, i) => {
+          const label = item.name ? `${item.symbol}  <span style="color:var(--color-text-subtle);font-weight:400;">${item.name}</span>` : item.symbol;
+          const bg = i === selectedIdx ? 'var(--color-accent-dim, rgba(99,102,241,.18))' : 'transparent';
+          const fg = i === selectedIdx ? 'var(--color-text)' : 'var(--color-text-muted)';
+          return `<div style="padding:var(--space-8) var(--space-12);cursor:pointer;font-size:var(--text-small);font-family:var(--font-mono);background:${bg};color:${fg};display:flex;justify-content:space-between;align-items:center;" data-symbol="${item.symbol}" data-idx="${i}" onmouseover="this.style.background='var(--color-accent-dim,rgba(99,102,241,.18))';this.style.color='var(--color-text)'" onmouseout="this.style.background='${bg}';this.style.color='${fg}'">${label}</div>`;
+        }).join('');
         suggestionsEl.classList.remove('hidden');
       }
 
@@ -505,24 +727,87 @@
       return atr;
     }
 
+    function getTradeTargetDirectionSign(entry, stop) {
+      if (typeof tradeDirection === 'number' && tradeDirection === -1) return -1;
+      if (typeof tradeDirection === 'number' && tradeDirection === 1) return 1;
+      if (Number.isFinite(entry) && Number.isFinite(stop) && entry > 0 && stop > 0) {
+        return stop > entry ? -1 : 1;
+      }
+      return 1;
+    }
+
+    function syncTargetConfigPanels() {
+      const tradeTargetEl = document.getElementById('trade-target-type');
+      const targetType = tradeTargetEl
+        ? tradeTargetEl.value
+        : (document.getElementById('stock-tp-type')?.value || '');
+      const targetRFields = document.getElementById('trade-target-r-fields');
+      const targetPctFields = document.getElementById('trade-target-pct-fields');
+      const stockTpRFields = document.getElementById('stock-tp-R-fields');
+      const stockTpPctFields = document.getElementById('stock-tp-pct-fields');
+      if (targetRFields) targetRFields.style.display = targetType === 'R' ? '' : 'none';
+      if (targetPctFields) targetPctFields.style.display = targetType === 'pct' ? '' : 'none';
+      if (stockTpRFields) stockTpRFields.style.display = targetType === 'R' ? '' : 'none';
+      if (stockTpPctFields) stockTpPctFields.style.display = targetType === 'pct' ? '' : 'none';
+      return targetType;
+    }
+
+    function applyTradeTargetConfig() {
+      const targetType = syncTargetConfigPanels();
+      const hintEl = document.getElementById('trade-target-hint');
+      if (hintEl) hintEl.style.display = 'none';
+      if (!targetType) return false;
+
+      const entry = parseFloat(document.getElementById('entry-price-input')?.value);
+      const stop = parseFloat(document.getElementById('stop-loss-price-input')?.value);
+      if (!Number.isFinite(entry) || entry <= 0) {
+        if (hintEl) { hintEl.textContent = 'Set entry first, then the target can be calculated.'; hintEl.style.display = ''; }
+        return false;
+      }
+
+      const sign = getTradeTargetDirectionSign(entry, stop);
+      let target = null;
+      if (targetType === 'R') {
+        if (!Number.isFinite(stop) || stop <= 0 || stop === entry) {
+          if (hintEl) { hintEl.textContent = 'Set stop first. R targets need the entry-to-stop risk distance.'; hintEl.style.display = ''; }
+          return false;
+        }
+        const rValue = parseFloat(document.getElementById('trade-target-r')?.value || document.getElementById('stock-tp-R')?.value) || 2;
+        target = entry + (Math.abs(entry - stop) * rValue * sign);
+        if (hintEl) { hintEl.textContent = `${rValue}R target from current risk distance.`; hintEl.style.display = ''; }
+      } else if (targetType === 'pct') {
+        const pct = parseFloat(document.getElementById('trade-target-pct')?.value || document.getElementById('stock-tp-pct')?.value) || 10;
+        target = entry * (1 + (pct / 100) * sign);
+        if (hintEl) { hintEl.textContent = `${pct}% ${sign < 0 ? 'below' : 'above'} entry.`; hintEl.style.display = ''; }
+      }
+
+      if (Number.isFinite(target) && target > 0 && typeof window.setTakeProfit === 'function') {
+        window.setTakeProfit(target);
+        if (typeof updateCalculations === 'function') updateCalculations();
+        if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
+        return true;
+      }
+      return false;
+    }
+    window.applyTradeTargetConfig = applyTradeTargetConfig;
+
     function applyStockRiskConfig() {
       const stopType = (document.getElementById('stock-stop-type')?.value) || '';
-      const tpType   = (document.getElementById('stock-tp-type')?.value) || '';
+      const tpType = syncTargetConfigPanels();
 
       // Show/hide sub-panels
       const atrFields = document.getElementById('stock-atr-fields');
       const pctFields = document.getElementById('stock-pct-fields');
-      const tpRFields  = document.getElementById('stock-tp-R-fields');
-      const tpPctFields = document.getElementById('stock-tp-pct-fields');
       const hintEl    = document.getElementById('stock-stop-hint');
 
       if (atrFields)  atrFields.style.display  = stopType === 'atr' ? '' : 'none';
       if (pctFields)  pctFields.style.display   = stopType === 'pct' ? '' : 'none';
-      if (tpRFields)  tpRFields.style.display   = tpType  === 'R'   ? '' : 'none';
-      if (tpPctFields) tpPctFields.style.display = tpType  === 'pct' ? '' : 'none';
       if (hintEl)     hintEl.style.display      = 'none';
 
-      if (!stopType) return; // manual — leave chart lines as-is
+      if (!stopType) {
+        if (tpType) applyTradeTargetConfig();
+        return;
+      } // manual stop - leave chart lines as-is
 
       // Resolve entry price from chart state
       const entryInput = document.getElementById('entry-price-input');
@@ -533,6 +818,7 @@
       }
 
       let stopPrice = null;
+      const sign = getTradeTargetDirectionSign(entryPrice, parseFloat(document.getElementById('stop-loss-price-input')?.value));
 
       if (stopType === 'atr') {
         const bars   = window._copilotChartBars;
@@ -543,12 +829,12 @@
           if (hintEl) { hintEl.textContent = 'Not enough chart data to compute ATR — load the chart first.'; hintEl.style.display = ''; }
           return;
         }
-        stopPrice = entryPrice - atr * mult;
-        if (hintEl) { hintEl.textContent = `ATR(${period}) = ${atr.toFixed(2)}, stop = entry − ${(atr * mult).toFixed(2)}`; hintEl.style.display = ''; }
+        stopPrice = entryPrice - (atr * mult * sign);
+        if (hintEl) { hintEl.textContent = `ATR(${period}) = ${atr.toFixed(2)}, stop = entry ${sign < 0 ? '+' : '-'} ${(atr * mult).toFixed(2)}`; hintEl.style.display = ''; }
       } else if (stopType === 'pct') {
         const pct = parseFloat(document.getElementById('stock-stop-pct')?.value) || 5;
-        stopPrice = entryPrice * (1 - pct / 100);
-        if (hintEl) { hintEl.textContent = `${pct}% below entry`; hintEl.style.display = ''; }
+        stopPrice = entryPrice * (1 - (pct / 100) * sign);
+        if (hintEl) { hintEl.textContent = `${pct}% ${sign < 0 ? 'above' : 'below'} entry`; hintEl.style.display = ''; }
       }
 
       if (!stopPrice || stopPrice <= 0) return;
@@ -558,21 +844,7 @@
         window.setStopLoss(stopPrice);
       }
 
-      // Calculate and draw take-profit
-      if (tpType) {
-        const risk = entryPrice - stopPrice;
-        let tpPrice = null;
-        if (tpType === 'R') {
-          const R = parseFloat(document.getElementById('stock-tp-R')?.value) || 2;
-          tpPrice = entryPrice + risk * R;
-        } else if (tpType === 'pct') {
-          const pct = parseFloat(document.getElementById('stock-tp-pct')?.value) || 10;
-          tpPrice = entryPrice * (1 + pct / 100);
-        }
-        if (tpPrice && tpPrice > entryPrice && typeof window.setTakeProfit === 'function') {
-          window.setTakeProfit(tpPrice);
-        }
-      }
+      if (tpType) applyTradeTargetConfig();
     }
 
     window.applyStockRiskConfig = applyStockRiskConfig;
@@ -587,9 +859,22 @@
       s.stockTpType = document.getElementById('stock-tp-type')?.value ?? '';
       s.stockTpR = document.getElementById('stock-tp-R')?.value || '2';
       s.stockTpPct = document.getElementById('stock-tp-pct')?.value || '10';
+      s.tradeTargetType = document.getElementById('trade-target-type')?.value ?? s.tradeTargetType ?? '';
+      s.tradeTargetR = document.getElementById('trade-target-r')?.value || s.tradeTargetR || '2';
+      s.tradeTargetPct = document.getElementById('trade-target-pct')?.value || s.tradeTargetPct || '10';
       localStorage.setItem('copilotSettings', JSON.stringify(s));
     }
     window.saveStockRiskConfig = saveStockRiskConfig;
+
+    function saveTradingDeskTargetConfig() {
+      let s = {};
+      try { s = JSON.parse(localStorage.getItem('copilotSettings') || '{}') || {}; } catch(e) {}
+      s.tradeTargetType = document.getElementById('trade-target-type')?.value ?? '';
+      s.tradeTargetR = document.getElementById('trade-target-r')?.value || '2';
+      s.tradeTargetPct = document.getElementById('trade-target-pct')?.value || '10';
+      localStorage.setItem('copilotSettings', JSON.stringify(s));
+    }
+    window.saveTradingDeskTargetConfig = saveTradingDeskTargetConfig;
 
     // Called by copilot-chart.js when the user manually places a stop on the chart.
     // Resets the programmatic stop type to "manual" so the dropdown goes blank.
@@ -607,11 +892,19 @@
     // Called by copilot-chart.js when the user manually places a take-profit on the chart.
     window._stockRiskClearTP = function () {
       const el = document.getElementById('stock-tp-type');
+      const tradeTargetEl = document.getElementById('trade-target-type');
       if (el) el.value = '';
+      if (tradeTargetEl) tradeTargetEl.value = '';
       const tpRFields   = document.getElementById('stock-tp-R-fields');
       const tpPctFields = document.getElementById('stock-tp-pct-fields');
+      const tradeTargetRFields = document.getElementById('trade-target-r-fields');
+      const tradeTargetPctFields = document.getElementById('trade-target-pct-fields');
+      const tradeTargetHint = document.getElementById('trade-target-hint');
       if (tpRFields)   tpRFields.style.display   = 'none';
       if (tpPctFields) tpPctFields.style.display = 'none';
+      if (tradeTargetRFields) tradeTargetRFields.style.display = 'none';
+      if (tradeTargetPctFields) tradeTargetPctFields.style.display = 'none';
+      if (tradeTargetHint) tradeTargetHint.style.display = 'none';
     };
 
     // Apply or remove Options mode on the trade level inputs
@@ -1062,6 +1355,16 @@
         }
         return;
       }
+      const detectedType = detectInstrumentType(symbol);
+      if (detectedType && detectedType !== 'stock') {
+        const message = `Options chains are only supported for stock/ETF underlyings here. ${symbol} is detected as ${detectedType}.`;
+        setOptionChainStatus(message, 'error');
+        resetOptionChainBoard(message);
+        if (contractSelect) {
+          contractSelect.innerHTML = '<option value=\"\">Unsupported underlying for option chain</option>';
+        }
+        return;
+      }
 
       setOptionChainStatus(`Loading ${symbol} ${type.toUpperCase()} chain...`);
       resetOptionChainBoard(`Loading ${symbol.toUpperCase()} ${type.toUpperCase()} contracts...`);
@@ -1329,6 +1632,9 @@
         'option-type': 'optionType',
         'contract-multiplier': 'contractMultiplier',
         'option-tp-R': 'optionTpR',
+        'trade-target-type': 'tradeTargetType',
+        'trade-target-r': 'tradeTargetR',
+        'trade-target-pct': 'tradeTargetPct',
         'lot-size': 'lotSize',
         'pip-value': 'pipValue',
         'leverage': 'leverage',
@@ -1375,10 +1681,17 @@
         const pctFields   = document.getElementById('stock-pct-fields');
         const tpRFields   = document.getElementById('stock-tp-R-fields');
         const tpPctFields = document.getElementById('stock-tp-pct-fields');
+        const tradeTargetEl = document.getElementById('trade-target-type');
+        const tradeTargetType = tradeTargetEl?.value;
+        const effectiveTpType = tradeTargetEl ? tradeTargetType : tpType;
+        const tradeTargetRFields = document.getElementById('trade-target-r-fields');
+        const tradeTargetPctFields = document.getElementById('trade-target-pct-fields');
         if (atrFields)   atrFields.style.display   = stopType === 'atr' ? '' : 'none';
         if (pctFields)   pctFields.style.display    = stopType === 'pct' ? '' : 'none';
-        if (tpRFields)   tpRFields.style.display    = tpType  === 'R'   ? '' : 'none';
-        if (tpPctFields) tpPctFields.style.display  = tpType  === 'pct' ? '' : 'none';
+        if (tpRFields)   tpRFields.style.display    = effectiveTpType === 'R'   ? '' : 'none';
+        if (tpPctFields) tpPctFields.style.display  = effectiveTpType === 'pct' ? '' : 'none';
+        if (tradeTargetRFields) tradeTargetRFields.style.display = effectiveTpType === 'R' ? '' : 'none';
+        if (tradeTargetPctFields) tradeTargetPctFields.style.display = effectiveTpType === 'pct' ? '' : 'none';
       }
     }
     window.applyTradingDeskSettingsSnapshot = applyTradingDeskSettingsSnapshot;
@@ -1762,6 +2075,16 @@
       shortBtn.classList.toggle('direction-toggle-btn--active', normalized === -1);
       shortBtn.classList.toggle('active', normalized === -1);
     }
+    const chartLong = document.getElementById('btn-chart-long');
+    const chartShort = document.getElementById('btn-chart-short');
+    if (chartLong) {
+      chartLong.classList.toggle('direction-toggle-btn--active', normalized === 1);
+      chartLong.classList.toggle('active', normalized === 1);
+    }
+    if (chartShort) {
+      chartShort.classList.toggle('direction-toggle-btn--active', normalized === -1);
+      chartShort.classList.toggle('active', normalized === -1);
+    }
     updateLivePnL();
     if (typeof window.syncRiskPlanFromDeskLevels === 'function') {
       window.syncRiskPlanFromDeskLevels();
@@ -1772,12 +2095,15 @@
     if (typeof window.syncTradePlanStoreFromDesk === 'function') {
       window.syncTradePlanStoreFromDesk('direction_changed');
     }
-      
-      // If an analysis has already been run, automatically re-run with the new direction
-      const symbol = document.getElementById('copilot-symbol')?.value?.trim();
-      if (symbol && lastCopilotResult && normalized !== 0) {
-        runCopilotAnalysis();
-      }
+    const tradeTargetEl = document.getElementById('trade-target-type');
+    const targetType = tradeTargetEl ? tradeTargetEl.value : document.getElementById('stock-tp-type')?.value;
+    if (targetType && typeof window.applyTradeTargetConfig === 'function') {
+      window.applyTradeTargetConfig();
+    }
+
+      // NOTE: We intentionally do NOT re-run the analysis here. Direction is the
+      // trader's explicit choice — re-running would re-apply the analysis's own
+      // verdict direction and flip the buttons back (e.g. always to LONG).
     }
 
     // ========== LIVE P&L UPDATER ==========
@@ -2061,6 +2387,92 @@
     }
     window.calcAutoPositionSize = calcAutoPositionSize;
 
+    // Live "open position" P&L in the Key Levels panel — answers "is the
+    // position in profit right now, and by how much?" based on the current
+    // market price (NOT the mouse position).
+    function renderOpenPositionPnL(pnl, pnlPct, priceText) {
+      const pnlEl = document.getElementById('kl-open-pnl');
+      const subEl = document.getElementById('kl-open-pnl-sub');
+      if (!pnlEl) return;
+      if (pnl === null || pnl === undefined || !Number.isFinite(pnl)) {
+        pnlEl.textContent = '';
+        if (subEl) subEl.textContent = '';
+        return;
+      }
+      const inProfit = pnl > 0.005;
+      const inLoss = pnl < -0.005;
+      const color = inProfit ? '#22c55e' : inLoss ? '#ef4444' : '#94a3b8';
+      const arrow = inProfit ? '\u25B2 ' : inLoss ? '\u25BC ' : '';
+      pnlEl.textContent = arrow + '$' + Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      pnlEl.style.color = color;
+      if (subEl) {
+        const label = inProfit ? 'in profit' : inLoss ? 'in loss' : 'flat';
+        const parts = [Math.abs(pnlPct).toFixed(2) + '% ' + label];
+        if (priceText) parts.push('@ ' + priceText);
+        subEl.textContent = parts.join('  \u00B7  ');
+      }
+    }
+    function clearOpenPositionPnL() {
+      const pnlEl = document.getElementById('kl-open-pnl');
+      const subEl = document.getElementById('kl-open-pnl-sub');
+      if (pnlEl) pnlEl.textContent = '';
+      if (subEl) subEl.textContent = '';
+    }
+    window.clearOpenPositionPnL = clearOpenPositionPnL;
+
+    // ── Toolbar P&L probe ─────────────────────────────────────────────────
+    // Opt-in (toggle button next to Long/Short). When active AND an entry is
+    // set, hovering the chart shows what the profit/loss would be at that
+    // price. When off, or when there's no entry, the readout stays blank.
+    let _pnlProbeActive = false;
+
+    function clearToolbarPnLProbe() {
+      const el = document.getElementById('toolbar-pnl-readout');
+      if (el) { el.innerHTML = ''; el.style.display = 'none'; }
+    }
+    window.clearToolbarPnLProbe = clearToolbarPnLProbe;
+
+    function renderToolbarPnLProbe(price) {
+      const el = document.getElementById('toolbar-pnl-readout');
+      if (!el) return;
+      // Blank unless: probe is on, an entry exists, and we have a valid price.
+      if (!_pnlProbeActive || !entryPrice || !(price > 0)) { clearToolbarPnLProbe(); return; }
+
+      const settings = getSettings();
+      const stopPx = stopLossPrice || entryPrice;
+      let sizing = livePnLSizing;
+      if (!sizing) {
+        const ctx = getPositionSizingContext(settings, entryPrice, stopPx);
+        sizing = ctx.effectiveSizing;
+      }
+      const pnl = calculatePnL(entryPrice, price, settings, sizing, tradeDirection);
+      if (pnl === null || !Number.isFinite(pnl)) { clearToolbarPnLProbe(); return; }
+      const pct = entryPrice > 0 ? ((price - entryPrice) / entryPrice * 100 * tradeDirection) : 0;
+
+      const spec = getContractSpec(document.getElementById('copilot-symbol')?.value);
+      const pxDec = spec ? Math.max(2, (spec.tickSize).toString().replace(/0+$/, '').split('.')[1]?.length || 2) : 2;
+      const color = pnl > 0.005 ? '#22c55e' : pnl < -0.005 ? '#ef4444' : '#94a3b8';
+      const arrow = pnl > 0.005 ? '\u25B2' : pnl < -0.005 ? '\u25BC' : '';
+      const dollar = '$' + Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      el.style.display = 'inline-flex';
+      el.innerHTML = '<span style="color:' + color + '">' + arrow + ' ' + dollar + '</span>'
+        + '<span style="color:#94a3b8;font-weight:600;">' + Math.abs(pct).toFixed(2) + '% @ $' + price.toFixed(pxDec) + '</span>';
+    }
+    window.renderToolbarPnLProbe = renderToolbarPnLProbe;
+
+    function togglePnLProbe() {
+      _pnlProbeActive = !_pnlProbeActive;
+      const btn = document.getElementById('btn-pnl-probe');
+      if (btn) btn.classList.toggle('active', _pnlProbeActive);
+      if (!_pnlProbeActive) {
+        clearToolbarPnLProbe();
+      } else if (entryPrice && lastChartPrice) {
+        // Seed with the current price until the user hovers a level.
+        renderToolbarPnLProbe(lastChartPrice);
+      }
+    }
+    window.togglePnLProbe = togglePnLProbe;
+
     function updateLivePnL(currentPrice) {
       if (currentPrice !== undefined) lastChartPrice = currentPrice;
 
@@ -2073,7 +2485,7 @@
       }
       
       // ===== NORMAL MODE: chart price-based P&L =====
-      if (!entryPrice || !lastChartPrice) return;
+      if (!entryPrice || !lastChartPrice) { clearOpenPositionPnL(); return; }
 
       const stopPx = stopLossPrice || entryPrice; // fallback if no stop set
       
@@ -2119,7 +2531,12 @@
       if (pnlSizeEl) pnlSizeEl.textContent = `${effectiveSize} ${livePnLSizing.unitLabel}`;
 
       // Current price
-      document.getElementById('live-pnl-current').textContent = `$${lastChartPrice.toFixed(2)}`;
+      const spec_ = getContractSpec(document.getElementById('copilot-symbol')?.value);
+      const pxDec = spec_ ? Math.max(2, (spec_.tickSize).toString().replace(/0+$/, '').split('.')[1]?.length || 2) : 2;
+      document.getElementById('live-pnl-current').textContent = `$${lastChartPrice.toFixed(pxDec)}`;
+
+      // Live open-position P&L in Key Levels (current price, not mouse)
+      renderOpenPositionPnL(pnl, pnlPct, `$${lastChartPrice.toFixed(pxDec)}`);
 
       // Instrument label
       const spec = getContractSpec(document.getElementById('copilot-symbol')?.value);
@@ -2189,6 +2606,15 @@
       // Target/max-loss preview now lives in Key Levels and the size hint.
       const targetRow = document.getElementById('target-pnl-row');
       if (targetRow) targetRow.classList.add('hidden');
+
+      // Live open-position P&L in Key Levels (options)
+      if (result.livePnL !== null && Number.isFinite(result.livePnL)) {
+        const optPct = result.totalCost > 0 ? (result.livePnL / result.totalCost) * 100 : 0;
+        const premText = result.currentPremium > 0 ? `$${result.currentPremium.toFixed(2)} prem` : '';
+        renderOpenPositionPnL(result.livePnL, optPct, premText);
+      } else {
+        clearOpenPositionPnL();
+      }
 
       // Also update sidebar summary.
       updateOptionsPnLSummary();

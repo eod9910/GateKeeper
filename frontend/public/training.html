@@ -3,6 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Force browsers to revalidate this HTML on every load. Without this,
+       some browsers (notably Chrome with BFCache, and external browsers that
+       got the page before the server's no-cache headers existed) will serve
+       a stale training.html that references old ?v= versions of the JS files
+       and the rectangle-drag / forex-candle fixes silently regress. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Execution Training - Pattern Detector</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,6 +104,7 @@
       resize: vertical;
     }
     #training-chart {
+      position: relative;
       width: 100%;
       height: 100%;
       overflow: hidden;
@@ -145,6 +154,17 @@
     }
     .rule-item:last-child,
     .session-item:last-child { border-bottom: none; }
+    .session-item .session-stats {
+      display: flex;
+      gap: 10px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+    .session-item .session-stats .stat-positive { color: #22c55e; }
+    .session-item .session-stats .stat-negative { color: #ef4444; }
+    .session-item .session-stats .stat-neutral { color: var(--color-text-muted); }
     .tag {
       display: inline-flex;
       align-items: center;
@@ -196,6 +216,30 @@
       font-size: var(--text-caption);
       color: var(--color-text-muted);
     }
+    .declaration-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .declaration-chip {
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      background: var(--color-void);
+      color: var(--color-text-muted);
+      padding: 6px 10px;
+      font-size: var(--text-caption);
+      font-family: var(--font-mono);
+      cursor: pointer;
+    }
+    .declaration-chip.is-active {
+      background: color-mix(in srgb, var(--color-accent) 20%, var(--color-void));
+      border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+      color: var(--color-text);
+    }
+    .declaration-chip[disabled] {
+      opacity: 0.55;
+      cursor: default;
+    }
     @media (max-width: 900px) {
       .training-layout {
         grid-template-columns: 1fr;
@@ -243,29 +287,46 @@
     </aside>
 
     <main class="app-main">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-12) var(--space-24);border-bottom:1px solid var(--color-border);gap:var(--space-16);">
-        <div>
-          <h1 class="page-title">Execution Training &amp; Forward Test</h1>
-          <div class="text-muted" style="font-size:var(--text-caption);">
-            Contract-gated entry practice with immediate bar-forward resolution and session scoring.
+      <div class="page-header" style="display:flex;flex-direction:column;align-items:stretch;padding:var(--space-12) var(--space-24);border-bottom:1px solid var(--color-border);gap:var(--space-8);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-16);flex-wrap:wrap;">
+          <div>
+            <h1 class="page-title">Execution Training &amp; Forward Test</h1>
+            <div class="text-muted" style="font-size:var(--text-caption);">
+              Contract-gated entry practice with immediate bar-forward resolution and session scoring.
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-8);flex-wrap:nowrap;">
+            <input id="training-symbol" class="input input-sm text-mono" style="width:140px;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;" value="AAPL" placeholder="Symbol">
+            <select id="training-timeframe" class="select select-sm" style="width:80px;">
+              <option value="1wk">1wk</option>
+              <option value="1d" selected>1d</option>
+              <option value="4h">4h</option>
+              <option value="1h">1h</option>
+            </select>
+            <div class="direction-toggle" style="flex-shrink:0;">
+              <button id="btn-training-long" class="direction-toggle-btn direction-toggle-btn--active">LONG</button>
+              <button id="btn-training-short" class="direction-toggle-btn">SHORT</button>
+            </div>
+            <button id="btn-load-bars" class="btn btn-primary btn-sm" title="Load chart data for this symbol">Load</button>
+            <button id="btn-randomize" class="btn btn-sm" style="background:var(--color-accent-alt,#6366f1);color:#fff;" title="Random symbol &amp; random date">&#x1f3b2; Random</button>
+            <span style="width:1px;height:22px;background:var(--color-border);margin:0 var(--space-4);" aria-hidden="true"></span>
+            <select id="tm-browse-asset-class" class="select select-sm" style="width:140px;" title="Pick an asset class — Random and Browse will be filtered to it">
+              <option value="all" selected>Stocks</option>
+              <option value="indices">Indices</option>
+              <option value="sectors">Sectors</option>
+              <option value="smallcaps">Small Caps</option>
+              <option value="optionable">Optionable</option>
+              <option value="commodities">Commodities</option>
+              <option value="futures">Futures</option>
+              <option value="crypto">Crypto</option>
+              <option value="forex">Forex</option>
+              <option value="international">International</option>
+              <option value="bonds">Bonds</option>
+            </select>
+            <button id="tm-browse-button" class="btn btn-sm" title="Load every symbol in the selected class — pan with ←/→. No new session is started.">Browse</button>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:var(--space-8);flex:1;max-width:620px;">
-          <input id="training-symbol" class="input input-sm text-mono" style="flex:1;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;" value="AAPL" placeholder="Symbol (e.g. AAPL)">
-          <select id="training-timeframe" class="select select-sm" style="width:92px;">
-            <option value="1wk">1wk</option>
-            <option value="1d" selected>1d</option>
-            <option value="4h">4h</option>
-            <option value="1h">1h</option>
-          </select>
-          <div class="direction-toggle" style="flex-shrink:0;">
-            <button id="btn-training-long" class="direction-toggle-btn direction-toggle-btn--active">LONG</button>
-            <button id="btn-training-short" class="direction-toggle-btn">SHORT</button>
-          </div>
-          <button id="btn-load-bars" class="btn btn-primary btn-sm">Go</button>
-          <button id="btn-randomize" class="btn btn-sm" style="background:var(--color-accent-alt,#6366f1);color:#fff;" title="Random symbol &amp; random date">&#x1f3b2; Random</button>
-        </div>
-        <div class="status-line" id="training-status">Loading training module...</div>
+        <div class="status-line" id="training-status" style="text-align:right;">Loading training module...</div>
       </div>
 
       <div class="content" style="padding:var(--space-12) var(--space-24) var(--space-24);">
@@ -278,9 +339,16 @@
                   <span id="chart-interval-display" class="badge" style="font-size:var(--text-caption);padding:2px 6px;">D</span>
                 </div>
                 <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+                  <div class="direction-toggle" style="flex-shrink:0;margin-right:2px;">
+                    <button id="btn-chart-long" class="direction-toggle-btn direction-toggle-btn--active" style="padding:3px 8px;font-size:0.75rem;">LONG</button>
+                    <button id="btn-chart-short" class="direction-toggle-btn" style="padding:3px 8px;font-size:0.75rem;">SHORT</button>
+                  </div>
+                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 2px;"></div>
                   <button id="btn-marker-entry" class="toolbar-btn">Entry</button>
                   <button id="btn-marker-stop" class="toolbar-btn">Stop</button>
-                  <button id="btn-marker-tp" class="toolbar-btn">Set Take Profit</button>
+                  <button id="btn-marker-tp" class="toolbar-btn" title="Click chart to set TP1 (auto-advances to TP2, TP3)">TP1</button>
+                  <button id="btn-marker-tp2" class="toolbar-btn" title="Click chart to set TP2" style="font-size:0.85em;padding:2px 6px;">TP2</button>
+                  <button id="btn-marker-tp3" class="toolbar-btn" title="Click chart to set TP3" style="font-size:0.85em;padding:2px 6px;">TP3</button>
                   <button id="btn-fit-chart" class="toolbar-btn">Fit</button>
                   <div style="border-left:1px solid var(--color-border);height:14px;margin:0 4px;"></div>
                   <label class="sidebar-field-label" for="chart-indicator-select" style="margin:0;">Indicators</label>
@@ -302,13 +370,25 @@
                     <div id="training-chart"></div>
                   </div>
                 </div>
+                <div id="outcome-banner" style="display:none;padding:10px 16px;margin:0 12px;border-radius:6px;font-weight:700;font-size:1.1rem;text-align:center;cursor:pointer;transition:opacity 0.3s;" onclick="this.style.display='none'">
+                  <span id="outcome-banner-text"></span>
+                  <span id="outcome-banner-detail" style="font-weight:400;font-size:0.85rem;margin-left:12px;opacity:0.85;"></span>
+                </div>
                 <div class="chart-replay-dock" style="padding:0 12px 12px;">
-                  <div class="chart-replay-actions" aria-label="Replay controls">
+                  <div class="chart-replay-actions" aria-label="Replay controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+                    <button id="btn-play-backward" class="btn btn-ghost" title="Play backward (rewind) at the selected speed" style="font-size:14px;width:34px;padding:4px 8px;">◀</button>
                     <button id="btn-step-back" class="btn btn-ghost">Back 1 Bar</button>
                     <button id="btn-step-forward" class="btn btn-ghost">Forward 1 Bar</button>
                     <button id="btn-step-forward-5" class="btn btn-ghost">Forward 5 Bars</button>
-                    <button id="btn-step-to-trigger" class="btn btn-ghost">Walk To Entry</button>
-                    <button id="btn-step-to-end" class="btn btn-ghost">Jump To End</button>
+                    <button id="btn-play-forward" class="btn btn-ghost" title="Play forward at the selected speed" style="font-size:14px;width:34px;padding:4px 8px;">▶</button>
+                    <select id="replay-speed" class="select select-sm" title="Auto-play speed (bars per second)" style="width:64px;">
+                      <option value="1" selected>1×</option>
+                      <option value="5">5×</option>
+                      <option value="10">10×</option>
+                    </select>
+                    <span style="width:1px;height:20px;background:var(--color-border);margin:0 4px;" aria-hidden="true"></span>
+                    <button id="btn-step-to-trigger" class="btn btn-ghost" title="Skip forward to the first bar that touches your entry price">Walk To Entry</button>
+                    <button id="btn-step-to-end" class="btn btn-ghost" title="Reveal all remaining bars (does not resolve the trade)">Jump To End</button>
                   </div>
                   <div id="replay-progress" class="contract-note chart-replay-progress">Load a scenario to begin replay.</div>
                 </div>
@@ -323,7 +403,9 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:var(--space-12);">
                   <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Entry</div><div id="kl-entry" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div></div>
                   <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Stop</div><div id="kl-stop" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:#ef4444;">--</div></div>
-                  <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Take Profit</div><div id="kl-tp" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:#a855f7;">--</div></div>
+                  <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">TP1</div><div id="kl-tp" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:#a855f7;">--</div></div>
+                  <div id="kl-tp2-col" style="display:none;"><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">TP2</div><div id="kl-tp2" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:#c084fc;">--</div></div>
+                  <div id="kl-tp3-col" style="display:none;"><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">TP3</div><div id="kl-tp3" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:#d8b4fe;">--</div></div>
                   <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">R/R</div><div id="kl-rr" class="text-mono" style="font-size:var(--text-body);font-weight:700;">--</div></div>
                   <div><div style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Risk %</div><div id="kl-risk" class="text-mono" style="font-size:var(--text-body);font-weight:700;">--</div></div>
                   <div><div style="font-size:var(--text-caption);color:var(--color-accent);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Cutoff</div><div id="kl-entry-bar" class="text-mono" style="font-size:var(--text-body);font-weight:700;color:var(--color-accent);">--</div></div>
@@ -356,6 +438,64 @@
                   </div>
                 </div>
                 <div class="row">
+                  <div class="field" style="grid-column: span 4;">
+                    <label>Session Strategy Template</label>
+                    <div id="session-template-note" class="contract-note" style="margin-bottom:var(--space-8);">
+                      Lock the family, stop model, target model, and indicator set for the session once. After that, each chart only needs anchors.
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="session-family">Family</label>
+                    <select id="session-family"></select>
+                  </div>
+                  <div class="field">
+                    <label for="session-variant">Variant</label>
+                    <select id="session-variant"></select>
+                  </div>
+                  <div class="field">
+                    <label for="session-entry-model">Entry Model</label>
+                    <select id="session-entry-model"></select>
+                  </div>
+                  <div class="field">
+                    <label for="session-confidence">Confidence</label>
+                    <select id="session-confidence"></select>
+                  </div>
+                  <div class="field" id="session-retracement-field">
+                    <label for="session-retracement">Entry Level</label>
+                    <select id="session-retracement">
+                      <option value="61.8">61.8%</option>
+                      <option value="78.6" selected>78.6%</option>
+                    </select>
+                  </div>
+                  <div class="field" id="session-stop-field">
+                    <label for="session-stop-atr">Stop</label>
+                    <select id="session-stop-atr">
+                      <option value="1">ATR x1</option>
+                      <option value="1.5">ATR x1.5</option>
+                      <option value="2" selected>ATR x2</option>
+                      <option value="3">ATR x3</option>
+                    </select>
+                  </div>
+                  <div class="field" id="session-target-field">
+                    <label for="session-target-r">Target</label>
+                    <select id="session-target-r">
+                      <option value="1">1R</option>
+                      <option value="2" selected>2R</option>
+                      <option value="3">3R</option>
+                      <option value="4">4R</option>
+                      <option value="5">5R</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Indicators</label>
+                    <div id="session-indicators" class="declaration-chip-row"></div>
+                  </div>
+                  <div class="field" style="grid-column: span 4;">
+                    <label>Anchor Proof</label>
+                    <div id="session-anchor-hint" class="contract-note">Required anchor proof will be shown here.</div>
+                  </div>
+                </div>
+                <div class="row">
                   <div class="field">
                     <label for="training-scenario-offset">Context Window</label>
                     <select id="training-scenario-offset">
@@ -384,20 +524,23 @@
                     <label>Guidance</label>
                     <div class="contract-note">The chart only shows data up to the replay date. You cannot manually exit; the run resolves only on stop or take profit.</div>
                   </div>
-                  <div class="field" style="justify-content:flex-end;display:none;">
+                  <div class="field" style="justify-content:flex-end;">
                     <label>&nbsp;</label>
                     <button id="btn-end-session" class="btn btn-ghost">End Session</button>
                   </div>
                 </div>
                 <div class="status-line" id="session-status" style="margin-bottom:var(--space-8);">No active session.</div>
-                <div id="recent-sessions" style="display:none;"></div>
+                <details id="recent-sessions-toggle" open style="margin-bottom:var(--space-8);border:1px solid var(--color-border);border-radius:6px;padding:0 var(--space-8);">
+                  <summary style="cursor:pointer;font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);padding:var(--space-8) 0;user-select:none;">All Sessions <span id="session-count-badge" style="font-weight:400;opacity:0.7;"></span></summary>
+                  <div id="recent-sessions" style="max-height:400px;overflow:auto;padding-bottom:var(--space-8);"></div>
+                </details>
                 <div id="training-flow-note" class="contract-note" style="margin-bottom:var(--space-12);">
-                  Draw the base box or fib on the chart, then use the toolbar to place <code>Entry</code>, <code>Stop</code>, and <code>Set Take Profit</code>. When all three are set, run forward. The replay will wait for entry to be touched, then continue until stop or take profit is hit.
+                  Lock the session template, draw the anchor proof on the chart, click <code>Derive Trade</code>, then hit <code>Run Trade</code>. The chart walks forward bar-by-bar until stop loss or take profit is hit.
                 </div>
                 <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
-                  <button id="btn-seed-levels" class="btn btn-ghost">Auto Fill From Box</button>
+                  <button id="btn-seed-levels" class="btn btn-ghost">Derive Trade From Anchors</button>
                   <button id="btn-validate" class="btn btn-ghost">Check Setup</button>
-                  <button id="btn-run-attempt" class="btn btn-primary">Walk Forward Until Exit</button>
+                  <button id="btn-run-attempt" class="btn btn-primary" title="Walk forward bar-by-bar until stop or take profit is hit">Run Trade</button>
                 </div>
                 <div style="display:none;">
                   <input id="box-start" type="date">
@@ -408,6 +551,8 @@
                   <input id="entry-price" type="number" step="0.01">
                   <input id="stop-price" type="number" step="0.01">
                   <input id="tp-price" type="number" step="0.01">
+                  <input id="tp2-price" type="number" step="0.01">
+                  <input id="tp3-price" type="number" step="0.01">
                   <input id="risk-pct" type="number" step="0.1" value="1">
                   <input id="max-hold" type="number" step="1" value="20">
                   <select id="tie-break">
@@ -425,6 +570,57 @@
                   <div class="contract-note">Validate an attempt to see the contract gate list.</div>
                 </div>
               </div>
+            </section>
+
+            <section class="panel">
+              <details>
+              <summary class="panel-header" style="cursor:pointer;list-style:none;"><span class="panel-header-title">Trade Declaration (Optional)</span></summary>
+              <div class="panel-body">
+                <div class="contract-note" id="semantic-declaration-note" style="margin-bottom:var(--space-12);">
+                  Optional journaling fields. Fill these out to track process discipline — they won't block your trade.
+                </div>
+                <div class="row">
+                  <div class="field">
+                    <label for="semantic-setup-family">Setup Family</label>
+                    <select id="semantic-setup-family">
+                      <option value="">-- Select --</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="semantic-confidence">Confidence</label>
+                    <select id="semantic-confidence">
+                      <option value="">-- Select --</option>
+                    </select>
+                  </div>
+                  <div class="field" style="grid-column: span 2;">
+                    <label for="semantic-invalidation">Invalidation</label>
+                    <textarea id="semantic-invalidation" placeholder="What tells you the thesis is wrong?"></textarea>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="field" style="grid-column: span 2;">
+                    <label for="semantic-thesis">Thesis</label>
+                    <textarea id="semantic-thesis" placeholder="What is happening here and why should this trade work?"></textarea>
+                  </div>
+                  <div class="field" style="grid-column: span 2;">
+                    <label for="semantic-management-plan">Management Plan</label>
+                    <textarea id="semantic-management-plan" placeholder="How will you manage the trade if it moves in your favor or stalls?"></textarea>
+                  </div>
+                </div>
+                <div class="field" style="margin-bottom:var(--space-8);">
+                  <label>Setup Tags</label>
+                  <div id="semantic-setup-tags" class="declaration-chip-row"></div>
+                </div>
+                <div class="field" style="margin-bottom:var(--space-8);">
+                  <label>Context Tags</label>
+                  <div id="semantic-context-tags" class="declaration-chip-row"></div>
+                </div>
+                <div class="field" id="semantic-management-tags-group" style="margin-bottom:var(--space-8);display:none;">
+                  <label>Management Tags</label>
+                  <div id="semantic-management-tags" class="declaration-chip-row"></div>
+                </div>
+              </div>
+              </details>
             </section>
           </div>
 
@@ -448,6 +644,8 @@
                       <th>Result</th>
                       <th>Exit</th>
                       <th>R</th>
+                      <th>TP2</th>
+                      <th>TP3</th>
                       <th>Process</th>
                       <th>Composite</th>
                     </tr>
@@ -461,30 +659,78 @@
           </section>
         </div>
 
+        <div style="margin-top:var(--space-12);">
+          <section class="panel">
+            <div class="panel-header">
+              <span class="panel-header-title">Discretionary Backtest Report</span>
+              <span id="backtest-report-summary" class="mono text-muted">Select a contract to load the report.</span>
+            </div>
+            <div class="panel-body">
+              <div class="contract-note" id="backtest-report-note" style="margin-bottom:var(--space-8);">
+                Recorded contract-qualified attempts are rolled up here into validator-style edge metrics.
+              </div>
+              <div class="result-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+                <div class="kpi"><div class="label">Scope</div><div id="report-scope" class="value">--</div></div>
+                <div class="kpi"><div class="label">Qualified</div><div id="report-qualified" class="value">--</div></div>
+                <div class="kpi"><div class="label">Filled Trades</div><div id="report-filled" class="value">--</div></div>
+                <div class="kpi"><div class="label">No Fill</div><div id="report-no-fill" class="value">--</div></div>
+                <div class="kpi"><div class="label">Pass Rate</div><div id="report-pass-rate" class="value">--</div></div>
+                <div class="kpi"><div class="label">Win Rate</div><div id="report-win-rate" class="value">--</div></div>
+                <div class="kpi"><div class="label">Expectancy</div><div id="report-expectancy" class="value">--</div></div>
+                <div class="kpi"><div class="label">Profit Factor</div><div id="report-profit-factor" class="value">--</div></div>
+                <div class="kpi"><div class="label">Payoff</div><div id="report-payoff" class="value">--</div></div>
+                <div class="kpi"><div class="label">Max DD (R)</div><div id="report-max-dd-r" class="value">--</div></div>
+                <div class="kpi"><div class="label">Max DD (PnL %)</div><div id="report-max-dd-pct" class="value">--</div></div>
+                <div class="kpi"><div class="label">Longest Loss Streak</div><div id="report-loss-streak" class="value">--</div></div>
+                <div class="kpi"><div class="label">Avg Hold</div><div id="report-avg-hold" class="value">--</div></div>
+                <div class="kpi"><div class="label">Process</div><div id="report-process" class="value">--</div></div>
+                <div class="kpi"><div class="label">Avg Reward/Risk</div><div id="report-reward-risk" class="value">--</div></div>
+                <div class="kpi"><div class="label">Avg Price Risk %</div><div id="report-risk-pct" class="value">--</div></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
         <div class="training-bottom-grid">
           <section class="panel">
             <div class="panel-header">
-              <span class="panel-header-title">Current Session Scoreboard</span>
+              <span class="panel-header-title" id="session-scoreboard-title">Session Scoreboard</span>
               <span id="cooldown-badge" class="tag">Idle</span>
             </div>
             <div class="panel-body">
-              <div class="contract-note" style="margin-bottom:var(--space-8);">Only the currently open session and its most recent trade.</div>
-              <div class="kpi-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
-                <div class="kpi"><div class="label">Attempts</div><div id="kpi-attempts" class="value">0</div></div>
-                <div class="kpi"><div class="label">Resolved</div><div id="kpi-resolved" class="value">0</div></div>
+              <div class="contract-note" id="session-scoreboard-subtitle" style="margin-bottom:var(--space-8);">No session loaded.</div>
+              <div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+                <div class="kpi"><div class="label">Trades</div><div id="kpi-resolved" class="value">0</div></div>
+                <div class="kpi"><div class="label">Win Rate</div><div id="kpi-win-rate" class="value">0%</div></div>
+                <div class="kpi"><div class="label">Expectancy</div><div id="kpi-expectancy" class="value">0.00</div></div>
+                <div class="kpi"><div class="label">Total R</div><div id="kpi-total-r" class="value">0.00</div></div>
+
                 <div class="kpi"><div class="label">Wins</div><div id="kpi-wins" class="value">0</div></div>
                 <div class="kpi"><div class="label">Losses</div><div id="kpi-losses" class="value">0</div></div>
-                <div class="kpi"><div class="label">Win Rate</div><div id="kpi-win-rate" class="value">0%</div></div>
-                <div class="kpi"><div class="label">Avg R</div><div id="kpi-avg-r" class="value">0.00</div></div>
-                <div class="kpi"><div class="label">Expectancy</div><div id="kpi-expectancy" class="value">0.00</div></div>
+                <div class="kpi"><div class="label">Best Trade</div><div id="kpi-best-r" class="value">--</div></div>
+                <div class="kpi"><div class="label">Worst Trade</div><div id="kpi-worst-r" class="value">--</div></div>
+
+                <div class="kpi"><div class="label">Avg Bars to Win</div><div id="kpi-avg-bars-win" class="value">--</div></div>
+                <div class="kpi"><div class="label">Avg Bars to Lose</div><div id="kpi-avg-bars-lose" class="value">--</div></div>
+                <div class="kpi"><div class="label">Win Streak</div><div id="kpi-win-streak" class="value">--</div></div>
+                <div class="kpi"><div class="label">Loss Streak</div><div id="kpi-loss-streak" class="value">--</div></div>
+
                 <div class="kpi"><div class="label">Process</div><div id="kpi-process" class="value">0</div></div>
-                <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="kpi-confidence" class="value" style="font-size:0.85rem;">LOW - &lt; 50 trades, not yet meaningful</div></div>
-                <div class="kpi"><div class="label">Status</div><div id="result-status" class="value">--</div></div>
-                <div class="kpi"><div class="label">Exit Reason</div><div id="result-exit" class="value">--</div></div>
-                <div class="kpi"><div class="label">Bars Held</div><div id="result-bars-held" class="value">--</div></div>
-                <div class="kpi"><div class="label">R Multiple</div><div id="result-r" class="value">--</div></div>
-                <div class="kpi"><div class="label">Process Score</div><div id="result-process" class="value">--</div></div>
-                <div class="kpi"><div class="label">Composite Score</div><div id="result-composite" class="value">--</div></div>
+                <div class="kpi"><div class="label">Attempts</div><div id="kpi-attempts" class="value">0</div></div>
+                <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="kpi-confidence" class="value" style="font-size:0.85rem;">LOW — not yet meaningful</div></div>
+
+                <div class="kpi"><div class="label">TP1 Hit %</div><div id="kpi-tp1-rate" class="value" style="color:#a855f7;">--</div></div>
+                <div class="kpi"><div class="label">TP2 Hit %</div><div id="kpi-tp2-rate" class="value" style="color:#c084fc;">--</div></div>
+                <div class="kpi"><div class="label">TP3 Hit %</div><div id="kpi-tp3-rate" class="value" style="color:#d8b4fe;">--</div></div>
+                <div class="kpi"><div class="label"></div><div class="value"></div></div>
+              </div>
+              <div style="margin-top:var(--space-12);border-top:1px solid var(--color-border);padding-top:var(--space-8);">
+                <div class="contract-note" style="margin-bottom:var(--space-4);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Latest Trade</div>
+                <div class="kpi-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+                  <div class="kpi"><div class="label">Exit Reason</div><div id="result-exit" class="value">--</div></div>
+                  <div class="kpi"><div class="label">R Multiple</div><div id="result-r" class="value">--</div></div>
+                  <div class="kpi"><div class="label">Bars Held</div><div id="result-bars-held" class="value">--</div></div>
+                </div>
               </div>
             </div>
           </section>
@@ -516,9 +762,44 @@
     </main>
   </div>
 
-  <script src="app.js"></script>
-  <script src="chart-indicators.js"></script>
-  <script src="drawing-tools.js"></script>
-  <script src="training-module.js"></script>
+  <script src="app.js?v=20260420f"></script>
+  <script src="chart-indicators.js?v=20260420f"></script>
+  <script src="drawing-tools.js?v=20260420f"></script>
+  <script src="shared-chart-utils.js?v=20260420f"></script>
+  <script src="training-module.js?v=20260420f"></script>
+  <script src="browse-asset-class.js?v=20260420f"></script>
+  <script>
+    // Browse-without-session: load every symbol in the chosen class and let
+    // the user pan with ←/→. Each pan calls the existing training loadBars()
+    // path through window.tmLoadSymbol so indicators and the replay state
+    // stay consistent with the manual "Go" workflow.
+    (function () {
+      function init() {
+        if (typeof window.installBrowseAssetClass !== 'function') return;
+        window.installBrowseAssetClass({
+          selectId: 'tm-browse-asset-class',
+          buttonId: 'tm-browse-button',
+          // No dedicated status element — reuse the existing #training-status
+          // line via the onStatus callback so the header stays compact.
+          onStatus: (msg) => {
+            const el = document.getElementById('training-status');
+            if (el && msg) el.textContent = msg;
+          },
+          getInterval: () => document.getElementById('training-timeframe')?.value || '1d',
+          loadSymbol: async (symbol, ctx) => {
+            if (typeof window.tmLoadSymbol !== 'function') {
+              throw new Error('training module not ready');
+            }
+            await window.tmLoadSymbol(symbol, { interval: ctx?.interval });
+          },
+        });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
 </body>
 </html>

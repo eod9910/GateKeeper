@@ -106,6 +106,7 @@ async function sendChat(includeChartOrPrefill) {
   console.log('Chat context - lastCopilotResult:', analysis ? `${analysis.symbol} verdict=${analysis.verdict}` : 'null');
   const context = {
     symbol: analysis?.symbol || currentCandidate?.symbol || 'None selected',
+    interval: document.getElementById('copilot-interval')?.value || currentCandidate?.interval || '1d',
     patternType: currentCandidate?.pattern_type || lastCopilotResult?.pattern_type || 'Unknown',
     entryPrice: entryPrice,
     stopLoss: stopLossPrice,

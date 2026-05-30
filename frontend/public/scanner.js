@@ -1195,18 +1195,36 @@ function getIndicatorTypeFilter() {
   return String(typeEl ? typeEl.value : 'all').trim().toLowerCase() || 'all';
 }
 
-function indicatorMatchesType(item, typeFilter) {
+function isFundamentalSignalOption(item) {
+  const haystack = [
+    item?.pattern_id,
+    item?.name,
+    item?.category,
+    item?.indicator_role,
+    ...(Array.isArray(item?.search_tags) ? item.search_tags : []),
+  ].join(' ').toLowerCase();
+  return /\b(fundamental|valuation|dcf|earnings|revenue|cash flow|free_cash_flow|fcf|quality|survivability|roe|eps|sales|debt)\b/.test(haystack);
+}
+
+function scannerSignalFamily(item) {
   const artifactType = String(item?.artifact_type || 'indicator').toLowerCase();
   const composition = String(item?.composition || 'composite').toLowerCase();
+  if (artifactType === 'pattern') return 'pattern';
+  if (composition === 'composite') return 'composite';
+  if (isFundamentalSignalOption(item)) return 'fundamental';
+  return 'technical';
+}
 
+function indicatorMatchesType(item, typeFilter) {
   if (!typeFilter || typeFilter === 'all') return true;
-  if (typeFilter === 'primitive') return composition === 'primitive';
-  if (typeFilter === 'pattern') return artifactType === 'pattern';
-  // "Indicators" here means composite indicators only (not patterns, primitives, or presets).
-  if (typeFilter === 'indicator') {
-    return artifactType === 'indicator' && composition === 'composite';
-  }
-  return true;
+  return scannerSignalFamily(item) === typeFilter;
+}
+
+function isScannerSignalCandidate(item) {
+  const artifactType = String(item?.artifact_type || '').trim().toLowerCase();
+  const composition = String(item?.composition || '').trim().toLowerCase();
+  if (artifactType === 'strategy' || composition === 'strategy') return false;
+  return artifactType === 'pattern' || composition === 'composite' || composition === 'primitive' || artifactType === 'indicator';
 }
 
 function renderIndicatorOptions() {
@@ -1220,25 +1238,18 @@ function renderIndicatorOptions() {
     : _scannerIndicatorOptions.slice();
   const filtered = curated.filter((item) => indicatorMatchesType(item, typeFilter));
 
-  select.innerHTML = '<option value="">-- Select an indicator --</option>';
+  select.innerHTML = '<option value="">-- Select a signal --</option>';
 
-  // Group by composition type (Patterns, Primitives, Composites)
-  const byType = { patterns: [], primitives: [], composites: [] };
+  const byType = { technical: [], fundamental: [], pattern: [], composite: [] };
   filtered.forEach((item) => {
-    if (item.artifact_type === 'pattern') {
-      byType.patterns.push(item);
-    } else if (item.composition === 'primitive') {
-      byType.primitives.push(item);
-    } else if (item.composition === 'composite') {
-      byType.composites.push(item);
-    }
+    byType[scannerSignalFamily(item)].push(item);
   });
 
-  // Render groups in order: Patterns, Composites, Primitives
   const groups = [
-    { key: 'patterns', label: 'Patterns', items: byType.patterns },
-    { key: 'composites', label: 'Composites', items: byType.composites },
-    { key: 'primitives', label: 'Primitives', items: byType.primitives },
+    { key: 'technical', label: 'Technical Primitives', items: byType.technical },
+    { key: 'fundamental', label: 'Fundamental Primitives', items: byType.fundamental },
+    { key: 'pattern', label: 'Pattern Scanners', items: byType.pattern },
+    { key: 'composite', label: 'Composites', items: byType.composite },
   ];
 
   groups.forEach((group) => {
@@ -1279,7 +1290,7 @@ function renderIndicatorOptions() {
   if (!filtered.length) {
     const option = document.createElement('option');
     option.value = '';
-    option.textContent = 'No matching indicators';
+    option.textContent = 'No matching signals';
     select.appendChild(option);
     select.value = '';
   }
@@ -1308,9 +1319,11 @@ async function loadIndicators() {
         status: String(item.status || 'unknown').trim() || 'unknown',
         artifact_type: String(item.artifact_type || 'indicator').trim() || 'indicator',
         composition: String(item.composition || 'composite').trim() || 'composite',
+        indicator_role: String(item.indicator_role || '').trim(),
+        search_tags: Array.isArray(item.search_tags) ? item.search_tags.map((tag) => String(tag || '').trim()).filter(Boolean) : [],
         scanner_favorite: item.scanner_favorite === true,
       }))
-      .filter((item) => !!item.pattern_id);
+      .filter((item) => !!item.pattern_id && isScannerSignalCandidate(item));
 
     const typeEl = document.getElementById('scan-indicator-type');
     if (typeEl && !typeEl.dataset.bound) {
@@ -1371,6 +1384,11 @@ async function loadSymbolLibrary(forceRefresh = false) {
     undervalued: [],
     fairvalue: [],
     overvalued: [],
+    socialbullish: [],
+    socialbearish: [],
+    socialhot: [],
+    socialrising: [],
+    socialconfirmed: [],
     all: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI'],
   };
   return _symbolLibrary;
@@ -1596,6 +1614,126 @@ function getScanTimeframeFromInterval(interval) {
   return 'M';
 }
 
+// ── Browse mode: load an entire asset class without running an indicator ──
+//
+// Builds a list of bare candidate stubs from the selected asset class so the
+// user can pan through them with ←/→ (or the prev/next buttons). Each chart
+// is fetched on demand by drawPatternChart when it sees __browseStub: true.
+async function browseAssetClass() {
+  const statusEl = document.getElementById('scan-status');
+  const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg; };
+
+  if (_activeScanJobId) {
+    alert('A scan is currently running. Cancel it first.');
+    return;
+  }
+
+  setStatus('Loading symbol library…');
+  try {
+    await loadSymbolLibrary();
+  } catch (err) {
+    console.error('browseAssetClass: failed to load symbol library', err);
+    setStatus('Failed to load symbol library');
+    return;
+  }
+  if (!_symbolLibrary) {
+    setStatus('Symbol library unavailable');
+    return;
+  }
+
+  const assetClassEl = document.getElementById('scan-asset-class');
+  const assetClass = assetClassEl ? assetClassEl.value : 'all';
+  const assetLabel = assetClassEl?.options[assetClassEl.selectedIndex]?.text?.replace(/\s*\(\d+\)$/, '') || assetClass;
+
+  const criteriaEl = document.getElementById('scan-secondary-filter');
+  const criteria = criteriaEl ? String(criteriaEl.value || 'any').trim().toLowerCase() : 'any';
+
+  let symbols = (_symbolLibrary[assetClass] || _symbolLibrary.all || []).slice();
+  if (criteria && criteria !== 'any') {
+    const criteriaSet = new Set((_symbolLibrary[criteria] || []).slice());
+    symbols = symbols.filter((s) => criteriaSet.has(s));
+  }
+
+  // Optional price filters (reuse the existing inputs).
+  const { min, max } = getScanPriceFilters();
+  if (min != null || max != null) {
+    setStatus('Applying price filters…');
+    try {
+      const priceSnapshot = await loadUniversePriceSnapshot();
+      symbols = symbols.filter((s) => {
+        const price = Number(priceSnapshot?.[s]?.last_close);
+        if (!Number.isFinite(price)) return false;
+        if (min != null && price < min) return false;
+        if (max != null && price > max) return false;
+        return true;
+      });
+    } catch (err) {
+      console.warn('browseAssetClass: price filter snapshot failed', err);
+    }
+  }
+
+  // Optional limit (reuse existing input).
+  const limitEl = document.getElementById('scan-limit');
+  const limit = limitEl && limitEl.value ? parseInt(limitEl.value, 10) : 0;
+  if (limit > 0 && limit < symbols.length) {
+    symbols = symbols.slice(0, limit);
+  }
+
+  if (symbols.length === 0) {
+    setStatus(`No symbols found for "${assetLabel}"`);
+    return;
+  }
+
+  // Soft cap for very large asset classes so the UI stays responsive. The
+  // actual cost per pan is just one OHLCV fetch, so we mainly want to keep the
+  // results list manageable.
+  const SOFT_CAP = 500;
+  if (symbols.length > SOFT_CAP) {
+    const ok = confirm(
+      `${assetLabel} contains ${symbols.length} symbols. Browse mode loads them all into memory `
+      + `(charts are fetched on demand as you pan).\n\nLoad all of them anyway?`
+    );
+    if (!ok) {
+      setStatus('Browse cancelled');
+      return;
+    }
+  }
+
+  // Resolve the timeframe for the candidate stubs from the existing interval
+  // dropdown so the chart router uses the right OHLCV endpoint.
+  const intervalEl = document.getElementById('scan-interval');
+  const interval = intervalEl ? intervalEl.value : '1wk';
+  const timeframe = getScanTimeframeFromInterval(interval);
+
+  candidates = symbols.map((symbol) => ({
+    symbol,
+    timeframe,
+    interval,
+    __browseStub: true,
+    score: 0,
+  }));
+  currentIndex = 0;
+
+  // Mirror the bookkeeping that runScan/applyPartialScanResults do so the
+  // existing UI surfaces (count, list, prev/next nav) reflect the new set.
+  try { renderScanResults(candidates); } catch (e) { console.warn('browseAssetClass: renderScanResults failed', e); }
+  try {
+    const totalEl = document.getElementById('total-count');
+    if (totalEl) totalEl.textContent = String(candidates.length);
+    const idxEl = document.getElementById('current-index');
+    if (idxEl) idxEl.textContent = '1';
+  } catch (e) {}
+
+  setStatus(`Browsing ${candidates.length} ${assetLabel} symbols — use ←/→ to pan`);
+  try {
+    await selectCandidate(0);
+  } catch (err) {
+    console.error('browseAssetClass: failed to load first chart', err);
+    setStatus(`Loaded ${candidates.length} symbols, but first chart failed: ${err.message || err}`);
+  }
+}
+window.browseAssetClass = browseAssetClass;
+
 function getDefaultPeriodForInterval(interval) {
   if (interval === '1h') return '60d';
   return null;
@@ -1611,7 +1749,7 @@ async function runScan() {
 
   const indicatorSelect = document.getElementById('scan-indicator-select');
   const pluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
-  if (!pluginId) { alert('Please select an indicator.'); return; }
+  if (!pluginId) { alert('Please select a signal.'); return; }
 
   const periodEl = document.getElementById('scan-period');
   const intervalEl = document.getElementById('scan-interval');
@@ -1972,10 +2110,10 @@ function renderScanResults(rows) {
 
   panel.classList.remove('hidden');
 
-  const gridCols = 'grid-template-columns:70px 120px 70px 70px 80px 90px 100px 80px 100px 90px 32px;';
+  const gridCols = 'grid-template-columns:70px 120px 82px 70px 70px 80px 90px 100px 80px 100px 90px 32px;';
   const headerHtml = `
     <div style="display:grid;${gridCols}gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-border);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-muted);">
-      <span>Symbol</span><span>Type</span><span>Score</span><span>ML</span><span>Status</span><span>Insider</span><span>Trend</span><span>Zone</span><span>Date</span><span></span><span></span>
+      <span>Symbol</span><span>Type</span><span>State</span><span>Score</span><span>ML</span><span>Status</span><span>Insider</span><span>Trend</span><span>Zone</span><span>Date</span><span></span><span></span>
     </div>`;
 
   const rowsHtml = rows.map((c, i) => {
@@ -1988,6 +2126,8 @@ function renderScanResults(rows) {
         : 'color:#fcd34d;font-weight:600;';
     const endDate = c.pattern_end_date || (c.created_at ? String(c.created_at).slice(0, 10) : '\u2014');
     const patternName = c.candidate_role_label || c.pattern_type || c._plugin_id || 'indicator';
+    const signalState = String(c.state || c.signal_state || c.composite_state || c.current_state || '').trim();
+    const stateText = signalState || '\u2014';
     const mlConfidence = Number(c.ml_confidence);
     const mlText = Number.isFinite(mlConfidence) ? `${(mlConfidence * 100).toFixed(0)}%` : '—';
     const mlColor = Number.isFinite(mlConfidence)
@@ -2000,29 +2140,38 @@ function renderScanResults(rows) {
     const buyZoneColor = swing.in_buy_zone ? 'color:#4ade80;font-weight:700;' : '';
     const insiderSignal = String(c.insider_buy_signal || '').toLowerCase();
     const insiderScore = Number(c.insider_buy_score);
-    const insiderText = insiderSignal === 'buying'
+    const edgarCluster = Boolean(c.edgar_cluster_alert);
+    const edgarCsuite = Boolean(c.edgar_csuite_purchase);
+    const edgarSource = String(c.data_source || '').includes('edgar');
+    let insiderText = insiderSignal === 'buying'
       ? `BUY ${Number.isFinite(insiderScore) ? insiderScore.toFixed(0) : ''}`.trim()
       : insiderSignal === 'selling'
         ? 'SELLING'
         : insiderSignal === 'mixed'
           ? 'MIXED'
           : '\u2014';
+    if (edgarCluster) insiderText = '\u26A0 ' + insiderText;
+    if (edgarCsuite && insiderSignal === 'buying') insiderText += ' C';
     const insiderColor = insiderSignal === 'buying'
-      ? 'color:#4ade80;font-weight:700;'
+      ? (edgarCluster ? 'color:#22d3ee;font-weight:700;' : 'color:#4ade80;font-weight:700;')
       : insiderSignal === 'selling'
         ? 'color:#f87171;font-weight:600;'
         : insiderSignal === 'mixed'
           ? 'color:#facc15;font-weight:600;'
           : 'color:var(--color-text-muted);';
+    const insiderTitle = edgarSource
+      ? `SEC EDGAR: ${c.edgar_buy_count || 0} buys, ${c.edgar_sell_count || 0} sells` + (edgarCluster ? ' | CLUSTER BUYING' : '') + (edgarCsuite ? ' | C-SUITE' : '')
+      : '';
     const isSelected = i === currentIndex ? 'background:rgba(59,130,246,0.12);' : '';
     return `
       <div style="display:grid;${gridCols}gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-border);${isSelected}cursor:pointer;" onclick="selectCandidate(${i})" onmouseenter="this.style.background='rgba(255,255,255,0.04)'" onmouseleave="this.style.background='${i === currentIndex ? 'rgba(59,130,246,0.12)' : ''}'">
         <span class="text-mono" style="font-weight:700;font-size:13px;">${c.symbol || 'N/A'}</span>
         <span title="${c.candidate_semantic_summary || ''}" style="display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;${c.candidate_role === 'context_indicator' ? 'color:#cbd5e1;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);' : c.candidate_role === 'pattern_detector' ? 'color:#93c5fd;background:rgba(96,165,250,0.10);border:1px solid rgba(96,165,250,0.28);' : 'color:#6ee7b7;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.35);'}">${patternName}</span>
+        <span class="text-mono" title="${signalState || 'No signal state'}" style="font-size:11px;color:${signalState ? 'var(--color-accent)' : 'var(--color-text-muted)'};">${stateText}</span>
         <span class="text-mono" style="font-size:13px;">${score}</span>
         <span class="text-mono" style="font-size:12px;${mlColor}">${mlText}</span>
         <span title="${c.candidate_semantic_summary || ''}" style="font-size:12px;${entryColor}">${entryLabel}</span>
-        <span style="font-size:12px;${insiderColor}">${insiderText}</span>
+        <span style="font-size:12px;${insiderColor}" title="${insiderTitle}">${insiderText}</span>
         <span style="font-size:12px;${trendColor}">${trend}</span>
         <span style="font-size:12px;${buyZoneColor}">${buyZone}</span>
         <span style="font-size:11px;color:var(--color-text-muted);">${endDate}</span>

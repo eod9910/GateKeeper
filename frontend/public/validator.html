@@ -1164,8 +1164,9 @@
           </div>
         </div>
         <div style="display:flex;gap:var(--space-12);align-items:center;align-self:flex-start;padding-top:4px;">
-          <a href="strategy.html" class="btn btn-ghost btn-sm" onclick="openStrategyPage(); return false;">Strategy Page</a>
-          <a href="validator-symbol-library.html" class="btn btn-ghost btn-sm" onclick="openSymbolLibraryPage(); return false;">Symbol Library</a>
+          <a href="strategy.html" class="btn btn-ghost btn-sm" onclick="openStrategyPage(); return false;">Strategy Details</a>
+          <button id="btn-run" class="btn btn-primary btn-sm" onclick="runValidation()" disabled>Backtester</button>
+          <a href="validator-symbol-library.html" class="btn btn-ghost btn-sm" onclick="openSymbolLibraryPage(); return false;">Tier Symbol Library</a>
         </div>
       </div>
 
@@ -1349,10 +1350,10 @@
                 <option value="tier3">Tier 3 - Robustness</option>
               </optgroup>
               <optgroup label="Benchmark Universes">
-                <option value="large_cap_known">Large Cap (Known) - 76 Stocks</option>
-                <option value="sp500">S&amp;P 500 — ~406 Large Cap Stocks</option>
-                <option value="sp400">S&amp;P 400 — ~341 Mid Cap Stocks</option>
-                <option value="sp600">S&amp;P 600 — ~474 Small Cap Stocks</option>
+                <option value="large_cap_known">Large Cap (Known)</option>
+                <option value="sp500">S&amp;P 500 - Large Cap Stocks</option>
+                <option value="sp400">S&amp;P 400 - Mid Cap Stocks</option>
+                <option value="sp600">S&amp;P 600 - Small Cap Stocks</option>
               </optgroup>
               <optgroup label="Regime Universes (run build_regime_universes.py first)">
                 <option value="valuation_regime_undervalued_sample100">DCF: Undervalued Sample 100</option>
@@ -1373,6 +1374,29 @@
           <div id="run-tier-description" class="run-tier-description"></div>
           <div id="run-tier-library" class="run-tier-library" aria-live="polite"></div>
         </div>
+        <div class="modal-section">
+          <label class="modal-label">Valuation Basket</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-12);">
+            <div>
+              <label class="modal-label" style="font-size:var(--text-caption);">Forward Hold Bars</label>
+              <select id="run-valuation-forward-bars" class="input-field">
+                <option value="4">4 bars (~1 month on weekly)</option>
+                <option value="13" selected>13 bars (~3 months on weekly)</option>
+                <option value="26">26 bars (~6 months on weekly)</option>
+                <option value="39">39 bars (~9 months on weekly)</option>
+                <option value="52">52 bars (~1 year on weekly)</option>
+                <option value="104">104 bars (~2 years on weekly)</option>
+              </select>
+            </div>
+            <div>
+              <label class="modal-label" style="font-size:var(--text-caption);">Rebalance</label>
+              <select id="run-valuation-rebalance" class="input-field">
+                <option value="monthly" selected>Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </div>
+          </div>
+        </div>
         <div class="modal-actions">
           <button onclick="closeModal('run-modal')" class="btn btn-ghost">Cancel</button>
           <button onclick="submitRunValidation()" class="btn btn-primary" style="flex:1;">Run Backtest</button>
@@ -1385,7 +1409,7 @@
   <div id="strategy-modal" class="modal" onclick="closeModal('strategy-modal', event)">
     <div class="modal-content" style="max-width:900px;" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <h3 id="strategy-modal-title" class="modal-title">Strategy Builder</h3>
+        <h3 id="strategy-modal-title" class="modal-title">Strategy Builder moved</h3>
         <button onclick="closeModal('strategy-modal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">

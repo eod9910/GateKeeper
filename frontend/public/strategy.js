@@ -639,6 +639,11 @@ function sendStrategyToSweep() {
   window.location.href = `sweep.html?strategy_version_id=${encodeURIComponent(selectedStrategy.strategy_version_id)}`;
 }
 
+function openSelectedStrategyInValidator() {
+  if (!selectedStrategy?.strategy_version_id) return;
+  window.location.href = `/validator?strategy_version_id=${encodeURIComponent(selectedStrategy.strategy_version_id)}`;
+}
+
 async function handleEditorRunAssetClassChange() {
   const assetClass = normalizeAssetClass(document.getElementById('sb-asset-class')?.value || selectedStrategy?.asset_class, 'stocks');
   await loadRunTierConfig(assetClass);
@@ -712,6 +717,7 @@ function renderStrategyDetails() {
   const tierBadges = getStrategyTierBadges(s);
   const validationBadge = getStrategyValidationBadge(s);
   const parameterManifest = Array.isArray(s.parameter_manifest) ? s.parameter_manifest : [];
+  const sourceSignal = normalizeSourceSignal(s.source_signal || s.setup_config?.source_signal || {});
   const anatomyOrder = ['structure', 'location', 'entry_timing', 'regime_filter', 'stop_loss', 'take_profit', 'risk_controls'];
   const anatomyLabels = {
     structure: 'Structure',
@@ -792,9 +798,9 @@ function renderStrategyDetails() {
 
       <!-- Action toolbar -->
       <div style="display:flex;align-items:center;gap:var(--space-8);flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="openStrategyEditor('edit')" style="display:flex;align-items:center;gap:6px;">
+        <button class="btn btn-primary" onclick="openSelectedStrategyInValidator()" style="display:flex;align-items:center;gap:6px;">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polygon points="5,3 13,8 5,13"/></svg>
-          Run Validation
+          Open in Validator
         </button>
         <button class="btn btn-ghost" onclick="sendStrategyToSweep()" style="display:flex;align-items:center;gap:5px;color:var(--color-accent);">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M4 12h8"/><path d="M4 8h8"/><path d="M4 4h8"/><path d="M12 2l2 2-2 2"/></svg>
@@ -827,6 +833,10 @@ function renderStrategyDetails() {
         <div><span class="text-muted">Version ID:</span> <span class="text-mono">${esc(s.strategy_version_id || 'N/A')}</span></div>
         <div><span class="text-muted">Asset Class:</span> <span class="text-mono">${esc(s.asset_class || 'N/A')}</span></div>
         <div><span class="text-muted">Interval:</span> <span class="text-mono">${esc(s.interval || 'N/A')}</span></div>
+        <div><span class="text-muted">Direction:</span> <span class="text-mono">${esc(s.trade_direction || 'long')}</span></div>
+        <div><span class="text-muted">Source:</span> <span class="text-mono">${esc(sourceSignal.pattern_id || 'N/A')}</span></div>
+        <div><span class="text-muted">Source Type:</span> <span class="text-mono">${esc(sourceSignal.composition || 'N/A')}</span></div>
+        <div><span class="text-muted">Required State:</span> <span class="text-mono">${esc(sourceSignal.required_state || 'N/A')}</span></div>
         <div><span class="text-muted">Market Cap Tier:</span> <span class="text-mono">${esc(s.setup_config?.market_cap_tier || s.market_cap_tier || 'all')}</span></div>
         <div style="grid-column:1 / -1;"><span class="text-muted">Description:</span> ${esc(s.description || 'N/A')}</div>
       </div>
@@ -1225,6 +1235,11 @@ function defaultStrategyDraft() {
     description: '',
     scan_mode: 'wyckoff',
     trade_direction: 'long',
+    source_signal: {
+      pattern_id: '',
+      composition: 'composite',
+      required_state: '',
+    },
     interval: '1wk',
     universe: [],
     structure_config: {},
@@ -1237,6 +1252,19 @@ function defaultStrategyDraft() {
     created_at: now,
     updated_at: now
   };
+}
+
+function normalizeSourceSignal(source) {
+  const raw = source && typeof source === 'object' ? source : {};
+  return {
+    pattern_id: String(raw.pattern_id || raw.signal_id || raw.source_id || '').trim(),
+    composition: String(raw.composition || raw.source_type || 'composite').trim().toLowerCase() || 'composite',
+    required_state: String(raw.required_state || raw.state || '').trim(),
+  };
+}
+
+function hasStrategyConfig(config) {
+  return !!config && typeof config === 'object' && !Array.isArray(config) && Object.keys(config).length > 0;
 }
 
 function normalizeEditableStrategyStatus(status) {
@@ -1323,6 +1351,13 @@ function renderInlineStrategyEditor(strategy, mode) {
           <input type="text" id="sb-interval" class="strategy-editor-input" placeholder="1wk">
         </div>
         <div>
+          <label class="strategy-editor-label" for="sb-trade-direction">Direction</label>
+          <select id="sb-trade-direction" class="strategy-editor-select">
+            <option value="long">long</option>
+            <option value="short">short</option>
+          </select>
+        </div>
+        <div>
           <label class="strategy-editor-label" for="sb-run-tier">Validation Tier (Run)</label>
           <select id="sb-run-tier" class="strategy-editor-select" onchange="updateEditorRunValidationNote()">
             <optgroup label="Validation Ladder">
@@ -1381,6 +1416,27 @@ function renderInlineStrategyEditor(strategy, mode) {
       </div>
     </div>
 
+    <div class="section-title">Source Signal</div>
+    <div class="card">
+      <div class="strategy-editor-grid">
+        <div>
+          <label class="strategy-editor-label" for="sb-source-pattern-id">Primitive or Composite ID</label>
+          <input type="text" id="sb-source-pattern-id" class="strategy-editor-input" placeholder="e.g. breakout_retest_composite">
+        </div>
+        <div>
+          <label class="strategy-editor-label" for="sb-source-composition">Source Type</label>
+          <select id="sb-source-composition" class="strategy-editor-select">
+            <option value="primitive">primitive</option>
+            <option value="composite">composite</option>
+          </select>
+        </div>
+        <div class="strategy-editor-span-full">
+          <label class="strategy-editor-label" for="sb-required-state">Required State</label>
+          <input type="text" id="sb-required-state" class="strategy-editor-input" placeholder="e.g. entry_ready">
+        </div>
+      </div>
+    </div>
+
     <div class="section-title">Strategy Copilot Draft</div>
     <div class="card">
       <label class="strategy-editor-label" for="sb-prompt">AI Prompt</label>
@@ -1417,6 +1473,11 @@ function renderInlineStrategyEditor(strategy, mode) {
   document.getElementById('sb-status').value = normalizeEditableStrategyStatus(strategy.status);
   document.getElementById('sb-asset-class').value = normalizeAssetClass(strategy.asset_class, 'stocks');
   document.getElementById('sb-interval').value = strategy.interval || '1wk';
+  document.getElementById('sb-trade-direction').value = String(strategy.trade_direction || 'long').toLowerCase() === 'short' ? 'short' : 'long';
+  const sourceSignal = normalizeSourceSignal(strategy.source_signal || strategy.setup_config?.source_signal || {});
+  document.getElementById('sb-source-pattern-id').value = sourceSignal.pattern_id;
+  document.getElementById('sb-source-composition').value = sourceSignal.composition === 'primitive' ? 'primitive' : 'composite';
+  document.getElementById('sb-required-state').value = sourceSignal.required_state;
   const savedRunSettings = loadRunSettings(strategy?.strategy_version_id);
   const defaultRunInterval = normalizeValidationInterval(strategy.interval || '1wk', '1wk');
   document.getElementById('sb-run-tier').value = String(savedRunSettings?.tier || 'tier1');
@@ -1520,6 +1581,12 @@ function syncFromFormToJson() {
       status: normalizeEditableStrategyStatus(document.getElementById('sb-status').value),
       asset_class: normalizeAssetClass(document.getElementById('sb-asset-class').value, 'stocks'),
       interval: document.getElementById('sb-interval').value.trim() || '1wk',
+      trade_direction: String(document.getElementById('sb-trade-direction').value || 'long').toLowerCase() === 'short' ? 'short' : 'long',
+      source_signal: {
+        pattern_id: document.getElementById('sb-source-pattern-id').value.trim(),
+        composition: document.getElementById('sb-source-composition').value === 'primitive' ? 'primitive' : 'composite',
+        required_state: document.getElementById('sb-required-state').value.trim(),
+      },
       description: document.getElementById('sb-description').value.trim(),
       structure_config: structureConfig,
       setup_config: setupConfig,
@@ -1550,6 +1617,11 @@ function syncFromJsonToForm() {
     document.getElementById('sb-status').value = s.status || 'draft';
     document.getElementById('sb-asset-class').value = normalizeAssetClass(s.asset_class, 'stocks');
     document.getElementById('sb-interval').value = s.interval || '1wk';
+    document.getElementById('sb-trade-direction').value = String(s.trade_direction || 'long').toLowerCase() === 'short' ? 'short' : 'long';
+    const sourceSignal = normalizeSourceSignal(s.source_signal || s.setup_config?.source_signal || {});
+    document.getElementById('sb-source-pattern-id').value = sourceSignal.pattern_id;
+    document.getElementById('sb-source-composition').value = sourceSignal.composition === 'primitive' ? 'primitive' : 'composite';
+    document.getElementById('sb-required-state').value = sourceSignal.required_state;
     document.getElementById('sb-description').value = s.description || '';
     document.getElementById('sb-structure-json').value = json(s.structure_config || {});
     document.getElementById('sb-setup-json').value = json(s.setup_config || {});
@@ -1583,6 +1655,24 @@ async function saveStrategyDraft() {
 
   if (!payload.strategy_id || !payload.name) {
     alert('strategy_id and name are required.');
+    return;
+  }
+  if (!payload.source_signal?.pattern_id) {
+    alert('A source primitive or composite ID is required.');
+    return;
+  }
+  if (!payload.trade_direction) {
+    alert('Strategy direction is required.');
+    return;
+  }
+  const missingConfigs = [];
+  if (!hasStrategyConfig(payload.entry_config)) missingConfigs.push('entry_config');
+  if (!hasStrategyConfig(payload.risk_config)) missingConfigs.push('risk_config');
+  if (!hasStrategyConfig(payload.exit_config)) missingConfigs.push('exit_config');
+  if (!hasStrategyConfig(payload.cost_config)) missingConfigs.push('cost_config');
+  if (!hasStrategyConfig(payload.execution_config)) missingConfigs.push('execution_config');
+  if (missingConfigs.length) {
+    alert(`Strategy JSON is missing required config sections: ${missingConfigs.join(', ')}`);
     return;
   }
   payload.status = normalizeEditableStrategyStatus(payload.status);
@@ -1697,6 +1787,7 @@ window.askStrategySummary = askStrategySummary;
 window.askStrategyRisks = askStrategyRisks;
 window.askStrategyTests = askStrategyTests;
 window.sendStrategyToSweep = sendStrategyToSweep;
+window.openSelectedStrategyInValidator = openSelectedStrategyInValidator;
 window.openRunValidationFromEditor = openRunValidationFromEditor;
 window.runValidationFromEditor = runValidationFromEditor;
 window.updateEditorRunValidationNote = updateEditorRunValidationNote;

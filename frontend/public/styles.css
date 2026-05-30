@@ -725,6 +725,7 @@ body.history-page #trade-list {
   font-size: var(--text-small);
   color: var(--color-text);
   background: var(--color-void);
+  color-scheme: dark;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: var(--space-8);
@@ -739,6 +740,23 @@ body.history-page #trade-list {
 }
 
 .select:focus { outline: none; border-color: var(--color-accent); }
+
+.select option,
+.select optgroup {
+  color: #e8e8e4 !important;
+  background-color: #18181a !important;
+}
+
+.select option:checked {
+  color: #ffffff !important;
+  background-color: #2e2e30 !important;
+}
+
+select.select option,
+select.select optgroup {
+  color: #e8e8e4 !important;
+  background-color: #18181a !important;
+}
 
 
 /* --- BUTTONS ---
@@ -1097,6 +1115,18 @@ tbody tr:hover td { color: var(--color-text); }
   border-color: var(--ui-active-border);
   color: var(--color-text);
   box-shadow: inset 0 -2px 0 var(--ui-active-border), 0 0 0 1px rgba(66, 89, 109, 0.2);
+}
+
+/* Pulses the Long/Short toggle when the trader tries to place a level
+   without choosing a direction first. */
+.direction-toggle-btn--needed {
+  animation: directionNeededPulse 0.6s ease-in-out 3;
+  border-color: #f59e0b !important;
+  color: #f59e0b !important;
+}
+@keyframes directionNeededPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.55); }
 }
 
 
@@ -2487,6 +2517,12 @@ tbody tr:hover td { color: var(--color-text); }
   background: rgba(255, 255, 255, 0.02);
 }
 
+.workshop-library-row-source.is-built-in {
+  color: var(--color-text);
+  border-color: var(--color-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .workshop-library-favorite-toggle {
   align-self: stretch;
   min-width: 40px;
@@ -2496,6 +2532,11 @@ tbody tr:hover td { color: var(--color-text); }
   color: #f6c453;
   font-size: 18px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.workshop-library-favorite-toggle.is-placeholder {
+  color: transparent;
+  pointer-events: none;
 }
 
 .workshop-library-row-chipline,

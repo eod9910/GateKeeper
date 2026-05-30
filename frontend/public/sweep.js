@@ -35,6 +35,7 @@ const UNIVERSAL_SWEEP_FALLBACK_PATHS = [
   'risk_config.take_profit_R',
   'risk_config.atr_multiplier',
   'risk_config.max_hold_bars',
+  'fundamental_config.forward_bars',
   'execution_config.auto_breakeven_r',
   'risk_config.max_concurrent_positions',
 ];
@@ -92,10 +93,18 @@ function renderUniversalDimCards(groupDims = []) {
   return groupDims.map(dim => {
     const sel = universalDimSelections.get(dim.key) || new Set();
     const hasAny = sel.size > 0;
+    const allSelected = Array.isArray(dim.suggested_values)
+      && dim.suggested_values.length > 0
+      && dim.suggested_values.every(sv => [...sel].some(v => String(v) === String(sv.value)));
     return `
       <div class="udim-card${hasAny ? ' active' : ''}" id="udim-card-${dim.key}">
         <div class="udim-header">
-          <div class="udim-toggle${hasAny ? ' checked' : ''}" id="udim-toggle-${dim.key}"></div>
+          <div
+            class="udim-toggle${allSelected ? ' checked' : ''}"
+            id="udim-toggle-${dim.key}"
+            onclick="toggleUniversalDimAll('${dim.key}')"
+            title="${allSelected ? 'Clear all values' : 'Select all values'}"
+          ></div>
           <div class="udim-name">${dim.label}</div>
           <div class="udim-count" id="udim-count-${dim.key}">${hasAny ? sel.size + ' selected' : ''}</div>
         </div>
@@ -137,33 +146,64 @@ function renderUniversalDims() {
   updateUniversalDimsBadge();
 }
 
-function toggleUniversalDimValue(dimKey, value) {
-  // Coerce to number if the dim's suggested values are numeric
-  const dim = universalDimsSpec?.dims.find(d => d.key === dimKey);
-  const firstSuggested = dim?.suggested_values?.[0]?.value;
-  const coerced = (typeof firstSuggested === 'number' && !isNaN(Number(value)))
-    ? Number(value) : value;
-  let sel = universalDimSelections.get(dimKey);
-  if (!sel) { sel = new Set(); universalDimSelections.set(dimKey, sel); }
-  if (sel.has(coerced)) sel.delete(coerced); else sel.add(coerced);
-  // Re-render just this dim's pills and toggle
+function renderUniversalDimSelection(dim, sel) {
   if (!dim) return;
-  const card = document.getElementById(`udim-card-${dimKey}`);
-  const toggle = document.getElementById(`udim-toggle-${dimKey}`);
-  const count = document.getElementById(`udim-count-${dimKey}`);
-  const pillsEl = document.getElementById(`udim-pills-${dimKey}`);
+  const card = document.getElementById(`udim-card-${dim.key}`);
+  const toggle = document.getElementById(`udim-toggle-${dim.key}`);
+  const count = document.getElementById(`udim-count-${dim.key}`);
+  const pillsEl = document.getElementById(`udim-pills-${dim.key}`);
   if (!card || !toggle || !count || !pillsEl) return;
+
   const hasAny = sel.size > 0;
+  const allSelected = Array.isArray(dim.suggested_values)
+    && dim.suggested_values.length > 0
+    && dim.suggested_values.every(sv => [...sel].some(v => String(v) === String(sv.value)));
   card.className = 'udim-card' + (hasAny ? ' active' : '');
-  toggle.className = 'udim-toggle' + (hasAny ? ' checked' : '');
+  toggle.className = 'udim-toggle' + (allSelected ? ' checked' : '');
+  toggle.title = allSelected ? 'Clear all values' : 'Select all values';
   count.textContent = hasAny ? sel.size + ' selected' : '';
   pillsEl.innerHTML = dim.suggested_values.map(sv => {
     const isSelected = [...sel].some(v => String(v) === String(sv.value));
     const encodedVal = encodeURIComponent(String(sv.value));
     return `<span class="udim-pill${isSelected ? ' selected' : ''}"
-      onclick="toggleUniversalDimValue('${dimKey}', decodeURIComponent('${encodedVal}'))"
+      onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
       title="${sv.label}">${sv.label}</span>`;
   }).join('');
+}
+
+function coerceUniversalDimValue(dim, value) {
+  const firstSuggested = dim?.suggested_values?.[0]?.value;
+  return (typeof firstSuggested === 'number' && !isNaN(Number(value)))
+    ? Number(value)
+    : value;
+}
+
+function toggleUniversalDimValue(dimKey, value) {
+  // Coerce to number if the dim's suggested values are numeric
+  const dim = universalDimsSpec?.dims.find(d => d.key === dimKey);
+  const coerced = coerceUniversalDimValue(dim, value);
+  let sel = universalDimSelections.get(dimKey);
+  if (!sel) { sel = new Set(); universalDimSelections.set(dimKey, sel); }
+  if (sel.has(coerced)) sel.delete(coerced); else sel.add(coerced);
+  // Re-render just this dim's pills and toggle
+  if (!dim) return;
+  renderUniversalDimSelection(dim, sel);
+  updateUniversalDimsBadge();
+  updateRunButton();
+}
+
+function toggleUniversalDimAll(dimKey) {
+  const dim = universalDimsSpec?.dims.find(d => d.key === dimKey);
+  if (!dim || !Array.isArray(dim.suggested_values)) return;
+  let sel = universalDimSelections.get(dimKey);
+  if (!sel) { sel = new Set(); universalDimSelections.set(dimKey, sel); }
+
+  const values = dim.suggested_values.map(sv => coerceUniversalDimValue(dim, sv.value));
+  const allSelected = values.length > 0 && values.every(value => sel.has(value));
+  sel.clear();
+  if (!allSelected) values.forEach(value => sel.add(value));
+
+  renderUniversalDimSelection(dim, sel);
   updateUniversalDimsBadge();
   updateRunButton();
 }
@@ -220,6 +260,7 @@ const ANATOMY_GROUPS = [
   { key: 'location', label: 'Location' },
   { key: 'entry_timing', label: 'Entry Timing' },
   { key: 'pattern_gate', label: 'Regime Filter' },
+  { key: 'valuation', label: 'Valuation' },
   { key: 'stop_loss', label: 'Stop Loss' },
   { key: 'take_profit', label: 'Take Profit' },
   { key: 'risk_controls', label: 'Risk Controls' },
@@ -260,6 +301,16 @@ const PRESET_DEFS = {
     param_path: 'risk_config.max_hold_bars',
     values: [13, 26, 39, 52, 60, 75, 90],
     isAvailable: strategy => hasNestedValue(strategy, 'risk_config.max_hold_bars'),
+  },
+  dcf_valuation_hold_bars: {
+    label: 'DCF Valuation Hold Bars',
+    anatomy: 'valuation',
+    param_path: 'fundamental_config.forward_bars',
+    values: [13, 20, 26, 40, 52, 60, 75, 90, 104],
+    isAvailable: strategy => (
+      String(strategy?.setup_config?.pattern_type || '').trim() === 'valuation_state_primitive' ||
+      hasNestedValue(strategy, 'fundamental_config.forward_bars')
+    ),
   },
   entry_confirmation_bars: {
     label: 'Confirmation Bars',
@@ -1742,6 +1793,10 @@ function reportFormatPct(value) {
   return `${(reportNum(value) * 100).toFixed(1)}%`;
 }
 
+function reportFormatRawPct(value, digits = 2) {
+  return `${reportNum(value).toFixed(digits)}%`;
+}
+
 function reportMetricCard(label, value, isPositive) {
   const color = isPositive == null
     ? 'var(--color-text)'
@@ -1839,6 +1894,7 @@ function renderSweepReportDetail(report, context = {}) {
   const wf = rob.walk_forward || {};
   const mc = rob.monte_carlo || {};
   const ps = rob.parameter_sensitivity || {};
+  const valuation = r.valuation_validation || {};
   const universe = Array.isArray(cfg.universe) ? cfg.universe : [];
   const timeframes = Array.isArray(cfg.timeframes) ? cfg.timeframes : [];
   const costs = cfg.costs || {};
@@ -1887,6 +1943,47 @@ function renderSweepReportDetail(report, context = {}) {
   html += reportMetricCard('Profit Factor', reportNum(ts.profit_factor).toFixed(2), reportNum(ts.profit_factor) >= 1);
   html += reportMetricCard('W / L', `${reportInt(ts.winners)} / ${reportInt(ts.losers)}`);
   html += `</div>`;
+
+  if (valuation.enabled && valuation.status === 'completed') {
+    const selected = valuation.selected || {};
+    const excluded = valuation.excluded || {};
+    const spread = valuation.spread || {};
+    const observations = valuation.observations || {};
+    const vcfg = valuation.config || {};
+    const forwardBars = reportInt(vcfg.forward_bars);
+    const holdLabel = forwardBars > 0 ? `${forwardBars} bars` : 'N/A';
+    const spreadPct = spread.avg_spread_pct ?? spread.avg_return_spread_pct;
+    const hitRatePct = spread.hit_rate_pct ?? (spread.hit_rate == null ? null : reportNum(spread.hit_rate) * 100);
+    const rebalancePeriods = observations.rebalance_periods ?? spread.periods ?? selected.periods;
+    const selectedObs = observations.selected_obs ?? observations.selected;
+    const excludedObs = observations.excluded_obs ?? observations.excluded;
+
+    html += `<div class="section-title">Valuation Basket Test</div>`;
+    html += `<div class="metrics-grid cols-5" style="margin-bottom:var(--space-12);">`;
+    html += reportMetricCard('Selected Avg', reportFormatRawPct(selected.avg_forward_return_pct), reportNum(selected.avg_forward_return_pct) > 0);
+    html += reportMetricCard('Excluded Avg', reportFormatRawPct(excluded.avg_forward_return_pct));
+    html += reportMetricCard('Spread', reportFormatRawPct(spreadPct), reportNum(spreadPct) > 0);
+    html += reportMetricCard('Hit Rate', reportFormatRawPct(hitRatePct, 1), reportNum(hitRatePct) >= 50);
+    html += reportMetricCard('T-Stat', reportNum(spread.t_stat).toFixed(2), reportNum(spread.t_stat) > 2);
+    html += reportMetricCard('Rebalance Periods', reportInt(rebalancePeriods));
+    html += reportMetricCard('Selected Obs.', reportInt(selectedObs));
+    html += reportMetricCard('Excluded Obs.', reportInt(excludedObs));
+    html += reportMetricCard('No Valuation', reportInt(observations.no_valuation));
+    html += reportMetricCard('Valuation Hold', holdLabel);
+    html += `</div>`;
+    html += `
+      <div class="metric-card" style="font-size:var(--text-caption);color:var(--color-text-muted);line-height:1.6;margin-bottom:var(--space-12);">
+        Tests DCF as a permission-to-buy basket: rebalance ${reportEscHtml(String(vcfg.rebalance_frequency || 'monthly'))},
+        hold ${reportEscHtml(holdLabel)}, select symbols where DCF state is ${reportEscHtml(String(vcfg.target_state || 'undervalued'))}
+        at ${reportNum(vcfg.gap_threshold_pct).toFixed(1)}% threshold, compare against symbols with known non-selected valuation states.
+      </div>
+    `;
+  } else if (valuation.enabled && valuation.status) {
+    html += `<div class="section-title">Valuation Basket Test</div>`;
+    html += `<div class="metric-card" style="font-size:var(--text-small);color:var(--color-text-muted);margin-bottom:var(--space-12);">
+      ${reportEscHtml(valuation.reason || `Valuation basket status: ${valuation.status}`)}
+    </div>`;
+  }
 
   html += `<div class="section-title">Risk Summary</div>`;
   html += `<div class="metrics-grid cols-4" style="margin-bottom:var(--space-12);">`;
@@ -2567,9 +2664,20 @@ function renderSweepResults(sweep) {
 
   // Results table
   const isGrid = (sweep.sweep_params?.length || 0) > 1;
+  const showValuationCols = (sweep.sweep_params || []).some(sp => String(sp?.param_path || '') === 'fundamental_config.forward_bars')
+    || (sweep.variants || []).some(v => v?.metrics?.valuation?.enabled);
   const paramHeaders = isGrid
     ? sweep.sweep_params.map(sp => `<th>${reportEscHtml(sp.label || sp.param_path || 'Param')}</th>`).join('')
     : `<th>${reportEscHtml(sweep.sweep_params?.[0]?.label || 'Parameter')}</th>`;
+  const valuationHeaders = showValuationCols
+    ? `
+            <th>Selected Avg</th>
+            <th>Excluded Avg</th>
+            <th>Spread</th>
+            <th>Hit Rate</th>
+            <th>T-Stat</th>
+            <th>Val Obs.</th>`
+    : '';
   html += `
     <div style="overflow-x:auto;">
       <table class="results-table">
@@ -2586,6 +2694,7 @@ function renderSweepResults(sweep) {
             <th>Max DD</th>
             <th>Sharpe</th>
             <th>Fitness</th>
+            ${valuationHeaders}
             <th>Action</th>
           </tr>
         </thead>
@@ -2620,6 +2729,7 @@ function renderSweepResults(sweep) {
       : `<span class="badge-status badge-${v.status}">${v.status}</span>`;
 
     const m = v.metrics;
+    const val = m?.valuation || null;
     const verdict = getDisplayVerdict(m || {});
     const actionHtml = v.status === 'completed'
       ? `<div class="sweep-action-group">
@@ -2634,6 +2744,15 @@ function renderSweepResults(sweep) {
         : 'N/A';
     const fmt = (n, digits = 2) => n != null ? Number(n).toFixed(digits) : '—';
     const fmtPct = (n) => n != null ? `${Number(n).toFixed(1)}%` : '—';
+    const valuationCells = showValuationCols
+      ? `
+        <td>${val ? fmtPct(val.selected_avg_pct) : 'N/A'}</td>
+        <td>${val ? fmtPct(val.excluded_avg_pct) : 'N/A'}</td>
+        <td style="color:${val && Number(val.spread_pct) > 0 ? 'var(--color-positive)' : val && Number(val.spread_pct) < 0 ? 'var(--color-negative)' : 'inherit'}">${val ? fmtPct(val.spread_pct) : 'N/A'}</td>
+        <td>${val ? fmtPct(val.hit_rate_pct) : 'N/A'}</td>
+        <td style="color:${val && Math.abs(Number(val.t_stat || 0)) >= 2 ? 'var(--color-positive)' : 'inherit'}">${val ? fmt(val.t_stat) : 'N/A'}</td>
+        <td>${val ? `${reportEscHtml(String(val.selected_obs ?? 'N/A'))} / ${reportEscHtml(String(val.excluded_obs ?? 'N/A'))}` : 'N/A'}</td>`
+      : '';
     const compareHtml = v.status === 'completed' && v.report_id
       ? `<label class="sweep-compare-toggle"><input type="checkbox" ${selectedComparisonVariantIds.has(v.variant_id) ? 'checked' : ''} onchange="toggleSweepComparison('${v.variant_id}','${v.report_id || ''}')"><span>Compare</span></label>`
       : '<span class="text-muted">—</span>';
@@ -2657,6 +2776,7 @@ function renderSweepResults(sweep) {
         <td style="color:${m && m.max_drawdown_pct > 30 ? 'var(--color-negative)' : 'inherit'}">${m ? fmtPct(m.max_drawdown_pct) : '—'}</td>
         <td>${m ? fmt(m.sharpe_ratio) : '—'}</td>
         <td style="font-weight:600; color:${m && m.fitness_score > 0.5 ? 'var(--color-positive)' : 'inherit'}">${m ? fmt(m.fitness_score, 3) : '—'}</td>
+        ${valuationCells}
         <td>${actionHtml}</td>
       </tr>
     `;
@@ -2668,16 +2788,21 @@ function renderSweepResults(sweep) {
   const copyParamHeaders = isGrid
     ? sweep.sweep_params.map(sp => sp.label || sp.param_path || 'Param').join('\t')
     : (sweep.sweep_params?.[0]?.label || 'Parameter');
-  const copyHeader = `${copyParamHeaders}\tStatus\tTier Result\tTrades\tExpectancy\tWin Rate\tProfit Factor\tMax DD\tSharpe\tFitness`;
+  const copyValuationHeader = showValuationCols ? '\tSelected Avg\tExcluded Avg\tSpread\tHit Rate\tT-Stat\tVal Obs.' : '';
+  const copyHeader = `${copyParamHeaders}\tStatus\tTier Result\tTrades\tExpectancy\tWin Rate\tProfit Factor\tMax DD\tSharpe\tFitness${copyValuationHeader}`;
   const copyRows = sorted.map(v => {
     const m = v.metrics;
+    const val = m?.valuation || null;
     const isWinner = sweep.winner?.variant_id === v.variant_id;
     const status = isWinner ? 'Winner' : v.status;
     const paramValStr = isGrid && Array.isArray(v.param_values)
       ? v.param_values.map(pv => String(pv.value)).join('\t')
       : String(v.param_value);
-    if (!m) return `${paramValStr}\t${status}\t—\t—\t—\t—\t—\t—\t—`;
-    return `${paramValStr}\t${status}\t${m.total_trades}\t${m.expectancy_R.toFixed(2)}R\t${(m.win_rate * 100).toFixed(1)}%\t${m.profit_factor.toFixed(2)}\t${m.max_drawdown_pct.toFixed(1)}%\t${m.sharpe_ratio.toFixed(2)}\t${m.fitness_score.toFixed(3)}`;
+    const valCopy = showValuationCols
+      ? `\t${val?.selected_avg_pct != null ? val.selected_avg_pct.toFixed(2) + '%' : 'n/a'}\t${val?.excluded_avg_pct != null ? val.excluded_avg_pct.toFixed(2) + '%' : 'n/a'}\t${val?.spread_pct != null ? val.spread_pct.toFixed(2) + '%' : 'n/a'}\t${val?.hit_rate_pct != null ? val.hit_rate_pct.toFixed(1) + '%' : 'n/a'}\t${val?.t_stat != null ? val.t_stat.toFixed(2) : 'n/a'}\t${val ? `${val.selected_obs ?? 'n/a'} / ${val.excluded_obs ?? 'n/a'}` : 'n/a'}`
+      : '';
+    if (!m) return `${paramValStr}\t${status}\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A${valCopy}`;
+    return `${paramValStr}\t${status}\t${m.total_trades}\t${m.expectancy_R.toFixed(2)}R\t${(m.win_rate * 100).toFixed(1)}%\t${m.profit_factor.toFixed(2)}\t${m.max_drawdown_pct.toFixed(1)}%\t${m.sharpe_ratio.toFixed(2)}\t${m.fitness_score.toFixed(3)}${valCopy}`;
   }).join('\n');
   window.__sweepCopyText = `${copyHeader}\n${copyRows}`;
 

@@ -20,6 +20,61 @@
     lastValidationReady: false,
     lastValidationMessage: '',
     validationDirty: true,
+    sessionTemplateDraft: null,
+    semanticDraft: {
+      setupFamily: '',
+      thesis: '',
+      notes: '',
+      invalidation: '',
+      confidence: '',
+      managementPlan: '',
+      setupTags: [],
+      contextTags: [],
+      managementTags: [],
+      chartSnapshotRef: null,
+    },
+  };
+
+  const FAMILY_TO_CONTRACT = {
+    pullback: 'pullback_v1',
+    breakout: 'breakout_v1',
+    reversal: 'fade_v1',
+    range: 'breakout_v1',
+    continuation: 'breakout_v1',
+  };
+
+  const SESSION_FAMILY_PRESETS = {
+    pullback: {
+      variants: ['fib_discount_pullback', 'fib_lvn_pullback', 'fib_reclaim_pullback'],
+      entryModels: ['touch', 'first_reclaim', 'close_back_through'],
+      indicators: ['Fib', 'Volume Profile', 'Structure', 'EMA'],
+      requiredAnchorType: 'fib',
+      retracementOptions: [61.8, 78.6],
+    },
+    breakout: {
+      variants: ['bos_breakout', 'range_breakout', 'breakout_retest'],
+      entryModels: ['touch', 'close_through', 'first_retest'],
+      indicators: ['Structure', 'Volume Profile', 'VWAP', 'EMA'],
+      requiredAnchorType: 'line',
+    },
+    reversal: {
+      variants: ['sweep_reversal', 'fade_reversal'],
+      entryModels: ['touch', 'close_back_inside', 'reclaim'],
+      indicators: ['Structure', 'Volume Profile', 'VWAP'],
+      requiredAnchorType: 'line',
+    },
+    range: {
+      variants: ['range_fade', 'range_reclaim'],
+      entryModels: ['touch', 'close_back_inside'],
+      indicators: ['Structure', 'Volume Profile'],
+      requiredAnchorType: 'box',
+    },
+    continuation: {
+      variants: ['flag_continuation', 'base_break_continuation'],
+      entryModels: ['touch', 'close_through', 'first_retest'],
+      indicators: ['Structure', 'EMA', 'VWAP'],
+      requiredAnchorType: 'line',
+    },
   };
 
   function $(id) {
@@ -34,7 +89,9 @@
       ? 'var(--color-negative)'
       : tone === 'good'
         ? 'var(--color-positive)'
-        : 'var(--color-text-muted)';
+        : tone === 'warn'
+          ? 'var(--color-warning, #f59e0b)'
+          : 'var(--color-text-muted)';
   }
 
   async function api(path, options) {
@@ -112,6 +169,136 @@
     return state.contractMap.get(contractId) || null;
   }
 
+  function familyPreset(family) {
+    const key = String(family || '').trim().toLowerCase();
+    return SESSION_FAMILY_PRESETS[key] || null;
+  }
+
+  function defaultSessionTemplateForContract(contract) {
+    const required = contract && Array.isArray(contract.requiredDrawings)
+      ? contract.requiredDrawings.find(function (drawing) { return drawing && drawing.required; })
+      : null;
+    const family = required && required.type === 'fib'
+      ? 'pullback'
+      : required && required.type === 'box'
+        ? 'range'
+        : 'breakout';
+    const preset = familyPreset(family) || {};
+    const confidenceBuckets = semanticVocabulary(contract).confidenceBuckets;
+    return {
+      family: family,
+      strategyVariant: preset.variants && preset.variants.length ? preset.variants[0] : family,
+      indicatorSet: preset.indicators ? preset.indicators.slice(0, Math.min(2, preset.indicators.length)) : [],
+      entryModel: preset.entryModels && preset.entryModels.length ? preset.entryModels[0] : 'touch',
+      retracementPct: family === 'pullback' ? 78.6 : null,
+      stopModel: 'atr_multiple',
+      stopAtrMultiple: 2,
+      targetModel: 'r_multiple',
+      targetRMultiple: 2,
+      confidence: confidenceBuckets.length ? confidenceBuckets[0] : 'A',
+      requiredAnchorType: required ? required.type : (preset.requiredAnchorType || 'line'),
+      notes: '',
+    };
+  }
+
+  function activeSessionTemplate() {
+    if (state.activeSession && state.activeSession.strategyTemplate) return state.activeSession.strategyTemplate;
+    return state.sessionTemplateDraft || defaultSessionTemplateForContract(activeContract());
+  }
+
+  function sessionTemplateLocked() {
+    return !!state.activeSession;
+  }
+
+  function normalizedTemplateSignature(template) {
+    if (!template) return '';
+    return JSON.stringify({
+      family: template.family || '',
+      strategyVariant: template.strategyVariant || '',
+      entryModel: template.entryModel || '',
+      retracementPct: Number(template.retracementPct || 0),
+      stopAtrMultiple: Number(template.stopAtrMultiple || 0),
+      targetRMultiple: Number(template.targetRMultiple || 0),
+      confidence: template.confidence || '',
+      requiredAnchorType: template.requiredAnchorType || '',
+      indicatorSet: Array.isArray(template.indicatorSet) ? template.indicatorSet.slice().sort() : [],
+    });
+  }
+
+  function sanitizeSessionTemplateForContract(contract) {
+    const base = defaultSessionTemplateForContract(contract);
+    const current = state.sessionTemplateDraft ? { ...base, ...state.sessionTemplateDraft } : base;
+    const allowedFamilies = semanticVocabulary(contract).setupFamilies;
+    if (allowedFamilies.length && allowedFamilies.indexOf(current.family) === -1) {
+      current.family = allowedFamilies[0];
+    }
+    const preset = familyPreset(current.family) || {};
+    if (preset.variants && preset.variants.length && preset.variants.indexOf(current.strategyVariant) === -1) {
+      current.strategyVariant = preset.variants[0];
+    }
+    if (preset.entryModels && preset.entryModels.length && preset.entryModels.indexOf(current.entryModel) === -1) {
+      current.entryModel = preset.entryModels[0];
+    }
+    current.indicatorSet = Array.isArray(current.indicatorSet)
+      ? current.indicatorSet.filter(function (item) { return !preset.indicators || preset.indicators.indexOf(item) !== -1; })
+      : [];
+    if (!current.indicatorSet.length && preset.indicators && preset.indicators.length) {
+      current.indicatorSet = preset.indicators.slice(0, Math.min(2, preset.indicators.length));
+    }
+    current.stopAtrMultiple = Number(current.stopAtrMultiple || base.stopAtrMultiple || 2);
+    current.targetRMultiple = Number(current.targetRMultiple || base.targetRMultiple || 2);
+    current.retracementPct = current.family === 'pullback'
+      ? Number(current.retracementPct || base.retracementPct || 78.6)
+      : null;
+    current.requiredAnchorType = current.requiredAnchorType || base.requiredAnchorType;
+    state.sessionTemplateDraft = current;
+    return current;
+  }
+
+  function emptySemanticDraft() {
+    return {
+      setupFamily: '',
+      thesis: '',
+      notes: '',
+      invalidation: '',
+      confidence: '',
+      managementPlan: '',
+      setupTags: [],
+      contextTags: [],
+      managementTags: [],
+      chartSnapshotRef: null,
+    };
+  }
+
+  function semanticVocabulary(contract) {
+    const vocabulary = contract && contract.semanticVocabulary ? contract.semanticVocabulary : {};
+    return {
+      setupFamilies: Array.isArray(vocabulary.setupFamilies) ? vocabulary.setupFamilies : [],
+      setupTags: Array.isArray(vocabulary.setupTags) ? vocabulary.setupTags : [],
+      contextTags: Array.isArray(vocabulary.contextTags) ? vocabulary.contextTags : [],
+      managementTags: Array.isArray(vocabulary.managementTags) ? vocabulary.managementTags : [],
+      confidenceBuckets: Array.isArray(vocabulary.confidenceBuckets) ? vocabulary.confidenceBuckets : [],
+    };
+  }
+
+  function sanitizeSemanticDraftForContract(contract) {
+    const vocabulary = semanticVocabulary(contract);
+    const next = {
+      ...emptySemanticDraft(),
+      ...state.semanticDraft,
+    };
+    if (vocabulary.setupFamilies.length && vocabulary.setupFamilies.indexOf(next.setupFamily) === -1) {
+      next.setupFamily = '';
+    }
+    if (vocabulary.confidenceBuckets.length && vocabulary.confidenceBuckets.indexOf(next.confidence) === -1) {
+      next.confidence = '';
+    }
+    next.setupTags = next.setupTags.filter(function (tag) { return vocabulary.setupTags.indexOf(tag) !== -1; });
+    next.contextTags = next.contextTags.filter(function (tag) { return vocabulary.contextTags.indexOf(tag) !== -1; });
+    next.managementTags = next.managementTags.filter(function (tag) { return vocabulary.managementTags.indexOf(tag) !== -1; });
+    state.semanticDraft = next;
+  }
+
   function primaryRequiredDrawing() {
     const contract = activeContract();
     if (!contract || !Array.isArray(contract.requiredDrawings)) return null;
@@ -131,6 +318,8 @@
     const isShort = side === 'short';
     $('btn-training-long').classList.toggle('direction-toggle-btn--active', !isShort);
     $('btn-training-short').classList.toggle('direction-toggle-btn--active', isShort);
+    if ($('btn-chart-long')) $('btn-chart-long').classList.toggle('direction-toggle-btn--active', !isShort);
+    if ($('btn-chart-short')) $('btn-chart-short').classList.toggle('direction-toggle-btn--active', isShort);
     markValidationDirty();
     updateChartMeta();
     renderChart();
@@ -141,6 +330,8 @@
       ['btn-marker-entry', 'entry'],
       ['btn-marker-stop', 'stop'],
       ['btn-marker-tp', 'takeProfit'],
+      ['btn-marker-tp2', 'takeProfit2'],
+      ['btn-marker-tp3', 'takeProfit3'],
     ].forEach(function (item) {
       const el = $(item[0]);
       if (!el) return;
@@ -151,7 +342,8 @@
   function setMarkerMode(mode) {
     state.markerMode = state.markerMode === mode ? null : mode;
     updateMarkerButtons();
-    setStatus(state.markerMode ? ('Click the chart to set ' + state.markerMode + '.') : 'Marker mode cleared.', state.markerMode ? null : 'good');
+    var names = { entry: 'entry', stop: 'stop', takeProfit: 'TP1', takeProfit2: 'TP2', takeProfit3: 'TP3' };
+    setStatus(state.markerMode ? ('Click the chart to set ' + (names[state.markerMode] || state.markerMode) + '.') : 'Marker mode cleared.', state.markerMode ? null : 'good');
   }
 
   function updateChartMeta() {
@@ -160,6 +352,14 @@
     $('kl-entry').textContent = $('entry-price').value || '--';
     $('kl-stop').textContent = $('stop-price').value || '--';
     $('kl-tp').textContent = $('tp-price').value || '--';
+    var tp2Val = $('tp2-price').value;
+    var tp3Val = $('tp3-price').value;
+    var tp2Col = $('kl-tp2-col');
+    var tp3Col = $('kl-tp3-col');
+    if (tp2Col) { tp2Col.style.display = tp2Val ? '' : 'none'; }
+    if (tp3Col) { tp3Col.style.display = tp3Val ? '' : 'none'; }
+    if ($('kl-tp2')) $('kl-tp2').textContent = tp2Val || '--';
+    if ($('kl-tp3')) $('kl-tp3').textContent = tp3Val || '--';
     const entry = parseOptionalNumber($('entry-price').value);
     const stop = parseOptionalNumber($('stop-price').value);
     const tp = parseOptionalNumber($('tp-price').value);
@@ -187,6 +387,49 @@
 
   function currentChartBars() {
     return currentDisplayBars();
+  }
+
+  // Compute a robust price range from the visible bars and stash it on
+  // state.robustPriceRange so the candle series' autoscaleInfoProvider can
+  // clip outliers. Without this, a single corrupted Yahoo bar (e.g. NZDCAD
+  // 2004-10-04 with low=0.26 vs the real ~0.85 range) drags the whole
+  // price scale down to zero and squashes every legitimate candle into a
+  // wick-only sliver. The 1st/99th percentile clip survives ordinary
+  // gaps and flash-crash bars while ignoring obvious data corruption.
+  function updateRobustPriceRange(bars) {
+    if (!Array.isArray(bars) || bars.length === 0) {
+      state.robustPriceRange = null;
+      return;
+    }
+    var values = [];
+    for (var i = 0; i < bars.length; i++) {
+      var b = bars[i];
+      if (!b) continue;
+      if (Number.isFinite(b.low)) values.push(b.low);
+      if (Number.isFinite(b.high)) values.push(b.high);
+      if (Number.isFinite(b.open)) values.push(b.open);
+      if (Number.isFinite(b.close)) values.push(b.close);
+    }
+    if (values.length < 4) {
+      state.robustPriceRange = null;
+      return;
+    }
+    values.sort(function (a, b) { return a - b; });
+    var n = values.length;
+    // 1st/99th percentile clip — small enough to retain real wicks but
+    // aggressive enough to ignore single-bar data corruption.
+    var loIdx = Math.floor(n * 0.01);
+    var hiIdx = Math.min(n - 1, Math.ceil(n * 0.99));
+    var lo = values[loIdx];
+    var hi = values[hiIdx];
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
+      state.robustPriceRange = null;
+      return;
+    }
+    // Pad ~3% on each end so candles at the extremes aren't flush with the
+    // chart edges (matches the default lightweight-charts feel).
+    var pad = (hi - lo) * 0.03;
+    state.robustPriceRange = { min: lo - pad, max: hi + pad };
   }
 
   function blockingEvaluations(validation) {
@@ -260,7 +503,7 @@
     const stop = parseOptionalNumber($('stop-price').value);
     const takeProfit = parseOptionalNumber($('tp-price').value);
     const hasOrderLevels = Number.isFinite(entry) && Number.isFinite(stop) && Number.isFinite(takeProfit);
-    const ready = hasSession && hasBars && hasDrawing && hasOrderLevels && (state.validationDirty || state.lastValidationReady);
+    const ready = hasSession && hasBars && hasOrderLevels && (state.validationDirty || state.lastValidationReady);
 
     if (runButton) {
       runButton.disabled = !ready;
@@ -272,8 +515,8 @@
       status.textContent = 'Start a session first.';
     } else if (!hasBars) {
       status.textContent = 'Load a historical scenario.';
-    } else if (!hasDrawing) {
-      status.textContent = 'Draw the required ' + ((required && required.label) || 'setup') + ' first.';
+    } else if (!hasOrderLevels && !hasDrawing) {
+      status.textContent = 'Draw the anchor or set entry, stop, and take profit manually.';
     } else if (!hasOrderLevels) {
       status.textContent = 'Set entry, stop, and take profit to unlock forward testing.';
     } else if (!state.validationDirty && !state.lastValidationReady) {
@@ -305,13 +548,17 @@
       rightPriceScale: { borderColor: 'rgba(75, 85, 99, 0.45)' },
       timeScale: { borderColor: 'rgba(75, 85, 99, 0.45)' },
     });
-    state.candleSeries = state.chart.addSeries(window.LightweightCharts.CandlestickSeries, {
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
-    });
+    var candleOptions = window.SharedChartUtils && typeof window.SharedChartUtils.getCandlestickSeriesOptions === 'function'
+      ? window.SharedChartUtils.getCandlestickSeriesOptions()
+      : {
+          upColor: '#22c55e',
+          downColor: '#ef4444',
+          borderUpColor: '#22c55e',
+          borderDownColor: '#ef4444',
+          wickUpColor: '#22c55e',
+          wickDownColor: '#ef4444',
+        };
+    state.candleSeries = state.chart.addSeries(window.LightweightCharts.CandlestickSeries, candleOptions);
 
     state.chart.subscribeClick(function (param) {
       if (!state.markerMode || !state.candleSeries || !param || !param.point) return;
@@ -320,18 +567,36 @@
       if (price == null || !Number.isFinite(price)) return;
       if (state.markerMode === 'entry') {
         $('entry-price').value = fmtNumber(price, 2);
+      } else if (state.markerMode === 'stop') {
+        $('stop-price').value = fmtNumber(price, 2);
+      } else if (state.markerMode === 'takeProfit') {
+        $('tp-price').value = fmtNumber(price, 2);
+      } else if (state.markerMode === 'takeProfit2') {
+        $('tp2-price').value = fmtNumber(price, 2);
+      } else if (state.markerMode === 'takeProfit3') {
+        $('tp3-price').value = fmtNumber(price, 2);
       }
-      if (state.markerMode === 'stop') $('stop-price').value = fmtNumber(price, 2);
-      if (state.markerMode === 'takeProfit') $('tp-price').value = fmtNumber(price, 2);
-      state.markerMode = null;
+      // Auto-advance: TP1 → TP2 → TP3 → done
+      if (state.markerMode === 'takeProfit') {
+        state.markerMode = 'takeProfit2';
+      } else if (state.markerMode === 'takeProfit2') {
+        state.markerMode = 'takeProfit3';
+      } else {
+        state.markerMode = null;
+      }
       updateMarkerButtons();
       markValidationDirty();
       updateChartMeta();
       renderChart();
     });
 
+    // Shared by both the DrawingToolsManager and ciBindToChart blocks below —
+    // hoisted out of the DrawingToolsManager `if` so it stays in scope when only
+    // ciBindToChart is loaded (otherwise referencing it on line 354 throws
+    // "chartArea is not defined" and aborts ensureChart()).
+    const chartArea = $('training-chart');
+
     if (typeof window.DrawingToolsManager !== 'undefined') {
-      const chartArea = $('training-chart');
       state.drawingTools = new window.DrawingToolsManager(state.chart, state.candleSeries, chartArea, {
         getBars: function () { return Array.isArray(currentDisplayBars()) ? currentDisplayBars() : []; },
         onChange: function () {
@@ -351,6 +616,7 @@
         contextId: 'training',
         symbol: $('training-symbol').value.trim().toUpperCase(),
         interval: $('training-timeframe').value,
+        containerEl: chartArea,
       });
       if (typeof window._ciPopulateIndicatorSelect === 'function') {
         window._ciPopulateIndicatorSelect();
@@ -587,6 +853,26 @@
       tpLine.setData([{ time: firstBarTime, value: takeProfit }, { time: lastBarTime, value: takeProfit }]);
       state.overlaySeries.push(tpLine);
     }
+    var tp2 = parseOptionalNumber($('tp2-price').value);
+    if (Number.isFinite(tp2)) {
+      var tp2Line = state.chart.addSeries(window.LightweightCharts.LineSeries, {
+        color: '#c084fc', lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Dashed,
+        crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
+      });
+      tp2Line.setData([{ time: firstBarTime, value: tp2 }, { time: lastBarTime, value: tp2 }]);
+      state.overlaySeries.push(tp2Line);
+    }
+    var tp3 = parseOptionalNumber($('tp3-price').value);
+    if (Number.isFinite(tp3)) {
+      var tp3Line = state.chart.addSeries(window.LightweightCharts.LineSeries, {
+        color: '#d8b4fe', lineWidth: 1,
+        lineStyle: window.LightweightCharts.LineStyle.Dotted,
+        crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
+      });
+      tp3Line.setData([{ time: firstBarTime, value: tp3 }, { time: lastBarTime, value: tp3 }]);
+      state.overlaySeries.push(tp3Line);
+    }
 
     if (state.latestAttempt && state.latestAttempt.resolution) {
       markerData.push({
@@ -628,28 +914,265 @@
     });
   }
 
+  // Zoom to roughly the last REPLAY_FOCUS_WINDOW visible bars and pad the
+  // right edge with empty space so the user can SEE that the chart is paused
+  // mid-history (future bars are hidden but the cutoff edge sits in view with
+  // breathing room to the right). Falls back to fitContent() for tiny series.
+  const REPLAY_FOCUS_WINDOW = 120;
+  const REPLAY_RIGHT_PAD = 30;
   function focusChartOnRevealedBars() {
     if (!state.chart) return;
     const bars = currentDisplayBars();
     if (!bars.length) return;
-    state.chart.timeScale().fitContent();
+    if (bars.length <= REPLAY_FOCUS_WINDOW + REPLAY_RIGHT_PAD) {
+      state.chart.timeScale().fitContent();
+      return;
+    }
+    try {
+      state.chart.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, bars.length - REPLAY_FOCUS_WINDOW),
+        to: bars.length - 1 + REPLAY_RIGHT_PAD,
+      });
+    } catch (_) {
+      state.chart.timeScale().fitContent();
+    }
+  }
+
+  function renderSemanticChipGroup(containerId, values, selectedValues, fieldKey) {
+    const container = $(containerId);
+    if (!container) return;
+    if (!values.length) {
+      container.innerHTML = '<div class="contract-note">No controlled vocabulary configured.</div>';
+      return;
+    }
+    container.innerHTML = values.map(function (value) {
+      const active = selectedValues.indexOf(value) !== -1;
+      return '<button type="button" class="declaration-chip ' + (active ? 'is-active' : '') + '" data-semantic-field="' + fieldKey + '" data-semantic-value="' + value + '">' + value + '</button>';
+    }).join('');
+    container.querySelectorAll('button[data-semantic-field]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const field = button.getAttribute('data-semantic-field');
+        const value = button.getAttribute('data-semantic-value');
+        const current = Array.isArray(state.semanticDraft[field]) ? state.semanticDraft[field].slice() : [];
+        const idx = current.indexOf(value);
+        if (idx === -1) current.push(value);
+        else current.splice(idx, 1);
+        state.semanticDraft[field] = current;
+        markValidationDirty();
+        renderTradeDeclaration();
+      });
+    });
+  }
+
+  function renderSessionIndicatorChips(containerId, values, selectedValues) {
+    const container = $(containerId);
+    if (!container) return;
+    if (!values.length) {
+      container.innerHTML = '<div class="contract-note">No indicator presets for this family.</div>';
+      return;
+    }
+    container.innerHTML = values.map(function (value) {
+      const active = selectedValues.indexOf(value) !== -1;
+      return '<button type="button" class="declaration-chip ' + (active ? 'is-active' : '') + '" data-session-indicator="' + value + '">' + value + '</button>';
+    }).join('');
+    container.querySelectorAll('button[data-session-indicator]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        if (sessionTemplateLocked()) return;
+        const value = button.getAttribute('data-session-indicator');
+        const current = Array.isArray(state.sessionTemplateDraft && state.sessionTemplateDraft.indicatorSet)
+          ? state.sessionTemplateDraft.indicatorSet.slice()
+          : [];
+        const idx = current.indexOf(value);
+        if (idx === -1) current.push(value);
+        else current.splice(idx, 1);
+        state.sessionTemplateDraft.indicatorSet = current;
+        renderSessionTemplate();
+      });
+    });
+  }
+
+  function sessionTemplateSummary(template) {
+    if (!template) return 'No session template locked yet.';
+    var isPullback = template.family === 'pullback';
+    const parts = [
+      template.family || 'family?',
+      template.strategyVariant || 'variant?',
+      template.entryModel || 'entry?',
+      isPullback && Number.isFinite(Number(template.retracementPct))
+        ? ('Entry @ ' + fmtNumber(template.retracementPct, 1) + '% Fib')
+        : null,
+      isPullback ? 'Stop: 1 ATR past 100%' : ('ATR x' + fmtNumber(template.stopAtrMultiple || 2, 1)),
+      isPullback ? 'TP: Fib 0%' : (fmtNumber(template.targetRMultiple || 2, 1) + 'R target'),
+    ].filter(Boolean);
+    if (template.indicatorSet && template.indicatorSet.length) {
+      parts.push('Indicators: ' + template.indicatorSet.join(', '));
+    }
+    return parts.join(' · ');
+  }
+
+  function renderSessionTemplate() {
+    const contract = activeContract();
+    if (!contract) return;
+    const template = sanitizeSessionTemplateForContract(contract);
+    const preset = familyPreset(template.family) || {};
+    const locked = sessionTemplateLocked();
+    const familySelect = $('session-family');
+    const variantSelect = $('session-variant');
+    const entryModelSelect = $('session-entry-model');
+    const retraceSelect = $('session-retracement');
+    const stopAtrSelect = $('session-stop-atr');
+    const targetRSelect = $('session-target-r');
+    const confidenceSelect = $('session-confidence');
+    const note = $('session-template-note');
+    const retraceField = $('session-retracement-field');
+    const anchorHint = $('session-anchor-hint');
+    const confidenceBuckets = semanticVocabulary(contract).confidenceBuckets;
+    const familyOptions = Object.keys(SESSION_FAMILY_PRESETS);
+
+    if (familySelect) {
+      familySelect.innerHTML = familyOptions.map(function (value) {
+        return '<option value="' + value + '">' + value + '</option>';
+      }).join('');
+      familySelect.value = template.family || familyOptions[0] || '';
+      familySelect.disabled = locked;
+    }
+    if (variantSelect) {
+      const variants = preset.variants || [template.strategyVariant || template.family];
+      variantSelect.innerHTML = variants.map(function (value) {
+        return '<option value="' + value + '">' + value + '</option>';
+      }).join('');
+      variantSelect.value = template.strategyVariant || variants[0] || '';
+      variantSelect.disabled = locked;
+    }
+    if (entryModelSelect) {
+      const entryModels = preset.entryModels || ['touch'];
+      entryModelSelect.innerHTML = entryModels.map(function (value) {
+        return '<option value="' + value + '">' + value + '</option>';
+      }).join('');
+      entryModelSelect.value = template.entryModel || entryModels[0] || '';
+      entryModelSelect.disabled = locked;
+    }
+    if (retraceField) {
+      retraceField.style.display = template.family === 'pullback' ? '' : 'none';
+    }
+    if (retraceSelect) {
+      const retraceValues = preset.retracementOptions || [61.8, 78.6];
+      retraceSelect.innerHTML = retraceValues.map(function (value) {
+        return '<option value="' + value + '">' + value + '%</option>';
+      }).join('');
+      retraceSelect.value = String(template.retracementPct || retraceValues[0] || 78.6);
+      retraceSelect.disabled = locked || template.family !== 'pullback';
+    }
+    var isPullback = template.family === 'pullback';
+    if (stopAtrSelect) {
+      if (isPullback) {
+        stopAtrSelect.innerHTML = '<option value="1">1 ATR past Fib 100%</option>';
+        stopAtrSelect.value = '1';
+      } else {
+        stopAtrSelect.innerHTML = '<option value="1">ATR x1</option><option value="1.5">ATR x1.5</option><option value="2">ATR x2</option><option value="3">ATR x3</option>';
+        stopAtrSelect.value = String(template.stopAtrMultiple || 2);
+      }
+      stopAtrSelect.disabled = locked;
+    }
+    if (targetRSelect) {
+      if (isPullback) {
+        targetRSelect.innerHTML = '<option value="0">Fib 0% level</option>';
+        targetRSelect.value = '0';
+      } else {
+        targetRSelect.innerHTML = '<option value="1">1R</option><option value="2">2R</option><option value="3">3R</option><option value="4">4R</option><option value="5">5R</option>';
+        targetRSelect.value = String(template.targetRMultiple || 2);
+      }
+      targetRSelect.disabled = locked;
+    }
+    if (confidenceSelect) {
+      confidenceSelect.innerHTML = '<option value="">-- Select --</option>' + confidenceBuckets.map(function (value) {
+        return '<option value="' + value + '">' + value + '</option>';
+      }).join('');
+      confidenceSelect.value = template.confidence || '';
+      confidenceSelect.disabled = locked;
+    }
+    renderSessionIndicatorChips('session-indicators', preset.indicators || [], template.indicatorSet || []);
+    if (note) {
+      note.textContent = locked
+        ? ('Locked for this session: ' + sessionTemplateSummary(activeSessionTemplate()) + '.')
+        : 'Lock the strategy variant once, then each attempt only needs the chart anchors.';
+    }
+    if (anchorHint) {
+      anchorHint.textContent = 'Required anchor proof: ' + (template.requiredAnchorType || preset.requiredAnchorType || 'line') + '.';
+    }
+  }
+
+  function renderTradeDeclaration() {
+    const contract = activeContract();
+    const vocabulary = semanticVocabulary(contract);
+    sanitizeSemanticDraftForContract(contract);
+    const template = activeSessionTemplate();
+
+    const setupFamilySelect = $('semantic-setup-family');
+    const confidenceSelect = $('semantic-confidence');
+    if (setupFamilySelect) {
+      setupFamilySelect.innerHTML = '<option value="">-- Select --</option>' + vocabulary.setupFamilies.map(function (item) {
+        return '<option value="' + item + '">' + item + '</option>';
+      }).join('');
+      setupFamilySelect.value = (template && template.family) || state.semanticDraft.setupFamily || '';
+      setupFamilySelect.disabled = !!template && sessionTemplateLocked();
+    }
+    if (confidenceSelect) {
+      confidenceSelect.innerHTML = '<option value="">-- Select --</option>' + vocabulary.confidenceBuckets.map(function (item) {
+        return '<option value="' + item + '">' + item + '</option>';
+      }).join('');
+      confidenceSelect.value = (template && template.confidence) || state.semanticDraft.confidence || '';
+      confidenceSelect.disabled = !!template && sessionTemplateLocked();
+    }
+    if ($('semantic-thesis')) $('semantic-thesis').value = state.semanticDraft.thesis || '';
+    if ($('semantic-invalidation')) $('semantic-invalidation').value = state.semanticDraft.invalidation || '';
+    if ($('semantic-management-plan')) $('semantic-management-plan').value = state.semanticDraft.managementPlan || '';
+
+    renderSemanticChipGroup('semantic-setup-tags', vocabulary.setupTags, state.semanticDraft.setupTags || [], 'setupTags');
+    renderSemanticChipGroup('semantic-context-tags', vocabulary.contextTags, state.semanticDraft.contextTags || [], 'contextTags');
+    const managementGroup = $('semantic-management-tags-group');
+    if (managementGroup) {
+      managementGroup.style.display = vocabulary.managementTags.length ? '' : 'none';
+    }
+    renderSemanticChipGroup('semantic-management-tags', vocabulary.managementTags, state.semanticDraft.managementTags || [], 'managementTags');
+
+    const note = $('semantic-declaration-note');
+    if (note) {
+      const familyRules = contract && contract.semanticRequirements && Array.isArray(contract.semanticRequirements.familyRules)
+        ? contract.semanticRequirements.familyRules
+        : [];
+      const selectedFamilyRule = familyRules.find(function (rule) { return rule && rule.setupFamily === ((template && template.family) || state.semanticDraft.setupFamily); });
+      if (selectedFamilyRule && Array.isArray(selectedFamilyRule.requiredDrawings) && selectedFamilyRule.requiredDrawings.length) {
+        note.textContent = sessionTemplateLocked()
+          ? ('Session defaults are locked. Define the required anchors and hit Go. Drawing proof: ' + selectedFamilyRule.requiredDrawings.join(', ') + '.')
+          : ('The selected setup family requires drawing proof: ' + selectedFamilyRule.requiredDrawings.join(', ') + '.');
+      } else {
+        note.textContent = sessionTemplateLocked()
+          ? 'Session defaults are locked. Define the anchors, optionally add notes, then hit Go.'
+          : 'Declare the setup thesis before running the trade. These fields become part of the attempt evidence record.';
+      }
+    }
   }
 
   function renderContractMeta() {
     const contract = activeContract();
     if (!contract) return;
+    sanitizeSessionTemplateForContract(contract);
+    sanitizeSemanticDraftForContract(contract);
     const required = primaryRequiredDrawing();
     const requiresFib = !!required && required.type === 'fib';
     $('contract-notes').textContent = contract.notes || 'No notes.';
     $('training-flow-note').innerHTML = requiresFib
-      ? 'Pick a historical replay date, draw a <code>Fib</code> across the swing, then place <code>Entry</code>, <code>Stop</code>, and <code>Set Take Profit</code>. For pullback work, the entry can sit at or beyond the <code>50%</code> retracement. When all three are set, run forward.'
-      : 'Pick a historical replay date on the right, draw the base box on the chart, then use the toolbar to place <code>Entry</code>, <code>Stop</code>, and <code>Set Take Profit</code>. When all three are set, run forward. The replay will wait for entry to be touched, then it will continue until stop or take profit is hit.';
-    $('btn-seed-levels').textContent = requiresFib ? 'Auto Fill From Fib' : 'Auto Fill From Box';
+      ? 'Pick a replay date, draw the swing <code>Fib</code>, and let the session template derive entry/stop/target from that anchor. Once the anchors are marked, hit <code>Go</code>.'
+      : 'Pick a replay date, draw the breakout/range anchor, and let the session template derive entry/stop/target. Once the anchors are marked, hit <code>Go</code>.';
+    $('btn-seed-levels').textContent = requiresFib ? 'Derive Trade From Fib' : 'Derive Trade From Anchors';
     const sides = contract.sideScope && contract.sideScope.length ? contract.sideScope : ['long', 'short'];
     if (sides.length === 1) {
       setDirection(sides[0]);
     }
-    renderAggregateStats();
+    renderSessionTemplate();
+    renderTradeDeclaration();
+    renderBacktestReport();
     updateForwardGate();
   }
 
@@ -668,21 +1191,53 @@
 
   function renderRecentSessions() {
     const container = $('recent-sessions');
+    const countBadge = $('session-count-badge');
+    if (countBadge) countBadge.textContent = '(' + state.sessions.length + ')';
     if (!state.sessions.length) {
       container.innerHTML = '<div class="contract-note">No training sessions yet.</div>';
       return;
     }
-    container.innerHTML = state.sessions.slice(0, 8).map(function (session) {
+    container.innerHTML = state.sessions.map(function (session) {
       const active = state.activeSession && session.sessionId === state.activeSession.sessionId;
+      const s = session.stats || {};
+      const resolved = Number(s.resolvedAttempts) || 0;
+      const expectancy = Number.isFinite(s.expectancy) ? s.expectancy : 0;
+      const winRate = Number.isFinite(s.winRate) ? s.winRate : 0;
+      const isEnded = !!session.endedAt;
+      const statusLabel = active ? 'Active' : (isEnded ? 'Ended' : 'Open');
+      const statusClass = active ? 'good' : (isEnded ? '' : '');
+
+      var templateParts = [];
+      if (session.strategyTemplate) {
+        if (session.strategyTemplate.family) templateParts.push(session.strategyTemplate.family);
+        if (session.strategyTemplate.stopAtrMultiple) templateParts.push('ATR×' + session.strategyTemplate.stopAtrMultiple);
+        if (session.strategyTemplate.targetRMultiple) templateParts.push(session.strategyTemplate.targetRMultiple + 'R');
+      }
+      var templateStr = templateParts.length ? templateParts.join(' · ') : '';
+
+      var expClass = expectancy > 0 ? 'stat-positive' : (expectancy < 0 ? 'stat-negative' : 'stat-neutral');
+      var wrClass = winRate >= 50 ? 'stat-positive' : (winRate > 0 ? 'stat-neutral' : 'stat-neutral');
+
       return (
-        '<div class="session-item">' +
-          '<div>' +
-            '<div class="mono">' + session.contractId + '</div>' +
-            '<div class="contract-note">' + fmtDate(session.startedAt) + '</div>' +
+        '<div class="session-item' + (active ? ' session-active' : '') + '">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="display:flex;align-items:center;gap:6px;">' +
+              '<span class="mono" style="font-size:12px;">' + session.contractId + '</span>' +
+              '<span class="tag ' + statusClass + '">' + statusLabel + '</span>' +
+            '</div>' +
+            (templateStr ? '<div class="contract-note" style="margin-top:2px;font-size:11px;">' + templateStr + '</div>' : '') +
+            '<div class="contract-note" style="margin-top:2px;">' + fmtDate(session.startedAt) + (isEnded ? ' — ' + fmtDate(session.endedAt) : '') + '</div>' +
+            (resolved > 0
+              ? '<div class="session-stats">' +
+                  '<span>' + resolved + ' trades</span>' +
+                  '<span class="' + wrClass + '">' + fmtNumber(winRate, 0) + '% win</span>' +
+                  '<span class="' + expClass + '">' + (expectancy >= 0 ? '+' : '') + fmtNumber(expectancy, 2) + 'R exp</span>' +
+                '</div>'
+              : '<div class="session-stats"><span>No trades yet</span></div>'
+            ) +
           '</div>' +
-          '<div style="display:flex;gap:8px;align-items:center;">' +
-            '<span class="tag ' + (active ? 'good' : '') + '">' + (session.stats && session.stats.cooldownActive ? 'Cooldown' : 'Ready') + '</span>' +
-            '<button class="btn btn-ghost btn-sm" data-session-id="' + session.sessionId + '">Open</button>' +
+          '<div style="display:flex;gap:6px;align-items:flex-start;flex-shrink:0;">' +
+            '<button class="btn btn-ghost btn-sm" data-session-id="' + session.sessionId + '">' + (active ? 'Loaded' : 'Open') + '</button>' +
           '</div>' +
         '</div>'
       );
@@ -696,26 +1251,101 @@
 
   function renderSessionStats() {
     const stats = state.activeSession && state.activeSession.stats ? state.activeSession.stats : null;
+    const attempts = Array.isArray(state.attempts) ? state.attempts : [];
+    const resolved = attempts.filter(function (a) { return a.status === 'resolved' && a.resolution; });
+    const wins = resolved.filter(function (a) { return (a.resolution.rMultiple || 0) > 0; });
+    const losses = resolved.filter(function (a) { return (a.resolution.rMultiple || 0) <= 0; });
+
     $('kpi-attempts').textContent = stats ? String(stats.attempts) : '0';
-    $('kpi-resolved').textContent = stats ? String(stats.resolvedAttempts) : '0';
-    $('kpi-wins').textContent = stats ? String(stats.wins || 0) : '0';
-    $('kpi-losses').textContent = stats ? String(stats.losses || 0) : '0';
+    $('kpi-resolved').textContent = String(resolved.length);
+    $('kpi-wins').textContent = String(wins.length);
+    $('kpi-losses').textContent = String(losses.length);
     $('kpi-win-rate').textContent = stats ? fmtPct(stats.winRate) : '0%';
-    $('kpi-avg-r').textContent = stats ? fmtNumber(stats.avgR, 2) : '0.00';
     $('kpi-expectancy').textContent = stats ? fmtNumber(stats.expectancy, 2) : '0.00';
     $('kpi-process').textContent = stats ? fmtNumber(stats.processAdherence, 1) : '0.0';
 
-    var resolved = stats ? (stats.resolvedAttempts || 0) : 0;
+    if ($('kpi-tp1-rate')) $('kpi-tp1-rate').textContent = stats && stats.tp1HitRate != null ? fmtPct(stats.tp1HitRate) : '--';
+    if ($('kpi-tp2-rate')) $('kpi-tp2-rate').textContent = stats && stats.tp2HitRate != null ? fmtPct(stats.tp2HitRate) : '--';
+    if ($('kpi-tp3-rate')) $('kpi-tp3-rate').textContent = stats && stats.tp3HitRate != null ? fmtPct(stats.tp3HitRate) : '--';
+
+    var totalR = resolved.reduce(function (sum, a) { return sum + (a.resolution.rMultiple || 0); }, 0);
+    var totalREl = $('kpi-total-r');
+    if (totalREl) {
+      totalREl.textContent = fmtNumber(totalR, 2);
+      totalREl.style.color = totalR > 0 ? '#22c55e' : (totalR < 0 ? '#ef4444' : '');
+    }
+
+    var rValues = resolved.map(function (a) { return a.resolution.rMultiple || 0; });
+    var bestREl = $('kpi-best-r');
+    var worstREl = $('kpi-worst-r');
+    if (bestREl) {
+      if (rValues.length) {
+        var best = Math.max.apply(null, rValues);
+        bestREl.textContent = '+' + fmtNumber(best, 2) + 'R';
+        bestREl.style.color = '#22c55e';
+      } else {
+        bestREl.textContent = '--';
+        bestREl.style.color = '';
+      }
+    }
+    if (worstREl) {
+      if (rValues.length) {
+        var worst = Math.min.apply(null, rValues);
+        worstREl.textContent = fmtNumber(worst, 2) + 'R';
+        worstREl.style.color = '#ef4444';
+      } else {
+        worstREl.textContent = '--';
+        worstREl.style.color = '';
+      }
+    }
+
+    var avgBarsWinEl = $('kpi-avg-bars-win');
+    var avgBarsLoseEl = $('kpi-avg-bars-lose');
+    if (avgBarsWinEl) {
+      if (wins.length) {
+        var winBarsTotal = wins.reduce(function (s, a) { return s + (a.resolution.barsHeld || 0); }, 0);
+        avgBarsWinEl.textContent = fmtNumber(winBarsTotal / wins.length, 1);
+      } else {
+        avgBarsWinEl.textContent = '--';
+      }
+    }
+    if (avgBarsLoseEl) {
+      if (losses.length) {
+        var lossBarsTotal = losses.reduce(function (s, a) { return s + (a.resolution.barsHeld || 0); }, 0);
+        avgBarsLoseEl.textContent = fmtNumber(lossBarsTotal / losses.length, 1);
+      } else {
+        avgBarsLoseEl.textContent = '--';
+      }
+    }
+
+    var winStreakEl = $('kpi-win-streak');
+    var lossStreakEl = $('kpi-loss-streak');
+    if (winStreakEl || lossStreakEl) {
+      var maxWinStreak = 0, maxLossStreak = 0, curWin = 0, curLoss = 0;
+      resolved.forEach(function (a) {
+        if ((a.resolution.rMultiple || 0) > 0) {
+          curWin++; curLoss = 0;
+          if (curWin > maxWinStreak) maxWinStreak = curWin;
+        } else {
+          curLoss++; curWin = 0;
+          if (curLoss > maxLossStreak) maxLossStreak = curLoss;
+        }
+      });
+      if (winStreakEl) winStreakEl.textContent = resolved.length ? String(maxWinStreak) : '--';
+      if (lossStreakEl) lossStreakEl.textContent = resolved.length ? String(maxLossStreak) : '--';
+    }
+
+    var resolvedCount = stats ? (stats.resolvedAttempts || 0) : 0;
     var confEl = $('kpi-confidence');
     if (confEl) {
-      if (resolved >= 200) {
+      if (resolvedCount >= 200) {
         confEl.textContent = 'HIGH — statistically meaningful';
         confEl.style.color = '#22c55e';
-      } else if (resolved >= 50) {
-        confEl.textContent = 'MEDIUM — emerging pattern (' + resolved + '/200)';
+      } else if (resolvedCount >= 50) {
+        confEl.textContent = 'MEDIUM — emerging pattern (' + resolvedCount + '/200)';
         confEl.style.color = '#f59e0b';
       } else {
-        confEl.textContent = 'LOW — not yet meaningful (' + resolved + '/50)';
+        confEl.textContent = 'LOW — not yet meaningful (' + resolvedCount + '/50)';
         confEl.style.color = '#ef4444';
       }
     }
@@ -731,8 +1361,24 @@
       badge.className = 'tag good';
       badge.textContent = 'Ready';
     }
+
+    var titleEl = $('session-scoreboard-title');
+    var subtitleEl = $('session-scoreboard-subtitle');
+    if (state.activeSession) {
+      var isEnded = !!state.activeSession.endedAt;
+      if (titleEl) titleEl.textContent = isEnded ? 'Session Review' : 'Active Session';
+      if (subtitleEl) subtitleEl.textContent =
+        state.activeSession.contractId + ' · ' +
+        sessionTemplateSummary(activeSessionTemplate()) +
+        ' · ' + fmtDate(state.activeSession.startedAt) +
+        (isEnded ? ' — ' + fmtDate(state.activeSession.endedAt) : '');
+    } else {
+      if (titleEl) titleEl.textContent = 'Session Scoreboard';
+      if (subtitleEl) subtitleEl.textContent = 'No session loaded.';
+    }
+
     $('session-status').textContent = state.activeSession
-      ? 'Session ' + state.activeSession.sessionId.slice(0, 8) + ' on ' + state.activeSession.contractId
+      ? ('Session ' + state.activeSession.sessionId.slice(0, 8) + ' on ' + state.activeSession.contractId + ' · ' + sessionTemplateSummary(activeSessionTemplate()))
       : 'No active session.';
   }
 
@@ -815,6 +1461,8 @@
             '<td><span style="' + resultStyle + '">' + resultLabel + '</span></td>' +
             '<td>' + (attempt.resolution ? attempt.resolution.exitReason : '--') + '</td>' +
             '<td>' + (attempt.resolution ? fmtNumber(attempt.resolution.rMultiple, 2) : '--') + '</td>' +
+            '<td>' + (attempt.resolution && attempt.resolution.tp2 ? (attempt.resolution.tp2.hit ? '<span style="color:#22c55e;">✓</span>' : '<span style="color:#ef4444;">✗</span>') : '--') + '</td>' +
+            '<td>' + (attempt.resolution && attempt.resolution.tp3 ? (attempt.resolution.tp3.hit ? '<span style="color:#22c55e;">✓</span>' : '<span style="color:#ef4444;">✗</span>') : '--') + '</td>' +
             '<td>' + (attempt.scoreSnapshot ? fmtNumber(attempt.scoreSnapshot.processScore, 1) : '--') + '</td>' +
             '<td>' + (attempt.scoreSnapshot ? fmtNumber(attempt.scoreSnapshot.compositeScore, 1) : '--') + '</td>' +
           '</tr>'
@@ -825,13 +1473,160 @@
 
   function renderLatestAttempt() {
     const attempt = state.latestAttempt;
-    $('result-status').textContent = attempt ? attempt.status.toUpperCase() : '--';
-    $('result-exit').textContent = attempt && attempt.resolution ? attempt.resolution.exitReason : '--';
-    $('result-bars-held').textContent = attempt && attempt.resolution ? String(attempt.resolution.barsHeld) : '--';
-    $('result-r').textContent = attempt && attempt.resolution ? fmtNumber(attempt.resolution.rMultiple, 2) : '--';
-    $('result-process').textContent = attempt && attempt.scoreSnapshot ? fmtNumber(attempt.scoreSnapshot.processScore, 1) : '--';
-    $('result-composite').textContent = attempt && attempt.scoreSnapshot ? fmtNumber(attempt.scoreSnapshot.compositeScore, 1) : '--';
+    const exitEl = $('result-exit');
+    const barsEl = $('result-bars-held');
+    const rEl = $('result-r');
+    if (exitEl) exitEl.textContent = attempt && attempt.resolution ? attempt.resolution.exitReason : '--';
+    if (barsEl) barsEl.textContent = attempt && attempt.resolution ? String(attempt.resolution.barsHeld) : '--';
+    if (rEl) rEl.textContent = attempt && attempt.resolution ? fmtNumber(attempt.resolution.rMultiple, 2) : '--';
     updateChartMeta();
+  }
+
+  // ── Outcome banner ──────────────────────────────────────────────────────────
+  function showOutcomeBanner(exitReason, rMultiple, barsHeld, resolution) {
+    const banner = $('outcome-banner');
+    const textEl = $('outcome-banner-text');
+    const detailEl = $('outcome-banner-detail');
+    if (!banner || !textEl) return;
+
+    let label = '';
+    let bg = '';
+    let fg = '#fff';
+    if (exitReason === 'tp_hit') {
+      label = 'TP1 HIT';
+      bg = '#16a34a';
+    } else if (exitReason === 'sl_hit') {
+      label = 'STOP LOSS HIT';
+      bg = '#dc2626';
+    } else if (exitReason === 'time_stop') {
+      label = 'TIME STOP';
+      bg = '#d97706';
+    } else if (exitReason === 'no_fill') {
+      label = 'ENTRY NEVER FILLED';
+      bg = '#6b7280';
+    } else {
+      label = String(exitReason || 'RESOLVED').toUpperCase();
+      bg = '#6b7280';
+    }
+
+    textEl.textContent = label;
+    if (detailEl) {
+      const parts = [];
+      if (Number.isFinite(rMultiple)) parts.push((rMultiple >= 0 ? '+' : '') + fmtNumber(rMultiple, 2) + 'R');
+      if (Number.isFinite(barsHeld) && barsHeld > 0) parts.push(barsHeld + ' bars');
+      if (resolution) {
+        if (resolution.tp2 && resolution.tp2.hit) parts.push('TP2 ✓');
+        else if (resolution.tp2) parts.push('TP2 ✗');
+        if (resolution.tp3 && resolution.tp3.hit) parts.push('TP3 ✓');
+        else if (resolution.tp3) parts.push('TP3 ✗');
+      }
+      detailEl.textContent = parts.join(' · ');
+    }
+    banner.style.background = bg;
+    banner.style.color = fg;
+    banner.style.display = 'block';
+    banner.style.opacity = '1';
+  }
+
+  function hideOutcomeBanner() {
+    const banner = $('outcome-banner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  // ── Animated walk to resolution ─────────────────────────────────────────────
+  state.resolutionAnimTimerId = null;
+
+  function stopResolutionAnim() {
+    if (state.resolutionAnimTimerId != null) {
+      clearInterval(state.resolutionAnimTimerId);
+      state.resolutionAnimTimerId = null;
+    }
+  }
+
+  function isAnimatingResolution() {
+    return state.resolutionAnimTimerId != null;
+  }
+
+  function animateToResolution(serverResult, onComplete) {
+    stopPlay();
+    stopResolutionAnim();
+    hideOutcomeBanner();
+
+    const attempt = serverResult.attempt;
+    const resolution = attempt && attempt.resolution;
+    if (!resolution) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    const targetIndex = Math.min(
+      Number(resolution.exitBarIndex) || state.cutoffIndex,
+      state.fullBars.length - 1
+    );
+    const entryFillIndex = resolution.entryHit ? Number(resolution.entryBarIndex) : -1;
+    const totalSteps = targetIndex - state.cutoffIndex;
+
+    if (totalSteps <= 0) {
+      state.latestAttempt = attempt;
+      renderLatestAttempt();
+      renderChart();
+      focusChartOnRevealedBars();
+      showOutcomeBanner(resolution.exitReason, resolution.rMultiple, resolution.barsHeld, resolution);
+      if (onComplete) onComplete();
+      return;
+    }
+
+    const speed = selectedPlaySpeed();
+    const baseInterval = intervalForSpeed(speed);
+    const interval = totalSteps > 60 ? Math.min(baseInterval, 80) : baseInterval;
+
+    const runBtn = $('btn-run-attempt');
+    if (runBtn) {
+      runBtn.textContent = 'Stop';
+      runBtn.disabled = false;
+      runBtn.classList.remove('opacity-50');
+    }
+
+    let entryAnnounced = false;
+
+    state.resolutionAnimTimerId = setInterval(function () {
+      if (state.cutoffIndex >= targetIndex) {
+        stopResolutionAnim();
+        state.latestAttempt = attempt;
+        renderLatestAttempt();
+        renderChart();
+        focusChartOnRevealedBars();
+        showOutcomeBanner(resolution.exitReason, resolution.rMultiple, resolution.barsHeld, resolution);
+
+        if (runBtn) {
+          runBtn.textContent = 'Run Trade';
+          runBtn.disabled = true;
+          runBtn.classList.add('opacity-50');
+        }
+        var tpParts = [];
+        if (resolution.tp2) tpParts.push('TP2:' + (resolution.tp2.hit ? '✓' : '✗'));
+        if (resolution.tp3) tpParts.push('TP3:' + (resolution.tp3.hit ? '✓' : '✗'));
+        var tpSuffix = tpParts.length ? ' | ' + tpParts.join(' ') : '';
+        setStatus(
+          'Attempt saved — ' + resolution.exitReason.replace(/_/g, ' ').toUpperCase() +
+          ' at ' + fmtNumber(resolution.exitPrice, 2) +
+          ' (' + (resolution.rMultiple >= 0 ? '+' : '') + fmtNumber(resolution.rMultiple, 2) + 'R, ' +
+          resolution.barsHeld + ' bars).' + tpSuffix,
+          resolution.exitReason === 'tp_hit' ? 'good' : 'bad'
+        );
+
+        if (onComplete) onComplete();
+        return;
+      }
+
+      const nextIndex = Math.min(state.cutoffIndex + 1, targetIndex);
+      setCutoffIndex(nextIndex, { preserveDrawings: true, preserveAttempt: true, focusMode: 'none' });
+
+      if (!entryAnnounced && entryFillIndex >= 0 && state.cutoffIndex >= entryFillIndex) {
+        entryAnnounced = true;
+        setStatus('Entry filled at ' + fmtNumber(attempt.entry, 2) + '. Walking forward...', 'good');
+      }
+    }, interval);
   }
 
   async function renderAggregateStats() {
@@ -895,6 +1690,114 @@
     }
   }
 
+  async function renderBacktestReport() {
+    const contract = activeContract();
+    if (!contract) return;
+    try {
+      const report = await api('/api/training/report?contractId=' + encodeURIComponent(contract.id));
+      const scope = report && report.scope ? report.scope : {};
+      const trades = report && report.trades_summary ? report.trades_summary : {};
+      const risk = report && report.risk_summary ? report.risk_summary : {};
+      const discipline = report && report.discipline_summary ? report.discipline_summary : {};
+      const confidence = report && report.confidence ? report.confidence : {};
+      const breakdowns = report && report.breakdowns ? report.breakdowns : {};
+      const topExit = Array.isArray(breakdowns.exit_reasons) && breakdowns.exit_reasons.length ? breakdowns.exit_reasons[0] : null;
+      const confidenceTone = confidence.label === 'HIGH'
+        ? '#22c55e'
+        : confidence.label === 'MEDIUM'
+          ? '#f59e0b'
+          : '#ef4444';
+
+      $('aggregate-stats').textContent = 'Contract backtest: ' +
+        String(scope.attempts || 0) + ' attempts, ' +
+        String(scope.filledTrades || 0) + ' filled, ' +
+        fmtNumber(trades.expectancy_R || 0, 2) + 'R expectancy, ' +
+        fmtNumber(trades.profit_factor || 0, 2) + ' PF, ' +
+        fmtNumber(risk.max_drawdown_R || 0, 2) + 'R max DD';
+
+      $('backtest-report-summary').textContent =
+        (contract.name || contract.id) + ' · ' +
+        String(scope.filledTrades || 0) + ' filled trades · ' +
+        fmtNumber(trades.expectancy_R || 0, 2) + 'R expectancy · ' +
+        fmtNumber(trades.profit_factor || 0, 2) + ' PF';
+
+      $('backtest-report-note').textContent = topExit
+        ? 'Most common exit path: ' + topExit.key + ' (' + fmtPct((topExit.pct || 0) * 100) + '). ' + (confidence.message || '')
+        : (confidence.message || 'Record more attempts to build a discretionary edge report.');
+
+      $('report-scope').textContent = String(scope.sessions || 0) + ' sessions / ' + String(scope.attempts || 0) + ' attempts';
+      $('report-qualified').textContent = String(scope.qualifiedAttempts || 0);
+      $('report-filled').textContent = String(scope.filledTrades || 0);
+      $('report-no-fill').textContent = String(scope.noFillTrades || 0);
+      $('report-pass-rate').textContent = fmtPct((discipline.contract_pass_rate || 0) * 100);
+      $('report-win-rate').textContent = fmtPct((trades.win_rate || 0) * 100);
+      $('report-expectancy').textContent = fmtNumber(trades.expectancy_R || 0, 2) + 'R';
+      $('report-profit-factor').textContent = fmtNumber(trades.profit_factor || 0, 2);
+      $('report-payoff').textContent = fmtNumber(trades.payoff_ratio || 0, 2);
+      $('report-max-dd-r').textContent = fmtNumber(risk.max_drawdown_R || 0, 2) + 'R';
+      $('report-max-dd-pct').textContent = fmtPct(risk.max_drawdown_pct || 0);
+      $('report-loss-streak').textContent = String(risk.longest_losing_streak || 0);
+      $('report-avg-hold').textContent = fmtNumber(trades.avg_hold_bars || 0, 1) + ' bars';
+      $('report-process').textContent = fmtNumber(discipline.process_adherence || 0, 1);
+      $('report-reward-risk').textContent = fmtNumber(discipline.avg_reward_risk || 0, 2);
+      $('report-risk-pct').textContent = fmtPct(discipline.avg_risk_pct || 0);
+
+      $('contract-kpi-attempts').textContent = String(scope.attempts || 0);
+      $('contract-kpi-resolved').textContent = String(scope.resolvedAttempts || 0);
+      $('contract-kpi-wins').textContent = String(trades.winners || 0);
+      $('contract-kpi-losses').textContent = String(trades.losers || 0);
+      $('contract-kpi-win-rate').textContent = fmtPct((trades.win_rate || 0) * 100);
+      $('contract-kpi-avg-r').textContent = fmtNumber(trades.expectancy_R || 0, 2);
+      $('contract-kpi-expectancy').textContent = fmtNumber(trades.expectancy_R || 0, 2);
+      $('contract-kpi-process').textContent = fmtNumber(discipline.process_adherence || 0, 1);
+      $('contract-kpi-sessions').textContent = String(scope.sessions || 0);
+      $('contract-kpi-composite').textContent = fmtNumber(discipline.composite_score_avg || 0, 1);
+      $('contract-stats-badge').textContent = (contract.name || contract.id) + ' · Semantic Backtest';
+
+      const contractConfidenceEl = $('contract-kpi-confidence');
+      if (contractConfidenceEl) {
+        contractConfidenceEl.textContent = (confidence.label || 'LOW') + ' · ' + (confidence.message || 'No resolved trades yet.');
+        contractConfidenceEl.style.color = confidenceTone;
+      }
+    } catch (error) {
+      $('aggregate-stats').textContent = error.message;
+      [
+        'contract-kpi-attempts',
+        'contract-kpi-resolved',
+        'contract-kpi-wins',
+        'contract-kpi-losses',
+        'contract-kpi-win-rate',
+        'contract-kpi-avg-r',
+        'contract-kpi-expectancy',
+        'contract-kpi-process',
+        'contract-kpi-sessions',
+        'contract-kpi-composite',
+        'contract-kpi-confidence',
+        'report-scope',
+        'report-qualified',
+        'report-filled',
+        'report-no-fill',
+        'report-pass-rate',
+        'report-win-rate',
+        'report-expectancy',
+        'report-profit-factor',
+        'report-payoff',
+        'report-max-dd-r',
+        'report-max-dd-pct',
+        'report-loss-streak',
+        'report-avg-hold',
+        'report-process',
+        'report-reward-risk',
+        'report-risk-pct',
+      ].forEach(function (id) {
+        const el = $(id);
+        if (el) el.textContent = '--';
+      });
+      $('backtest-report-summary').textContent = error.message;
+      $('backtest-report-note').textContent = 'Could not load the contract backtest report.';
+    }
+  }
+
   function populateBarSelectors() {
     const entryBarSelect = $('entry-bar');
     const priorEntryBar = entryBarSelect.value;
@@ -947,6 +1850,7 @@
     if (forwardFiveButton) forwardFiveButton.disabled = !hasBars || state.cutoffIndex >= state.fullBars.length - 1;
     if (triggerButton) triggerButton.disabled = !hasBars;
     if (endButton) endButton.disabled = !hasBars || state.cutoffIndex >= state.fullBars.length - 1;
+    if (typeof refreshPlayButtonStates === 'function') refreshPlayButtonStates();
 
     if (!el) return;
     if (!hasBars) {
@@ -982,23 +1886,27 @@
     if (!opts.preserveDrawings && state.drawingTools && typeof state.drawingTools.clear === 'function') {
       state.drawingTools.clear();
     }
-    state.latestAttempt = null;
+    if (!opts.preserveAttempt) {
+      state.latestAttempt = null;
+    }
     populateBarSelectors();
     updateIndicatorContext();
-    renderLatestAttempt();
+    if (!opts.preserveAttempt) renderLatestAttempt();
     renderChart();
     if (opts.focusMode === 'revealed') {
       focusChartOnRevealedBars();
-    } else {
+    } else if (opts.focusMode !== 'none') {
       focusChartOnBaseRange();
     }
-    markValidationDirty();
+    if (!opts.preserveAttempt) markValidationDirty();
     updateReplayProgress();
   }
 
   function applyCutoff(time) {
     if (!state.fullBars.length) return;
-    setCutoffIndex(nearestBarIndexForDate(time));
+    // Keep the replay edge in view when the user jumps to a date; fitting the
+    // entire history makes dense forex series look like collapsed OHLC bars.
+    setCutoffIndex(nearestBarIndexForDate(time), { focusMode: 'revealed' });
   }
 
   function stepReplay(delta) {
@@ -1008,7 +1916,7 @@
       updateReplayProgress();
       return false;
     }
-    setCutoffIndex(nextIndex, { preserveDrawings: true, focusMode: 'revealed' });
+    setCutoffIndex(nextIndex, { preserveDrawings: true, focusMode: 'none' });
     return true;
   }
 
@@ -1020,6 +1928,89 @@
     }
     setCutoffIndex(state.fullBars.length - 1, { preserveDrawings: true, focusMode: 'revealed' });
     return true;
+  }
+
+  // ── Auto-play (market-replay) ─────────────────────────────────────────────
+  // Walks the cutoff one bar at a time at a configurable rate so the user can
+  // watch the chart "play forward" like a live tape. 1×/5×/10× control the
+  // bars-per-second rate. Direction is +1 (forward) or −1 (rewind). Always
+  // single-tracked: starting one direction stops the other.
+  state.playTimerId = null;
+  state.playDirection = 0;
+  const PLAY_INTERVALS_MS = { 1: 1500, 5: 400, 10: 150 };
+
+  function selectedPlaySpeed() {
+    var sel = $('replay-speed');
+    var raw = sel ? Number(sel.value) : 1;
+    return PLAY_INTERVALS_MS[raw] ? raw : 1;
+  }
+
+  function intervalForSpeed(speed) {
+    return PLAY_INTERVALS_MS[speed] || PLAY_INTERVALS_MS[1];
+  }
+
+  function isPlaying() { return state.playTimerId != null; }
+
+  function stopPlay(reason) {
+    if (state.playTimerId != null) {
+      clearInterval(state.playTimerId);
+      state.playTimerId = null;
+    }
+    state.playDirection = 0;
+    refreshPlayButtonStates();
+    if (reason) setStatus(reason, 'good');
+  }
+
+  function startPlay(direction) {
+    if (!state.fullBars.length || state.cutoffIndex < 0) {
+      setStatus('Load a scenario before pressing Play.', 'bad');
+      return;
+    }
+    if (direction > 0 && state.cutoffIndex >= state.fullBars.length - 1) {
+      setStatus('Already at the end of the replay.', 'bad');
+      return;
+    }
+    if (direction < 0 && state.cutoffIndex <= 0) {
+      setStatus('Already at the first available bar.', 'bad');
+      return;
+    }
+    if (state.playTimerId != null) clearInterval(state.playTimerId);
+    state.playDirection = direction > 0 ? 1 : -1;
+    var speed = selectedPlaySpeed();
+    state.playTimerId = setInterval(function () {
+      var ok = stepReplay(state.playDirection);
+      if (!ok) {
+        stopPlay(state.playDirection > 0 ? 'Reached the end of the replay.' : 'Reached the first available bar.');
+      }
+    }, intervalForSpeed(speed));
+    refreshPlayButtonStates();
+    setStatus((state.playDirection > 0 ? 'Playing forward' : 'Rewinding') + ' at ' + speed + '× speed.', 'good');
+  }
+
+  function togglePlayForward() {
+    if (state.playDirection > 0) { stopPlay('Paused.'); return; }
+    startPlay(1);
+  }
+
+  function togglePlayBackward() {
+    if (state.playDirection < 0) { stopPlay('Paused.'); return; }
+    startPlay(-1);
+  }
+
+  function refreshPlayButtonStates() {
+    var fwd = $('btn-play-forward');
+    var rev = $('btn-play-backward');
+    var hasBars = !!state.fullBars.length && state.cutoffIndex >= 0;
+    if (fwd) {
+      fwd.textContent = state.playDirection > 0 ? '⏸' : '▶';
+      fwd.disabled = !hasBars || state.cutoffIndex >= state.fullBars.length - 1;
+      fwd.title = state.playDirection > 0 ? 'Pause' : 'Play forward at the selected speed';
+    }
+    if (rev) {
+      rev.textContent = state.playDirection < 0 ? '⏸' : '◀';
+      rev.disabled = !hasBars || state.cutoffIndex <= 0;
+      rev.title = state.playDirection < 0 ? 'Pause' : 'Play backward (rewind) at the selected speed';
+    }
   }
 
   function activeReplayTriggerConfig() {
@@ -1128,24 +2119,59 @@
     focusChartOnBaseRange();
   }
 
+  function computeAtrAtCutoff(length) {
+    const bars = Array.isArray(state.fullBars) ? state.fullBars : [];
+    const endIndex = Number(state.cutoffIndex);
+    const lookback = Math.max(2, Number(length) || 14);
+    if (!bars.length || endIndex <= 0) return null;
+    const start = Math.max(1, endIndex - lookback + 1);
+    let trSum = 0;
+    let count = 0;
+    for (let i = start; i <= endIndex; i += 1) {
+      const bar = bars[i];
+      const prev = bars[i - 1];
+      if (!bar || !prev) continue;
+      const high = Number(bar.high);
+      const low = Number(bar.low);
+      const prevClose = Number(prev.close);
+      if (!Number.isFinite(high) || !Number.isFinite(low) || !Number.isFinite(prevClose)) continue;
+      const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+      if (!Number.isFinite(tr)) continue;
+      trSum += tr;
+      count += 1;
+    }
+    return count ? trSum / count : null;
+  }
+
+  function currentRiskTemplate() {
+    const template = activeSessionTemplate() || {};
+    return {
+      retracementPct: Number(template.retracementPct || 78.6),
+      stopAtrMultiple: Number(template.stopAtrMultiple || 2),
+      targetRMultiple: Number(template.targetRMultiple || 2),
+    };
+  }
+
   function seedLevelsFromBox() {
-    const contract = activeContract();
     const side = currentSide();
     const top = Number($('box-top').value);
     const bottom = Number($('box-bottom').value);
     if (!Number.isFinite(top) || !Number.isFinite(bottom)) return;
+    const contract = activeContract();
+    const template = currentRiskTemplate();
+    const atr = computeAtrAtCutoff(14);
 
     let entry;
     let stop;
     let takeProfit;
     if (side === 'long') {
       entry = top;
-      stop = bottom;
-      takeProfit = entry + (entry - stop) * 2;
+      stop = Number.isFinite(atr) ? entry - (atr * template.stopAtrMultiple) : bottom;
+      takeProfit = entry + Math.abs(entry - stop) * template.targetRMultiple;
     } else {
       entry = bottom;
-      stop = top;
-      takeProfit = entry - (stop - entry) * 2;
+      stop = Number.isFinite(atr) ? entry + (atr * template.stopAtrMultiple) : top;
+      takeProfit = entry - Math.abs(stop - entry) * template.targetRMultiple;
     }
     $('entry-price').value = fmtNumber(entry, 2);
     $('stop-price').value = fmtNumber(stop, 2);
@@ -1153,6 +2179,7 @@
     if (contract && contract.simulation && contract.simulation.maxHoldBars != null) {
       $('max-hold').value = String(contract.simulation.maxHoldBars);
     }
+    markValidationDirty();
     updateChartMeta();
     renderChart();
     updateForwardGate();
@@ -1160,25 +2187,53 @@
 
   function seedLevelsFromFib() {
     const contract = activeContract();
-    const side = currentSide();
     const drawing = normalizedFibDrawing();
     if (!drawing) return;
+    const template = activeSessionTemplate() || {};
+    const atr = computeAtrAtCutoff(14);
 
-    const price1 = Number(drawing.price);
-    const price2 = Number(drawing.price2);
-    const fibEntry = price1 + (price2 - price1) * 0.786;
-    const top = Math.max(price1, price2);
-    const bottom = Math.min(price1, price2);
-    let entry = fibEntry;
-    let stop = bottom;
-    let takeProfit = top;
-    if (side === 'short') {
-      entry = fibEntry;
-      stop = top;
-      takeProfit = Math.min(bottom, entry - (stop - entry) * 2);
-    } else {
-      takeProfit = Math.max(top, entry + (entry - stop) * 2);
+    // Fib coordinates: price1 = 0% level, price2 = 100% level.
+    // For a long pullback the user draws from prior HIGH (0%) down to pullback LOW (100%).
+    // For a short pullback the user draws from prior LOW (0%) up to pullback HIGH (100%).
+    const price0 = Number(drawing.price);
+    const price100 = Number(drawing.price2);
+    const range = Math.abs(price100 - price0);
+    if (range === 0) return;
+
+    // Determine trade side. Respect the user's manual toggle if set;
+    // otherwise infer from Fib direction (high→low = long pullback, low→high = short).
+    var userSide = currentSide();
+    var inferredSide = price0 > price100 ? 'long' : 'short';
+
+    // If the user's toggle disagrees with the Fib direction, swap the Fib
+    // interpretation so price0/price100 semantics stay consistent.
+    var effectivePrice0 = price0;
+    var effectivePrice100 = price100;
+    if (userSide !== inferredSide) {
+      effectivePrice0 = price100;
+      effectivePrice100 = price0;
     }
+    setDirection(userSide);
+
+    // Entry at the selected Fib level (61.8% or 78.6%)
+    const entryLevel = Math.max(0.01, Math.min(0.99, Number(template.retracementPct || 78.6) / 100));
+    const entry = effectivePrice0 + (effectivePrice100 - effectivePrice0) * entryLevel;
+
+    // Take profit at the 0% level (the prior structural high/low)
+    const takeProfit = effectivePrice0;
+
+    // Stop: 1 ATR beyond the 100% level (away from 0%)
+    var stop;
+    if (Number.isFinite(atr)) {
+      var dir = Math.sign(effectivePrice100 - effectivePrice0);
+      stop = effectivePrice100 + dir * atr;
+    } else {
+      stop = effectivePrice100 + (effectivePrice100 - effectivePrice0) * 0.05;
+    }
+
+    var riskAmt = Math.abs(entry - stop);
+    var rewardAmt = Math.abs(takeProfit - entry);
+    var impliedR = riskAmt > 0 ? (rewardAmt / riskAmt) : 0;
 
     $('entry-price').value = fmtNumber(entry, 2);
     $('stop-price').value = fmtNumber(stop, 2);
@@ -1186,6 +2241,12 @@
     if (contract && contract.simulation && contract.simulation.maxHoldBars != null) {
       $('max-hold').value = String(contract.simulation.maxHoldBars);
     }
+    setStatus(
+      'Fib seeded — entry at ' + fmtNumber(entryLevel * 100, 1) + '%, '
+      + 'stop 1 ATR past 100%, TP at 0%. Implied R:R = 1:' + fmtNumber(impliedR, 1),
+      'good'
+    );
+    markValidationDirty();
     updateChartMeta();
     renderChart();
     updateForwardGate();
@@ -1195,6 +2256,7 @@
     if (!state.activeSession) throw new Error('Start a session first.');
     const contract = activeContract();
     if (!contract) throw new Error('Select a contract first.');
+    const sessionTemplate = activeSessionTemplate() || {};
     const entry = parseOptionalNumber($('entry-price').value);
     const stop = parseOptionalNumber($('stop-price').value);
     const takeProfit = parseOptionalNumber($('tp-price').value);
@@ -1203,6 +2265,39 @@
     }
     const startIndex = state.cutoffIndex;
     const cutoffBarPayload = state.fullBars[startIndex];
+    const generatedThesis = [
+      sessionTemplate.family || state.semanticDraft.setupFamily || '',
+      sessionTemplate.strategyVariant || '',
+      sessionTemplate.entryModel || '',
+      sessionTemplate.family === 'pullback' && Number.isFinite(Number(sessionTemplate.retracementPct))
+        ? ('Entry @ ' + fmtNumber(sessionTemplate.retracementPct, 1) + '% Fib')
+        : '',
+      sessionTemplate.indicatorSet && sessionTemplate.indicatorSet.length
+        ? ('Indicators: ' + sessionTemplate.indicatorSet.join(', '))
+        : '',
+    ].filter(Boolean).join(' | ');
+    const generatedInvalidation = Number.isFinite(stop)
+      ? ('Trade invalid if price hits the ' + fmtNumber(Number(sessionTemplate.stopAtrMultiple || 2), 1) + ' ATR stop at ' + fmtNumber(stop, 5) + '.')
+      : '';
+    const generatedManagementPlan = [
+      'System-managed attempt.',
+      'Initial stop: ATR x' + fmtNumber(Number(sessionTemplate.stopAtrMultiple || 2), 1) + '.',
+      'Target: ' + fmtNumber(Number(sessionTemplate.targetRMultiple || 2), 1) + 'R.',
+    ].join(' ');
+    const semanticDeclaration = {
+      schemaVersion: 'v1',
+      setupFamily: sessionTemplate.family || state.semanticDraft.setupFamily || '',
+      thesis: state.semanticDraft.thesis || generatedThesis,
+      notes: state.semanticDraft.notes || '',
+      invalidation: state.semanticDraft.invalidation || generatedInvalidation,
+      side: currentSide(),
+      confidence: sessionTemplate.confidence || state.semanticDraft.confidence || '',
+      managementPlan: state.semanticDraft.managementPlan || generatedManagementPlan,
+      setupTags: Array.isArray(state.semanticDraft.setupTags) ? state.semanticDraft.setupTags.slice() : [],
+      contextTags: Array.isArray(state.semanticDraft.contextTags) ? state.semanticDraft.contextTags.slice() : [],
+      managementTags: Array.isArray(state.semanticDraft.managementTags) ? state.semanticDraft.managementTags.slice() : [],
+      chartSnapshotRef: null,
+    };
     return {
       sessionId: state.activeSession.sessionId,
       contractId: contract.id,
@@ -1212,13 +2307,17 @@
       entry: entry,
       stop: stop,
       takeProfit: takeProfit,
+      takeProfit2: parseOptionalNumber($('tp2-price').value) || undefined,
+      takeProfit3: parseOptionalNumber($('tp3-price').value) || undefined,
       riskPct: Number($('risk-pct').value),
       entryBarIndex: startIndex,
       entryBarTime: cutoffBarPayload ? String(cutoffBarPayload.time) : '',
       drawings: currentDrawing(),
+      semanticDeclaration: semanticDeclaration,
       bars: state.fullBars,
       maxHoldBars: Math.max(1, state.fullBars.length - startIndex - 1),
       tieBreakPolicy: $('tie-break').value,
+      entryModel: (activeSessionTemplate() || {}).entryModel || 'touch',
     };
   }
 
@@ -1234,18 +2333,26 @@
     renderRecentSessions();
   }
 
-  function latestOpenSessionForContract(contractId) {
+  function latestOpenSessionForContract(contractId, strategyTemplate) {
     if (!contractId || !Array.isArray(state.sessions)) return null;
+    const targetSignature = normalizedTemplateSignature(strategyTemplate);
     return state.sessions.find(function (session) {
       return session
         && session.contractId === contractId
-        && !session.endedAt;
+        && !session.endedAt
+        && (!targetSignature || normalizedTemplateSignature(session.strategyTemplate) === targetSignature);
     }) || null;
   }
 
   async function loadSession(sessionId) {
     const payload = await api('/api/training/sessions/' + encodeURIComponent(sessionId));
+    const sessionContract = payload.session && payload.session.contractId
+      ? state.contractMap.get(payload.session.contractId)
+      : null;
     state.activeSession = payload.session;
+    state.sessionTemplateDraft = payload.session && payload.session.strategyTemplate
+      ? { ...payload.session.strategyTemplate }
+      : defaultSessionTemplateForContract(sessionContract || activeContract());
     state.attempts = payload.attempts || [];
     state.latestAttempt = state.attempts.length ? state.attempts[state.attempts.length - 1] : null;
     const contractSelect = $('training-contract');
@@ -1259,6 +2366,8 @@
     renderAttempts();
     renderLatestAttempt();
     renderRecentSessions();
+    renderSessionTemplate();
+    renderTradeDeclaration();
     renderChart();
     if (state.latestAttempt && state.latestAttempt.resolution) {
       focusChartOnRevealedBars();
@@ -1269,7 +2378,8 @@
   async function startSession() {
     const contract = activeContract();
     if (!contract) throw new Error('Select a contract first.');
-    const existingOpenSession = latestOpenSessionForContract(contract.id);
+    const strategyTemplate = sanitizeSessionTemplateForContract(contract);
+    const existingOpenSession = latestOpenSessionForContract(contract.id, strategyTemplate);
     if (existingOpenSession) {
       await loadSession(existingOpenSession.sessionId);
       setStatus('Resumed active session for ' + contract.name + '.', 'good');
@@ -1277,18 +2387,22 @@
     }
     const session = await api('/api/training/sessions/start', {
       method: 'POST',
-      body: JSON.stringify({ contractId: contract.id }),
+      body: JSON.stringify({ contractId: contract.id, strategyTemplate: strategyTemplate }),
     });
     state.activeSession = session;
+    state.sessionTemplateDraft = session.strategyTemplate ? { ...session.strategyTemplate } : strategyTemplate;
     state.attempts = [];
     state.latestAttempt = null;
     state.validationDirty = true;
     state.lastValidationReady = false;
+    state.semanticDraft = emptySemanticDraft();
     renderSessionStats();
     renderAttempts();
     renderLatestAttempt();
+    renderSessionTemplate();
+    renderTradeDeclaration();
     await loadSessions();
-    setStatus('Training session started for ' + contract.name + '.', 'good');
+    setStatus('Training session started for ' + contract.name + '. ' + sessionTemplateSummary(strategyTemplate), 'good');
   }
 
   async function endSession() {
@@ -1302,6 +2416,9 @@
   }
 
   async function loadBars(options) {
+    if (typeof stopPlay === 'function') stopPlay();
+    stopResolutionAnim();
+    hideOutcomeBanner();
     const opts = options || {};
     const symbol = $('training-symbol').value.trim().toUpperCase();
     if (!symbol) throw new Error('Enter a symbol first.');
@@ -1309,7 +2426,10 @@
     const preservedReplayMs = preservedReplayDate ? toUnixMillis(preservedReplayDate) : NaN;
     setStatus('Loading bars for ' + symbol + '...', null);
     const data = await api('/api/chart/ohlcv?symbol=' + encodeURIComponent(symbol) + '&interval=' + encodeURIComponent($('training-timeframe').value) + '&period=' + encodeURIComponent($('training-period').value));
-    const nextBars = Array.isArray(data.chart_data) ? data.chart_data : [];
+    const nextBarsRaw = Array.isArray(data.chart_data) ? data.chart_data : [];
+    const nextBars = window.SharedChartUtils && typeof window.SharedChartUtils.sanitizeChartData === 'function'
+      ? window.SharedChartUtils.sanitizeChartData(nextBarsRaw)
+      : nextBarsRaw;
     const earliestBarMs = nextBars.length ? barTimeMs(nextBars[0]) : NaN;
     const latestBarMs = nextBars.length ? barTimeMs(nextBars[nextBars.length - 1]) : NaN;
     const replayOutOfRange = Number.isFinite(preservedReplayMs)
@@ -1317,16 +2437,26 @@
       && Number.isFinite(latestBarMs)
       && (preservedReplayMs < earliestBarMs || preservedReplayMs > latestBarMs);
 
-    if (opts.requireReplayCoverage && replayOutOfRange) {
-      throw new Error(
-        'No ' + $('training-timeframe').value +
-        ' bars are available near ' + preservedReplayDate +
-        '. Available range is ' + toDateOnly(nextBars[0].time) +
-        ' to ' + toDateOnly(nextBars[nextBars.length - 1].time) + '.'
-      );
+    // requireReplayCoverage used to throw here, which blocked the user from
+    // switching timeframe whenever the new timeframe's history didn't reach
+    // back to their saved replay date (intraday timeframes like 4h/1h have far
+    // less history than daily). We now clamp instead: nearestBarIndexForDate
+    // returns the earliest/latest valid bar when the saved date falls outside
+    // the new range, and we surface a non-fatal warning so the user knows the
+    // replay anchor moved.
+    let clampedReplayMessage = '';
+    if (opts.requireReplayCoverage && replayOutOfRange && nextBars.length) {
+      const clampedTo = preservedReplayMs < earliestBarMs
+        ? toDateOnly(nextBars[0].time)
+        : toDateOnly(nextBars[nextBars.length - 1].time);
+      clampedReplayMessage =
+        $('training-timeframe').value + ' history only covers ' +
+        toDateOnly(nextBars[0].time) + ' to ' + toDateOnly(nextBars[nextBars.length - 1].time) +
+        '. Replay anchor moved from ' + preservedReplayDate + ' to ' + clampedTo + '.';
     }
 
     state.fullBars = nextBars;
+
     const desiredCutoffIdx = preservedReplayDate
       ? nearestBarIndexForDate(preservedReplayDate)
       : cutoffIndexFromPreset($('training-scenario-offset').value);
@@ -1339,12 +2469,42 @@
         focusMode: opts.focusMode || 'base',
       }
     );
-    setStatus('Loaded ' + state.fullBars.length + ' bars for ' + symbol + '. Future bars are hidden until validation passes.', 'good');
+    if (clampedReplayMessage) {
+      setStatus(clampedReplayMessage, 'warn');
+    } else {
+      setStatus('Loaded ' + state.fullBars.length + ' bars for ' + symbol + '. Future bars are hidden until validation passes.', 'good');
+    }
   }
 
-  async function fetchSymbolPool() {
+  // Read the asset class chosen in the Browse dropdown (if any). When set to
+  // anything other than "all", the random scenario picker is restricted to
+  // that class so e.g. picking "Forex" + clicking Random gives you a random
+  // forex pair instead of a random stock.
+  function selectedBrowseAssetClass() {
+    var sel = $('tm-browse-asset-class');
+    if (!sel) return '';
+    var v = String(sel.value || '').trim().toLowerCase();
+    return (v === '' || v === 'all') ? '' : v;
+  }
+
+  function browseAssetClassLabel() {
+    var sel = $('tm-browse-asset-class');
+    if (!sel) return '';
+    var opt = sel.options[sel.selectedIndex];
+    return opt ? String(opt.text || '').replace(/\s*\(\d+\)$/, '') : '';
+  }
+
+  async function fetchSymbolPool(assetClass) {
+    var key = String(assetClass || '').trim().toLowerCase();
     try {
       var data = await api('/api/candidates/symbols');
+      // Caller-requested class wins.
+      if (key && key !== 'all') {
+        var classed = Array.isArray(data[key]) ? data[key] : [];
+        if (classed.length) return classed;
+        // Caller asked for a specific class but the library returned nothing —
+        // fall back to "all" so Random still works rather than infinite-looping.
+      }
       var all = Array.isArray(data.all) ? data.all : [];
       if (all.length) return all;
       var pool = [];
@@ -1356,22 +2516,52 @@
     }
   }
 
-  async function loadRandomScenario() {
-    setStatus('Picking a random scenario...', null);
-    var pool = await fetchSymbolPool();
-    var symbol = pool[Math.floor(Math.random() * pool.length)];
+  // Tracks recursion depth across retries so we don't loop forever when the
+  // chosen asset class only has thinly-traded symbols.
+  async function loadRandomScenario(options) {
+    var opts = options || {};
+    var attempts = Number.isFinite(opts._attempts) ? opts._attempts : 0;
+    var MAX_ATTEMPTS = 8;
+    var assetClass = selectedBrowseAssetClass();
+    var classLabel = assetClass ? browseAssetClassLabel() : '';
+    var classNote = classLabel ? ' (' + classLabel + ')' : '';
+
+    setStatus('Picking a random' + classNote + ' scenario...', null);
+    var pool = await fetchSymbolPool(assetClass);
+    if (!pool.length) {
+      setStatus('No symbols available' + classNote + '.', 'bad');
+      return;
+    }
+    // Avoid retrying the same symbol back-to-back when the class is small.
+    var symbol;
+    var triedSet = opts._tried instanceof Set ? opts._tried : new Set();
+    if (triedSet.size >= pool.length) {
+      setStatus('No usable history found in any ' + (classLabel || 'pool') + ' symbol after ' + triedSet.size + ' tries.', 'bad');
+      return;
+    }
+    do {
+      symbol = pool[Math.floor(Math.random() * pool.length)];
+    } while (triedSet.has(symbol) && triedSet.size < pool.length);
+    triedSet.add(symbol);
     $('training-symbol').value = symbol;
     await loadBars({ preserveReplayDate: false });
     if (!state.fullBars.length || state.fullBars.length < 60) {
-      setStatus('Not enough data for ' + symbol + '. Trying another...', null);
-      return loadRandomScenario();
+      if (attempts + 1 >= MAX_ATTEMPTS) {
+        setStatus('Could not find enough history in ' + (classLabel || 'the pool') + ' after ' + (attempts + 1) + ' tries.', 'bad');
+        return;
+      }
+      setStatus('Not enough data for ' + symbol + '. Trying another' + classNote + '...', null);
+      return loadRandomScenario({ _attempts: attempts + 1, _tried: triedSet });
     }
     var minIdx = Math.max(60, Math.floor(state.fullBars.length * 0.15));
     var maxIdx = Math.floor(state.fullBars.length * 0.85);
     var randomIdx = minIdx + Math.floor(Math.random() * (maxIdx - minIdx));
     var randomTime = state.fullBars[randomIdx].time;
-    setCutoffIndex(randomIdx);
-    setStatus('Random scenario: ' + symbol + ' at ' + toDateOnly(randomTime) + '.', 'good');
+    // focusMode 'revealed' zooms the chart to the last ~120 bars and pads the
+    // right with empty space, so the cutoff edge is visually obvious — i.e.
+    // you can SEE that the future is hidden and you have to play/walk forward.
+    setCutoffIndex(randomIdx, { focusMode: 'revealed' });
+    setStatus('Random' + classNote + ' scenario: ' + symbol + ' at ' + toDateOnly(randomTime) + '. Press Play or step forward to advance.', 'good');
   }
 
   function updateIndicatorContext() {
@@ -1398,6 +2588,8 @@
   }
 
   function clearTrainingChart() {
+    stopResolutionAnim();
+    hideOutcomeBanner();
     if (state.drawingTools && typeof state.drawingTools.clear === 'function') {
       state.drawingTools.clear();
     }
@@ -1410,10 +2602,14 @@
     $('entry-price').value = '';
     $('stop-price').value = '';
     $('tp-price').value = '';
+    $('tp2-price').value = '';
+    $('tp3-price').value = '';
+    state.semanticDraft = emptySemanticDraft();
     state.latestAttempt = null;
     markValidationDirty();
     updateChartMeta();
     renderLatestAttempt();
+    renderTradeDeclaration();
     renderChart();
   }
 
@@ -1435,6 +2631,14 @@
   }
 
   async function runAttempt() {
+    if (isAnimatingResolution()) {
+      stopResolutionAnim();
+      const runBtn = $('btn-run-attempt');
+      if (runBtn) { runBtn.textContent = 'Run Trade'; runBtn.disabled = true; runBtn.classList.add('opacity-50'); }
+      setStatus('Resolution animation stopped.', 'good');
+      return;
+    }
+
     const validation = state.validationDirty ? await validateAttempt() : { ready: state.lastValidationReady };
     if (!validation.ready) {
       throw new Error(state.lastValidationMessage || 'The setup failed validation. Fix the trade levels and try again.');
@@ -1445,26 +2649,32 @@
       body: JSON.stringify(payload),
     });
     renderChecklist(result.validation);
-    state.latestAttempt = result.attempt;
-    state.validationDirty = true;
-    state.lastValidationReady = false;
-    await loadSession(result.session.sessionId);
-    renderLatestAttempt();
-    renderChart();
-    focusChartOnRevealedBars();
-    setStatus('Attempt saved with status ' + result.attempt.status + '.', result.attempt.status === 'resolved' ? 'good' : 'bad');
+    setStatus('Walking forward to resolution...', 'good');
 
-    $('entry-price').value = '';
-    $('stop-price').value = '';
-    $('tp-price').value = '';
-    $('box-start').value = '';
-    $('box-end').value = '';
-    $('box-top').value = '';
-    $('box-bottom').value = '';
-    if (state.drawingTools && typeof state.drawingTools.clear === 'function') {
-      state.drawingTools.clear();
-    }
-    updateChartMeta();
+    animateToResolution(result, function () {
+      state.validationDirty = true;
+      state.lastValidationReady = false;
+      loadSession(result.session.sessionId).then(function () {
+        renderLatestAttempt();
+        renderAggregateStats();
+      });
+
+      $('entry-price').value = '';
+      $('stop-price').value = '';
+      $('tp-price').value = '';
+      $('tp2-price').value = '';
+      $('tp3-price').value = '';
+      $('box-start').value = '';
+      $('box-end').value = '';
+      $('box-top').value = '';
+      $('box-bottom').value = '';
+      state.semanticDraft = emptySemanticDraft();
+      if (state.drawingTools && typeof state.drawingTools.clear === 'function') {
+        state.drawingTools.clear();
+      }
+      renderTradeDeclaration();
+      updateChartMeta();
+    });
   }
 
   function bindEvents() {
@@ -1481,6 +2691,8 @@
     });
     $('btn-training-long').addEventListener('click', function () { setDirection('long'); });
     $('btn-training-short').addEventListener('click', function () { setDirection('short'); });
+    if ($('btn-chart-long')) $('btn-chart-long').addEventListener('click', function () { setDirection('long'); });
+    if ($('btn-chart-short')) $('btn-chart-short').addEventListener('click', function () { setDirection('short'); });
     $('btn-start-session').addEventListener('click', function () {
       startSession().catch(function (error) { setStatus(error.message, 'bad'); });
     });
@@ -1488,29 +2700,21 @@
       endSession().catch(function (error) { setStatus(error.message, 'bad'); });
     });
     $('btn-load-bars').addEventListener('click', function () {
-      loadBars().catch(function (error) { setStatus(error.message, 'bad'); });
+      loadBars({ focusMode: 'revealed' }).catch(function (error) { setStatus(error.message, 'bad'); });
     });
+    // Period/timeframe changes ask loadBars to keep the existing replay anchor
+    // (requireReplayCoverage: true). loadBars now clamps the anchor to the new
+    // range with a warning instead of rejecting, so we no longer revert the
+    // selector on error — only true load failures will surface as bad status.
     $('training-period').addEventListener('change', function () {
-      const previousValue = this.dataset.previous || this.value;
       loadBars({ preserveDrawings: true, focusMode: 'revealed', requireReplayCoverage: true })
-        .then(() => {
-          this.dataset.previous = this.value;
-        })
-        .catch((error) => {
-          this.value = previousValue;
-          setStatus(error.message, 'bad');
-        });
+        .then(() => { this.dataset.previous = this.value; })
+        .catch((error) => { setStatus(error.message, 'bad'); });
     });
     $('training-timeframe').addEventListener('change', function () {
-      const previousValue = this.dataset.previous || this.value;
       loadBars({ preserveDrawings: true, focusMode: 'revealed', requireReplayCoverage: true })
-        .then(() => {
-          this.dataset.previous = this.value;
-        })
-        .catch((error) => {
-          this.value = previousValue;
-          setStatus(error.message, 'bad');
-        });
+        .then(() => { this.dataset.previous = this.value; })
+        .catch((error) => { setStatus(error.message, 'bad'); });
     });
     $('training-scenario-offset').addEventListener('change', function () {
       if (!state.fullBars.length) return;
@@ -1522,30 +2726,55 @@
       setStatus('Replay date set to ' + $('training-cutoff').value + '.', 'good');
     });
     $('btn-step-back').addEventListener('click', function () {
+      stopPlay(); stopResolutionAnim(); hideOutcomeBanner();
       setStatus(stepReplay(-1) ? 'Stepped back one bar.' : 'Already at the first available bar.', 'good');
     });
     $('btn-step-forward').addEventListener('click', function () {
+      stopPlay(); stopResolutionAnim(); hideOutcomeBanner();
       setStatus(stepReplay(1) ? 'Stepped forward one bar.' : 'Already at the latest hidden edge.', 'good');
     });
     $('btn-step-forward-5').addEventListener('click', function () {
+      stopPlay(); stopResolutionAnim(); hideOutcomeBanner();
       setStatus(stepReplay(5) ? 'Stepped forward five bars.' : 'Already at the latest hidden edge.', 'good');
     });
     $('btn-step-to-trigger').addEventListener('click', function () {
+      stopPlay(); stopResolutionAnim(); hideOutcomeBanner();
       const result = stepReplayToFibTrigger();
       setStatus(result.message, result.ok ? 'good' : 'bad');
     });
     $('btn-step-to-end').addEventListener('click', function () {
+      stopPlay(); stopResolutionAnim(); hideOutcomeBanner();
       setStatus(jumpReplayToEnd() ? 'Jumped to the end of the replay.' : 'Already at the end of the replay.', 'good');
+    });
+    var playFwdBtn = $('btn-play-forward');
+    if (playFwdBtn) playFwdBtn.addEventListener('click', togglePlayForward);
+    var playRevBtn = $('btn-play-backward');
+    if (playRevBtn) playRevBtn.addEventListener('click', togglePlayBackward);
+    var speedSel = $('replay-speed');
+    if (speedSel) speedSel.addEventListener('change', function () {
+      // If we're playing, restart the timer at the new cadence so the change
+      // takes effect immediately rather than after the next tick.
+      if (isPlaying()) {
+        var dir = state.playDirection;
+        stopPlay();
+        startPlay(dir);
+      }
     });
     $('btn-fit-chart').addEventListener('click', fitChartToContent);
     $('btn-clear-training').addEventListener('click', clearTrainingChart);
     $('btn-marker-entry').addEventListener('click', function () { setMarkerMode('entry'); });
     $('btn-marker-stop').addEventListener('click', function () { setMarkerMode('stop'); });
     $('btn-marker-tp').addEventListener('click', function () { setMarkerMode('takeProfit'); });
+    if ($('btn-marker-tp2')) $('btn-marker-tp2').addEventListener('click', function () { setMarkerMode('takeProfit2'); });
+    if ($('btn-marker-tp3')) $('btn-marker-tp3').addEventListener('click', function () { setMarkerMode('takeProfit3'); });
     $('btn-seed-levels').addEventListener('click', function () {
       if (contractRequiresDrawingType('fib')) {
         seedLevelsFromFib();
-        setStatus('Entry, stop, and target seeded from the Fib drawing.', 'good');
+        validateAttempt().then(function (validation) {
+          if (validation.ready) {
+            return runAttempt();
+          }
+        }).catch(function (error) { setStatus(error.message, 'bad'); });
       } else {
         seedLevelsFromBox();
         setStatus('Entry, stop, and target seeded from the box.', 'good');
@@ -1556,6 +2785,60 @@
     });
     $('btn-run-attempt').addEventListener('click', function () {
       runAttempt().catch(function (error) { setStatus(error.message, 'bad'); });
+    });
+    [
+      ['session-family', 'family'],
+      ['session-variant', 'strategyVariant'],
+      ['session-entry-model', 'entryModel'],
+      ['session-confidence', 'confidence'],
+      ['semantic-setup-family', 'setupFamily'],
+      ['semantic-confidence', 'confidence'],
+      ['semantic-thesis', 'thesis'],
+      ['semantic-invalidation', 'invalidation'],
+      ['semantic-management-plan', 'managementPlan'],
+    ].forEach(function (item) {
+      var el = $(item[0]);
+      if (!el) return;
+      el.addEventListener('change', function () {
+        if (item[0].indexOf('session-') === 0) {
+          if (sessionTemplateLocked()) return;
+          state.sessionTemplateDraft = state.sessionTemplateDraft || defaultSessionTemplateForContract(activeContract());
+          state.sessionTemplateDraft[item[1]] = String(el.value || '').trim();
+          if (item[1] === 'family') {
+            var targetContractId = FAMILY_TO_CONTRACT[el.value];
+            if (targetContractId && state.contractMap && state.contractMap.has(targetContractId)) {
+              var contractSelect = $('training-contract');
+              if (contractSelect && contractSelect.value !== targetContractId) {
+                contractSelect.value = targetContractId;
+              }
+            }
+            sanitizeSessionTemplateForContract(activeContract());
+          }
+          renderSessionTemplate();
+          renderTradeDeclaration();
+          return;
+        }
+        state.semanticDraft[item[1]] = String(el.value || '').trim();
+        markValidationDirty();
+      });
+      if (el.tagName === 'TEXTAREA') {
+        el.addEventListener('input', function () {
+          state.semanticDraft[item[1]] = String(el.value || '').trim();
+          markValidationDirty();
+        });
+      }
+    });
+    ['session-retracement', 'session-stop-atr', 'session-target-r'].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener('change', function () {
+        if (sessionTemplateLocked()) return;
+        state.sessionTemplateDraft = state.sessionTemplateDraft || defaultSessionTemplateForContract(activeContract());
+        if (id === 'session-retracement') state.sessionTemplateDraft.retracementPct = Number(el.value || 78.6);
+        if (id === 'session-stop-atr') state.sessionTemplateDraft.stopAtrMultiple = Number(el.value || 2);
+        if (id === 'session-target-r') state.sessionTemplateDraft.targetRMultiple = Number(el.value || 2);
+        renderSessionTemplate();
+      });
     });
     ['box-start', 'box-end', 'box-top', 'box-bottom', 'entry-price', 'stop-price', 'tp-price'].forEach(function (id) {
       $(id).addEventListener('change', function () {
@@ -1574,7 +2857,7 @@
     });
     $('training-symbol').addEventListener('keypress', function (event) {
       if (event.key === 'Enter') {
-        loadBars().catch(function (error) { setStatus(error.message, 'bad'); });
+        loadBars({ focusMode: 'revealed' }).catch(function (error) { setStatus(error.message, 'bad'); });
       }
     });
     $('btn-randomize').addEventListener('click', function () {
@@ -1582,18 +2865,37 @@
     });
   }
 
+  // Keep the Random button's tooltip in sync with the Browse asset-class
+  // dropdown so it's obvious that picking e.g. "Forex" narrows the random
+  // scenario to that class. Also nudges the status line when the dropdown
+  // changes so the user gets immediate feedback that the filter took effect.
+  function refreshRandomButtonHint(silent) {
+    var btn = $('btn-randomize');
+    var sel = $('tm-browse-asset-class');
+    if (!btn || !sel) return;
+    var cls = selectedBrowseAssetClass();
+    var label = cls ? browseAssetClassLabel() : '';
+    if (cls) {
+      btn.title = 'Random ' + label + ' symbol & random date (filtered by Browse class)';
+      if (!silent) setStatus('Random will now pick from ' + label + '.', null);
+    } else {
+      btn.title = 'Random symbol & random date';
+      if (!silent) setStatus('Random will pick from all stocks.', null);
+    }
+  }
+
   async function init() {
     if (!$('training-chart')) return;
     try {
       ensureChart();
       bindEvents();
+      var browseSel = $('tm-browse-asset-class');
+      if (browseSel) {
+        browseSel.addEventListener('change', function () { refreshRandomButtonHint(false); });
+      }
+      refreshRandomButtonHint(true);
       await loadContracts();
       await loadSessions();
-      const initialContract = activeContract();
-      const resumableSession = initialContract ? latestOpenSessionForContract(initialContract.id) : null;
-      if (resumableSession) {
-        await loadSession(resumableSession.sessionId);
-      }
       await loadRandomScenario();
       renderSessionStats();
       renderAttempts();
@@ -1601,11 +2903,31 @@
       updateMarkerButtons();
       updateForwardGate();
       updateReplayProgress();
-      setStatus(resumableSession ? 'Training module ready. Resumed your active session.' : 'Training module ready.', 'good');
+      setStatus('Training module ready. Configure your session template and click Start Session.', 'good');
     } catch (error) {
       setStatus(error.message || String(error), 'bad');
     }
   }
 
   document.addEventListener('DOMContentLoaded', init);
+
+  // Browse-without-analysis hook: lets the Browse asset-class controller load
+  // any symbol into the training chart without triggering a new session. We
+  // mirror the same flow the manual "Go" button uses (loadBars + the timeframe
+  // override) so indicator overlays and replay state stay consistent.
+  window.tmLoadSymbol = async function tmLoadSymbol(symbol, options) {
+    const opts = options || {};
+    const sym = String(symbol || '').trim().toUpperCase();
+    if (!sym) return;
+    const symbolEl = $('training-symbol');
+    if (symbolEl) symbolEl.value = sym;
+    if (opts.interval) {
+      const tfEl = $('training-timeframe');
+      if (tfEl && tfEl.value !== opts.interval) {
+        tfEl.value = opts.interval;
+        tfEl.dataset.previous = opts.interval;
+      }
+    }
+    await loadBars({ preserveReplayDate: false, focusMode: 'revealed' });
+  };
 })();

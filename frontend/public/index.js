@@ -288,12 +288,17 @@ function buildEarningsHistoryCard(earnings) {
 function buildInsiderTradesCard(trades) {
   const cellStyle = 'padding:3px 6px;font-size:11px;font-family:var(--font-mono,monospace);white-space:nowrap;';
   const hdrStyle = cellStyle + 'color:var(--color-text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid var(--color-border);';
+  const hasEdgar = trades.some(function(t) { return t.source === 'edgar'; });
+  const sourceBadge = hasEdgar
+    ? ' <span style="font-size:9px;color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:4px;padding:1px 4px;margin-left:6px;vertical-align:middle;">SEC EDGAR</span>'
+    : '';
   let html = '<div style="border:1px solid var(--color-border);border-radius:10px;background:rgba(255,255,255,0.02);padding:10px 12px;">';
-  html += '<div style="font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">Insider Trades</div>';
+  html += '<div style="font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">Insider Trades' + sourceBadge + '</div>';
   html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">';
   html += '<tr><th style="' + hdrStyle + 'text-align:left;">WHO</th><th style="' + hdrStyle + '">DATE</th><th style="' + hdrStyle + '">TYPE</th><th style="' + hdrStyle + 'text-align:right;">VALUE</th></tr>';
-  trades.slice(0, 8).forEach(function(t) {
-    const txColor = t.transaction && t.transaction.toLowerCase().indexOf('sale') >= 0 ? '#9a5050' : '#4a8a60';
+  trades.slice(0, 10).forEach(function(t) {
+    const txLower = (t.transaction || '').toLowerCase();
+    const txColor = txLower.indexOf('sale') >= 0 || txLower === 'sale' ? '#9a5050' : txLower === 'purchase' || txLower.indexOf('buy') >= 0 ? '#4ade80' : '#4a8a60';
     const nameShort = (t.insider || '').length > 18 ? (t.insider || '').substring(0, 16) + '..' : (t.insider || '');
     html += '<tr>';
     html += '<td style="' + cellStyle + '" title="' + escapeHtml(t.insider || '') + ' - ' + escapeHtml(t.relationship || '') + '">' + escapeHtml(nameShort) + '</td>';
@@ -322,6 +327,98 @@ function buildInstitutionalHoldersCard(holders) {
     html += '</tr>';
   });
   html += '</table></div></div>';
+  return html;
+}
+
+function renderOptionsFlowPanel(flow) {
+  var panel = document.getElementById('options-flow-panel');
+  var summary = document.getElementById('options-flow-summary');
+  if (!panel || !summary) return;
+
+  if (!flow || !flow.trade_date) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+
+  var pc = flow.put_call_volume_ratio;
+  var pcColor = '#6b7280';
+  var pcLabel = 'Neutral';
+  if (pc >= 2.0) { pcColor = '#ef4444'; pcLabel = 'Heavy Puts'; }
+  else if (pc >= 1.3) { pcColor = '#f59e0b'; pcLabel = 'Put-Heavy'; }
+  else if (pc <= 0.5) { pcColor = '#22c55e'; pcLabel = 'Call-Heavy'; }
+  else if (pc <= 0.8) { pcColor = '#4ade80'; pcLabel = 'Slight Calls'; }
+
+  var flags = Array.isArray(flow.anomaly_flags) ? flow.anomaly_flags : [];
+  var score = flow.anomaly_score || 0;
+
+  var alertHtml = '';
+  if (score >= 50) {
+    alertHtml = '<div style="margin-top:6px;padding:6px 10px;border:1px solid rgba(239,68,68,0.5);border-radius:6px;background:rgba(239,68,68,0.08);font-size:11px;color:#fca5a5;">' +
+      '\u26A0 Smart money warning: ' + flags.join(', ') + '</div>';
+  } else if (score >= 20) {
+    alertHtml = '<div style="margin-top:6px;padding:6px 10px;border:1px solid rgba(245,158,11,0.4);border-radius:6px;background:rgba(245,158,11,0.06);font-size:11px;color:#fcd34d;">' +
+      '\u26A0 Unusual activity: ' + flags.join(', ') + '</div>';
+  }
+
+  var skewStr = flow.iv_skew != null ? (flow.iv_skew > 0 ? '+' : '') + (flow.iv_skew * 100).toFixed(1) + '%' : 'N/A';
+  var panelBorder = pc >= 2.0 ? 'rgba(239,68,68,0.4)' : (pc >= 1.3 ? 'rgba(245,158,11,0.3)' : 'var(--color-border)');
+  panel.style.borderColor = panelBorder;
+
+  summary.innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:700;color:' + pcColor + ';">' + (pc != null ? pc.toFixed(2) : 'N/A') + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">P/C Ratio</div>' +
+      '<div style="font-size:10px;color:' + pcColor + ';">' + pcLabel + '</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:600;">' + (flow.total_put_volume || 0).toLocaleString() + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">Put Vol</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:600;">' + (flow.total_call_volume || 0).toLocaleString() + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">Call Vol</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:600;">' + skewStr + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">IV Skew</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+      '<div style="font-size:13px;font-weight:600;">' + flow.trade_date + '</div>' +
+      '<div style="font-size:11px;color:var(--color-text-muted);">As Of</div>' +
+    '</div>' +
+    alertHtml;
+}
+
+function buildRiskFlagsBanner(flags) {
+  if (!Array.isArray(flags) || !flags.length) return '';
+  const severityColors = {
+    critical: { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.5)', icon: '\u26A0', color: '#fca5a5', accentBg: 'rgba(239,68,68,0.06)' },
+    high: { bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.4)', icon: '\u26A0', color: '#fcd34d', accentBg: 'rgba(245,158,11,0.05)' },
+    moderate: { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.3)', icon: '\u24D8', color: '#94a3b8', accentBg: 'rgba(148,163,184,0.04)' },
+  };
+  const hasCritical = flags.some(function(f) { return f.severity === 'critical'; });
+  const bannerBorder = hasCritical ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.4)';
+  const bannerBg = hasCritical ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.05)';
+  const titleColor = hasCritical ? '#fca5a5' : '#fcd34d';
+
+  let html = '<div style="border:1px solid ' + bannerBorder + ';border-radius:10px;background:' + bannerBg + ';padding:12px 14px;margin-bottom:12px;">';
+  html += '<div style="font-size:12px;font-weight:700;color:' + titleColor + ';margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">' +
+    '\u26A0 Risk Flags (' + flags.length + ')</div>';
+  flags.forEach(function(f) {
+    const s = severityColors[f.severity] || severityColors.moderate;
+    html += '<div style="border:1px solid ' + s.border + ';border-radius:8px;background:' + s.bg + ';padding:8px 10px;margin-bottom:6px;">';
+    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+    html += '<span style="font-size:13px;">' + s.icon + '</span>';
+    html += '<span style="font-size:12px;font-weight:700;color:' + s.color + ';">' + escapeHtml(f.label) + '</span>';
+    html += '<span style="font-size:10px;color:' + s.color + ';opacity:0.7;text-transform:uppercase;letter-spacing:0.04em;">' + escapeHtml(f.severity) + '</span>';
+    html += '</div>';
+    html += '<div style="font-size:12px;font-weight:600;color:var(--color-text);margin-bottom:2px;">' + escapeHtml(f.short) + '</div>';
+    html += '<div style="font-size:11px;color:var(--color-text-muted);line-height:1.5;">' + escapeHtml(f.detail) + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
   return html;
 }
 
@@ -437,6 +534,15 @@ function renderFundamentalsSnapshot(data) {
       '</span>'
     );
   }).join('');
+
+  const riskFlagsBanner = buildRiskFlagsBanner(data.riskFlags);
+  const riskFlagsEl = document.getElementById('fundamentals-risk-flags');
+  if (riskFlagsEl) {
+    riskFlagsEl.innerHTML = riskFlagsBanner;
+    riskFlagsEl.style.display = riskFlagsBanner ? 'block' : 'none';
+  }
+
+  renderOptionsFlowPanel(data.optionsFlow);
 
   const sections = [
     sectionCard('Survivability', [
@@ -646,6 +752,17 @@ function copyFundamentalsToClipboard() {
   });
 }
 
+function refreshFundamentals() {
+  const sym = candidates[currentIndex]?.symbol;
+  if (!sym) return;
+  fundamentalsCache.delete(sym);
+  delete _buzzCache[sym];
+  window._forceRefreshFundamentals = true;
+  window._fundamentalsForceBackend = true;
+  loadCandidateFundamentals(sym);
+}
+window.refreshFundamentals = refreshFundamentals;
+
 async function loadCandidateFundamentals(symbol) {
   const panel = document.getElementById('fundamentals-panel');
   const status = document.getElementById('fundamentals-status');
@@ -664,13 +781,16 @@ async function loadCandidateFundamentals(symbol) {
 
   loadSocialBuzz(symbol);
 
-  if (fundamentalsCache.has(symbol)) {
+  if (fundamentalsCache.has(symbol) && !window._forceRefreshFundamentals) {
     renderFundamentalsSnapshot(fundamentalsCache.get(symbol));
     return;
   }
+  window._forceRefreshFundamentals = false;
 
   try {
-    const res = await fetch(`${API_URL}/api/fundamentals/${encodeURIComponent(symbol)}`);
+    const refreshParam = window._fundamentalsForceBackend ? '?force_refresh=true' : '';
+    window._fundamentalsForceBackend = false;
+    const res = await fetch(`${API_URL}/api/fundamentals/${encodeURIComponent(symbol)}${refreshParam}`);
     const data = await res.json();
     if (!data.success || !data.data) {
       status.textContent = data.error || 'No fundamentals available';
@@ -769,11 +889,18 @@ function renderSocialBuzz(buzz) {
       '<div style="font-size:11px;color:var(--color-text-muted);">Sampled Posts</div>' +
     '</div>';
 
-  if (stocktwitsCount || yahooCount) {
+  var redditCount = Number.isFinite(Number(buzz.reddit_post_count)) ? Number(buzz.reddit_post_count) : 0;
+  if (stocktwitsCount || yahooCount || redditCount) {
+    var sourceBreakdown = stocktwitsCount + ' / ' + yahooCount;
+    var sourceLabel = 'ST / Yahoo';
+    if (redditCount > 0) {
+      sourceBreakdown += ' / ' + redditCount;
+      sourceLabel += ' / Reddit';
+    }
     summaryEl.innerHTML +=
       '<div style="display:flex;flex-direction:column;gap:2px;">' +
-        '<div style="font-size:13px;font-weight:600;">' + stocktwitsCount + ' / ' + yahooCount + '</div>' +
-        '<div style="font-size:11px;color:var(--color-text-muted);">ST / Yahoo</div>' +
+        '<div style="font-size:13px;font-weight:600;">' + sourceBreakdown + '</div>' +
+        '<div style="font-size:11px;color:var(--color-text-muted);">' + sourceLabel + '</div>' +
       '</div>';
   }
 
@@ -957,9 +1084,9 @@ function showCandidate(index) {
   document.getElementById('info-retracement').parentElement.style.display = 'none';
   loadCandidateFundamentals(candidate.symbol);
 
-  // Do not auto-send analyst prompts on symbol load.
-  // With multiple workspace-backed analysts, auto-analysis creates ambiguous
-  // behavior and makes it look like the wrong analyst is speaking.
+  if (isNewSymbol && typeof scheduleScannerLedgerAutoOverview === 'function') {
+    scheduleScannerLedgerAutoOverview(candidate);
+  }
 
   // Hide the Wyckoff phases grid — scanner only needs chart + annotations
   const phasesEl = document.getElementById('wyckoff-phases');
@@ -1416,7 +1543,7 @@ async function scanSingleSymbol(symbol) {
   showPage('scanner');
   const indicatorSelect = document.getElementById('scan-indicator-select');
   const pluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
-  if (!pluginId) { alert('Please select an indicator first.'); return; }
+  if (!pluginId) { alert('Please select a signal first.'); return; }
 
   const periodEl = document.getElementById('scan-period');
   const intervalEl = document.getElementById('scan-interval');
@@ -1748,22 +1875,20 @@ async function quickLoadSymbol(symbol) {
 // ── DOMContentLoaded — Main initialization ───────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const deepLinkSymbol = String(urlParams.get('symbol') || '').trim().toUpperCase();
+  const deepLinkInterval = String(urlParams.get('interval') || '').trim();
+
   initPatternChart();
   await loadSymbolCatalog();
   await loadSymbolLibrary();
   loadRecentLabels();
   await loadIndicators();
-  if (typeof resumeActiveScanIfNeeded === 'function') {
+  if (!deepLinkSymbol && typeof resumeActiveScanIfNeeded === 'function') {
     await resumeActiveScanIfNeeded();
   }
   if (typeof updateSavedScanStatus === 'function') {
     updateSavedScanStatus();
-  }
-  if (!Array.isArray(candidates) || candidates.length === 0) {
-    const persistedScanJob = typeof getPersistedActiveScanJob === 'function' ? getPersistedActiveScanJob() : null;
-    if (!persistedScanJob && typeof restoreSavedScanResults === 'function') {
-      await restoreSavedScanResults({ silent: true });
-    }
   }
 
   updateTrainingCounts();
@@ -1818,5 +1943,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   if (typeof _ciPopulateIndicatorSelect === 'function') {
     _ciPopulateIndicatorSelect();
+  }
+
+  if (deepLinkSymbol) {
+    const intervalEl = document.getElementById('scan-interval');
+    if (intervalEl && deepLinkInterval) {
+      const supportedIntervals = new Set(Array.from(intervalEl.options || []).map((option) => option.value));
+      if (supportedIntervals.has(deepLinkInterval)) intervalEl.value = deepLinkInterval;
+    }
+    const deepLinkInput = document.getElementById('scan-single-symbol');
+    if (deepLinkInput) deepLinkInput.value = deepLinkSymbol;
+    await quickLoadSymbol(deepLinkSymbol);
   }
 });

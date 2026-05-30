@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trading Desk Ã¢â‚¬â€ Pattern Detector</title>
+  <title>Trading Desk &mdash; Pattern Detector</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -562,7 +562,22 @@
           <button class="btn btn-primary btn-sm" onclick="runCopilotAnalysis()" style="flex-shrink:0;">Go</button>
         </div>
 
-        <div style="display:flex;gap:var(--space-8);flex-shrink:0;">
+        <div style="display:flex;gap:var(--space-8);flex-shrink:0;align-items:center;">
+          <select id="td-browse-asset-class" class="select select-sm" style="width:140px;" title="Pick an asset class to browse symbols without running analysis">
+            <option value="all" selected>Stocks</option>
+            <option value="indices">Indices</option>
+            <option value="sectors">Sectors</option>
+            <option value="smallcaps">Small Caps</option>
+            <option value="optionable">Optionable</option>
+            <option value="commodities">Commodities</option>
+            <option value="futures">Futures</option>
+            <option value="crypto">Crypto</option>
+            <option value="forex">Forex</option>
+            <option value="international">International</option>
+            <option value="bonds">Bonds</option>
+          </select>
+          <button id="td-browse-button" class="btn btn-sm" title="Load every symbol in the selected asset class — pan with ←/→. No analysis is run.">Browse</button>
+          <span id="td-browse-status" class="text-muted text-caption" style="white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;"></span>
           <button class="btn btn-sm" onclick="newAnalysis()">New</button>
           <button class="btn btn-sm" onclick="exportAnalysis()">Export</button>
         </div>
@@ -603,11 +618,22 @@
                 </div>
                 <span id="chart-pattern" style="display:none;"></span>
                 <div class="toolbar chart-header-toolbar">
+                  <div class="direction-toggle" style="flex-shrink:0;margin-right:2px;">
+                    <button type="button" id="btn-chart-long" class="direction-toggle-btn" onclick="setTradeDirection(1)" style="padding:3px 8px;font-size:0.75rem;">LONG</button>
+                    <button type="button" id="btn-chart-short" class="direction-toggle-btn" onclick="setTradeDirection(-1)" style="padding:3px 8px;font-size:0.75rem;">SHORT</button>
+                  </div>
+                  <button type="button" id="btn-pnl-probe" class="toolbar-btn" onclick="togglePnLProbe()" title="Toggle P&amp;L probe — hover the chart to see the profit at that price (requires an entry)" style="padding:3px 8px;font-size:0.75rem;">P&amp;L</button>
+                  <span id="toolbar-pnl-readout" style="display:none;align-items:center;gap:5px;white-space:nowrap;font-family:var(--font-mono);font-size:0.78rem;font-weight:700;margin-left:2px;"></span>
+                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 2px;"></div>
                   <button id="btn-entry" onclick="setMarkerMode('entry')" class="toolbar-btn" title="Place entry on chart">Entry</button>
                   <button id="btn-stop-loss" onclick="setMarkerMode('stopLoss')" class="toolbar-btn" title="Place stop-loss on chart">Stop</button>
-                  <button id="btn-take-profit" onclick="setMarkerMode('takeProfit')" class="toolbar-btn" title="Place take-profit on chart">Target</button>
+                  <button id="btn-take-profit" onclick="setMarkerMode('takeProfit')" class="toolbar-btn" title="Place TP1 on chart (auto-advances to TP2, TP3)">TP1</button>
+                  <button id="btn-take-profit-2" onclick="setMarkerMode('takeProfit2')" class="toolbar-btn" title="Place TP2 on chart" style="font-size:0.85em;padding:2px 6px;">TP2</button>
+                  <button id="btn-take-profit-3" onclick="setMarkerMode('takeProfit3')" class="toolbar-btn" title="Place TP3 on chart" style="font-size:0.85em;padding:2px 6px;">TP3</button>
                   <button id="btn-fit-chart" onclick="fitChartToContent()" title="Fit chart to content" class="toolbar-btn">Fit</button>
                   <button onclick="clearChart()" class="toolbar-btn" title="Clear chart levels and drawings">Clear</button>
+                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 2px;"></div>
+                  <button id="btn-wl-save" onclick="tdSaveCurrentToWatchList()" class="toolbar-btn" title="Save current markup to Watch List" style="color:#f59e0b;">&#9733; Save</button>
                   <span id="drawing-status" class="text-muted text-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;"></span>
                 </div>
               </div>
@@ -668,26 +694,44 @@
                 <span style="font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);">Key Levels</span>
               </div>
               <div class="panel-body" style="padding:var(--space-12);">
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;gap:var(--space-12);">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr 1fr;gap:var(--space-12);">
                   <div>
                     <div id="kl-entry-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Entry</div>
                     <div id="kl-entry" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div>
+                    <div id="kl-open-pnl" style="font-size:var(--text-body);font-weight:700;margin-top:3px;"></div>
+                    <div id="kl-open-pnl-sub" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
                   </div>
                   <div>
                     <div id="kl-stop-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Stop</div>
                     <div id="kl-stop" style="font-size:var(--text-body);font-weight:700;color:#ef4444;">--</div>
+                    <div id="kl-stop-pct" style="font-size:var(--text-body);font-weight:700;color:#ef4444;margin-top:3px;"></div>
+                    <div id="kl-stop-dollar" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
                   </div>
                   <div>
-                    <div id="kl-t1-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">T1</div>
-                    <div id="kl-t1" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div>
+                    <div id="kl-t1-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">TP1</div>
+                    <div id="kl-t1" style="font-size:var(--text-body);font-weight:700;color:#22c55e;">--</div>
+                    <div id="kl-t1-pct" style="font-size:var(--text-body);font-weight:700;color:#22c55e;margin-top:3px;"></div>
+                    <div id="kl-t1-dollar" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
+                    <div id="kl-t1-rr" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
                   </div>
                   <div>
-                    <div id="kl-t2-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">T2</div>
-                    <div id="kl-t2" style="font-size:var(--text-body);font-weight:700;color:var(--color-text);">--</div>
+                    <div id="kl-t2-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">TP2</div>
+                    <div id="kl-t2" style="font-size:var(--text-body);font-weight:700;color:#22c55e;">--</div>
+                    <div id="kl-t2-pct" style="font-size:var(--text-body);font-weight:700;color:#22c55e;margin-top:3px;"></div>
+                    <div id="kl-t2-dollar" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
+                    <div id="kl-t2-rr" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
                   </div>
                   <div>
-                    <div id="kl-rr-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">R/R</div>
+                    <div id="kl-t3-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">TP3</div>
+                    <div id="kl-t3" style="font-size:var(--text-body);font-weight:700;color:#22c55e;">--</div>
+                    <div id="kl-t3-pct" style="font-size:var(--text-body);font-weight:700;color:#22c55e;margin-top:3px;"></div>
+                    <div id="kl-t3-dollar" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
+                    <div id="kl-t3-rr" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:1px;"></div>
+                  </div>
+                  <div>
+                    <div id="kl-rr-label" style="font-size:var(--text-caption);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">R:R</div>
                     <div id="kl-rr" style="font-size:var(--text-body);font-weight:700;">--</div>
+                    <div id="kl-target-pct" style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;">--</div>
                   </div>
                   <div>
                     <div id="kl-size-label" style="font-size:var(--text-caption);color:var(--color-accent);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Size</div>
@@ -785,6 +829,29 @@
                         <div id="position-size-warning" class="hidden" style="margin-top:var(--space-4);font-size:var(--text-caption);color:#f59e0b;"></div>
                       </div>
                       <!-- ── Trade P&L Summary (live, updates when entry/stop/TP change) ── -->
+                      <div class="sidebar-field" style="margin-top:var(--space-8);padding-top:var(--space-8);border-top:1px solid var(--color-border);">
+                        <label class="sidebar-field-label" for="trade-target-type">Take Profit Type</label>
+                        <select id="trade-target-type" class="select select-sm" onchange="applyTradeTargetConfig();saveTradingDeskTargetConfig()">
+                          <option value="">Manual chart placement</option>
+                          <option value="R">Fixed R-Multiple</option>
+                          <option value="pct">Fixed % Move</option>
+                        </select>
+                      </div>
+                      <div id="trade-target-r-fields" style="display:none;">
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="trade-target-r">R Multiple</label>
+                          <input type="number" id="trade-target-r" value="2" min="0.1" max="50" step="0.1" class="input input-sm" oninput="applyTradeTargetConfig()" onchange="saveTradingDeskTargetConfig()">
+                          <div class="sidebar-field-hint">Uses the current entry-to-stop distance.</div>
+                        </div>
+                      </div>
+                      <div id="trade-target-pct-fields" style="display:none;">
+                        <div class="sidebar-field">
+                          <label class="sidebar-field-label" for="trade-target-pct">Target Move (%)</label>
+                          <input type="number" id="trade-target-pct" value="10" min="0.1" max="500" step="0.1" class="input input-sm" oninput="applyTradeTargetConfig()" onchange="saveTradingDeskTargetConfig()">
+                          <div class="sidebar-field-hint">Long targets above entry; short targets below entry.</div>
+                        </div>
+                      </div>
+                      <div id="trade-target-hint" class="sidebar-field-hint" style="display:none;"></div>
                       <div id="instrument-pnl-summary" style="display:none;margin-top:var(--space-8);padding-top:var(--space-8);border-top:1px solid var(--color-border);">
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6) var(--space-12);">
                           <div>
@@ -793,19 +860,32 @@
                             <div id="ipnl-stop-dist" style="font-size:10px;color:var(--color-text-subtle);">--</div>
                           </div>
                           <div>
-                            <div id="ipnl-target-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Target @ Price</div>
-                            <div id="ipnl-tp-price" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
-                            <div id="ipnl-gain-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
-                          </div>
-                          <div>
                             <div id="ipnl-loss-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Loss</div>
                             <div id="ipnl-loss" style="font-size:var(--text-small);font-weight:600;color:#ef4444;">--</div>
                             <div id="ipnl-loss-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
                           </div>
+                        </div>
+                        <div id="ipnl-targets-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-6) var(--space-8);margin-top:var(--space-8);padding-top:var(--space-6);border-top:1px dashed var(--color-border);">
                           <div>
-                            <div id="ipnl-gain-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">Max Gain</div>
+                            <div id="ipnl-target-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">TP1</div>
+                            <div id="ipnl-tp-price" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
                             <div id="ipnl-gain" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
+                            <div id="ipnl-gain-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
                             <div id="ipnl-rr" style="font-size:10px;font-weight:600;color:var(--color-text-subtle);">--</div>
+                          </div>
+                          <div id="ipnl-tp2-col" style="display:none;">
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">TP2</div>
+                            <div id="ipnl-tp2-price" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
+                            <div id="ipnl-tp2-gain" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
+                            <div id="ipnl-tp2-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
+                            <div id="ipnl-tp2-rr" style="font-size:10px;font-weight:600;color:var(--color-text-subtle);">--</div>
+                          </div>
+                          <div id="ipnl-tp3-col" style="display:none;">
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:2px;">TP3</div>
+                            <div id="ipnl-tp3-price" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
+                            <div id="ipnl-tp3-gain" style="font-size:var(--text-small);font-weight:600;color:#22c55e;">--</div>
+                            <div id="ipnl-tp3-pct" style="font-size:10px;color:var(--color-text-subtle);">--</div>
+                            <div id="ipnl-tp3-rr" style="font-size:10px;font-weight:600;color:var(--color-text-subtle);">--</div>
                           </div>
                         </div>
                       </div>
@@ -1068,6 +1148,8 @@
                 <input type="number" id="entry-price-input" placeholder="--" step="0.01" />
                 <input type="number" id="stop-loss-price-input" placeholder="--" step="0.01" />
                 <input type="number" id="take-profit-price-input" placeholder="--" step="0.01" />
+                <input type="number" id="take-profit-2-price-input" placeholder="--" step="0.01" />
+                <input type="number" id="take-profit-3-price-input" placeholder="--" step="0.01" />
                 <div id="risk-reward">--</div>
               </div>
               <!-- Trading Desk Analysis -->
@@ -1183,6 +1265,64 @@
   <script src="copilot-trade-actions.js"></script>
   <script src="copilot-execution-route.js"></script>
   <script src="copilot-analysis.js"></script>
+  <script src="browse-asset-class.js"></script>
+  <script>
+    // Browse-without-analysis: load every symbol in the chosen asset class
+    // and let the user pan with ←/→. Each pan does one OHLCV fetch only — no
+    // AI analysis is run, so it stays cheap even on large lists.
+    (function () {
+      function tdLoadChartBars(symbol, ctx) {
+        const interval = (ctx && ctx.interval) || document.getElementById('copilot-interval')?.value || '1d';
+        const symbolUpper = String(symbol || '').trim().toUpperCase();
+        if (!symbolUpper) return Promise.resolve();
+
+        // Mirror the chosen interval into the trading-desk dropdown so the user
+        // sees what they're looking at (without re-triggering analysis).
+        const intervalEl = document.getElementById('copilot-interval');
+        if (intervalEl && intervalEl.value !== interval) {
+          intervalEl.value = interval;
+        }
+        // Mirror the symbol into the input so subsequent "Go" / chat / save
+        // actions target the symbol the user is currently looking at.
+        const symbolInput = document.getElementById('copilot-symbol');
+        if (symbolInput) symbolInput.value = symbolUpper;
+
+        // Choose a sensible period for the interval.
+        const period = (interval === '1m' || interval === '5m' || interval === '15m')
+          ? '60d'
+          : (interval === '1h' || interval === '4h' ? '730d' : 'max');
+
+        return fetch(`/api/chart/ohlcv?symbol=${encodeURIComponent(symbolUpper)}&interval=${encodeURIComponent(interval)}&period=${encodeURIComponent(period)}`)
+          .then((res) => res.json())
+          .then((json) => {
+            const bars = Array.isArray(json && json.chart_data) ? json.chart_data : [];
+            if (!bars.length) throw new Error('no bars returned');
+            if (typeof window.displayCopilotChart === 'function') {
+              window.displayCopilotChart({ symbol: symbolUpper, chart_data: bars });
+            } else {
+              throw new Error('displayCopilotChart unavailable');
+            }
+          });
+      }
+
+      function init() {
+        if (typeof window.installBrowseAssetClass !== 'function') return;
+        window.installBrowseAssetClass({
+          selectId: 'td-browse-asset-class',
+          buttonId: 'td-browse-button',
+          statusElId: 'td-browse-status',
+          getInterval: () => document.getElementById('copilot-interval')?.value || '1d',
+          loadSymbol: tdLoadChartBars,
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
 
   <!-- ── Watch List Right Drawer ─────────────────────────────────────────── -->
   <style>
@@ -1349,7 +1489,7 @@
       </div>
     </div>
     <div id="wl-drawer-list"></div>
-    <div id="wl-drawer-empty">No signals saved yet.<br>Star hits in the Scanner to add them here.</div>
+    <div id="wl-drawer-empty">No signals saved yet.<br>Use ★ Save on the toolbar or star hits in the Scanner.</div>
   </div>
 
   <script>
@@ -1412,11 +1552,14 @@
 
       list.innerHTML = all.map(e => {
         const sym   = e.symbol || '';
-        const score = e.score != null ? Number(e.score).toFixed(3) : '';
-        const age   = _wlAge(e.addedAt);
-        const price = e.price ? '$' + Number(e.price).toFixed(2) : '';
-        const meta  = [price, e.interval || '', age].filter(Boolean).join(' · ');
-        const dotColor = e.score >= 0.8 ? '#22c55e' : e.score >= 0.6 ? '#f59e0b' : '#3b82f6';
+        const score = e.score != null && e.score > 0 ? Number(e.score).toFixed(3) : '';
+        const age   = _wlAge(e.saved_at);
+        const price = e.entry_price ? '$' + Number(e.entry_price).toFixed(2) : '';
+        const hasLevels = e.stop_price || e.take_profit;
+        const dirLabel = e.direction === 1 ? 'L' : e.direction === -1 ? 'S' : '';
+        const levelBits = [dirLabel, hasLevels ? 'marked' : ''].filter(Boolean).join(' ');
+        const meta  = [price, e.interval || '', levelBits, age].filter(Boolean).join(' · ');
+        const dotColor = hasLevels ? '#22c55e' : e.score >= 0.8 ? '#22c55e' : e.score >= 0.6 ? '#f59e0b' : '#3b82f6';
         const symQ = sym.replace(/'/g, "\\'");
         return `<button class="wl-drawer-item" onclick='tdWatchListLoad("${symQ}")' title="Load ${sym} on Trading Desk">
           <span class="wl-drawer-item-dot" style="background:${dotColor}"></span>

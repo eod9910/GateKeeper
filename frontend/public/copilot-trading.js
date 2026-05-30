@@ -360,10 +360,21 @@
         shortBtn.classList.toggle('direction-toggle-btn--active', normalized === -1);
         shortBtn.classList.toggle('active', normalized === -1);
       }
+      const chartLongBtn = document.getElementById('btn-chart-long');
+      const chartShortBtn = document.getElementById('btn-chart-short');
+      if (chartLongBtn) {
+        chartLongBtn.classList.toggle('direction-toggle-btn--active', normalized === 1);
+        chartLongBtn.classList.toggle('active', normalized === 1);
+      }
+      if (chartShortBtn) {
+        chartShortBtn.classList.toggle('direction-toggle-btn--active', normalized === -1);
+        chartShortBtn.classList.toggle('active', normalized === -1);
+      }
       if (typeof updateLivePnL === 'function') updateLivePnL();
       if (typeof window.syncRiskPlanFromDeskLevels === 'function') window.syncRiskPlanFromDeskLevels();
       if (typeof window.renderExecutionRouteSummary === 'function') window.renderExecutionRouteSummary();
     }
+    window.applyTradeDirectionWithoutAnalysis = applyTradeDirectionWithoutAnalysis;
 
     function formatScannerHandoffLabel(value) {
       return String(value ?? '')
@@ -487,7 +498,7 @@
       const statusParts = [`${packet.symbol || candidate.symbol || 'Scanner'} ${packet.interval || candidate.interval || ''}`.trim()];
       if (scannerDirection) statusParts.push(`Scanner bias: ${scannerDirection}`);
       if (deskDirection) statusParts.push(`Desk: ${deskDirection}`);
-      statusEl.textContent = statusParts.join(' Â· ');
+      statusEl.textContent = statusParts.join(' \u00b7 ');
       setScannerHandoffPanelVisible(true);
     }
 

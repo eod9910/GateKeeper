@@ -66,14 +66,15 @@
       <div class="page-header">
         <div>
           <h1 class="page-title">Indicator Studio</h1>
-          <span class="text-muted" style="font-size:var(--text-caption);">Chat with Plugin Engineer, generate code, test, and register.</span>
+          <span class="text-muted" style="font-size:var(--text-caption);">Build primitives, compose stateful signals, and route strategies to Validator.</span>
         </div>
         <div class="workshop-header-actions">
           <div class="workshop-tabbar" role="tablist" aria-label="Indicator Studio views">
-            <button id="workshop-tab-builder" class="workshop-tab active" role="tab" aria-selected="true" aria-controls="workshop-builder-view" onclick="setWorkshopTab('builder')">Indicator Builder</button>
+            <button id="workshop-tab-builder" class="workshop-tab active" role="tab" aria-selected="true" aria-controls="workshop-builder-view" onclick="setWorkshopTab('builder')">Primitive Builder</button>
             <button id="workshop-tab-composite" class="workshop-tab" role="tab" aria-selected="false" aria-controls="workshop-composite-view" onclick="setWorkshopTab('composite')">Composite Builder</button>
+            <button id="workshop-tab-strategy" class="workshop-tab" role="tab" aria-selected="false" onclick="window.location.href='strategy-builder.html'">Strategy Builder</button>
             <button id="workshop-tab-scanner" class="workshop-tab" role="tab" aria-selected="false" aria-controls="workshop-scanner-view" onclick="setWorkshopTab('scanner')">Pattern Scanner</button>
-            <button id="workshop-tab-library" class="workshop-tab" role="tab" aria-selected="false" aria-controls="workshop-library-view" onclick="setWorkshopTab('library')">Indicator Library</button>
+            <button id="workshop-tab-library" class="workshop-tab" role="tab" aria-selected="false" aria-controls="workshop-library-view" onclick="setWorkshopTab('library')">Signal Library</button>
           </div>
         </div>
       </div>
@@ -383,13 +384,13 @@
             <div id="workshop-library-view" class="workshop-tab-panel workshop-library-view hidden" role="tabpanel" aria-labelledby="workshop-tab-library">
               <div class="workshop-library-toolbar">
                 <div class="workshop-library-toolbar-copy">
-                  <div class="workshop-library-eyebrow">Indicator Library</div>
-                  <div class="workshop-library-subtitle">Browse, curate, and route indicators into scanner and builder workflows.</div>
+                  <div class="workshop-library-eyebrow">Signal Library</div>
+                  <div class="workshop-library-subtitle">Browse, curate, and route primitives and composites into Scanner, builders, and Validator strategy workflows.</div>
                 </div>
                 <div class="workshop-library-toolbar-controls">
                   <div class="workshop-library-filter workshop-library-filter--search">
                     <label for="workshop-library-search">Search</label>
-                    <input id="workshop-library-search" type="text" placeholder="Search indicators, IDs, roles..." oninput="handleLibraryFilterChange()">
+                    <input id="workshop-library-search" type="text" placeholder="Search signals, IDs, roles..." oninput="handleLibraryFilterChange()">
                   </div>
                   <div class="workshop-library-filter">
                     <label for="workshop-library-type">Type</label>
@@ -397,11 +398,10 @@
                       <option value="">All</option>
                       <option value="primitive">Primitives</option>
                       <option value="composite">Composites</option>
-                      <option value="pattern">Patterns</option>
                     </select>
                   </div>
                   <div class="workshop-library-filter">
-                    <label for="workshop-library-category">Category</label>
+                    <label for="workshop-library-category">Primitive Category</label>
                     <select id="workshop-library-category" class="select" onchange="handleLibraryFilterChange()">
                       <option value="">All</option>
                     </select>
@@ -425,31 +425,32 @@
                     <select id="workshop-library-sort" class="select" onchange="handleLibraryFilterChange()">
                       <option value="favorites_first">Favorites First</option>
                       <option value="name">Name</option>
+                      <option value="category">Primitive Category</option>
                       <option value="tier">Tier</option>
                       <option value="role">Role</option>
                     </select>
                   </div>
                 </div>
-                <div class="workshop-library-summary" id="workshop-library-summary">0 indicators</div>
+                <div class="workshop-library-summary" id="workshop-library-summary">0 signals</div>
               </div>
 
               <div class="workshop-library-layout">
                 <div class="workshop-library-list-panel">
                   <div class="workshop-library-panel-header">
                     <span>Library</span>
-                    <span id="workshop-library-list-status" class="workshop-library-panel-meta">Browse indicators</span>
+                    <span id="workshop-library-list-status" class="workshop-library-panel-meta">Browse signals</span>
                   </div>
                   <div id="workshop-library-list" class="workshop-library-list">
-                    <p class="workshop-test-placeholder">Loading indicator library...</p>
+                    <p class="workshop-test-placeholder">Loading signal library...</p>
                   </div>
                 </div>
                 <div class="workshop-library-detail-panel">
                   <div class="workshop-library-detail-header">
-                    <span>Indicator Detail</span>
+                    <span>Signal Detail</span>
                     <span class="workshop-library-panel-meta">Inspect and act</span>
                   </div>
                   <div id="workshop-library-detail" class="workshop-library-detail-body">
-                    <p class="workshop-test-placeholder">Select an indicator to inspect details.</p>
+                    <p class="workshop-test-placeholder">Select a signal to inspect details.</p>
                   </div>
                 </div>
               </div>
@@ -464,7 +465,7 @@
                 <button id="composite-subtab-pipeline" class="composite-subtab" role="tab" aria-selected="false" onclick="setCompositeSubTab('pipeline')">Node Editor</button>
               </div>
 
-              <!-- AI Composer sub-view Ã¢â‚¬â€ same grid layout as the Indicator Builder -->
+              <!-- AI Composer sub-view - same grid layout as the Primitive Builder -->
               <div id="composite-ai-view" class="composite-subview composite-ai-grid">
                 <!-- Left: Editor / definition pane -->
                 <section class="workshop-editor-panel" style="grid-column:1;grid-row:1;">
@@ -492,6 +493,9 @@
                     </div>
                   </div>
                   <div id="composite-fundamental-config-host"></div>
+                  <div class="workshop-test-placeholder" style="margin:0 0 var(--space-12);padding:var(--space-10);line-height:1.5;">
+                    Composites combine primitives into reusable signals and may emit states such as setup_detected, waiting_for_trigger, entry_ready, invalidated, or cooldown. Entry, exit, stop, target, sizing, cost, and execution rules belong in Strategy Builder.
+                  </div>
 
                   <div class="composite-ai-primitives" id="composite-ai-primitives">
                     <div class="composite-ai-primitives-header">Available Primitives Ã¢â‚¬â€ click to add as stage</div>
@@ -532,7 +536,7 @@
                   </div>
                   <div id="composite-ai-messages" class="workshop-chat-messages"></div>
                   <div class="workshop-chat-input-row">
-                    <textarea id="composite-ai-input" rows="3" placeholder="Describe the composite indicator you want to build..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCompositeChat();}"></textarea>
+                    <textarea id="composite-ai-input" rows="3" placeholder="Describe the composite signal you want to build..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCompositeChat();}"></textarea>
                     <button class="workshop-send-btn" type="button" aria-label="Send composite architect chat message" onclick="sendCompositeChat()">&#8593;</button>
                   </div>
                   <div class="workshop-chat-actions">

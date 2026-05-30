@@ -45,50 +45,10 @@ function clearChart() {
 }
 
 function sanitizeChartData(data) {
-  if (!data || !Array.isArray(data)) return [];
-
-  let isIntraday = false;
-  const dateCounts = {};
-  for (const bar of data) {
-    if (!bar || bar.time == null) continue;
-    const ts = String(bar.time);
-    if (ts.length >= 10 && /^\d{4}-/.test(ts)) {
-      const dateKey = ts.substring(0, 10);
-      dateCounts[dateKey] = (dateCounts[dateKey] || 0) + 1;
-      if (dateCounts[dateKey] > 1) { isIntraday = true; break; }
-    }
+  if (window.SharedChartUtils && typeof window.SharedChartUtils.sanitizeChartData === 'function') {
+    return window.SharedChartUtils.sanitizeChartData(data);
   }
-
-  const seen = new Set();
-  const sanitized = data.filter(bar => {
-    if (!bar || bar.time == null || bar.time === '') return false;
-    const o = bar.open, h = bar.high, l = bar.low, c = bar.close;
-    if (o == null || h == null || l == null || c == null || Number.isNaN(o) || Number.isNaN(h) || Number.isNaN(l) || Number.isNaN(c)) return false;
-
-    let time = bar.time;
-    if (typeof time === 'string') {
-      if (isIntraday && time.length > 10) {
-        const dt = new Date(time.replace(' ', 'T'));
-        time = isNaN(dt.getTime()) ? time.substring(0, 10) : Math.floor(dt.getTime() / 1000);
-      } else {
-        time = time.substring(0, 10);
-      }
-      bar.time = time;
-    }
-
-    if (seen.has(time)) return false;
-    seen.add(time);
-    return true;
-  });
-
-  sanitized.sort((a, b) => {
-    const av = a.time;
-    const bv = b.time;
-    if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-    return String(av).localeCompare(String(bv));
-  });
-
-  return sanitized;
+  return Array.isArray(data) ? data : [];
 }
 
 function initPatternChart() {
@@ -128,14 +88,26 @@ function initPatternChart() {
     },
   });
 
-  patternSeries = patternChart.addSeries(LightweightCharts.CandlestickSeries, {
-    upColor: '#22c55e',
-    downColor: '#ef4444',
-    borderDownColor: '#ef4444',
-    borderUpColor: '#22c55e',
-    wickDownColor: '#ef4444',
-    wickUpColor: '#22c55e',
-  });
+  const seriesOptions = window.SharedChartUtils && typeof window.SharedChartUtils.getCandlestickSeriesOptions === 'function'
+    ? window.SharedChartUtils.getCandlestickSeriesOptions()
+    : {
+        upColor: '#22c55e',
+        downColor: '#ef4444',
+        borderDownColor: '#ef4444',
+        borderUpColor: '#22c55e',
+        wickDownColor: '#ef4444',
+        wickUpColor: '#22c55e',
+      };
+  patternSeries = patternChart.addSeries(LightweightCharts.CandlestickSeries, seriesOptions);
+
+  if (typeof ciBindToChart === 'function') {
+    ciBindToChart(patternChart, patternSeries, {
+      contextId: 'default',
+      symbol: typeof _chartCurrentSymbol !== 'undefined' ? _chartCurrentSymbol : '',
+      interval: typeof _chartCurrentInterval !== 'undefined' && _chartCurrentInterval ? _chartCurrentInterval : '1wk',
+      containerEl: container,
+    });
+  }
 
   window.addEventListener('resize', () => {
     if (patternChart) {
@@ -583,14 +555,15 @@ async function drawPatternChart(candidate) {
     : [];
 
   const hasMarkers = Array.isArray(candidate?.visual?.markers) && candidate.visual.markers.length > 0;
+  const isBrowseStub = candidate && candidate.__browseStub === true;
 
   if (!candidate.chart_data || candidate.chart_data.length === 0) {
-    if (!hasMarkers) {
+    if (!hasMarkers && !isBrowseStub) {
       document.getElementById('pattern-chart').innerHTML =
         '<div class="flex items-center justify-center h-full text-gray-500 text-sm">Re-scan to get pattern view</div>';
       return;
     }
-    // Marker-only candidate: fetch OHLCV then re-render
+    // Marker-only or browse-stub candidate: fetch OHLCV then re-render.
     const tfMap = { W: '1wk', D: '1d', '4h': '4h', '1h': '1h', M: '1mo' };
     const interval = tfMap[candidate.timeframe] || '1wk';
     const period = (interval === '1h' || interval === '4h') ? '730d' : 'max';
