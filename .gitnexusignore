@@ -1,0 +1,190 @@
+# GitNexus ignore — index CODE only, exclude all data/databases/transcripts
+#
+# This file is the authoritative exclusion list for the GitNexus indexer.
+# Goal: GitNexus should index source code (backend/services, backend/src,
+# frontend/, scripts, tests, docs, plus pattern/strategy JSON specs) and
+# NOTHING else. No databases, no transcripts, no financial data dumps,
+# no node_modules, no caches.
+
+# ============================================================================
+# HUGE DATA DIRS (these are the smoking gun — caused 5+ GB index explosions)
+# ============================================================================
+# 167 GB of CSV/parquet financial data — never index this
+Financial data/
+Financial data/**
+
+# 60+ GB of LLM session transcripts (.jsonl, screenshots) — exclude all variants
+offline-cursor-transcripts-benchmark/
+offline-cursor-transcripts-debug/
+offline-cursor-transcripts-live/
+offline-cursor-transcripts-manualtest/
+offline-cursor-transcripts-manualtest2/
+offline-cursor-transcripts-test/
+offline-cursor-transcripts-test-2/
+offline-cursor-transcripts-test-3/
+offline-cursor-transcripts-*/
+offline-cursor-transcripts-*/**
+offline-cursor-trace.txt
+
+# Workspace/scratch dirs
+workspace/
+workspace/**
+.tmp/
+.tmp/**
+/_tmp_*
+/tmp_*
+
+# ============================================================================
+# REPO INTERNALS (must never index our own index or git internals)
+# ============================================================================
+.git/
+.git/**
+.gitnexus/
+.gitnexus/**
+
+# ============================================================================
+# EDITOR / TOOL CONFIGS
+# ============================================================================
+.claude/
+.cursor/
+.vscode/
+.idea/
+.planning/
+memory-bank/
+
+# ============================================================================
+# VENDORED DEPENDENCIES (the original 1.4M file explosion in run #1)
+# ============================================================================
+node_modules/
+**/node_modules/
+**/node_modules/**
+
+# ============================================================================
+# PYTHON CACHES + VIRTUALENVS
+# ============================================================================
+**/__pycache__/
+**/__pycache__/**
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+**/venv/
+
+# ============================================================================
+# BUILD ARTIFACTS
+# ============================================================================
+**/dist/
+**/build/
+**/.next/
+**/.turbo/
+**/coverage/
+**/.parcel-cache/
+**/.cache/
+backend/dist/
+
+# ============================================================================
+# LOGS / SCRATCH OUTPUTS
+# ============================================================================
+logs/
+logs/**
+*.log
+*.err
+*.out
+analyze_output.log
+backend-dev.err.log
+backend-dev.out.log
+backend/*.log
+backend/server.err
+backend/server.out
+backend/stderr.tmp
+backend/data/warmup*.log
+
+# ============================================================================
+# ENV / SECRETS
+# ============================================================================
+**/.env
+**/.env.*
+backend/.env
+
+# ============================================================================
+# BACKEND/DATA — exclude EVERYTHING then re-include only the JSON specs
+# ============================================================================
+backend/data/
+backend/data/**
+
+# Re-include pattern definitions (primitive + composite JSON specs)
+!backend/data/patterns/
+!backend/data/patterns/**
+
+# Re-include strategy specs (but NOT the sweep_winner / sweep_*  spam)
+!backend/data/strategies/
+!backend/data/strategies/**
+backend/data/strategies/sweep_*.json
+backend/data/strategies/*sweep_winner*.json
+
+# Re-include scanner metric registry (small JSON config)
+!backend/data/scanner_metric_source_registry.json
+
+# ============================================================================
+# DATABASES (huge binary blobs — never index)
+# ============================================================================
+**/*.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.lance
+**/*.lance/**
+
+# ============================================================================
+# BINARY / IMAGE / ARCHIVE ASSETS
+# ============================================================================
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.ico
+**/*.svg
+**/*.pdf
+**/*.zip
+**/*.tar
+**/*.gz
+**/*.7z
+**/*.rar
+**/*.parquet
+**/*.feather
+**/*.arrow
+**/*.pkl
+**/*.pickle
+**/*.npy
+**/*.npz
+**/*.h5
+**/*.hdf5
+**/*.bin
+**/*.dat
+**/*.csv
+**/*.tsv
+**/*.xlsx
+**/*.xls
+**/*.mp4
+**/*.webm
+**/*.mp3
+**/*.wav
+
+# ============================================================================
+# OneDrive / Windows artifacts
+# ============================================================================
+**/desktop.ini
+**/Thumbs.db
+**/*.lnk
+
+# ============================================================================
+# Lockfiles (huge, not source code)
+# ============================================================================
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+**/poetry.lock

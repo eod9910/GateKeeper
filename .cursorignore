@@ -1,0 +1,58 @@
+# Keep Cursor's AI/codebase tools away from generated, huge, or cloud-backed data.
+Financial data/
+Financial data/**
+
+offline-cursor-transcripts-*/
+offline-cursor-transcripts-*/**
+offline-cursor-trace.txt
+
+.tmp/
+.tmp/**
+
+# Keep workspace prompt/docs visible to Cursor, but avoid indexing bulky
+# reference binaries.
+workspace/**/*.pdf
+workspace/**/*.xlsx
+workspace/**/*.xls
+workspace/**/*.csv
+workspace/**/*.tsv
+workspace/**/*.parquet
+workspace/**/*.sqlite
+workspace/**/*.db
+
+.git/
+.git/**
+.gitnexus/
+.gitnexus/**
+
+logs/
+logs/**
+backend/data/
+backend/data/**
+
+**/node_modules/
+**/node_modules/**
+**/__pycache__/
+**/__pycache__/**
+**/.pytest_cache/
+**/.mypy_cache/
+**/.venv/
+**/venv/
+**/dist/
+**/build/
+
+**/*.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.parquet
+**/*.csv
+**/*.tsv
+**/*.xlsx
+**/*.xls
+**/*.pkl
+**/*.pickle
+**/*.npy
+**/*.npz

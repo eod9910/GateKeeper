@@ -88,3 +88,29 @@ backend/data/fundamentals-pit.*
 .tmp/
 /_tmp_*
 /tmp_*
+
+# --- Massive non-code data folders (must stay out of repo working tree) ---
+# 167 GB+ of CSV/parquet financial data dumps
+Financial data/
+# Workspace prompt libraries should be visible in Git. Keep large binary
+# reference material out unless a file is already tracked intentionally.
+workspace/**/*.pdf
+workspace/**/*.xlsx
+workspace/**/*.xls
+workspace/**/*.csv
+workspace/**/*.tsv
+workspace/**/*.parquet
+workspace/**/*.sqlite
+workspace/**/*.db
+workspace/**/.tmp/
+workspace/**/tmp/
+
+# --- Generated backend data dumps / DB backups (keep out of repo) ---
+backend/data/reit-supplementals/
+backend/data/options-reports/
+backend/data/*.bak
+backend/data/*.sqlite.*
+# ML build artifacts
+ml/artifacts/
+# One-off API response dumps
+/sym_resp.json
