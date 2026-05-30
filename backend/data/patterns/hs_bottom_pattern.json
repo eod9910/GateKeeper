@@ -1,0 +1,78 @@
+{
+  "pattern_id": "hs_bottom_pattern",
+  "name": "Head & Shoulders Bottom / Inverse H&S (Pattern)",
+  "category": "chart_patterns",
+  "description": "Bulkowski-style inverse Head & Shoulders bullish reversal detector. Finds 5 pivots where the middle valley (head) is lowest, the two outer valleys (shoulders) are roughly symmetric, and the two intervening peaks form a neckline. Optionally requires confirmed close above the higher neckline pivot. Emits measured-move target and Bulkowski reference statistics.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/hs_bottom_pattern.py",
+  "plugin_function": "run_hs_bottom_pattern_plugin",
+  "pattern_type": "hs_bottom_pattern",
+  "artifact_type": "pattern",
+  "composition": "primitive",
+  "indicator_role": "anchor_structure",
+  "pattern_role": "reversal_structure_pattern",
+  "library_tier": "core_stable",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["hs_bottom", "inverse_head_shoulders", "reversal", "bulkowski", "bullish", "rdp", "neckline", "measured_move"],
+  "source_kind": "native",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true
+  },
+  "default_setup_params": {
+    "pattern_type": "hs_bottom_pattern",
+    "lookback_bars": 260,
+    "pivot_source": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true,
+    "shoulder_symmetry_pct": 0.05,
+    "head_depth_min_pct": 0.05,
+    "min_bars_shoulder_to_head": 8,
+    "require_prior_downtrend": true,
+    "confirm_close_above_neckline": true,
+    "pullback_proximity_pct": 0.02,
+    "min_score": 0.55,
+    "max_candidates": 2
+  },
+  "default_entry": {
+    "entry_type": "neckline_break_or_throwback"
+  },
+  "tunable_params": [
+    { "key": "swing_epsilon_pct", "label": "RDP Epsilon", "type": "float", "min": 0.01, "max": 0.20, "step": 0.005, "default": 0.08 },
+    { "key": "use_exact_epsilon", "label": "Exact Epsilon", "type": "bool", "default": true },
+    { "key": "lookback_bars", "label": "Lookback Bars", "type": "int", "min": 100, "max": 600, "default": 260 },
+    { "key": "pivot_source", "label": "Pivot Source", "type": "select", "options": ["rdp", "structure", "auto"], "default": "rdp" },
+    { "key": "shoulder_symmetry_pct", "label": "Shoulder Symmetry (Bulkowski ~5%)", "type": "float", "min": 0.01, "max": 0.20, "step": 0.005, "default": 0.05 },
+    { "key": "head_depth_min_pct", "label": "Min Head Depth Below Shoulders", "type": "float", "min": 0.01, "max": 0.30, "step": 0.005, "default": 0.05 },
+    { "key": "min_bars_shoulder_to_head", "label": "Min Bars Shoulder \u2192 Head", "type": "int", "min": 3, "max": 60, "default": 8 },
+    { "key": "require_prior_downtrend", "label": "Require Prior Downtrend", "type": "bool", "default": true },
+    { "key": "confirm_close_above_neckline", "label": "Require Confirmed Break", "type": "bool", "default": true },
+    { "key": "pullback_proximity_pct", "label": "Throwback Band Width", "type": "float", "min": 0.0, "max": 0.10, "step": 0.005, "default": 0.02 },
+    { "key": "min_score", "label": "Min Score", "type": "float", "min": 0.25, "max": 0.95, "step": 0.05, "default": 0.55 }
+  ],
+  "default_risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_length": 14,
+    "atr_multiplier": 2.0,
+    "take_profit_R": 2.0,
+    "max_hold_bars": 30,
+    "max_concurrent_positions": 3
+  },
+  "backtest_config": {
+    "direction": "long"
+  },
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 50,
+  "status": "experimental",
+  "bulkowski_priors": {
+    "source": "Bulkowski, Encyclopedia of Chart Patterns, 3rd ed.",
+    "failure_rate": 0.03,
+    "avg_rise_pct": 0.38,
+    "throwback_rate": 0.50,
+    "notes": "One of Bulkowski's highest-ranked reversal patterns. Statistics are reference priors only."
+  }
+}

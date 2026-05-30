@@ -1,0 +1,78 @@
+{
+  "pattern_id": "quasimodo_bearish_pattern",
+  "name": "Quasimodo Bearish (Pattern)",
+  "category": "chart_patterns",
+  "description": "Bearish Quasimodo / Over-and-Under top reversal detector. 5-pivot HIGH-LOW-HIGH-LOW-HIGH window where the head (middle peak) is the highest and the right shoulder is strictly BELOW the left shoulder \u2014 the asymmetry that distinguishes Quasimodo from a classical H&S top. Confirmation = close below the lower of the two intervening valleys (the left armpit / entry trigger). Statistics borrowed from H&S top.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/quasimodo_bearish_pattern.py",
+  "plugin_function": "run_quasimodo_bearish_pattern_plugin",
+  "pattern_type": "quasimodo_bearish_pattern",
+  "artifact_type": "pattern",
+  "composition": "primitive",
+  "indicator_role": "anchor_structure",
+  "pattern_role": "reversal_structure_pattern",
+  "library_tier": "core_stable",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["quasimodo", "qm", "over_and_under", "reversal", "bearish", "rdp", "smart_money", "armpit"],
+  "source_kind": "native",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true
+  },
+  "default_setup_params": {
+    "pattern_type": "quasimodo_bearish_pattern",
+    "lookback_bars": 260,
+    "pivot_source": "rdp",
+    "swing_epsilon_pct": 0.08,
+    "use_exact_epsilon": true,
+    "head_premium_min_pct": 0.03,
+    "right_shoulder_below_left_min_pct": 0.02,
+    "min_bars_shoulder_to_head": 6,
+    "require_prior_uptrend": true,
+    "confirm_close_below_armpit": true,
+    "pullback_proximity_pct": 0.02,
+    "min_score": 0.55,
+    "max_candidates": 2
+  },
+  "default_entry": {
+    "entry_type": "armpit_break_or_pullback"
+  },
+  "tunable_params": [
+    { "key": "swing_epsilon_pct", "label": "RDP Epsilon", "type": "float", "min": 0.01, "max": 0.20, "step": 0.005, "default": 0.08 },
+    { "key": "use_exact_epsilon", "label": "Exact Epsilon", "type": "bool", "default": true },
+    { "key": "lookback_bars", "label": "Lookback Bars", "type": "int", "min": 100, "max": 600, "default": 260 },
+    { "key": "pivot_source", "label": "Pivot Source", "type": "select", "options": ["rdp", "structure", "auto"], "default": "rdp" },
+    { "key": "head_premium_min_pct", "label": "Min Head Premium Over Shoulders", "type": "float", "min": 0.005, "max": 0.20, "step": 0.005, "default": 0.03 },
+    { "key": "right_shoulder_below_left_min_pct", "label": "Min RS Below LS (QM signature)", "type": "float", "min": 0.005, "max": 0.20, "step": 0.005, "default": 0.02 },
+    { "key": "min_bars_shoulder_to_head", "label": "Min Bars Shoulder \u2192 Head", "type": "int", "min": 3, "max": 60, "default": 6 },
+    { "key": "require_prior_uptrend", "label": "Require Prior Uptrend", "type": "bool", "default": true },
+    { "key": "confirm_close_below_armpit", "label": "Require Confirmed Break", "type": "bool", "default": true },
+    { "key": "pullback_proximity_pct", "label": "Pullback Band Width", "type": "float", "min": 0.0, "max": 0.10, "step": 0.005, "default": 0.02 },
+    { "key": "min_score", "label": "Min Score", "type": "float", "min": 0.25, "max": 0.95, "step": 0.05, "default": 0.55 }
+  ],
+  "default_risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_length": 14,
+    "atr_multiplier": 2.0,
+    "take_profit_R": 2.0,
+    "max_hold_bars": 30,
+    "max_concurrent_positions": 3
+  },
+  "backtest_config": {
+    "direction": "short"
+  },
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 50,
+  "status": "experimental",
+  "bulkowski_priors": {
+    "source": "Borrowed from Bulkowski H&S top (no published QM-specific stat)",
+    "failure_rate": 0.04,
+    "avg_decline_pct": 0.22,
+    "pullback_rate": 0.50,
+    "notes": "Quasimodo is not in Bulkowski's encyclopedia. Priors borrowed from H&S top for a directional sanity baseline; validator/sweep should derive symbol/regime-specific values from backtest results."
+  }
+}

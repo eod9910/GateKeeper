@@ -1,0 +1,83 @@
+{
+  "pattern_id": "symmetrical_triangle_pattern",
+  "name": "Symmetrical Triangle",
+  "category": "chart_patterns",
+  "description": "Bulkowski-style symmetrical triangle bidirectional pattern detector. Fits least-squares trendlines through HIGH and LOW pivots; requires falling resistance and rising support that converge. Confirmation comes from the FIRST close break of either trendline; emitted direction is set from the actual breakout side. Bulkowski statistics differ for upward vs downward breakouts and are reported per candidate.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/symmetrical_triangle_pattern.py",
+  "plugin_function": "run_symmetrical_triangle_pattern_plugin",
+  "pattern_type": "symmetrical_triangle_pattern",
+  "artifact_type": "pattern",
+  "composition": "primitive",
+  "indicator_role": "anchor_structure",
+  "pattern_role": "continuation_structure_pattern",
+  "library_tier": "core_stable",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["symmetrical_triangle", "continuation", "bulkowski", "neutral", "rdp", "trendline", "breakout"],
+  "source_kind": "native",
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.06,
+    "use_exact_epsilon": true
+  },
+  "default_setup_params": {
+    "pattern_type": "symmetrical_triangle_pattern",
+    "lookback_bars": 260,
+    "pivot_source": "rdp",
+    "swing_epsilon_pct": 0.06,
+    "use_exact_epsilon": true,
+    "pivot_window_size": 6,
+    "min_touches_per_line": 2,
+    "max_residual_pct": 0.04,
+    "min_r_squared": 0.55,
+    "flat_slope_threshold_pct_per_bar": 0.0015,
+    "min_bars_window": 20,
+    "require_convergence": true,
+    "confirm_close_break": true,
+    "pullback_proximity_pct": 0.02,
+    "min_score": 0.55,
+    "max_candidates": 2
+  },
+  "default_entry": {
+    "entry_type": "trendline_break_either_side"
+  },
+  "tunable_params": [
+    { "key": "swing_epsilon_pct", "label": "RDP Epsilon", "type": "float", "min": 0.01, "max": 0.20, "step": 0.005, "default": 0.06 },
+    { "key": "use_exact_epsilon", "label": "Exact Epsilon", "type": "bool", "default": true },
+    { "key": "lookback_bars", "label": "Lookback Bars", "type": "int", "min": 100, "max": 600, "default": 260 },
+    { "key": "pivot_source", "label": "Pivot Source", "type": "select", "options": ["rdp", "structure", "auto"], "default": "rdp" },
+    { "key": "pivot_window_size", "label": "Pivot Window Size", "type": "int", "min": 4, "max": 12, "default": 6 },
+    { "key": "min_touches_per_line", "label": "Min Touches per Line", "type": "int", "min": 2, "max": 5, "default": 2 },
+    { "key": "max_residual_pct", "label": "Max Pivot Residual %", "type": "float", "min": 0.005, "max": 0.10, "step": 0.005, "default": 0.04 },
+    { "key": "min_r_squared", "label": "Min R²", "type": "float", "min": 0.20, "max": 0.95, "step": 0.05, "default": 0.55 },
+    { "key": "flat_slope_threshold_pct_per_bar", "label": "Flat Slope Threshold (%/bar)", "type": "float", "min": 0.0001, "max": 0.01, "step": 0.0005, "default": 0.0015 },
+    { "key": "min_bars_window", "label": "Min Bars Window Span", "type": "int", "min": 8, "max": 120, "default": 20 },
+    { "key": "require_convergence", "label": "Require Lines Converge", "type": "bool", "default": true },
+    { "key": "confirm_close_break", "label": "Require Confirmed Break (Either Side)", "type": "bool", "default": true },
+    { "key": "pullback_proximity_pct", "label": "Pullback Band Width", "type": "float", "min": 0.0, "max": 0.10, "step": 0.005, "default": 0.02 },
+    { "key": "min_score", "label": "Min Score", "type": "float", "min": 0.25, "max": 0.95, "step": 0.05, "default": 0.55 }
+  ],
+  "default_risk_config": {
+    "stop_type": "atr_multiple",
+    "atr_length": 14,
+    "atr_multiplier": 2.0,
+    "take_profit_R": 2.0,
+    "max_hold_bars": 30,
+    "max_concurrent_positions": 3
+  },
+  "backtest_config": {
+    "direction": "long"
+  },
+  "suggested_timeframes": ["D", "W"],
+  "min_data_bars": 50,
+  "status": "experimental",
+  "bulkowski_priors": {
+    "source": "Bulkowski, Encyclopedia of Chart Patterns, 3rd ed.",
+    "upward_breakout": { "failure_rate": 0.09, "avg_rise_pct": 0.31, "throwback_rate": 0.37 },
+    "downward_breakout": { "failure_rate": 0.10, "avg_decline_pct": 0.17, "pullback_rate": 0.59 },
+    "notes": "Bulkowski stats differ per breakout direction; per-candidate priors are emitted on output_ports.bulkowski_priors based on actual breakout side."
+  }
+}
