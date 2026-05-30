@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/coverage-tiers/recompute",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/coverage-tiers/recompute"
+  },
+  "request_body": {
+    "scope": "all"
+  },
+  "response_status": 202,
+  "response_body": {
+    "success": true,
+    "data": {
+      "job_id": "coverage-tier-recompute-1735776000",
+      "started_at": 1735776000,
+      "scope": "all",
+      "estimated_seconds": 120
+    }
+  }
+}

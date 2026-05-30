@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/tracked-concepts/:id/status",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/tracked-concepts/89/status"
+  },
+  "request_body": {
+    "status": "pruned",
+    "reason": "Confirmed spam / duplicate of concept 412."
+  },
+  "response_status": 200,
+  "response_body": {
+    "success": true,
+    "data": {
+      "id": 89,
+      "concept_key": "frame_primer_dupe",
+      "target_type": "brand",
+      "target_key": "frame_cosmetics",
+      "display_label": "Frame Cosmetics primer dupe",
+      "status": "pruned",
+      "metadata_json": "{\"search_terms\":[\"frame cosmetics\",\"FRMC\"]}",
+      "created_at": 1735603200,
+      "updated_at": 1735776600,
+      "pruned_at": 1735776600,
+      "pruned_reason": "Confirmed spam / duplicate of concept 412."
+    }
+  },
+  "_alt_merge_request": {
+    "request_body": {
+      "status": "merged_into:412",
+      "reason": "Same brand canonical key — merging duplicates."
+    },
+    "response_status": 200,
+    "response_body": {
+      "success": true,
+      "data": {
+        "id": 89,
+        "concept_key": "frame_primer_dupe",
+        "status": "merged_into:412",
+        "merged_into_concept_id": 412,
+        "updated_at": 1735776600
+      }
+    }
+  },
+  "_alt_error_409_merge_target_missing": {
+    "response_status": 409,
+    "response_body": {
+      "success": false,
+      "error": "Merge target concept 9999 does not exist.",
+      "code": "INVALID_STATE_TRANSITION"
+    }
+  }
+}

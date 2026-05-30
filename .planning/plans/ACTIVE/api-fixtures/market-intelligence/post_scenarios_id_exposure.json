@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/scenarios/:id_or_slug/exposure",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scenarios/frame-cosmetics-dupe-spike-2026-04/exposure"
+  },
+  "request_body": {
+    "asset_type": "equity",
+    "asset_key": "FRMC",
+    "exposure_direction": "long_beneficiary",
+    "exposure_order": "first",
+    "exposure_strength": 0.7,
+    "rationale": "Operator added based on conference-call commentary",
+    "confidence": 0.6,
+    "universe_symbol": "FRMC",
+    "schema_version": 1
+  },
+  "response_status": 201,
+  "response_body": {
+    "success": true,
+    "data": {
+      "exposure": {
+        "id": 9012,
+        "situation_id": 123,
+        "asset_type": "equity",
+        "asset_key": "FRMC",
+        "exposure_direction": "long_beneficiary",
+        "exposure_order": "first",
+        "exposure_strength": 0.7,
+        "rationale": "Operator added based on conference-call commentary",
+        "confidence": 0.6,
+        "source_method": "operator_override",
+        "universe_symbol": "FRMC",
+        "created_at": 1735776600,
+        "updated_at": 1735776600
+      }
+    }
+  },
+  "_alt_error_422_schema_mismatch": {
+    "response_status": 422,
+    "response_body": {
+      "success": false,
+      "error": "Request body declared schema_version=99, server is at 1.",
+      "code": "SCHEMA_VERSION_MISMATCH"
+    }
+  }
+}

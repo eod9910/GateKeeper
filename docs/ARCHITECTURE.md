@@ -226,7 +226,7 @@ Validator UI
 Key files:
 
 - `backend/src/routes/validator.ts`
-- `docs/validator-api-v2.md`
+- `docs/validator-architecture.md`
 - `frontend/public/validator.html`
 - `frontend/public/validator.js`
 
@@ -251,6 +251,16 @@ Key files:
 ## 4. Candidate Semantics
 
 Scanner outputs are not all the same kind of object.
+
+The canonical methodology is documented in `docs/indicator/indicator-architecture.md`:
+
+```text
+Primitive -> emits one reusable metric/event/state component
+Composite -> combines primitives and may emit a stateful signal
+Strategy  -> wraps a primitive/composite state with entry, exit, risk, and execution rules
+```
+
+Scanner consumes primitives and composites. Validator consumes strategies only.
 
 The system now distinguishes:
 

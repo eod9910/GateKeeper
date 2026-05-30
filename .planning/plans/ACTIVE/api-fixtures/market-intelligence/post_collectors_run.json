@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/collectors/:source_type/run",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/collectors/hackernews/run"
+  },
+  "request_body": {
+    "since": 1735680000
+  },
+  "response_status": 202,
+  "response_body": {
+    "success": true,
+    "data": {
+      "job_id": "collector-hackernews-1735776000",
+      "source_type": "hackernews",
+      "started_at": 1735776000
+    }
+  },
+  "_alt_error_400_unknown_source": {
+    "response_status": 400,
+    "response_body": {
+      "success": false,
+      "error": "Collector 'reddit_wsb' not implemented. Available: hackernews, fourchan. Phase 2 will add Discord + Bluesky + forums; Phase 3 will wire Macro RSS feeds.",
+      "code": "NOT_IMPLEMENTED"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/emerging-topics/:id/recompute-authenticity",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/emerging-topics/4421/recompute-authenticity"
+  },
+  "request_body": {
+    "reason": "weight tuning experiment 2026-04-26"
+  },
+  "response_status": 200,
+  "response_body": {
+    "success": true,
+    "data": {
+      "emerging_topic_id": 4421,
+      "authenticity_score": 0.78,
+      "computed_at": 1735776600,
+      "signals": [
+        { "type": "account_age_distribution", "value": 0.78, "weight": 0.20, "notes": "Median age 412 days" },
+        { "type": "cross_platform_signature", "value": 0.92, "weight": 0.20, "notes": "Spread to bluesky:#beauty within 36h" },
+        { "type": "comment_depth",             "value": 0.71, "weight": 0.10, "notes": "Avg thread depth 4.2 replies" },
+        { "type": "sentiment_shape",           "value": 0.85, "weight": 0.10, "notes": "Polarity SD 0.58" },
+        { "type": "linguistic_similarity",     "value": 0.94, "weight": 0.10, "notes": "Avg pairwise cosine 0.31" },
+        { "type": "account_quality",           "value": 0.81, "weight": 0.10, "notes": "Avg karma 4.2k" },
+        { "type": "mod_flag_rate",             "value": 0.95, "weight": 0.05, "notes": "Zero auto-removed comments" },
+        { "type": "promoter_co_occurrence",    "value": 0.88, "weight": 0.05, "notes": "No detected affiliate ring" },
+        { "type": "posting_cadence",           "value": 0.79, "weight": 0.05, "notes": "Diurnal pattern matches baseline" },
+        { "type": "account_history_diversity", "value": 0.86, "weight": 0.05, "notes": "Authors active in unrelated communities pre-spike" }
+      ],
+      "hard_limits_triggered": [],
+      "schema_version": 1
+    }
+  }
+}

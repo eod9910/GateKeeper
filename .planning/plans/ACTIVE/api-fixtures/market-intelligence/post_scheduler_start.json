@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/scheduler/start",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scheduler/start"
+  },
+  "request_body": null,
+  "response_status": 200,
+  "response_body": {
+    "success": true,
+    "data": {
+      "is_running": true,
+      "started_at": 1735776090,
+      "next_run_at": 1735776390
+    }
+  }
+}

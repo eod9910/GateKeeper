@@ -1,0 +1,39 @@
+{
+  "success": true,
+  "data": {
+    "situation_id": 11,
+    "items": [
+      {
+        "id": 29,
+        "evidence_type": "policy_release",
+        "source_name": "EIA",
+        "headline_or_label": "Weekly Petroleum Status Report ΓÇö surprise inventory build",
+        "summary": "Crude stocks +2.1Mb vs -1.0Mb consensus.",
+        "url": "https://eia.example.com/wpsr-2026-04-24",
+        "published_at": 1777292855,
+        "importance_score": 0.6
+      },
+      {
+        "id": 28,
+        "evidence_type": "article",
+        "source_name": "AP",
+        "headline_or_label": "CENTCOM intercepts third anti-ship drone in 24h",
+        "summary": null,
+        "url": "https://ap.example.com/centcom-intercepts",
+        "published_at": 1777202855,
+        "importance_score": 0.7
+      },
+      {
+        "id": 27,
+        "evidence_type": "article",
+        "source_name": "Reuters",
+        "headline_or_label": "Maersk diverts Red Sea fleet, rerouting via Cape of Good Hope",
+        "summary": "Largest container fleet operator pulls all Red Sea transits citing IRGC drone threat.",
+        "url": "https://reuters.example.com/red-sea-divert",
+        "published_at": 1777174055,
+        "importance_score": 0.9
+      }
+    ],
+    "total": 3
+  }
+}

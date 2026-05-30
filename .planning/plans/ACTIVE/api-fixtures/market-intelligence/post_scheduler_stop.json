@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/scheduler/stop",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scheduler/stop"
+  },
+  "request_body": {
+    "drain": true
+  },
+  "response_status": 200,
+  "response_body": {
+    "success": true,
+    "data": {
+      "is_running": false,
+      "stopped_at": 1735776100
+    }
+  }
+}

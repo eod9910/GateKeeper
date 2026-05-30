@@ -57,15 +57,21 @@ This revision converts previously vague intent into concrete v1 commitments so P
 | D17 | "Thesis right, stock wrong" handling | New validity flag `NO_GOOD_EXPRESSION` fires when scenario is real but `composite_rank` of #1 candidate < 50. Surfaces "we believe the trend, but no clean way to play it" cases that should not generate trades. |
 | D18 | "Thesis right, timing wrong" handling | New validity flag `THESIS_REAL_EXECUTION_DELAYED` fires when `attention_score ≥ 0.5` AND `market_confirmation_score < 0.2` for ≥ 60 days. Common Camillo failure mode: real trend, market hasn't started repricing, position bleeds. |
 | D19 | Consumer-brand signal sources | Phase 6 adds brand-level consumer signals (app store rankings, Google Trends, Amazon review velocity, web traffic proxies) as a new source class, distinct from the macro/RSS/social inputs in v1. |
-| D20 | Per-theme quality measurement | Phase 5 ships a per-`primary_theme` quality dashboard (lead time, hit rate, FP rate, expression-vehicle rate). Themes with consistently poor metrics are pruned or down-weighted. Prevents the "cover everything badly" failure mode. |
+| D20 | Per-theme performance measurement | Phase 5 ships **Theme Performance**: per-`primary_theme` forward tracking (lead time, hit rate, FP rate, expression-vehicle rate). Themes with consistently poor metrics are pruned or down-weighted. Prevents the "cover everything badly" failure mode. |
 | D21 | Detection model — DUAL ENGINE | The system runs **two peer detection engines** that both write to `market_situations` with different `detection_path` values: (1) **Macro Engine** — embedding-based clustering + entity reconciliation over news / filings / RSS / policy / cycle inputs (`detection_path = news_cluster`); (2) **Social Arbitrage Engine** — per-(concept, community, day) z-score over comment universe with seasonality baselines (`detection_path = topic_anomaly`). Scenarios that gain corroborating signal from the other engine become `detection_path = mixed`. Neither engine is primary; they serve different decisions. (See §Detection Logic.) |
 | D22 | Coverage tier filter — engine-scoped | Every candidate ticker is bucketed into a `coverage_tier` (`mega_covered`, `well_covered`, `lightly_covered`, `barely_covered`, `untradable`). For **Social Arbitrage** scenarios the same z-score on a `barely_covered` ticker scores higher than on a `mega_covered` ticker, and `mega_covered` is excluded from the default API/UI stream (the whole point is to find uncovered names). For **Macro Engine** scenarios all tiers are visible by default — a geopolitical scenario SHOULD surface XOM, LMT, etc. when relevant. `MEGA_COVERAGE_PENALTY` flag fires only on Social Arbitrage scenarios where all top-3 candidates are mega-covered. (See §Coverage Filter.) |
 | D23 | Authenticity layer | Every emerging topic gets an `authenticity_score` (0–1) computed from account-age distribution, posting cadence, cross-platform signature, comment depth, sentiment shape, account quality, mod-flag rate, linguistic similarity, and promoter co-occurrence. `authenticity_score < 0.5` triggers `LIKELY_INAUTHENTIC` and the topic is suppressed from the actionable stream. **Applies only to Social Arbitrage scenarios** — Macro Engine scenarios source from pre-vetted news/filings and don't carry an authenticity score. (See §Authenticity Layer.) |
 | D24 | Phase ordering: Social Arb first, Macro second | Both engines are MVP-required and ship together at Phase 4 page launch. **Phase 1 builds the Social Arbitrage Engine first** because it is structurally harder (5 net-new collectors per D29, concept extraction, baselines, z-score, authenticity scoring, coverage filter) and the entire mission rides on whether it can produce signal. **Phase 1.5 builds the Macro Engine second** (news/RSS/EDGAR ingestion, embedding clustering, entity reconciliation) — the building blocks are well-understood and we want Phase 1 results to influence how Macro is tuned. This is an implementation order, not a priority ranking. |
 | D28 | Source topology — topic-indexed vs ticker-indexed | The Social Arbitrage Engine has two structurally different community-source classes that play different roles: **topic-indexed sources** (organized by topic/community — Hacker News threads, 4chan boards, Bluesky topic feeds, Discord public servers, niche product forums — where most participants don't know or care that the brand is publicly traded) are the **originating detection signal** and feed the per-(concept, community, day) z-score engine; **ticker-indexed sources** (StockTwits, Yahoo Finance message boards, ticker-tagged Twitter/X) are the **migration/confirmation signal** and feed the cross-platform corroboration check in the Authenticity Layer (D23 S4) and the lifecycle transition `EARLY → DEVELOPING → CONFIRMED`. By the time chatter has migrated to a ticker-indexed space, the institutional class is half-noticed; that migration is itself a signal that the asymmetry is closing. The specific topic-indexed source basket for v1 is defined in D29. |
 | D29 | v1 topic-indexed source basket — Reddit deferred | Reddit was originally the load-bearing topic-indexed source (per the prior framing of D24/D28). After Reddit's 2024–2025 Responsible Builder Policy tightening (data-API access requires explicit approval; non-commercial mining requires a ticket; LLM-extraction of comment text is in policy-tense gray zone), **Reddit is deferred to Phase 1.7** as a future-add contingent on either (a) Reddit policy reversal, (b) approval of an enterprise-API ticket, or (c) explicit user decision to operate in the policy gray zone. The v1 topic-indexed basket is **5 source types with no auth/policy obstacles**: (1) **Hacker News** via the Algolia search API (free, public, no auth, no ToS issue) — covers tech/AI/startups/dev tooling; (2) **4chan `/biz/` and `/g/`** via the official 4chan JSON API (free, public, no auth) — covers crypto/micro-caps/contrarian + tech; (3) **Bluesky firehose** via the AT Protocol public endpoints (free, public) — broad chatter, growing user base; (4) **Discord public servers** via the official Discord bot API (free, ToS-allowed for public servers, requires bot account registration and per-server invite) — niche communities (gaming/crypto/finance); (5) **niche product forums** via RSS or HTML scrape of public pages (no API obstacle) — hobby/product verticals (initial seed: 1 audio gear forum, 1 sneaker forum, 1 beauty forum, 1 watches forum, 1 photography forum; specific forums TBD in `tracked-sources.json`). The architecture is source-agnostic per D28, so adding/removing source types is a config-file change, not a code change. |
+| D30 | Universe normalization — field map before tickers | The Social Arbitrage Engine must not start from a hand-picked ticker list. All raw evidence is first treated as a broad field observation, then matched locally against the full clean universe (`backend/data/universe_clean.json`) using ticker, company-name, brand, product, and alias matching. The unit of measurement is `(symbol, source_type, source_community, day)`, not "which watchlist did we seed." Every source/symbol pair gets its own baseline so the system ranks **abnormal movement relative to that symbol's normal activity**, not raw mention size. Ticker-indexed sources such as StockTwits/Yahoo can confirm migration, but a ticker-watchlist match alone is labeled confirmation, not organic discovery. |
+
+Implementation status (`2026-05-06`): `backend/scripts/run_universe_mention_normalization.py` creates normalized mention, daily count, baseline, and perturbation tables from `mi_raw_hits`; scheduler job `universe_mention_normalization` runs every two hours; API `GET /api/market-intelligence/social-arb/universe-movers` and the Social ARB "Normalized Universe Movers" panel expose the resulting clean-universe perturbations before they become scenario cards.
+| D33 | Eigen perturbation radar - full clean-universe daily scan | The Market Intelligence page also carries a market-structure perturbation engine. After the daily OHLCV refresh, `eigen_perturbation_scan` runs across the full clean universe (`--max-symbols 0`), removes dominant PCA/eigen factors from recent returns, and ranks single-name residual moves by unexplained z-score. This is not a replacement for Macro or Social Arbitrage; it is the "what is bending the geometry?" layer. A stock with abnormal residual movement becomes more interesting when it also has Social ARB migration, unusual options flow, ticker-indexed social buzz confirmation, or a valuation-engine mismatch. The UI surfaces this as **Eigen Perturbation Engine** with latest scan metadata, historical replay expectancy, and overlays for options/social/valuation. Clicking a candidate opens an investigation card where Ledger performs a catalyst hunt using local database evidence first, then checks Social Buzz Confirmation (`social_buzz` + `social_eigen_alignment`) to see whether attention/sentiment is moving with the residual signal, then runs a fail-soft open-web catalyst check for current news, filings, company/IR sources, and public web corroboration before drawing conclusions. Actionable pressure-hit reports are precompiled immediately after a successful scan through `eigen_report_precompiler` and cached under `backend/data/research/eigen-reports/`, so the operator sees a ready investigation card instead of waiting for data gathering and narrative generation. When the Pre-Explosion Pressure Watch list is loaded in the UI, the displayed symbols are also submitted as an exact precompile queue; already-current cached reports are skipped rather than rebuilt. |
+| D31 | YouTube engine - staged, free-data first | YouTube is too large to crawl blindly. The v1 engine uses a staged funnel: **channel/feed watcher** (free RSS, no API key) discovers recent uploads from operator-curated channels, persists `youtube_video` metadata rows, and optionally hands URLs to the transcript collector; **transcript collector** stores `youtube_transcript` rows when public captions exist or the operator provides a transcript; **comments ingestion** is a later gated layer for videos whose metadata/transcript passes signal thresholds; **search/discovery** is a later layer using bounded theme queries, not whole-YouTube crawling. YouTube evidence enters the same `mi_raw_hits -> universe normalization -> emerging claims -> narrative clusters -> cards` pipeline as other Social ARB evidence. Empty channel/watchlist configs must skip cleanly, not fail scheduled runs. |
+| D32 | Do-not-miss perturbation playbook | The product exists to prevent missed plays, not to display feeds. Treat the two engines as radars over different scales: **Macro Engine = big-world perturbations** (weather, drought, crop disease, commodity supply shocks, oil/gas/refinery disruptions, strikes, ports/rail/shipping chokepoints, wars, sanctions, export bans, rate/liquidity shocks, insurance/catastrophe events) and **Social Arbitrage = micro/social perturbations** (product adoption, niche community enthusiasm, specialist forum/YouTube chatter, buyer/user behavior changes, retail migration into tickers). Every actionable card must answer: what changed, why now, which tradable exposures are first/second-order, what valuation engine says, whether options flow confirms or contradicts it, whether it is early/crowded, and what would invalidate the thesis. |
 | D25 | Mission alignment — engine-aware | Each engine's mission alignment is enforced separately. **Social Arbitrage**: scenarios must be uncovered + organic + early; failing any of the three excludes them from the actionable stream. **Macro Engine**: scenarios must be evidence-backed (≥ 2 distinct mainstream sources) and have coherent exposure mapping (≥ 3 first-order rows resolving to ≥ 5 universe symbols); failing pushes them down-rank but never excludes. Mega-coverage is a feature for Macro scenarios, a failure mode only for Social Arbitrage. |
-| D26 | Engine naming and labeling | Internal name and external label for each detection path is fixed: `detection_path = news_cluster` is **"Macro Engine"** (UI label "Macro"); `detection_path = topic_anomaly` is **"Social Arbitrage Engine"** (UI label "Social Arb"); `detection_path = mixed` is **"Macro + Social Arb"** with a sub-label indicating which engine seeded it (`mixed_news_led` or `mixed_anomaly_led`). All log lines, telemetry, scoring profiles, and operator UI copy use these names — no other terms. |
+| D26 | Engine naming and labeling | Internal name and external label for each detection path is fixed: `detection_path = news_cluster` is **"Macro Engine"** (UI label "Macro"); `detection_path = topic_anomaly` is **"Social Arbitrage Engine"** (UI label "Social Arb"); `detection_path = mixed` is **"Macro + Social Arb"** with a sub-label indicating which engine seeded it (`mixed_news_led` or `mixed_anomaly_led`). The Social Arbitrage operator surface is labeled **"Social Arbitrage Engine"** and its registry rows are **"Listening Concepts"**. The Macro scheduler/source-health surface is labeled **"Macro Source Monitor"**. Forward-tracking and outcome analytics are labeled **"Theme Performance"**, not "Quality Dashboard". All log lines, telemetry, scoring profiles, and operator UI copy use these names — no other terms. |
 | D27 | Dual scoring profile | `scenario_score` is computed under one of two profiles selected by `detection_path`. **Macro profile** (news_cluster, mixed_news_led): `event_score` weight 0.30, `market_confirmation_score` 0.25, `source_breadth_score` 0.20, `attention_score` 0.15 (corroborating only), `novelty_score` 0.10; **no coverage_edge_multiplier and no authenticity_multiplier applied**. **Social Arbitrage profile** (topic_anomaly, mixed_anomaly_led): `attention_score` weight 0.40, `market_confirmation_score` 0.20, `event_score` 0.15 (corroborating), `source_breadth_score` 0.15, `novelty_score` 0.10; `coverage_edge_multiplier` and `authenticity_multiplier` applied. Both profiles share the same `crowding_penalty` and `validity_penalty` deductions. (See §Scoring Framework.) |
 
 ---
@@ -1235,6 +1241,13 @@ The closed list of valid `primary_theme` values. Loaded from `backend/data/scena
 
 Growing registry of (concept, target) pairs the system z-scores. New rows are added by the LLM concept extractor when it encounters an unseen pair; an operator can prune or merge them.
 
+The registry is a **living watchlist**, not a static list. It has two layers:
+
+1. **Seed watchlist** - hand-curated frontier themes the operator believes are worth listening for now.
+2. **Organic expansion** - concepts proposed by extraction/clustering when repeated unknown phrases, entities, products, or claims appear in raw hits.
+
+Tracking a concept does **not** mean the system believes the thesis. It only means the topic is important enough to monitor. Claims, narrative clusters, exposure mapping, authenticity checks, and Ledger decide whether the topic becomes investable.
+
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | INTEGER PK | |
@@ -1244,10 +1257,48 @@ Growing registry of (concept, target) pairs the system z-scores. New rows are ad
 | `display_label` | TEXT | Human-readable |
 | `created_at` | INTEGER | When first seen by the system |
 | `created_by` | TEXT | Enum: `llm_extractor`, `operator`, `seed_taxonomy` |
-| `status` | TEXT | Enum: `active`, `merged_into:<id>`, `pruned` |
-| `metadata_json` | TEXT | LLM extraction confidence, example mentions |
+| `status` | TEXT | Enum: `active`, `proposed`, `merged_into:<id>`, `pruned`, `rejected` |
+| `metadata_json` | TEXT | Search terms, watch tickers, rationale, priority, LLM extraction confidence, example mentions |
 
 Indexes: `(concept_key, target_key)` UNIQUE, `(status, created_at)`.
+
+Initial asymmetric narrative seed categories:
+
+- financial tokenization / tokenized equities
+- 24-hour equity trading
+- stablecoin banking rails
+- quantum computing commercialization
+- nuclear / SMR power demand
+- AI data-center power and grid bottlenecks
+- defense AI operating systems
+- autonomous drones and counter-drone systems
+- robotics and labor automation
+- AI drug discovery
+- AI-enabled clinical trials
+- radiopharma cancer therapy
+- precision medicine diagnostics
+- gene editing delivery systems
+- synthetic biology tools
+- critical minerals processing
+- water infrastructure / scarcity
+- consumer product and brand breakouts
+
+Organic expansion loop:
+
+```text
+raw hits
+-> repeated unknown phrases/entities/products
+-> proposed tracked concept
+-> operator review
+-> active / merged / rejected
+```
+
+Concept maintenance actions:
+
+- `ADD`: create a new concept when evidence repeats across raw hits
+- `MERGE`: collapse duplicate fragments into a broader concept
+- `PRUNE`: remove stale or low-signal concepts from active monitoring
+- `PROMOTE`: increase source coverage for concepts that repeatedly produce useful claims
 
 ### `concept_mentions` (new — high-volume, append-only)
 
@@ -2079,6 +2130,11 @@ These mirror `/api/social-intelligence/*` patterns:
 
 - `GET /settings`
 - `PUT /settings`
+- `GET /scheduler/status`
+- `POST /scheduler/config`
+- `POST /scheduler/jobs/:name/run`
+- `POST /scheduler/jobs/:name/enable`
+- `POST /scheduler/jobs/:name/disable`
 - `POST /scheduler/start`
 - `POST /scheduler/stop`
 
@@ -2089,6 +2145,11 @@ These mirror `/api/social-intelligence/*` patterns:
 Page lives at `frontend/public/market-intelligence.html` + `market-intelligence.js`.
 
 The UI stays focused on **situations**, not content feeds.
+
+Top-of-page control surfaces use fixed engine-aware labels:
+- **Theme Performance**: forward-tracking outcomes and per-theme hit-rate/return analytics.
+- **Macro Source Monitor**: scheduler/source health for Macro Engine collectors and pipeline jobs (`macro_*`, `embedding_pipeline`, `macro_clustering`, `cluster_naming`, `cross_engine_corroboration`, `consumer_cycle_adapter`).
+- **Social Arbitrage Engine**: listening-concept registry controls plus emerging-topic promote/suppress actions.
 
 ### Page layout
 
@@ -2450,7 +2511,7 @@ Phase 5 builds the corpus retroactively:
 - Backtest-derived weight calibration (Phase 5)
 - Forward-tracking metrics dashboard (Phase 5)
 - Brand-level signals: app store rankings, Google Trends, Amazon reviews, web traffic (Phase 6 — D19)
-- Per-`primary_theme` quality dashboard (Phase 5 — D20)
+- Per-`primary_theme` Theme Performance dashboard (Phase 5 — D20)
 
 ### Hard non-goals for v1
 
@@ -2636,7 +2697,7 @@ Each phase has explicit exit criteria. Phase advancement is gated, not time-boxe
 - Per-engine threshold sweep + score weight tuning (Macro profile and Social Arbitrage profile tuned independently)
 - `base_magnitude_for_scenario_type` recalibration
 - Forward-tracking metrics dashboard (lead time, hit rate, false-positive rate, crowding-penalty validation) — split by engine
-- **Per-`primary_theme` quality dashboard** (D20): for each theme in `theme_registry`, surface lead time, hit rate, FP rate, expression-vehicle rate (% of scenarios where `composite_rank` of #1 ≥ 50), and average days to invalidation. Themes with persistently poor metrics get auto-flagged for taxonomy review or weight reduction. Themes are tracked per-engine (a theme can perform well in Macro but poorly in Social Arbitrage, or vice versa).
+- **Per-`primary_theme` Theme Performance dashboard** (D20): for each theme in `theme_registry`, surface lead time, hit rate, FP rate, expression-vehicle rate (% of scenarios where `composite_rank` of #1 ≥ 50), and average days to invalidation. Themes with persistently poor metrics get auto-flagged for taxonomy review or weight reduction. Themes are tracked per-engine (a theme can perform well in Macro but poorly in Social Arbitrage, or vice versa).
 - Cross-engine corroboration calibration — measure whether `mixed_*` scenarios actually outperform their single-engine peers on holdout set; tune corroboration thresholds and the +0.10 confidence bonus
 - Eval set + CI for conviction-layer prompt templates
 - False positive review loop (operator UI for marking and reviewing bad scenarios) — engine-aware
@@ -2649,7 +2710,7 @@ Each phase has explicit exit criteria. Phase advancement is gated, not time-boxe
 - Calibration produces statistically distinguishable improvement over Phase 1 weights on holdout set, for each engine
 - `mixed_*` scenarios show measurable forward-return outperformance vs single-engine peers (or corroboration bonus is reduced/removed)
 - Forward-tracking dashboard live and updating daily, with per-engine views
-- Per-theme quality dashboard surfaces ≥ 1 theme per engine that should be pruned or rebuilt
+- Theme Performance surfaces ≥ 1 theme per engine that should be pruned or rebuilt
 - "Calibration in progress" badge removed from UI for the engine(s) that have hit calibration targets
 
 ### Phase 6 — Consumer-Brand Signal Sources (D19)
@@ -2790,6 +2851,7 @@ Mitigation:
 | Rev 4 | **D21–D27 — dual-engine architecture restoration**: Macro Engine + Social Arbitrage Engine as peer detection systems (D21 reworded, D26 added). Coverage filter and authenticity layer become Social-Arbitrage-scoped only; Macro scenarios surface mega-coverage names without penalty (D22 reworded, D23 reworded, D27 added). `NEWS_DRIVEN_ONLY` auto-fire flag removed entirely. Phase 1 builds Social Arbitrage first because it's the harder build, Phase 1.5 builds Macro second (D24 reworded). Mission alignment enforced per-engine instead of globally (D25 reworded). |
 | Rev 4 | **D28 — source topology**: Social Arbitrage community sources are split by topology — **topic-indexed** (originating detection) vs **ticker-indexed** (StockTwits, Yahoo Finance message boards) for migration/confirmation. Existing StockTwits + Yahoo ingestion (already in `social_posts_raw`) is repurposed as the migration signal that triggers the lifecycle transition `EARLY → DEVELOPING → CONFIRMED` via the new `migration_to_ticker_indexed` flag. |
 | Rev 5 | **D29 — v1 topic-indexed source basket, Reddit deferred to Phase 1.7**: Reddit removed from v1 due to 2024–2025 Responsible Builder Policy gating (data-API access requires explicit approval; LLM-extraction of comment text falls in policy gray zone). v1 basket replaced with 5 source types with no auth/policy obstacles: Hacker News (Algolia API), 4chan `/biz/` + `/g/` (JSON API), Bluesky firehose (AT Protocol), Discord public servers (bot API), niche product forums (RSS/scrape). All references updated: D1, D24, D28, MVP table row 1a, scheduler diagram, Phase 1 deliverables, Phase 1 exit criteria, Net-new ingestion section, source_type schema enum, expected comment volume (50–200k → 30–150k/day), backtest historical inputs (Reddit Pushshift deferred). Architecture is source-agnostic per D28 — Reddit can be re-added in Phase 1.7 by adding a collector + entries to `tracked-sources.json`, no code surgery required. |
+| Rev 6 | **D30 — universe normalization / field-map architecture**: Social Arbitrage discovery becomes clean-universe-wide instead of watchlist-first. Broad raw intake lands in `mi_raw_hits`, then a normalization engine maps every raw hit to clean-universe symbols/aliases, builds `(symbol, source_type, source_community, day)` baselines, and ranks perturbations by abnormality. StockTwits/Yahoo/other ticker-indexed sources become confirmation/migration evidence unless an organic source also carries the signal. |
 
 ## Remaining Open Questions
 
@@ -2820,7 +2882,7 @@ These were NOT resolved in this revision and need user input before Phase 0 can 
 6. **Phase 3** — candidate ranking with **dual scoring profile** (D27) + conviction-layer producer (including `single_company_catalyst`). Verify the Macro profile correctly surfaces mega-covered names and the Social Arbitrage profile correctly penalizes them.
 7. **Phase 4 — DUAL-ENGINE PAGE LAUNCH** — ship the page only after **both** Phase 1 has produced ≥ 30 real Social Arbitrage scenarios AND Phase 1.5 has produced ≥ 30 real Macro scenarios. Page renders both panels side by side at launch. Engine view selector (Both / Macro Only / Social Arb Only / Mixed Only) functional. At least one cross-engine corroboration (`mixed_*`) scenario must exist at ship time.
 8. **Phase 5** — backtest each engine separately, calibrate authenticity weights and z-score thresholds (Social Arbitrage) and clustering thresholds (Macro) against the corpus, drop the "Calibration in progress" badge per engine when calibrated.
-9. **Phase 6** — brand-level signal sources (app stores, Google Trends, Amazon reviews, web traffic) — only after Phase 5 quality dashboard shows where each engine's v1 signal mix is weakest. These primarily help the Social Arbitrage Engine; Macro Engine extensions in Phase 6 likely add international filings and additional macro RSS.
+9. **Phase 6** — brand-level signal sources (app stores, Google Trends, Amazon reviews, web traffic) — only after Phase 5 Theme Performance shows where each engine's v1 signal mix is weakest. These primarily help the Social Arbitrage Engine; Macro Engine extensions in Phase 6 likely add international filings and additional macro RSS.
 
 ---
 

@@ -1,0 +1,195 @@
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 11,
+        "slug": "dev-mideast-shipping-disruption",
+        "title": "Red Sea shipping disruption escalating into Hormuz risk premium",
+        "summary": "Cluster of Reuters/AP/Lloyd's wires + EIA inventory build with overlapping named entities (CENTCOM, IRGC, Maersk) crossed cosine 0.81 against 9 sources in 36h.",
+        "status": "DEVELOPING",
+        "scenario_type": "geopolitical",
+        "primary_theme": "energy_supply",
+        "detection_path": "news_cluster",
+        "seeded_emerging_topic_id": null,
+        "coverage_tier": "mega_covered",
+        "edge_multiplier": 1,
+        "authenticity_score": null,
+        "peak_z_score": null,
+        "cross_platform_corroboration": false,
+        "signal_strength": 78,
+        "confidence_score": 0.62,
+        "confidence_level": "medium",
+        "time_horizon": "weeks",
+        "scenario_score": 78,
+        "source_breadth_score": 0.85,
+        "started_at": 1777051655,
+        "last_updated_at": 1777310615,
+        "expires_at": 1779125255,
+        "evidence_count": 3,
+        "validity_flags": [],
+        "top_universe_candidates": [
+          {
+            "symbol": "XOM",
+            "composite_rank": 1,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          },
+          {
+            "symbol": "CVX",
+            "composite_rank": 2,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          },
+          {
+            "symbol": "DAL",
+            "composite_rank": 3,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "short_loser"
+          }
+        ],
+        "freshness_seconds": 41463,
+        "schema_version": 2
+      },
+      {
+        "id": 14,
+        "slug": "dev-china-stimulus-mixed",
+        "title": "China stimulus headlines + r/ChinaStocks attention spike",
+        "summary": "PBOC RRR cut + auto-channel stimulus headlines, picked up afterwards by topic-anomaly engine on r/ChinaStocks (z=3.2). Now mixed_news_led.",
+        "status": "DEVELOPING",
+        "scenario_type": "geopolitical",
+        "primary_theme": "china_growth",
+        "detection_path": "mixed_news_led",
+        "seeded_emerging_topic_id": null,
+        "coverage_tier": "well_covered",
+        "edge_multiplier": 1.2,
+        "authenticity_score": 0.74,
+        "peak_z_score": 3.2,
+        "cross_platform_corroboration": true,
+        "signal_strength": 70,
+        "confidence_score": 0.66,
+        "confidence_level": "high",
+        "time_horizon": "months",
+        "scenario_score": 70,
+        "source_breadth_score": 0.78,
+        "started_at": 1776878855,
+        "last_updated_at": 1777310135,
+        "expires_at": 1785086855,
+        "evidence_count": 3,
+        "validity_flags": [],
+        "top_universe_candidates": [
+          {
+            "symbol": "FXI",
+            "composite_rank": 1,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          },
+          {
+            "symbol": "FCX",
+            "composite_rank": 2,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          }
+        ],
+        "freshness_seconds": 41943,
+        "schema_version": 2
+      },
+      {
+        "id": 13,
+        "slug": "dev-frame-primer-dupe",
+        "title": "Frame Cosmetics primer flagged as Charlotte Tilbury Flawless Filter dupe",
+        "summary": "Concept 'frame_primer_dupe' spiked z=4.6 in r/MakeupAddiction, then corroborated within 36h in #beauty Bluesky and Discord beauty-uncovered.",
+        "status": "EARLY",
+        "scenario_type": "consumer_cycle",
+        "primary_theme": "consumer_dupe_culture",
+        "detection_path": "topic_anomaly",
+        "seeded_emerging_topic_id": null,
+        "coverage_tier": "lightly_covered",
+        "edge_multiplier": 1.5,
+        "authenticity_score": 0.81,
+        "peak_z_score": 4.6,
+        "cross_platform_corroboration": true,
+        "signal_strength": 67,
+        "confidence_score": 0.54,
+        "confidence_level": "medium",
+        "time_horizon": "weeks",
+        "scenario_score": 67,
+        "source_breadth_score": 0.55,
+        "started_at": 1776446855,
+        "last_updated_at": 1777310713,
+        "expires_at": 1779902855,
+        "evidence_count": 4,
+        "validity_flags": [
+          "LOW_HISTORY"
+        ],
+        "top_universe_candidates": [
+          {
+            "symbol": "ELF",
+            "composite_rank": 1,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          },
+          {
+            "symbol": "ULTA",
+            "composite_rank": 2,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          }
+        ],
+        "freshness_seconds": 41365,
+        "schema_version": 2
+      },
+      {
+        "id": 12,
+        "slug": "dev-fomc-cut-repricing",
+        "title": "Sub-200K NFP printing higher Fed-cut probability",
+        "summary": "Fed-funds futures repriced 18bps for Sept after softer-than-expected jobs print; Powell-speak followed within 4h.",
+        "status": "CONFIRMED",
+        "scenario_type": "macro",
+        "primary_theme": "rates_lower",
+        "detection_path": "news_cluster",
+        "seeded_emerging_topic_id": null,
+        "coverage_tier": "mega_covered",
+        "edge_multiplier": 1,
+        "authenticity_score": null,
+        "peak_z_score": null,
+        "cross_platform_corroboration": false,
+        "signal_strength": 64,
+        "confidence_score": 0.71,
+        "confidence_level": "high",
+        "time_horizon": "days",
+        "scenario_score": 64,
+        "source_breadth_score": 0.92,
+        "started_at": 1777138055,
+        "last_updated_at": 1777309755,
+        "expires_at": 1777915655,
+        "evidence_count": 2,
+        "validity_flags": [],
+        "top_universe_candidates": [
+          {
+            "symbol": "IWM",
+            "composite_rank": 1,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          },
+          {
+            "symbol": "XBI",
+            "composite_rank": 2,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          },
+          {
+            "symbol": "KRE",
+            "composite_rank": 3,
+            "coverage_tier": "lightly_covered",
+            "exposure_direction": "long_beneficiary"
+          }
+        ],
+        "freshness_seconds": 42323,
+        "schema_version": 2
+      }
+    ],
+    "total": 4,
+    "applied_filters": {}
+  }
+}

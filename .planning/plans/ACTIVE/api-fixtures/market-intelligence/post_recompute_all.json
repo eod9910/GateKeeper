@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/recompute-all",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/recompute-all"
+  },
+  "request_body": null,
+  "response_status": 202,
+  "response_body": {
+    "success": true,
+    "data": {
+      "job_id": "recompute-all-1735776000",
+      "started_at": 1735776000,
+      "estimated_seconds": 35
+    }
+  }
+}

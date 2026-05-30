@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/scenarios/:id_or_slug/state",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scenarios/frame-cosmetics-dupe-spike-2026-04/state"
+  },
+  "request_body": {
+    "status": "INVALIDATED",
+    "reason": "Founder-CEO confirmed product is discontinued; thesis dead."
+  },
+  "response_status": 200,
+  "response_body": {
+    "success": true,
+    "data": {
+      "id": 123,
+      "slug": "frame-cosmetics-dupe-spike-2026-04",
+      "status": "INVALIDATED",
+      "scenario_type": "single_company_catalyst",
+      "primary_theme": "consumer_strength",
+      "detection_path": "topic_anomaly",
+      "coverage_tier": "lightly_covered",
+      "edge_multiplier": 1.2,
+      "authenticity_score": 0.81,
+      "peak_z_score": 4.6,
+      "cross_platform_corroboration": true,
+      "signal_strength": 0,
+      "confidence_score": 0,
+      "confidence_level": "low",
+      "time_horizon": "weeks",
+      "scenario_score": 0,
+      "validity_flags": ["INVALIDATED"],
+      "freshness_seconds": 0,
+      "schema_version": 1
+    }
+  },
+  "_alt_error_400_validation": {
+    "response_status": 400,
+    "response_body": {
+      "success": false,
+      "error": "Field 'reason' must be at least 5 characters.",
+      "code": "VALIDATION_FAILED"
+    }
+  },
+  "_alt_error_409_state_transition": {
+    "response_status": 409,
+    "response_body": {
+      "success": false,
+      "error": "Cannot transition from FADING back to EARLY.",
+      "code": "INVALID_STATE_TRANSITION"
+    }
+  }
+}

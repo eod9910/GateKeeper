@@ -1,0 +1,66 @@
+{
+  "success": true,
+  "data": {
+    "scenario_id": 123,
+    "scenario_slug": "frame-cosmetics-dupe-spike-2026-04",
+    "items": [
+      {
+        "exposure_id": 9001,
+        "symbol": "FRMC",
+        "asset_type": "equity",
+        "exposure_direction": "long_beneficiary",
+        "exposure_order": "first",
+        "exposure_strength": 0.85,
+        "exposure_rationale": "Dupe positioning expands TAM into mass-market cosmetics buyer",
+        "source_method": "hand_curated",
+        "confidence": 1.0,
+        "coverage_tier": "lightly_covered",
+        "valuation": {
+          "dcf_gap_pct": 0.18,
+          "valuation_score": 72.0,
+          "quality_score": 64.0
+        },
+        "technical": {
+          "technical_score": 78.0,
+          "technical_readiness": "constructive",
+          "active_primitives": ["base_complete", "rs_break"]
+        },
+        "social": {
+          "final_buzz_score": 4.9,
+          "buzz_zscore": 4.6,
+          "mention_velocity": 312
+        },
+        "composite_rank": 91.2,
+        "last_ranked_at": 1735776000
+      },
+      {
+        "exposure_id": 9002,
+        "symbol": "ULTA",
+        "asset_type": "equity",
+        "exposure_direction": "short_loser",
+        "exposure_order": "second",
+        "exposure_strength": 0.42,
+        "exposure_rationale": "Existing prestige-cosmetics distributor risk if dupe trend persists",
+        "source_method": "llm_assist",
+        "confidence": 0.65,
+        "coverage_tier": "mega_covered",
+        "valuation": {
+          "dcf_gap_pct": -0.04,
+          "valuation_score": 51.0,
+          "quality_score": 78.0
+        },
+        "technical": {
+          "technical_score": 44.0,
+          "technical_readiness": "neutral",
+          "active_primitives": []
+        },
+        "social": null,
+        "composite_rank": 58.7,
+        "last_ranked_at": 1735776000
+      }
+    ],
+    "count": 2,
+    "as_of": 1735776090,
+    "schema_version": 1
+  }
+}

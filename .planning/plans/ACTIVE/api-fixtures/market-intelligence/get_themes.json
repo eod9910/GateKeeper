@@ -1,0 +1,155 @@
+{
+  "success": true,
+  "data": {
+    "themes": [
+      {
+        "theme_key": "ai_capex_acceleration",
+        "display_name": "AI Capex Acceleration",
+        "category": "tech",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "ai_capex_pullback",
+        "display_name": "AI Capex Digestion / Pullback",
+        "category": "tech",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "china_growth",
+        "display_name": "China Growth Re-acceleration",
+        "category": "geopolitical",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "china_slowdown",
+        "display_name": "China Slowdown / Property Stress",
+        "category": "geopolitical",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "consumer_dupe_culture",
+        "display_name": "Consumer Dupe Culture (Premium-to-Value Substitution)",
+        "category": "consumer",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "consumer_strength",
+        "display_name": "Consumer Strength / Discretionary Beat",
+        "category": "consumer",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "consumer_weakness",
+        "display_name": "Consumer Weakness / Discretionary Pullback",
+        "category": "consumer",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "defense_spending_up",
+        "display_name": "Defense Spending Acceleration",
+        "category": "policy",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "inflation_falling",
+        "display_name": "Disinflation Confirmed",
+        "category": "macro",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "energy_demand",
+        "display_name": "Energy Demand Surge (Datacenter / Electrification)",
+        "category": "commodity",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "energy_supply",
+        "display_name": "Energy Supply Disruption",
+        "category": "commodity",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "geopolitical_escalation_eu",
+        "display_name": "European Conflict / Energy Crisis",
+        "category": "geopolitical",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "healthcare_policy_change",
+        "display_name": "Healthcare Policy / Drug Pricing Shift",
+        "category": "policy",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "housing_demand_change",
+        "display_name": "Housing Demand Inflection",
+        "category": "sector",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "inflation_rising",
+        "display_name": "Inflation Re-acceleration",
+        "category": "macro",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "geopolitical_escalation_mideast",
+        "display_name": "Middle East Geopolitical Escalation",
+        "category": "geopolitical",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "rates_higher",
+        "display_name": "Rates Higher / Hawkish Pivot",
+        "category": "macro",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "rates_lower",
+        "display_name": "Rates Lower / Dovish Pivot",
+        "category": "macro",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "semis_supply_shock",
+        "display_name": "Semiconductor Supply Shock (Taiwan / Equipment)",
+        "category": "sector",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "commodity_supply_shock_softs",
+        "display_name": "Soft Commodity Supply Shock (Cocoa / Coffee / Sugar)",
+        "category": "commodity",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      },
+      {
+        "theme_key": "dollar_strength",
+        "display_name": "USD Strength",
+        "category": "macro",
+        "taxonomy_version": 1,
+        "created_at": 1777310516
+      }
+    ],
+    "total": 21
+  }
+}

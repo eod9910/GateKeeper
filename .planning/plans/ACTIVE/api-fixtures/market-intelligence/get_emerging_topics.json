@@ -1,0 +1,73 @@
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 4421,
+        "concept": {
+          "id": 89,
+          "concept_key": "frame_primer_dupe",
+          "target_type": "brand",
+          "target_key": "frame_cosmetics",
+          "display_label": "Frame Cosmetics primer dupe"
+        },
+        "seed_community": "discord:beauty-uncovered",
+        "peak_z_score": 4.6,
+        "current_z_score": 3.8,
+        "cross_platform_corroboration": true,
+        "corroborating_communities": [
+          "bluesky:#beauty",
+          "stocktwits:$FRMC"
+        ],
+        "migration_to_ticker_indexed": true,
+        "migrated_at": 1735690000,
+        "first_anomaly_at": 1735689600,
+        "last_anomaly_at": 1735776000,
+        "total_mentions": 312,
+        "unique_authors": 218,
+        "authenticity_score": 0.81,
+        "resolved_target_type": "brand",
+        "resolved_tickers": [
+          {
+            "symbol": "FRMC",
+            "coverage_tier": "lightly_covered",
+            "confidence": 1.0,
+            "source_method": "hand_curated"
+          }
+        ],
+        "seeded_situation_id": 123,
+        "suppression_reason": null
+      },
+      {
+        "id": 4422,
+        "concept": {
+          "id": 91,
+          "concept_key": "tech_layoffs",
+          "target_type": "event_type",
+          "target_key": "tech_layoffs",
+          "display_label": "Tech sector layoffs surge"
+        },
+        "seed_community": "hackernews:frontpage",
+        "peak_z_score": 3.2,
+        "current_z_score": 2.9,
+        "cross_platform_corroboration": false,
+        "corroborating_communities": [],
+        "migration_to_ticker_indexed": false,
+        "migrated_at": null,
+        "first_anomaly_at": 1735603200,
+        "last_anomaly_at": 1735776000,
+        "total_mentions": 184,
+        "unique_authors": 142,
+        "authenticity_score": 0.5,
+        "resolved_target_type": "event_type",
+        "resolved_tickers": [],
+        "seeded_situation_id": null,
+        "suppression_reason": null
+      }
+    ],
+    "count": 2,
+    "limit": 100,
+    "as_of": 1735776090,
+    "schema_version": 1
+  }
+}

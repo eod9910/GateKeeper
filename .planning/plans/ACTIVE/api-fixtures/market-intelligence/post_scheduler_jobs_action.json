@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "endpoint_family": "POST /api/market-intelligence/scheduler/jobs/:name/{run|enable|disable}",
+    "notes": "Three sibling endpoints share the same URL pattern with different actions."
+  },
+  "run": {
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scheduler/jobs/zscore_engine/run",
+    "request_body": null,
+    "response_status": 200,
+    "response_body": {
+      "success": true,
+      "data": {
+        "job_name": "zscore_engine",
+        "running": true,
+        "pid": 24714,
+        "last_started_at": "2026-04-27T20:30:00.000Z",
+        "last_finished_at": "2026-04-27T20:25:11.000Z",
+        "last_exit_code": 0,
+        "last_source": "manual",
+        "last_error": null,
+        "last_message": "started by operator"
+      }
+    }
+  },
+  "enable": {
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scheduler/jobs/zscore_engine/enable",
+    "request_body": null,
+    "response_status": 200,
+    "response_body": {
+      "success": true,
+      "data": {
+        "name": "zscore_engine",
+        "kind": "engine",
+        "description": "Z-score anomaly detection over concept_daily_counts; emits emerging_topics rows (PRD D17).",
+        "enabled": true,
+        "effective_cron": "*/15 * * * *",
+        "effective_timezone": "America/Los_Angeles",
+        "default_args": ["--score-only"]
+      }
+    }
+  },
+  "disable": {
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scheduler/jobs/zscore_engine/disable",
+    "request_body": null,
+    "response_status": 200,
+    "response_body": {
+      "success": true,
+      "data": {
+        "name": "zscore_engine",
+        "kind": "engine",
+        "description": "Z-score anomaly detection over concept_daily_counts; emits emerging_topics rows (PRD D17).",
+        "enabled": false,
+        "effective_cron": "*/15 * * * *",
+        "effective_timezone": "America/Los_Angeles",
+        "default_args": ["--score-only"]
+      }
+    }
+  },
+  "_alt_error_404_unknown_job": {
+    "response_status": 404,
+    "response_body": {
+      "success": false,
+      "error": "Unknown job 'reddit_collector'. Registered jobs: hackernews_collector, fourchan_collector, zscore_engine, baseline_rebuild, topic_promotion.",
+      "code": "UNKNOWN_JOB"
+    }
+  }
+}

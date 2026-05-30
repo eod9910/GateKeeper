@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "data": {
+    "scenario_view": "both",
+    "default_filters": {
+      "min_signal_strength": 40,
+      "min_confidence": 0.5,
+      "only_early": false,
+      "cross_platform_only": false,
+      "coverage_tier": [
+        "barely_covered",
+        "lightly_covered",
+        "well_covered"
+      ],
+      "statuses": [
+        "EARLY",
+        "DEVELOPING",
+        "CONFIRMED",
+        "CROWDED",
+        "FADING"
+      ]
+    },
+    "scheduler_enabled": false,
+    "poll_interval_seconds": 600,
+    "llm_daily_budget_usd": 12,
+    "updated_at": 0,
+    "schema_version": 2
+  }
+}

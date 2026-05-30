@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "endpoint": "PUT /api/market-intelligence/settings",
+    "request_method": "PUT",
+    "request_url": "/api/market-intelligence/settings",
+    "notes": "Partial config — server merges with current."
+  },
+  "request_body": {
+    "collect_cadence_minutes": 10,
+    "llm_daily_budget_usd": 15.0
+  },
+  "response_status": 200,
+  "response_body": {
+    "success": true,
+    "data": {
+      "is_running": true,
+      "started_at": 1735680000,
+      "next_run_at": 1735776600,
+      "last_collect_at": 1735775000,
+      "last_finalize_at": 1735774000,
+      "config": {
+        "collect_cadence_minutes": 10,
+        "finalize_cadence_minutes": 60,
+        "topic_baseline_cadence_hours": 24,
+        "coverage_tier_cadence_days": 7,
+        "llm_daily_budget_usd": 15.0,
+        "concept_extraction": {
+          "model": "gpt-4o-mini",
+          "batch_size": 50,
+          "registry_skip_enabled": true
+        }
+      }
+    }
+  }
+}

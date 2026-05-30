@@ -1,0 +1,262 @@
+{
+  "success": true,
+  "data": {
+    "id": 11,
+    "slug": "dev-mideast-shipping-disruption",
+    "title": "Red Sea shipping disruption escalating into Hormuz risk premium",
+    "summary": "Cluster of Reuters/AP/Lloyd's wires + EIA inventory build with overlapping named entities (CENTCOM, IRGC, Maersk) crossed cosine 0.81 against 9 sources in 36h.",
+    "status": "DEVELOPING",
+    "scenario_type": "geopolitical",
+    "primary_theme": "energy_supply",
+    "detection_path": "news_cluster",
+    "seeded_emerging_topic_id": null,
+    "coverage_tier": "mega_covered",
+    "edge_multiplier": 1,
+    "authenticity_score": null,
+    "peak_z_score": null,
+    "cross_platform_corroboration": false,
+    "signal_strength": 78,
+    "confidence_score": 0.62,
+    "confidence_level": "medium",
+    "time_horizon": "weeks",
+    "scenario_score": 78,
+    "source_breadth_score": 0.85,
+    "started_at": 1777051655,
+    "last_updated_at": 1777310615,
+    "expires_at": 1779125255,
+    "evidence_count": 3,
+    "validity_flags": [],
+    "top_universe_candidates": [
+      {
+        "symbol": "XOM",
+        "composite_rank": 1,
+        "coverage_tier": "lightly_covered",
+        "exposure_direction": "long_beneficiary"
+      },
+      {
+        "symbol": "CVX",
+        "composite_rank": 2,
+        "coverage_tier": "lightly_covered",
+        "exposure_direction": "long_beneficiary"
+      },
+      {
+        "symbol": "DAL",
+        "composite_rank": 3,
+        "coverage_tier": "lightly_covered",
+        "exposure_direction": "short_loser"
+      }
+    ],
+    "freshness_seconds": 41471,
+    "schema_version": 2,
+    "first_order_effects": [
+      {
+        "asset_type": "commodity",
+        "asset_key": "CL",
+        "exposure_direction": "long_beneficiary",
+        "exposure_strength": 0.8,
+        "rationale": "Brent/WTI move on supply-chain risk premium"
+      },
+      {
+        "asset_type": "sector",
+        "asset_key": "energy",
+        "exposure_direction": "long_beneficiary",
+        "exposure_strength": 0.7,
+        "rationale": "Sector rotation into upstream names"
+      }
+    ],
+    "second_order_effects": [
+      {
+        "asset_type": "sector",
+        "asset_key": "transports_airlines",
+        "exposure_direction": "short_loser",
+        "exposure_strength": 0.5,
+        "rationale": "Jet fuel cost pressure on airlines"
+      }
+    ],
+    "confidence_reasons": [
+      "9 independent wire sources within 36h",
+      "EIA inventory build corroborates supply-side narrative",
+      "Cosine similarity 0.81 across entity-extracted clusters"
+    ],
+    "conviction_layer": null,
+    "affected_sectors": [],
+    "affected_assets": [
+      "XOM",
+      "CVX",
+      "DAL"
+    ],
+    "evidence_timeline": [
+      {
+        "id": 29,
+        "evidence_type": "policy_release",
+        "source_name": "EIA",
+        "headline_or_label": "Weekly Petroleum Status Report ΓÇö surprise inventory build",
+        "summary": "Crude stocks +2.1Mb vs -1.0Mb consensus.",
+        "url": "https://eia.example.com/wpsr-2026-04-24",
+        "published_at": 1777292855,
+        "importance_score": 0.6
+      },
+      {
+        "id": 28,
+        "evidence_type": "article",
+        "source_name": "AP",
+        "headline_or_label": "CENTCOM intercepts third anti-ship drone in 24h",
+        "summary": null,
+        "url": "https://ap.example.com/centcom-intercepts",
+        "published_at": 1777202855,
+        "importance_score": 0.7
+      },
+      {
+        "id": 27,
+        "evidence_type": "article",
+        "source_name": "Reuters",
+        "headline_or_label": "Maersk diverts Red Sea fleet, rerouting via Cape of Good Hope",
+        "summary": "Largest container fleet operator pulls all Red Sea transits citing IRGC drone threat.",
+        "url": "https://reuters.example.com/red-sea-divert",
+        "published_at": 1777174055,
+        "importance_score": 0.9
+      }
+    ],
+    "consequence_map": {
+      "nodes": [
+        {
+          "id": "theme:energy_supply",
+          "label": "energy_supply",
+          "kind": "theme"
+        },
+        {
+          "id": "commodity:CL",
+          "label": "CL",
+          "kind": "commodity"
+        },
+        {
+          "id": "equity:XOM",
+          "label": "XOM",
+          "kind": "equity"
+        },
+        {
+          "id": "equity:CVX",
+          "label": "CVX",
+          "kind": "equity"
+        },
+        {
+          "id": "equity:DAL",
+          "label": "DAL",
+          "kind": "equity"
+        }
+      ],
+      "edges": [
+        {
+          "from": "theme:energy_supply",
+          "to": "commodity:CL",
+          "exposure_direction": "long_beneficiary",
+          "exposure_order": "first",
+          "exposure_strength": 0.85
+        },
+        {
+          "from": "theme:energy_supply",
+          "to": "equity:XOM",
+          "exposure_direction": "long_beneficiary",
+          "exposure_order": "first",
+          "exposure_strength": 0.7
+        },
+        {
+          "from": "theme:energy_supply",
+          "to": "equity:CVX",
+          "exposure_direction": "long_beneficiary",
+          "exposure_order": "first",
+          "exposure_strength": 0.65
+        },
+        {
+          "from": "theme:energy_supply",
+          "to": "equity:DAL",
+          "exposure_direction": "short_loser",
+          "exposure_order": "second",
+          "exposure_strength": 0.4
+        }
+      ]
+    },
+    "exposure_list": [
+      {
+        "id": 23,
+        "situation_id": 11,
+        "asset_type": "commodity",
+        "asset_key": "CL",
+        "exposure_direction": "long_beneficiary",
+        "exposure_order": "first",
+        "exposure_strength": 0.85,
+        "source_method": "hand_curated",
+        "rationale": "Direct Brent/WTI risk premium from Hormuz scenario",
+        "confidence": 0.9,
+        "universe_symbol": null,
+        "dcf_gap_pct": null,
+        "quality_score": null,
+        "technical_score": null,
+        "final_buzz_score": null,
+        "composite_rank": null,
+        "last_ranked_at": null,
+        "payload_json": null
+      },
+      {
+        "id": 24,
+        "situation_id": 11,
+        "asset_type": "equity",
+        "asset_key": "XOM",
+        "exposure_direction": "long_beneficiary",
+        "exposure_order": "first",
+        "exposure_strength": 0.7,
+        "source_method": "hand_curated",
+        "rationale": "Diversified upstream ΓÇö leverage to crude beta",
+        "confidence": 0.85,
+        "universe_symbol": "XOM",
+        "dcf_gap_pct": null,
+        "quality_score": null,
+        "technical_score": null,
+        "final_buzz_score": null,
+        "composite_rank": 1,
+        "last_ranked_at": 1777310855,
+        "payload_json": null
+      },
+      {
+        "id": 25,
+        "situation_id": 11,
+        "asset_type": "equity",
+        "asset_key": "CVX",
+        "exposure_direction": "long_beneficiary",
+        "exposure_order": "first",
+        "exposure_strength": 0.65,
+        "source_method": "hand_curated",
+        "rationale": "Diversified upstream ΓÇö leverage to crude beta",
+        "confidence": 0.82,
+        "universe_symbol": "CVX",
+        "dcf_gap_pct": null,
+        "quality_score": null,
+        "technical_score": null,
+        "final_buzz_score": null,
+        "composite_rank": 2,
+        "last_ranked_at": 1777310855,
+        "payload_json": null
+      },
+      {
+        "id": 26,
+        "situation_id": 11,
+        "asset_type": "equity",
+        "asset_key": "DAL",
+        "exposure_direction": "short_loser",
+        "exposure_order": "second",
+        "exposure_strength": 0.4,
+        "source_method": "hand_curated",
+        "rationale": "Jet fuel cost pressure on legacy airlines",
+        "confidence": 0.6,
+        "universe_symbol": "DAL",
+        "dcf_gap_pct": null,
+        "quality_score": null,
+        "technical_score": null,
+        "final_buzz_score": null,
+        "composite_rank": 3,
+        "last_ranked_at": 1777310855,
+        "payload_json": null
+      }
+    ]
+  }
+}

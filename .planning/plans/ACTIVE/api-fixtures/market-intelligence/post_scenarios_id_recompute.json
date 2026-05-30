@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "endpoint": "POST /api/market-intelligence/scenarios/:id_or_slug/recompute",
+    "request_method": "POST",
+    "request_url": "/api/market-intelligence/scenarios/frame-cosmetics-dupe-spike-2026-04/recompute"
+  },
+  "request_body": {
+    "reason": "manual operator refresh"
+  },
+  "response_status": 200,
+  "response_body": {
+    "success": true,
+    "data": {
+      "id": 123,
+      "slug": "frame-cosmetics-dupe-spike-2026-04",
+      "title": "Frame Cosmetics — Drugstore Dupe Discovery Spike",
+      "summary": "...",
+      "status": "EARLY",
+      "scenario_type": "single_company_catalyst",
+      "primary_theme": "consumer_strength",
+      "detection_path": "topic_anomaly",
+      "seeded_emerging_topic_id": 4421,
+      "coverage_tier": "lightly_covered",
+      "edge_multiplier": 1.2,
+      "authenticity_score": 0.81,
+      "peak_z_score": 4.6,
+      "cross_platform_corroboration": true,
+      "signal_strength": 73,
+      "confidence_score": 0.59,
+      "confidence_level": "medium",
+      "time_horizon": "weeks",
+      "scenario_score": 80,
+      "started_at": 1735689600,
+      "last_updated_at": 1735776600,
+      "expires_at": 1743462000,
+      "evidence_count": 14,
+      "validity_flags": ["LOW_HISTORY"],
+      "top_universe_candidates": [
+        {
+          "symbol": "FRMC",
+          "composite_rank": 82.7,
+          "coverage_tier": "lightly_covered",
+          "exposure_direction": "long_beneficiary"
+        }
+      ],
+      "freshness_seconds": 0,
+      "schema_version": 1
+    }
+  }
+}

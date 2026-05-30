@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "data": {
+    "ok": false,
+    "db_path": "C:\\Users\\eod99\\OneDrive\\Documents\\Coding\\pattern-detector\\backend\\data\\market-intelligence.sqlite",
+    "db_exists": true,
+    "schema_version": 5,
+    "expected_schema_version": 2,
+    "table_counts": {
+      "theme_registry": 21,
+      "tracked_concepts": 10,
+      "coverage_tiers": 0,
+      "brand_to_ticker": 36,
+      "market_situations": 5,
+      "situation_signals": 8,
+      "situation_evidence": 13,
+      "situation_exposure": 11,
+      "concept_mentions": 0,
+      "concept_daily_counts": 96,
+      "topic_baselines": 8,
+      "emerging_topics": 0,
+      "authenticity_signals": 0
+    },
+    "errors": [],
+    "api_phase": 1
+  }
+}
