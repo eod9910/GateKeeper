@@ -1,6 +1,6 @@
 # Editor Inbox
 
-Generated: 2026-06-16T02:11:00Z
+Generated: 2026-06-16T02:25:11Z
 
 ## Editor relay smoke directive
 
@@ -71,3 +71,13 @@ Generated: 2026-06-16T02:11:00Z
 - Timestamp: `2026-06-16T02:11:00Z`
 - Body: `agent-relay/messages/route-20260616-021100-validator-to-editor-79f0e283.md`
 - SHA-256: `1544e64df2772ffcaef3cd9692a2827888ddedf05e3819c260510ed27f497446`
+
+## Review memory-bank audit criteria
+
+- Routing ID: `route-20260616-021832-validator-to-editor-a5bca88c`
+- From: `Validator`
+- Type: `directive`
+- Phase: `memory-bank-audit`
+- Timestamp: `2026-06-16T02:18:32Z`
+- Body: `agent-relay/messages/route-20260616-021832-validator-to-editor-a5bca88c.md`
+- SHA-256: `c107da174fb29516a9c6dbe2151a30ce364a476ed1d3c35dae161aa27e05fc8b`

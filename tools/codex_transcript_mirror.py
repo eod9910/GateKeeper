@@ -39,6 +39,9 @@ from codex_transcript_memory import (
 DEFAULT_INTERVAL_SECONDS = 30.0
 MAX_TRANSCRIPT_CHARS = 240_000
 SESSION_CACHE_VERSION = 1
+SNAPSHOT_MANIFEST_NAME = ".snapshot-manifest.json"
+SNAPSHOT_MIN_SECONDS = 6 * 60 * 60
+SNAPSHOT_MIN_CHAR_DELTA = 100_000
 
 
 @dataclass
@@ -122,6 +125,10 @@ def snapshot_name_for_session(record: SessionRecord) -> tuple[str, str]:
     return date_part, f"{stamp}-{slug}.md"
 
 
+def snapshot_key_for_session(record: SessionRecord, date_part: str) -> str:
+    return f"{date_part}:{record.id}"
+
+
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     if not path.exists():
@@ -163,6 +170,41 @@ def load_json_file(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def should_write_dated_snapshot(
+    manifest: dict[str, Any],
+    key: str,
+    transcript_chars: int,
+    now_epoch: int,
+) -> bool:
+    entry = manifest.get(key)
+    if not isinstance(entry, dict):
+        return True
+
+    try:
+        last_epoch = int(entry.get("written_at_epoch") or 0)
+        last_chars = int(entry.get("transcript_chars") or 0)
+    except (TypeError, ValueError):
+        return True
+
+    if now_epoch - last_epoch >= SNAPSHOT_MIN_SECONDS:
+        return True
+    return transcript_chars - last_chars >= SNAPSHOT_MIN_CHAR_DELTA
+
+
+def update_snapshot_manifest(
+    manifest: dict[str, Any],
+    key: str,
+    snapshot_name: str,
+    transcript_chars: int,
+    now_epoch: int,
+) -> None:
+    manifest[key] = {
+        "latest_snapshot": snapshot_name,
+        "transcript_chars": transcript_chars,
+        "written_at_epoch": now_epoch,
+    }
 
 
 def copy_if_exists(source: Path, destination: Path) -> None:
@@ -531,13 +573,32 @@ def write_memory_bank_views(output_dir: Path, workspace_path: Path, sessions: li
     continuity_path = memory_bank_dir / "CODEX_CONTINUITY.md"
     transcript_path = memory_bank_dir / "transcripts" / "codex-session-live.md"
     write_text_if_changed(continuity_path, "\n".join(continuity_lines))
-    write_text_if_changed(transcript_path, "\n".join(transcript_lines))
+    snapshot_text = "\n".join(transcript_lines)
+    write_text_if_changed(transcript_path, snapshot_text)
     if latest_session:
         date_part, snapshot_name = snapshot_name_for_session(latest_session)
         dated_dir = memory_bank_dir / "transcripts" / "codex" / date_part
-        snapshot_text = "\n".join(transcript_lines)
-        write_text_if_changed(dated_dir / snapshot_name, snapshot_text)
         write_text_if_changed(dated_dir / "latest.md", snapshot_text)
+        manifest_path = dated_dir / SNAPSHOT_MANIFEST_NAME
+        manifest_payload = load_json_file(manifest_path)
+        manifest = manifest_payload if isinstance(manifest_payload, dict) else {}
+        snapshot_key = snapshot_key_for_session(latest_session, date_part)
+        now_epoch = int(time.time())
+        if should_write_dated_snapshot(
+            manifest,
+            snapshot_key,
+            len(snapshot_text),
+            now_epoch,
+        ):
+            write_text_if_changed(dated_dir / snapshot_name, snapshot_text)
+            update_snapshot_manifest(
+                manifest,
+                snapshot_key,
+                snapshot_name,
+                len(snapshot_text),
+                now_epoch,
+            )
+            write_json(manifest_path, manifest)
 
 
 def mirror_once(output_dir: Path, codex_root: Path, workspace_path: Path) -> dict[str, Any]:

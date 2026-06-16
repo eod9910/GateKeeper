@@ -8,15 +8,17 @@ These generated files are intended to be trackable:
 
 - `memory-bank/CODEX_CONTINUITY.md`
 - `memory-bank/transcripts/codex-session-live.md`
-- `memory-bank/transcripts/codex/YYYY-MM-DD/*.md`
+- `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md`
+- `memory-bank/transcripts/codex/YYYY-MM-DD/YYYY-MM-DD-HHMMSS-<thread-or-session>.md`
 
 They preserve the current thread, recent directives, open questions, and a compact live transcript view so a future agent can recover the conversation trail behind important code and governance decisions.
 
 ## Naming Convention
 
 - `memory-bank/transcripts/codex-session-live.md` is the rolling latest Codex continuity transcript.
-- `memory-bank/transcripts/codex/YYYY-MM-DD/YYYY-MM-DD-HHMMSS-<thread-or-session>.md` is the searchable dated snapshot.
-- `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md` is the latest snapshot for that date.
+- `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md` is the live latest snapshot for that date.
+- `memory-bank/transcripts/codex/YYYY-MM-DD/YYYY-MM-DD-HHMMSS-<thread-or-session>.md` is a durable checkpoint written only on first capture, after a meaningful transcript-size change, or after a long checkpoint interval.
+- `memory-bank/transcripts/codex/YYYY-MM-DD/.snapshot-manifest.json` tracks durable checkpoint cadence.
 
 ## Local-Only Memory
 
