@@ -104,6 +104,24 @@ Code is not acceptable merely because it runs. The Editor may flag:
 - untraceable behavior;
 - new parallel systems that bypass existing engines.
 
+## Editor Blockers
+
+When the Editor marks a finding as an explicit blocker, work must stop at that
+gate. The Validator may not accept the work, route it to commit, or move to the
+next implementation phase until the blocker is resolved or the User/Mediator
+explicitly overrides it.
+
+An Editor blocker report must state:
+
+- what is blocked;
+- why it is blocking;
+- who should fix it: Builder for behavior/feature/data-flow problems, Editor
+  for authorized structure-only refactors;
+- what evidence is required before the blocker can be cleared.
+
+Non-blocking Editor concerns should still be tracked, but they do not stop the
+line unless the Editor labels them as blockers or the Validator upgrades them.
+
 ## Relationship To Other Contracts
 
 Backtests, research studies, sweeps, and strategy validation must also follow

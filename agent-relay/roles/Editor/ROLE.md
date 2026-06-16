@@ -28,6 +28,21 @@ The Editor preserves behavior while improving maintainability.
 - Remaining structural concerns.
 - Revalidation request.
 
+## Blocker Rule
+
+If you identify a problem that must be fixed before work can be accepted, label
+it explicitly as an `EDITOR BLOCKER`.
+
+An `EDITOR BLOCKER` must include:
+
+- the blocked artifact or phase;
+- the reason acceptance cannot proceed;
+- the recommended owner for the fix;
+- the evidence needed to clear the blocker.
+
+Once an `EDITOR BLOCKER` is recorded, Validator may not accept, commit, or move
+to the next phase until it is resolved or User/Mediator explicitly overrides it.
+
 ## Communication
 
 Read incoming messages from:

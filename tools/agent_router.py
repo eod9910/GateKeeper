@@ -24,6 +24,7 @@ MESSAGES_DIR = RELAY_DIR / "messages"
 ROLES_DIR = RELAY_DIR / "roles"
 ROUTER_DIR = RELAY_DIR / "router"
 EXPORTS_DIR = RELAY_DIR / "exports"
+TRANSCRIPTS_DIR = RELAY_DIR / "transcripts"
 ROUTE_LOG = ROUTER_DIR / "routes.jsonl"
 
 ROLES = ("Builder", "Validator", "Editor", "User", "Router")
@@ -67,6 +68,7 @@ def ensure_dirs() -> None:
     MESSAGES_DIR.mkdir(parents=True, exist_ok=True)
     ROUTER_DIR.mkdir(parents=True, exist_ok=True)
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
     for role in ROLES:
         (ROLES_DIR / role).mkdir(parents=True, exist_ok=True)
 
@@ -163,6 +165,62 @@ def regenerate_inboxes() -> None:
         inbox_path.write_text(render_inbox(role, records), encoding="utf-8")
 
 
+def render_transcript(records: List[Dict[str, object]], title: str) -> str:
+    records.sort(key=lambda r: str(r.get("timestamp", "")))
+    lines = [
+        f"# Agent Relay Transcript: {title}",
+        "",
+        f"Generated: {utc_now()}",
+        "",
+    ]
+    if not records:
+        lines.append("No routed messages.")
+        lines.append("")
+        return "\n".join(lines)
+
+    for index, record in enumerate(records, start=1):
+        body_path = ROOT / str(record.get("body_path", ""))
+        body = body_path.read_text(encoding="utf-8", errors="replace") if body_path.exists() else "[missing body]"
+        lines.extend(
+            [
+                f"## {index}. {record.get('source')} -> {record.get('target')}: {record.get('title')}",
+                "",
+                f"- Routing ID: `{record.get('routing_id')}`",
+                f"- Type: `{record.get('message_type')}`",
+                f"- Phase: `{record.get('phase')}`",
+                f"- Timestamp: `{record.get('timestamp')}`",
+                f"- Original: `{record.get('original_body_path')}`",
+                f"- Body: `{record.get('body_path')}`",
+                f"- SHA-256: `{record.get('sha256')}`",
+                "",
+                body,
+                "",
+                "---",
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def write_transcript(phase: str | None, output: Path | None = None) -> Path:
+    records = [r for r in read_log() if not phase or r.get("phase") == phase]
+    title = phase or "All Phases"
+    target = output or TRANSCRIPTS_DIR / f"{safe_slug(phase or 'all')}.md"
+    if not target.is_absolute():
+        target = ROOT / target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(render_transcript(records, title), encoding="utf-8")
+    return target
+
+
+def regenerate_transcripts() -> None:
+    records = read_log()
+    phases = sorted({str(record.get("phase", "")) for record in records if record.get("phase")})
+    write_transcript(None, TRANSCRIPTS_DIR / "all.md")
+    for phase in phases:
+        write_transcript(phase)
+
+
 def cmd_routes(_args: argparse.Namespace) -> int:
     for source, target in sorted(ALLOWED_ROUTES):
         print(f"{source} -> {target}")
@@ -189,6 +247,7 @@ def cmd_route(args: argparse.Namespace) -> int:
     }
     append_log(record)
     regenerate_inboxes()
+    regenerate_transcripts()
     print(json.dumps(record, indent=2))
     return 0
 
@@ -262,6 +321,21 @@ def cmd_export(args: argparse.Namespace) -> int:
     print(rel(output))
     return 0
 
+def cmd_transcript(args: argparse.Namespace) -> int:
+    ensure_dirs()
+    output = Path(args.output) if args.output else None
+    path = write_transcript(args.phase, output)
+    print(rel(path))
+    return 0
+
+
+def cmd_regenerate(_args: argparse.Namespace) -> int:
+    ensure_dirs()
+    regenerate_inboxes()
+    regenerate_transcripts()
+    print(rel(TRANSCRIPTS_DIR))
+    return 0
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Route tri-agent role messages without rewriting them.")
@@ -290,6 +364,14 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--phase")
     export.add_argument("--output")
     export.set_defaults(func=cmd_export)
+
+    transcript = sub.add_parser("transcript", help="Write a readable meta-conversation transcript.")
+    transcript.add_argument("--phase")
+    transcript.add_argument("--output")
+    transcript.set_defaults(func=cmd_transcript)
+
+    regenerate = sub.add_parser("regenerate", help="Regenerate inboxes and phase transcripts.")
+    regenerate.set_defaults(func=cmd_regenerate)
 
     return parser
 

@@ -1,6 +1,6 @@
 # Builder Inbox
 
-Generated: 2026-06-16T01:46:50Z
+Generated: 2026-06-16T01:57:21Z
 
 ## Router smoke test
 
@@ -41,3 +41,13 @@ Generated: 2026-06-16T01:46:50Z
 - Timestamp: `2026-06-16T01:39:34Z`
 - Body: `agent-relay/messages/route-20260616-013934-validator-to-builder-f1c84862.md`
 - SHA-256: `a3abb8ef7f5db47f9c0f4116b0511e9576b9ed4787a5c1678d75fb0e7c1437fc`
+
+## Add meta-conversation transcripts
+
+- Routing ID: `route-20260616-015721-validator-to-builder-030c58e3`
+- From: `Validator`
+- Type: `directive`
+- Phase: `tri-agent-governance`
+- Timestamp: `2026-06-16T01:57:21Z`
+- Body: `agent-relay/messages/route-20260616-015721-validator-to-builder-030c58e3.md`
+- SHA-256: `f11ee22b45fb00be9de1ef3582a96f3056c3b923b136149e6a13ac80a0467d79`
