@@ -1,3 +1,16 @@
+## Startup Read Order
+
+When a new agent instance starts work in this repo, read in this order:
+
+1. `TRI_AGENT_CODING_CONTRACT.md` - establishes Validator/Builder/Editor roles, relay expectations, and conversation framing.
+2. `AGENTS.md` - routes the agent to the correct repo contracts, policies, and folders for the task.
+3. `memory-bank/CODEX_MEMORY_POLICY.md` - explains which memory files are active, trackable, local-only, or read-on-demand.
+4. `memory-bank/CODEX_CONTINUITY.md` - compact current-state bridge for recent goals, directives, open questions, and likely next steps.
+5. Recent transcript window - use `memory-bank/transcripts/codex-session-live.md`, then `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md` for today and the prior one or two days when present.
+6. Task-specific contract - read the relevant file below based on the user request.
+
+Do not preload large historical transcript archives by default. Search or open them only for targeted recall.
+
 ## Planning Conventions
 
 - Follow `.planning/plans/PLAN_CONVENTIONS.md` whenever creating, moving, renaming, or auditing PRDs, checklists, active plans, or workstreams.
@@ -26,7 +39,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **pattern-detector** (11542 symbols, 32523 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **pattern-detector** (11543 symbols, 32528 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

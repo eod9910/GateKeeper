@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-16T02:40:41Z
+Generated: 2026-06-16T02:51:54Z
 
 ## Builder relay smoke report
 
@@ -221,3 +221,23 @@ Generated: 2026-06-16T02:40:41Z
 - Timestamp: `2026-06-16T02:40:41Z`
 - Body: `agent-relay/messages/route-20260616-024041-builder-to-validator-ce44828e.md`
 - SHA-256: `d8275f927f89317e7acbc8233d68317c0054689b2fca2cfda929ae4558bce331`
+
+## AGENTS.md startup order editor review
+
+- Routing ID: `route-20260616-025154-editor-to-validator-eb171234`
+- From: `Editor`
+- Type: `review`
+- Phase: `agents-startup-order`
+- Timestamp: `2026-06-16T02:51:54Z`
+- Body: `agent-relay/messages/route-20260616-025154-editor-to-validator-eb171234.md`
+- SHA-256: `31f91cad39fcfd882c42de1106c06b267a7148fb744e26ac535cab7fc6c24c9d`
+
+## AGENTS.md startup order builder report
+
+- Routing ID: `route-20260616-025154-builder-to-validator-932b5b17`
+- From: `Builder`
+- Type: `report`
+- Phase: `agents-startup-order`
+- Timestamp: `2026-06-16T02:51:54Z`
+- Body: `agent-relay/messages/route-20260616-025154-builder-to-validator-932b5b17.md`
+- SHA-256: `19e902ffab4250be512c85bf8d13d6f09229fa2dff8b210b48a19b0dd113539d`
