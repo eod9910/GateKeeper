@@ -8,8 +8,15 @@ These generated files are intended to be trackable:
 
 - `memory-bank/CODEX_CONTINUITY.md`
 - `memory-bank/transcripts/codex-session-live.md`
+- `memory-bank/transcripts/codex/YYYY-MM-DD/*.md`
 
 They preserve the current thread, recent directives, open questions, and a compact live transcript view so a future agent can recover the conversation trail behind important code and governance decisions.
+
+## Naming Convention
+
+- `memory-bank/transcripts/codex-session-live.md` is the rolling latest Codex continuity transcript.
+- `memory-bank/transcripts/codex/YYYY-MM-DD/YYYY-MM-DD-HHMMSS-<thread-or-session>.md` is the searchable dated snapshot.
+- `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md` is the latest snapshot for that date.
 
 ## Local-Only Memory
 
@@ -26,5 +33,5 @@ They may contain raw transcript data and should not be committed.
 - Do not publish tracked memory files outside trusted repo channels.
 - Prefer `memory-bank/CODEX_CONTINUITY.md` for startup continuity.
 - Use `memory-bank/transcripts/codex-session-live.md` only for targeted recall.
+- Use dated snapshots under `memory-bank/transcripts/codex/` when searching historical sessions.
 - Do not preload raw transcript mirrors into agent context.
-

@@ -23,14 +23,14 @@
 ## Codex Continuity Memory
 
 - For continuity-sensitive work, read `memory-bank/CODEX_MEMORY_POLICY.md` and `memory-bank/CODEX_CONTINUITY.md`.
-- `memory-bank/CODEX_CONTINUITY.md` and `memory-bank/transcripts/codex-session-live.md` are intentionally trackable compact memory artifacts for catastrophic recovery.
+- `memory-bank/CODEX_CONTINUITY.md`, `memory-bank/transcripts/codex-session-live.md`, and dated snapshots under `memory-bank/transcripts/codex/` are intentionally trackable compact memory artifacts for catastrophic recovery.
 - Raw mirror folders such as `offline-codex-transcripts-*/` and `offline-cursor-transcripts-*/` remain local-only and must not be committed.
 - Treat tracked memory files as sensitive repo memory and do not publish them outside trusted repo channels.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **pattern-detector** (11502 symbols, 32468 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **pattern-detector** (11505 symbols, 32483 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

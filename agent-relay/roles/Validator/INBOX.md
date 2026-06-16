@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-16T01:57:21Z
+Generated: 2026-06-16T02:05:09Z
 
 ## Builder relay smoke report
 
@@ -121,3 +121,23 @@ Generated: 2026-06-16T01:57:21Z
 - Timestamp: `2026-06-16T01:57:21Z`
 - Body: `agent-relay/messages/route-20260616-015721-builder-to-validator-c291f400.md`
 - SHA-256: `4b32c63caed7d4e23ea0d794b5fe76c935dc02c7d5870fabbeb1ec64d975d9ba`
+
+## Dated Codex transcript snapshots builder report
+
+- Routing ID: `route-20260616-020508-builder-to-validator-6ac7a6d7`
+- From: `Builder`
+- Type: `report`
+- Phase: `codex-continuity-memory`
+- Timestamp: `2026-06-16T02:05:08Z`
+- Body: `agent-relay/messages/route-20260616-020508-builder-to-validator-6ac7a6d7.md`
+- SHA-256: `5962a77d1b1c99591db6d63087d9f415a40a92d74c65d19202e43c31b4afc999`
+
+## Dated Codex transcript snapshots review
+
+- Routing ID: `route-20260616-020509-editor-to-validator-949f1e84`
+- From: `Editor`
+- Type: `review`
+- Phase: `codex-continuity-memory`
+- Timestamp: `2026-06-16T02:05:09Z`
+- Body: `agent-relay/messages/route-20260616-020509-editor-to-validator-949f1e84.md`
+- SHA-256: `4144f8701f8d247877eed1a61fff850d8e98d16af70b62a5f6549882fd8851f9`

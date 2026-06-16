@@ -18,6 +18,7 @@ import shutil
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +96,30 @@ def normalize_path_text(path: str | Path) -> str:
 def sanitize_filename(value: str, fallback: str) -> str:
     text = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-")
     return text[:120] or fallback
+
+
+def parse_timestamp(value: str) -> datetime | None:
+    if not value:
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def snapshot_name_for_session(record: SessionRecord) -> tuple[str, str]:
+    parsed = parse_timestamp(record.updated_at)
+    if parsed:
+        date_part = parsed.strftime("%Y-%m-%d")
+        stamp = parsed.strftime("%Y-%m-%d-%H%M%S")
+    else:
+        date_part = time.strftime("%Y-%m-%d")
+        stamp = time.strftime("%Y-%m-%d-%H%M%S")
+    slug = sanitize_filename(record.thread_name or record.id, "codex-session")
+    return date_part, f"{stamp}-{slug}.md"
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -507,6 +532,12 @@ def write_memory_bank_views(output_dir: Path, workspace_path: Path, sessions: li
     transcript_path = memory_bank_dir / "transcripts" / "codex-session-live.md"
     write_text_if_changed(continuity_path, "\n".join(continuity_lines))
     write_text_if_changed(transcript_path, "\n".join(transcript_lines))
+    if latest_session:
+        date_part, snapshot_name = snapshot_name_for_session(latest_session)
+        dated_dir = memory_bank_dir / "transcripts" / "codex" / date_part
+        snapshot_text = "\n".join(transcript_lines)
+        write_text_if_changed(dated_dir / snapshot_name, snapshot_text)
+        write_text_if_changed(dated_dir / "latest.md", snapshot_text)
 
 
 def mirror_once(output_dir: Path, codex_root: Path, workspace_path: Path) -> dict[str, Any]:
