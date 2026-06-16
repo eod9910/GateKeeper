@@ -37,3 +37,4 @@ They may contain raw transcript data and should not be committed.
 - Use `memory-bank/transcripts/codex-session-live.md` only for targeted recall.
 - Use dated snapshots under `memory-bank/transcripts/codex/` when searching historical sessions.
 - Do not preload raw transcript mirrors into agent context.
+- Follow `memory-bank/MEMORY_ARCHIVE_POLICY.md` before moving or deleting generated memory.

@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-16T02:25:11Z
+Generated: 2026-06-16T02:35:20Z
 
 ## Builder relay smoke report
 
@@ -191,3 +191,23 @@ Generated: 2026-06-16T02:25:11Z
 - Timestamp: `2026-06-16T02:25:11Z`
 - Body: `agent-relay/messages/route-20260616-022511-builder-to-validator-68af8a43.md`
 - SHA-256: `9e83ce1e23fa1258615e784423ef8107bd5d031134cb5b45cec1977ee2a90b79`
+
+## Memory cleanup builder report
+
+- Routing ID: `route-20260616-023520-builder-to-validator-95800822`
+- From: `Builder`
+- Type: `report`
+- Phase: `memory-cleanup`
+- Timestamp: `2026-06-16T02:35:20Z`
+- Body: `agent-relay/messages/route-20260616-023520-builder-to-validator-95800822.md`
+- SHA-256: `62081969035a0c79a0cc533b2cfda5452c2bb15b3c78c0cad5634f2b54579407`
+
+## Memory cleanup editor review
+
+- Routing ID: `route-20260616-023520-editor-to-validator-6c980c1e`
+- From: `Editor`
+- Type: `review`
+- Phase: `memory-cleanup`
+- Timestamp: `2026-06-16T02:35:20Z`
+- Body: `agent-relay/messages/route-20260616-023520-editor-to-validator-6c980c1e.md`
+- SHA-256: `30749c4b2c22f2f8a6fe091a69f486a3038b82939dac6e06b41994d35ed2c6ad`
