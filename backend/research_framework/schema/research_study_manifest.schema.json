@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pattern-detector.research-study-manifest.v1",
+  "title": "Research Study Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "study_id",
+    "title",
+    "classification",
+    "status",
+    "created_at",
+    "updated_at",
+    "framework",
+    "source",
+    "artifacts",
+    "provenance",
+    "promotion"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "research-study-manifest/v1"
+    },
+    "study_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,160}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "classification": {
+      "type": "string",
+      "enum": [
+        "technical_validator",
+        "parameter_sweep",
+        "fundamental_pit",
+        "valuation_study",
+        "exploratory_research",
+        "scratch_legacy",
+        "data_audit"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed",
+        "legacy_imported",
+        "scratch_legacy",
+        "archived",
+        "superseded"
+      ]
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "framework": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["engine", "entrypoint", "legacy_group"],
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "type": "string" },
+        "entrypoint": { "type": ["string", "null"] },
+        "legacy_group": { "type": ["string", "null"] },
+        "original_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "role", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "role": { "type": "string" },
+          "kind": { "type": "string" },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "modified_at": { "type": "string" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["migration", "git_commit", "generated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "migration": { "type": "string" },
+        "git_commit": { "type": ["string", "null"] },
+        "generated_at": { "type": "string" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "required": ["state", "required_next_engine"],
+      "additionalProperties": false,
+      "properties": {
+        "state": { "type": "string" },
+        "required_next_engine": { "type": ["string", "null"] },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

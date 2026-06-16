@@ -1,7 +1,36 @@
+## Planning Conventions
+
+- Follow `.planning/plans/PLAN_CONVENTIONS.md` whenever creating, moving, renaming, or auditing PRDs, checklists, active plans, or workstreams.
+- Every active workstream must have a paired `.planning/plans/ACTIVE/<slug>-prd.md` and `.planning/plans/ACTIVE/<slug>-checklist.md` so the PRD and checklist sort together.
+- Do not leave standalone notes, references, or orphan planning docs in `ACTIVE/`; convert them into a PRD/checklist pair or move them to `TODO`, `REFERENCE`, or `ARCHIVE`.
+
+## Workspace AI / Agent Creation
+
+- Workspace AIs live under `workspace/<Name> Workspace/`.
+- Before creating or changing a workspace AI, read `workspace/WORKSPACE_ARCHITECTURE.md`.
+- For the repo's canonical agent-building workflow, read `_skills/build-agent/SKILL.md`, then `_skills/build-agent/BUILD_AGENT_WORKFLOW.md`.
+- Use `workspace/Financial Analyst Workspace/` as the completed template of record unless the workspace architecture docs say otherwise.
+- New workspace skills live under `workspace/<Name> Workspace/skills/<skill-id>/SKILL.md`; adding a skill folder alone does not make it active until the runtime binding loads it.
+
+## Agent Operating Contract
+
+- Before running or creating any backtest, research simulation, parameter sweep, or strategy validation, read `AGENT_OPERATING_CONTRACT.md`.
+- For major coding work, core trading/backtest/research/governance changes, or multi-step refactors, read `TRI_AGENT_CODING_CONTRACT.md` and use `ROUTER_ONLY_PROTOCOL.md` / `tools/agent_router.py` when role handoffs need to be recorded.
+- Do not invent a new backtest engine for ordinary backtest requests. Classify the request and use the existing Validator, Fundamental Backtester, valuation study service, or sweep system described in the contract.
+- Every backtest or study must leave recoverable artifacts in the contract's approved storage locations, including the engine/source, configuration, timestamp, output paths, and result summary.
+- Exploratory research must use the Research Study Framework in `backend/research_framework/` and store the generated study record under `backend/data/research/studies/<study_id>/`.
+
+## Codex Continuity Memory
+
+- For continuity-sensitive work, read `memory-bank/CODEX_MEMORY_POLICY.md` and `memory-bank/CODEX_CONTINUITY.md`.
+- `memory-bank/CODEX_CONTINUITY.md` and `memory-bank/transcripts/codex-session-live.md` are intentionally trackable compact memory artifacts for catastrophic recovery.
+- Raw mirror folders such as `offline-codex-transcripts-*/` and `offline-cursor-transcripts-*/` remain local-only and must not be committed.
+- Treat tracked memory files as sensitive repo memory and do not publish them outside trusted repo channels.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **pattern-detector** (8151 symbols, 23657 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **pattern-detector** (11454 symbols, 32391 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
