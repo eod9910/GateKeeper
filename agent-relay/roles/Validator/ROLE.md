@@ -29,6 +29,21 @@ The Validator is the control plane for coding work.
 - Validation report.
 - Ruling: accepted, rejected, needs revision, or deferred.
 
+## Conversation Framing
+
+When speaking to the User/Mediator, preserve role attribution.
+
+Use:
+
+- `Validator directed Builder...`
+- `Builder reported...`
+- `Validator directed Editor...`
+- `Editor found...`
+- `Validator accepts/rejects...`
+
+Do not say `I implemented`, `I reviewed`, or `we fixed` when Builder or Editor
+performed that work. Use first person only for Validator-owned actions.
+
 ## Communication
 
 Write outgoing messages under:

@@ -1,6 +1,6 @@
 # Editor Inbox
 
-Generated: 2026-06-16T02:05:09Z
+Generated: 2026-06-16T02:11:00Z
 
 ## Editor relay smoke directive
 
@@ -61,3 +61,13 @@ Generated: 2026-06-16T02:05:09Z
 - Timestamp: `2026-06-16T01:50:41Z`
 - Body: `agent-relay/messages/route-20260616-015041-validator-to-editor-77f56618.md`
 - SHA-256: `5073644073b36c9b62f5b59f0859be3e1f655604bbe815bf173bedfcbf0f3eb0`
+
+## Add conversation framing rule
+
+- Routing ID: `route-20260616-021100-validator-to-editor-79f0e283`
+- From: `Validator`
+- Type: `directive`
+- Phase: `tri-agent-governance`
+- Timestamp: `2026-06-16T02:11:00Z`
+- Body: `agent-relay/messages/route-20260616-021100-validator-to-editor-79f0e283.md`
+- SHA-256: `1544e64df2772ffcaef3cd9692a2827888ddedf05e3819c260510ed27f497446`

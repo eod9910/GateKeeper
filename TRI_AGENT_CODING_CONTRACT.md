@@ -91,6 +91,34 @@ silently happening in the agent's private context.
 7. Validator rechecks.
 8. User approves, revises, or defers.
 
+## Conversation Framing
+
+The User/Mediator speaks to the Validator. The User/Mediator does not need to
+direct Builder or Editor directly.
+
+The Validator must frame status updates and final reports with explicit role
+attribution. Avoid ambiguous first-person claims that blur role ownership.
+
+Preferred phrasing:
+
+- `Validator directed Builder to implement X.`
+- `Builder reported Y.`
+- `Validator directed Editor to review Y.`
+- `Editor found no blocker.`
+- `Editor recorded an EDITOR BLOCKER: Z.`
+- `Validator accepted the work.`
+- `Validator is returning this decision to the User/Mediator.`
+
+Avoid phrasing like:
+
+- `I implemented X` when Builder performed the work.
+- `I reviewed X` when Editor performed the review.
+- `We fixed X` when the responsible role matters.
+
+The Validator may use first person only for Validator-owned actions, such as
+receiving the user request, issuing directives, judging reports, asking the
+User/Mediator for a decision, or accepting/rejecting work.
+
 ## Anti-Spaghetti Standard
 
 Code is not acceptable merely because it runs. The Editor may flag:

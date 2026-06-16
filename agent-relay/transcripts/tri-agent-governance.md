@@ -1,6 +1,6 @@
 # Agent Relay Transcript: tri-agent-governance
 
-Generated: 2026-06-16T02:05:09Z
+Generated: 2026-06-16T02:11:00Z
 
 ## 1. Validator -> Editor: Add explicit Editor blocker rule
 
@@ -171,6 +171,87 @@ Route operations now regenerate transcripts after updating inboxes.
 - `python tools/agent_router.py transcript --phase "codex-transcript-mirror-cleanup"` created the cleanup transcript.
 - `python tools/agent_router.py verify` passed with `checked: 21`.
 
+
+
+---
+
+## 5. Validator -> Editor: Add conversation framing rule
+
+- Routing ID: `route-20260616-021100-validator-to-editor-79f0e283`
+- Type: `directive`
+- Phase: `tri-agent-governance`
+- Timestamp: `2026-06-16T02:11:00Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-16-conversation-framing-rule.md`
+- Body: `agent-relay/messages/route-20260616-021100-validator-to-editor-79f0e283.md`
+- SHA-256: `1544e64df2772ffcaef3cd9692a2827888ddedf05e3819c260510ed27f497446`
+
+# Validator Directive: Add Conversation Framing Rule
+
+- Date: 2026-06-16
+- Phase: tri-agent-governance
+- From: Validator
+- To: Editor
+- Work tier: Tier 2 governance infrastructure
+
+## Mediator Decision
+
+The Mediator speaks to Validator, not directly to Builder or Editor. Validator
+must frame all status updates with explicit role attribution so role ownership
+is never ambiguous.
+
+## Required Work
+
+Update the tri-agent governance contract and Validator role instructions so
+future Validator instances say:
+
+- `Validator directed Builder...`
+- `Builder reported...`
+- `Validator directed Editor...`
+- `Editor found...`
+- `Validator accepted/rejected...`
+
+Avoid ambiguous statements such as `I implemented`, `I reviewed`, or `we fixed`
+when Builder or Editor performed the work.
+
+
+
+---
+
+## 6. Editor -> Validator: Conversation framing rule report
+
+- Routing ID: `route-20260616-021100-editor-to-validator-a88ceef3`
+- Type: `report`
+- Phase: `tri-agent-governance`
+- Timestamp: `2026-06-16T02:11:00Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-16-conversation-framing-rule-report.md`
+- Body: `agent-relay/messages/route-20260616-021100-editor-to-validator-a88ceef3.md`
+- SHA-256: `5474ed2b551243ee44fba92ab34357bafd473f6b033935840615441aad8bc5eb`
+
+# Editor Report: Conversation Framing Rule
+
+- Date: 2026-06-16
+- Phase: tri-agent-governance
+- From: Editor
+- To: Validator
+
+## Files Changed
+
+- `TRI_AGENT_CODING_CONTRACT.md`
+- `agent-relay/roles/Validator/ROLE.md`
+
+## Result
+
+Added explicit conversation-framing rules. The contract now states that the
+User/Mediator speaks to Validator, and Validator must report Builder and Editor
+work with explicit role attribution.
+
+The Validator role file now forbids ambiguous phrasing such as `I implemented`,
+`I reviewed`, or `we fixed` when Builder or Editor performed that work.
+
+## Recommendation
+
+Accept this governance update. It makes the spoken interaction model match the
+tri-agent contract.
 
 
 ---
