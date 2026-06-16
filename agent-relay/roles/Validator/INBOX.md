@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-16T02:35:20Z
+Generated: 2026-06-16T02:40:41Z
 
 ## Builder relay smoke report
 
@@ -211,3 +211,13 @@ Generated: 2026-06-16T02:35:20Z
 - Timestamp: `2026-06-16T02:35:20Z`
 - Body: `agent-relay/messages/route-20260616-023520-editor-to-validator-6c980c1e.md`
 - SHA-256: `30749c4b2c22f2f8a6fe091a69f486a3038b82939dac6e06b41994d35ed2c6ad`
+
+## AGENTS.md router cleanup builder report
+
+- Routing ID: `route-20260616-024041-builder-to-validator-ce44828e`
+- From: `Builder`
+- Type: `report`
+- Phase: `agents-md-router-cleanup`
+- Timestamp: `2026-06-16T02:40:41Z`
+- Body: `agent-relay/messages/route-20260616-024041-builder-to-validator-ce44828e.md`
+- SHA-256: `d8275f927f89317e7acbc8233d68317c0054689b2fca2cfda929ae4558bce331`
