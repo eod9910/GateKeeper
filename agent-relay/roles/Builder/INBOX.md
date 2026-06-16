@@ -1,6 +1,6 @@
 # Builder Inbox
 
-Generated: 2026-06-16T01:33:35Z
+Generated: 2026-06-16T01:46:50Z
 
 ## Router smoke test
 
@@ -31,3 +31,13 @@ Generated: 2026-06-16T01:33:35Z
 - Timestamp: `2026-06-16T01:30:15Z`
 - Body: `agent-relay/messages/route-20260616-013015-validator-to-builder-e2344ea0.md`
 - SHA-256: `d5d75f1ea5de9b3cbf1479e948a26766d9f55337ded0e4ddd4907d34c9e4acb2`
+
+## Make Codex mirror incremental
+
+- Routing ID: `route-20260616-013934-validator-to-builder-f1c84862`
+- From: `Validator`
+- Type: `directive`
+- Phase: `codex-transcript-mirror-cleanup`
+- Timestamp: `2026-06-16T01:39:34Z`
+- Body: `agent-relay/messages/route-20260616-013934-validator-to-builder-f1c84862.md`
+- SHA-256: `a3abb8ef7f5db47f9c0f4116b0511e9576b9ed4787a5c1678d75fb0e7c1437fc`

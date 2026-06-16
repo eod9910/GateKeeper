@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-16T01:33:35Z
+Generated: 2026-06-16T01:46:50Z
 
 ## Builder relay smoke report
 
@@ -71,3 +71,33 @@ Generated: 2026-06-16T01:33:35Z
 - Timestamp: `2026-06-16T01:33:35Z`
 - Body: `agent-relay/messages/route-20260616-013335-editor-to-validator-46a89043.md`
 - SHA-256: `a1a52614aff016e7a91b95b3f1700beff57c27d3b5b29dc0807a90a30695f676`
+
+## Incremental Codex mirror builder report
+
+- Routing ID: `route-20260616-014236-builder-to-validator-33698957`
+- From: `Builder`
+- Type: `report`
+- Phase: `codex-transcript-mirror-cleanup`
+- Timestamp: `2026-06-16T01:42:36Z`
+- Body: `agent-relay/messages/route-20260616-014236-builder-to-validator-33698957.md`
+- SHA-256: `1b61ae4ce48209b86e784c4c01ffcf9daed6400fc782cf758ed6b1fa26b677b9`
+
+## Incremental Codex mirror review
+
+- Routing ID: `route-20260616-014331-editor-to-validator-7734faff`
+- From: `Editor`
+- Type: `review`
+- Phase: `codex-transcript-mirror-cleanup`
+- Timestamp: `2026-06-16T01:43:31Z`
+- Body: `agent-relay/messages/route-20260616-014331-editor-to-validator-7734faff.md`
+- SHA-256: `a008ee33ed5194c9d2ef811371aabc27bc5b991c4aff2e3bfa31a0a0d3defc25`
+
+## Codex mirror refactor report
+
+- Routing ID: `route-20260616-014650-editor-to-validator-728241f4`
+- From: `Editor`
+- Type: `report`
+- Phase: `codex-transcript-mirror-cleanup`
+- Timestamp: `2026-06-16T01:46:50Z`
+- Body: `agent-relay/messages/route-20260616-014650-editor-to-validator-728241f4.md`
+- SHA-256: `7e589ac5822fa9d072af4124567360e74b04ae4a83f77b54251a271fb91f53bf`

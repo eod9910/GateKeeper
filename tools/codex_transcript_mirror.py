@@ -21,148 +21,23 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from codex_transcript_memory import (
+    build_active_thread_bullets,
+    build_likely_next_step_bullets,
+    build_open_question_bullets,
+    build_recent_directive_bullets,
+    build_topic_matches,
+    dedupe_strings,
+    extract_last_prompt,
+    extract_last_substantive_prompt,
+    extract_memory_headline,
+    format_bullets,
+)
+
 
 DEFAULT_INTERVAL_SECONDS = 30.0
 MAX_TRANSCRIPT_CHARS = 240_000
-
-QUESTION_PREFIXES = (
-    "what",
-    "why",
-    "how",
-    "when",
-    "where",
-    "which",
-    "who",
-    "can we",
-    "could we",
-    "do we",
-    "does",
-    "did",
-    "is",
-    "are",
-    "will",
-    "would",
-    "should",
-)
-
-APPROVAL_PHRASES = {
-    "yes",
-    "yes please",
-    "ok",
-    "okay",
-    "ok do that",
-    "okay do that",
-    "do that",
-    "sounds good",
-    "lets do that",
-    "let's do that",
-    "please do that",
-    "nice",
-    "update",
-}
-
-DIRECTIVE_PREFIXES = (
-    "add ",
-    "build ",
-    "change ",
-    "close ",
-    "create ",
-    "default ",
-    "download ",
-    "filter ",
-    "fix ",
-    "force ",
-    "give ",
-    "go ",
-    "make ",
-    "move ",
-    "put ",
-    "restart ",
-    "run ",
-    "set ",
-    "show ",
-    "stream ",
-    "switch ",
-    "take ",
-    "update ",
-    "use ",
-)
-
-TOPIC_DEFINITIONS = [
-    {
-        "id": "tri_agent_relay",
-        "label": "Tri-agent relay and governance",
-        "summary": "Validator, Builder, Editor roles, router records, contracts, and repo-local agent memory",
-        "next_step": "Keep role handoffs in agent-relay and keep AGENTS.md pointing at the governing contracts.",
-        "keywords": (
-            "tri agent",
-            "tri-agent",
-            "validator",
-            "builder",
-            "editor",
-            "agent relay",
-            "router",
-            "contract",
-            "governance",
-        ),
-    },
-    {
-        "id": "codex_continuity",
-        "label": "Codex transcript continuity",
-        "summary": "offline mirroring of Codex session rollouts and compact startup memory",
-        "next_step": "Keep the Codex transcript mirror running and use CODEX_CONTINUITY.md as the compact startup bridge.",
-        "keywords": (
-            "codex",
-            "transcript",
-            "conversation",
-            "chat log",
-            "memory",
-            "mirror",
-            "continuity",
-            "session",
-        ),
-    },
-    {
-        "id": "backtest_contract",
-        "label": "Backtest and research contract",
-        "summary": "backtest engine routing, research study storage, and avoiding ad hoc backtest code",
-        "next_step": "For future backtests, classify the request and store artifacts in the approved contract locations.",
-        "keywords": (
-            "backtest",
-            "back test",
-            "research study",
-            "study framework",
-            "engine",
-            "sweep",
-            "valuation",
-        ),
-    },
-    {
-        "id": "market_ai_trade",
-        "label": "AI trade and market risk",
-        "summary": "AI valuation, model progress risk, Nvidia/Marvell valuation, and market-cycle concerns",
-        "next_step": "When market claims need numbers, verify live prices, earnings, and valuation ratios before analysis.",
-        "keywords": (
-            "ai revolution",
-            "mythos",
-            "fable",
-            "anthropic",
-            "nvidia",
-            "marvell",
-            "market",
-            "valuation",
-            "standard deviation",
-        ),
-    },
-]
-
-CUT_MARKERS = (
-    "Based on the current analysis",
-    "### Technical Analysis",
-    "### Fundamental Analysis",
-    "### Trade Considerations",
-    "### Conclusion",
-)
+SESSION_CACHE_VERSION = 1
 
 
 @dataclass
@@ -217,33 +92,6 @@ def normalize_path_text(path: str | Path) -> str:
     return str(Path(path).resolve()).replace("/", "\\").lower()
 
 
-def normalize_text(value: str) -> str:
-    return " ".join(str(value or "").replace("\r", "\n").split())
-
-
-def shorten_text(value: str, max_chars: int | None = None) -> str:
-    text = normalize_text(value)
-    if max_chars is None or len(text) <= max_chars:
-        return text
-    return text[: max_chars - 3].rstrip() + "..."
-
-
-def extract_memory_headline(value: str, max_chars: int = 180) -> str:
-    raw_text = str(value or "")
-    lines = [line.strip() for line in raw_text.replace("\r", "\n").split("\n") if line.strip()]
-    text = lines[0] if lines else ""
-    if len(text) < 24 and len(lines) > 1:
-        text = " ".join(lines[:2])
-    text = normalize_text(text)
-    lower_text = text.lower()
-    for marker in CUT_MARKERS:
-        index = lower_text.find(marker.lower())
-        if index > 0:
-            text = text[:index].strip()
-            break
-    return shorten_text(text, max_chars=max_chars)
-
-
 def sanitize_filename(value: str, fallback: str) -> str:
     text = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-")
     return text[:120] or fallback
@@ -272,9 +120,40 @@ def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
 
 
+def write_text_if_changed(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            if path.read_text(encoding="utf-8") == text:
+                return
+        except Exception:
+            pass
+    path.write_text(text, encoding="utf-8")
+
+
+def load_json_file(path: Path) -> Any:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def copy_if_exists(source: Path, destination: Path) -> None:
     if not source.exists():
         return
+    if destination.exists():
+        try:
+            source_stat = source.stat()
+            destination_stat = destination.stat()
+            if (
+                source_stat.st_size == destination_stat.st_size
+                and int(source_stat.st_mtime) == int(destination_stat.st_mtime)
+            ):
+                return
+        except OSError:
+            pass
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
         shutil.copy2(source, destination)
@@ -368,165 +247,126 @@ def parse_session(path: Path, index: dict[str, dict[str, str]]) -> SessionRecord
     return record
 
 
-def find_workspace_sessions(codex_root: Path, workspace_path: Path) -> list[SessionRecord]:
+def file_signature(path: Path) -> dict[str, int]:
+    stat = path.stat()
+    return {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
+
+
+def record_to_cache_payload(record: SessionRecord, signature: dict[str, int]) -> dict[str, Any]:
+    return {
+        "version": SESSION_CACHE_VERSION,
+        "signature": signature,
+        "record": {
+            "id": record.id,
+            "path": str(record.path),
+            "updated_at": record.updated_at,
+            "thread_name": record.thread_name,
+            "cwd": record.cwd,
+            "originator": record.originator,
+            "source": record.source,
+            "messages": record.messages,
+        },
+    }
+
+
+def record_from_cache_payload(path: Path, payload: dict[str, Any]) -> SessionRecord | None:
+    if payload.get("version") != SESSION_CACHE_VERSION:
+        return None
+    record_payload = payload.get("record")
+    if not isinstance(record_payload, dict):
+        return None
+    messages = record_payload.get("messages")
+    if not isinstance(messages, list):
+        return None
+    return SessionRecord(
+        id=str(record_payload.get("id") or path.stem),
+        path=path,
+        updated_at=str(record_payload.get("updated_at") or ""),
+        thread_name=str(record_payload.get("thread_name") or ""),
+        cwd=str(record_payload.get("cwd") or ""),
+        originator=str(record_payload.get("originator") or ""),
+        source=str(record_payload.get("source") or ""),
+        messages=[
+            {
+                "timestamp": str(item.get("timestamp") or ""),
+                "role": str(item.get("role") or ""),
+                "text": str(item.get("text") or ""),
+            }
+            for item in messages
+            if isinstance(item, dict)
+        ],
+    )
+
+
+def cached_record_for_path(
+    path: Path,
+    cache_entries: dict[str, Any],
+    signature: dict[str, int],
+) -> SessionRecord | None:
+    payload = cache_entries.get(str(path))
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("signature") != signature:
+        return None
+    return record_from_cache_payload(path, payload)
+
+
+def apply_session_index(record: SessionRecord, index: dict[str, dict[str, str]]) -> None:
+    if record.id not in index:
+        return
+    record.thread_name = index[record.id].get("thread_name", record.thread_name)
+    record.updated_at = index[record.id].get("updated_at", record.updated_at)
+
+
+def find_workspace_sessions(
+    codex_root: Path,
+    workspace_path: Path,
+    cache_path: Path | None = None,
+) -> tuple[list[SessionRecord], dict[str, int]]:
     index = read_session_index(codex_root)
     sessions_dir = codex_root / "sessions"
     if not sessions_dir.exists():
-        return []
+        return [], {"parsed": 0, "cache_hits": 0, "skipped": 0}
+
+    cache_payload = load_json_file(cache_path) if cache_path else None
+    cache_entries = {}
+    if isinstance(cache_payload, dict) and cache_payload.get("version") == SESSION_CACHE_VERSION:
+        raw_entries = cache_payload.get("sessions")
+        if isinstance(raw_entries, dict):
+            cache_entries = raw_entries
 
     target = normalize_path_text(workspace_path)
+    next_cache_entries: dict[str, Any] = {}
+    cache_stats = {"parsed": 0, "cache_hits": 0, "skipped": 0}
     sessions: list[SessionRecord] = []
     for path in sessions_dir.rglob("*.jsonl"):
-        record = parse_session(path, index)
+        signature = file_signature(path)
+        record = cached_record_for_path(path, cache_entries, signature)
+        if record:
+            cache_stats["cache_hits"] += 1
+            apply_session_index(record, index)
+        else:
+            record = parse_session(path, index)
+            cache_stats["parsed"] += 1
         if not record:
+            cache_stats["skipped"] += 1
             continue
+        next_cache_entries[str(path)] = record_to_cache_payload(record, signature)
         if record.cwd and normalize_path_text(record.cwd) != target:
             continue
         sessions.append(record)
 
     sessions.sort(key=lambda item: item.updated_at or item.path.stat().st_mtime_ns.__str__())
-    return sessions
-
-
-def is_question_prompt(text: str) -> bool:
-    normalized = normalize_text(text).lower()
-    if not normalized:
-        return False
-    if "?" in str(text):
-        return True
-    return any(normalized.startswith(prefix) for prefix in QUESTION_PREFIXES)
-
-
-def is_approval_prompt(text: str) -> bool:
-    normalized = normalize_text(text).lower()
-    return normalized in APPROVAL_PHRASES
-
-
-def is_directive_prompt(text: str) -> bool:
-    normalized = normalize_text(text).lower()
-    if not normalized or is_question_prompt(normalized) or is_approval_prompt(normalized):
-        return False
-    if "i want" in normalized or "we need to" in normalized or "let's " in normalized:
-        return True
-    return any(normalized.startswith(prefix) for prefix in DIRECTIVE_PREFIXES)
-
-
-def score_topic(prompt: str, topic: dict[str, Any]) -> int:
-    normalized = normalize_text(prompt).lower()
-    return sum(1 for keyword in topic["keywords"] if keyword in normalized)
-
-
-def classify_prompt_topic(prompt: str) -> dict[str, Any] | None:
-    best_topic: dict[str, Any] | None = None
-    best_score = 0
-    for topic in TOPIC_DEFINITIONS:
-        score = score_topic(prompt, topic)
-        if score > best_score:
-            best_score = score
-            best_topic = topic
-    return best_topic
-
-
-def dedupe_strings(items: list[str]) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for item in items:
-        value = str(item or "").strip()
-        if not value or value in seen:
-            continue
-        seen.add(value)
-        out.append(value)
-    return out
-
-
-def build_topic_matches(prompts: list[str]) -> list[tuple[dict[str, Any], list[str]]]:
-    topic_matches: dict[str, list[str]] = {topic["id"]: [] for topic in TOPIC_DEFINITIONS}
-    for prompt in prompts:
-        topic = classify_prompt_topic(prompt)
-        if not topic:
-            continue
-        topic_matches[topic["id"]].append(extract_memory_headline(prompt, max_chars=120))
-
-    ordered: list[tuple[dict[str, Any], list[str]]] = []
-    for topic in TOPIC_DEFINITIONS:
-        matches = dedupe_strings(topic_matches[topic["id"]])
-        if matches:
-            ordered.append((topic, matches))
-    ordered.sort(key=lambda item: len(item[1]), reverse=True)
-    return ordered
-
-
-def format_bullets(items: list[str], limit: int | None = None, max_chars: int | None = None) -> list[str]:
-    values = items if limit is None else items[-limit:]
-    if not values:
-        return ["- None captured yet"]
-    return [f"- {shorten_text(value, max_chars=max_chars)}" for value in values]
-
-
-def build_active_thread_bullets(prompts: list[str]) -> list[str]:
-    threads = build_topic_matches(prompts)
-    if not threads:
-        return ["- No dominant thread detected yet"]
-    bullets: list[str] = []
-    for topic, matches in threads[:3]:
-        recent_examples = "; ".join(f"`{item}`" for item in matches[-2:])
-        bullets.append(
-            f"- {topic['label']}: {topic['summary']}. Recent prompts: {recent_examples}"
+    if cache_path:
+        write_json(
+            cache_path,
+            {
+                "version": SESSION_CACHE_VERSION,
+                "updated_at_epoch_ms": int(time.time() * 1000),
+                "sessions": next_cache_entries,
+            },
         )
-    return bullets
-
-
-def build_recent_directive_bullets(prompts: list[str]) -> list[str]:
-    directives = [
-        extract_memory_headline(prompt, max_chars=150)
-        for prompt in prompts
-        if is_directive_prompt(prompt)
-    ]
-    values = dedupe_strings(directives)
-    if not values:
-        return ["- No strong user directives captured yet"]
-    return [f"- {item}" for item in values[-6:]]
-
-
-def build_open_question_bullets(prompts: list[str]) -> list[str]:
-    open_questions: list[str] = []
-    recent_prompts = prompts[-10:]
-    for index, prompt in enumerate(recent_prompts):
-        if not is_question_prompt(prompt):
-            continue
-        trailing_prompts = recent_prompts[index + 1 :]
-        if any(is_approval_prompt(item) or is_directive_prompt(item) for item in trailing_prompts):
-            continue
-        open_questions.append(extract_memory_headline(prompt, max_chars=150))
-    values = dedupe_strings(open_questions)
-    if not values:
-        return ["- No unresolved question detected in the latest prompt window"]
-    return [f"- {item}" for item in values[-3:]]
-
-
-def build_likely_next_step_bullets(prompts: list[str]) -> list[str]:
-    threads = build_topic_matches(prompts)
-    next_steps = dedupe_strings([topic["next_step"] for topic, _matches in threads[:3]])
-    next_steps.append(
-        "Use the long-term transcript files only for targeted recall; do not preload them into startup context."
-    )
-    return [f"- {item}" for item in next_steps[:4]]
-
-
-def extract_last_substantive_prompt(prompts: list[str]) -> str:
-    for prompt in reversed(prompts):
-        if is_approval_prompt(prompt):
-            continue
-        headline = extract_memory_headline(prompt, max_chars=160)
-        if headline:
-            return headline
-    return "No recent substantive prompt captured"
-
-
-def extract_last_prompt(prompts: list[str]) -> str:
-    if not prompts:
-        return "No recent prompt captured"
-    return extract_memory_headline(prompts[-1], max_chars=120)
+    return sessions, cache_stats
 
 
 def render_session_markdown(record: SessionRecord, max_chars: int | None = None) -> str:
@@ -665,13 +505,16 @@ def write_memory_bank_views(output_dir: Path, workspace_path: Path, sessions: li
 
     continuity_path = memory_bank_dir / "CODEX_CONTINUITY.md"
     transcript_path = memory_bank_dir / "transcripts" / "codex-session-live.md"
-    continuity_path.write_text("\n".join(continuity_lines), encoding="utf-8")
-    transcript_path.parent.mkdir(parents=True, exist_ok=True)
-    transcript_path.write_text("\n".join(transcript_lines), encoding="utf-8")
+    write_text_if_changed(continuity_path, "\n".join(continuity_lines))
+    write_text_if_changed(transcript_path, "\n".join(transcript_lines))
 
 
 def mirror_once(output_dir: Path, codex_root: Path, workspace_path: Path) -> dict[str, Any]:
-    sessions = find_workspace_sessions(codex_root, workspace_path)
+    sessions, cache_stats = find_workspace_sessions(
+        codex_root,
+        workspace_path,
+        output_dir / "decoded" / "session-cache.json",
+    )
     copy_if_exists(codex_root / "session_index.jsonl", output_dir / "raw" / "session_index.jsonl")
 
     raw_session_dir = output_dir / "raw" / "sessions"
@@ -681,18 +524,18 @@ def mirror_once(output_dir: Path, codex_root: Path, workspace_path: Path) -> dic
         relative = session.path.relative_to(codex_root / "sessions")
         copy_if_exists(session.path, raw_session_dir / relative)
         name = sanitize_filename(f"{session.updated_at}-{session.thread_name or session.id}", session.id)
-        (decoded_session_dir / f"{name}.md").write_text(
+        write_text_if_changed(
+            decoded_session_dir / f"{name}.md",
             render_session_markdown(session),
-            encoding="utf-8",
         )
 
     summaries = [session_summary(session) for session in sessions]
     write_json(output_dir / "decoded" / "sessions-summary.json", summaries)
     if sessions:
         latest = sessions[-1]
-        (output_dir / "decoded" / "latest-session.md").write_text(
+        write_text_if_changed(
+            output_dir / "decoded" / "latest-session.md",
             render_session_markdown(latest, max_chars=MAX_TRANSCRIPT_CHARS),
-            encoding="utf-8",
         )
 
     write_memory_bank_views(output_dir, workspace_path, sessions)
@@ -703,6 +546,7 @@ def mirror_once(output_dir: Path, codex_root: Path, workspace_path: Path) -> dic
         "workspace_path": str(workspace_path),
         "output_dir": str(output_dir),
         "session_count": len(sessions),
+        "cache_stats": cache_stats,
         "latest_session": session_summary(sessions[-1]) if sessions else None,
         "mirrored_files": [
             {

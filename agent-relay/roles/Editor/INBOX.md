@@ -1,6 +1,6 @@
 # Editor Inbox
 
-Generated: 2026-06-16T01:33:35Z
+Generated: 2026-06-16T01:46:50Z
 
 ## Editor relay smoke directive
 
@@ -31,3 +31,23 @@ Generated: 2026-06-16T01:33:35Z
 - Timestamp: `2026-06-16T01:33:03Z`
 - Body: `agent-relay/messages/route-20260616-013303-validator-to-editor-dd657469.md`
 - SHA-256: `ccdf1222886933827fc7e56621e792b5ad95b8670475fb1eb104d118f7eb6289`
+
+## Review incremental Codex mirror
+
+- Routing ID: `route-20260616-014250-validator-to-editor-e8f00062`
+- From: `Validator`
+- Type: `directive`
+- Phase: `codex-transcript-mirror-cleanup`
+- Timestamp: `2026-06-16T01:42:50Z`
+- Body: `agent-relay/messages/route-20260616-014250-validator-to-editor-e8f00062.md`
+- SHA-256: `a515a1a9a7036c111bf9237e67fe3c7d13eae935d8066851680d20ac92b25a1b`
+
+## Refactor Codex mirror structure
+
+- Routing ID: `route-20260616-014400-validator-to-editor-161a4229`
+- From: `Validator`
+- Type: `directive`
+- Phase: `codex-transcript-mirror-cleanup`
+- Timestamp: `2026-06-16T01:44:00Z`
+- Body: `agent-relay/messages/route-20260616-014400-validator-to-editor-161a4229.md`
+- SHA-256: `d6b3c9f80c1dabf060efae4a2bf65335ef74cb1dbe803f3fe1c7df88370b75d9`
