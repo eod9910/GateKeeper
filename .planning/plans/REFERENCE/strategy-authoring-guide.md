@@ -411,10 +411,16 @@ PLUGINS['ma_pullback'] = run_ma_pullback_plugin
 }
 ```
 
-### Step 6: Validate
+### Step 6: Sweep Execution Mechanics
 
-Run the spec through the validator to get backtest results, robustness tests,
-and a PASS/FAIL verdict before using it live.
+Run the research candidate through Parameter Sweep before Validator unless the
+strategy already has a complete execution model. Sweep is where stops, max hold,
+take-profit rules, trailing stops, top-N behavior, liquidity filters, and other
+execution mechanics are tested.
+
+Only after a viable execution shape exists should the candidate be sent to
+Validator for robustness, out-of-sample behavior, drawdown, degradation, and a
+PASS/FAIL verdict.
 
 ---
 
@@ -427,6 +433,7 @@ and a PASS/FAIL verdict before using it live.
 5. **AI can author strategies but cannot declare edge or auto-approve**
 6. **Changes create new versions** — frozen specs are immutable
 7. **Spec hash ensures integrity** — candidates are traceable to exactly the spec that produced them
+8. **Sweep before Validator** — raw research rules become strategy candidates only after execution mechanics have been swept
 
 ---
 
@@ -440,9 +447,11 @@ Given this architecture, an AI co-pilot would:
 4. **Suggest parameter ranges** based on historical norms (e.g. "20-bar base minimum is standard for weekly charts")
 5. **Flag design issues** — missing confirmation bars, unrealistic thresholds, no cost model
 6. **Version and diff** — show what changed between v1 and v2 of a strategy
-7. **NEVER auto-approve** — all strategies must pass through the validator
+7. **NEVER auto-approve** — all strategies must pass through Parameter Sweep and then Validator
 
-The co-pilot generates hypotheses. The validator proves them. The execution ladder enforces them.
+The co-pilot generates hypotheses. Parameter Sweep turns promising rules into
+strategy candidates. The validator judges them. The execution ladder enforces
+them.
 
 ---
 

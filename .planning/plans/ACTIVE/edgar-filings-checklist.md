@@ -1,5 +1,9 @@
 # SEC EDGAR Filings Integration — Build Checklist
 
+Percent complete: 68% (13 complete, 0 partial, 6 remaining)
+
+PRD: edgar-filings-prd.md
+
 Living tracker for the EDGAR Filings Integration PRD.
 
 > **Companion to:** [`edgar-filings-prd.md`](./edgar-filings-prd.md)

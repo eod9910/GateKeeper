@@ -93,7 +93,7 @@ Additional standalone pages in `frontend/public`:
 
 ## Key Policy Docs
 
-- [Strategy Validation Policy](docs/strategy-validation-policy.md)
+- [Strategy Validation Policy](.planning/plans/REFERENCE/strategy-validation-policy.md)
 
 ## Backend API Surface
 
@@ -207,10 +207,13 @@ pattern-detector/
 |  `- tests/            Python regression tests
 |- frontend/
 |  `- public/           HTML/JS/CSS frontend pages
-|- docs/
-|  |- ARCHITECTURE.md   Current system map
-|  |- validator-api-v2.md
-|  `- base-method-review-workflow.md
+|- .planning/
+|  `- plans/
+|     |- ACTIVE/        Active PRDs and checklists
+|     |- TODO/          Future PRDs and checklists
+|     |- COMPLETED/     Completed PRDs and checklists
+|     |- ARCHIVE/       Historical snapshots and retired docs
+|     `- REFERENCE/     Durable reference docs and codebase orientation
 `- README.md
 ```
 
@@ -218,9 +221,11 @@ pattern-detector/
 
 Start here:
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Validator API V2](docs/validator-api-v2.md)
-- [Base Method Review Workflow](docs/base-method-review-workflow.md)
+- [Current Codebase Architecture](.planning/plans/REFERENCE/codebase/ARCHITECTURE.md)
+- [Strategy Validation Policy](.planning/plans/REFERENCE/strategy-validation-policy.md)
+- [Validator Architecture](.planning/plans/REFERENCE/validator-architecture.md)
+- [Primitive / Composite / Strategy Methodology](.planning/plans/REFERENCE/indicator/indicator-architecture.md)
+- [Current Codebase Reference](.planning/plans/REFERENCE/codebase/README.md)
 
 ## Current State
 

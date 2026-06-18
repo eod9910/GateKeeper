@@ -1,5 +1,9 @@
 # Frontend React + TypeScript Migration - Checklist
 
+Percent complete: 1% (1 complete, 1 partial, 150 remaining)
+
+PRD: frontend-react-migration-prd.md
+
 Living tracker for migrating the Pattern Detector frontend from static HTML/vanilla JavaScript to React + TypeScript.
 
 > **Companion to:** [`frontend-react-migration-prd.md`](./frontend-react-migration-prd.md)

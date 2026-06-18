@@ -1,5 +1,9 @@
 # Single-User Production Readiness Checklist
 
+Percent complete: 69% (16 complete, 4 partial, 6 remaining)
+
+PRD: single-user-production-readiness-prd.md
+
 Date: 2026-02-15  
 Scope: Pattern Detector as a **single-user** system that is safe for real-money decision support (not multi-tenant SaaS).
 

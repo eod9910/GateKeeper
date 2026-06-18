@@ -1,6 +1,34 @@
 # Market Intelligence Historical Replay - Checklist
 
+Percent complete: 39% (43 complete, 0 partial, 68 remaining)
+
+PRD: market-intelligence-historical-replay-prd.md
+
 Living execution checklist for `market-intelligence-historical-replay-prd.md`.
+
+## Current Next Sprint - 2026-06-01
+
+Goal: turn the existing price-only replay prototype into the Market Intelligence Phase 5 proof loop.
+
+- [ ] Promote replay/calibration to the next active implementation focus.
+- [ ] Run a longer baseline price-only replay across multiple years.
+- [ ] Add PIT fundamental overlays from `fundamentals-pit.sqlite`.
+- [ ] Add revenue growth and revenue acceleration buckets.
+- [ ] Add earnings surprise buckets where PIT/dated earnings data is available.
+- [ ] Add valuation-state buckets: undervalued, fair, overvalued, unavailable.
+- [ ] Compare signal-family results:
+  - [ ] eigen residual only
+  - [ ] eigen + undervalued
+  - [ ] eigen + revenue growth
+  - [ ] eigen + revenue acceleration
+  - [ ] eigen + positive earnings surprise
+  - [ ] depressed price + revenue acceleration
+  - [ ] social buzz + improving fundamentals
+  - [ ] macro scenario + exposed ticker + valuation support
+  - [ ] mixed-engine corroboration vs single-engine signal
+- [ ] Report win rate, average return, median return, loss rate, time-to-profit, and best hold window.
+- [ ] Produce threshold recommendations for live Market Intelligence ranking.
+- [ ] Decide which signals should be promoted, demoted, or killed.
 
 ## Current State
 

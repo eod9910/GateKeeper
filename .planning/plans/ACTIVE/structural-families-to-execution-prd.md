@@ -1,5 +1,7 @@
 # Structural Families to Execution — PRD
 
+Checklist: structural-families-to-execution-checklist.md
+
 **Status:** ACTIVE  
 **Created:** 2026-03-18  
 **Scope:** End-to-end evolution from discovered structural motifs to executable strategies in this repo
@@ -18,10 +20,10 @@ This document is the **master planning document and PRD** for the structure-firs
 Related but narrower docs:
 
 - **Family discovery (research layer only):** `.planning/plans/ACTIVE/family-discovery-v2-prd-pdr.md`
-- **Structure-only family test ledger:** `.planning/plans/ACTIVE/family-structure-validation-ledger.md`
+- **Structure-only family test ledger:** `.planning/plans/ACTIVE/../REFERENCE/family-structure-validation-ledger.md`
 - **Phased roadmap (layers + UI order):** `.planning/plans/ACTIVE/Update.md`
 - **Symbolic Regression (formula discovery):** `.planning/plans/ACTIVE/SR Engine.md` — scoring formulas for setups; can use family features after indicator-based first path.
-- **Strategy validation rules:** `docs/strategy-validation-policy.md`
+- **Strategy validation rules:** `.planning/plans/REFERENCE/strategy-validation-policy.md`
 - **Other research path (composite/strategy discovery):** `.planning/plans/ACTIVE/research-to-live-trading.md`
 
 ---
@@ -80,7 +82,7 @@ Families do **not** replace the scanner. They **feed into** it as a new kind of 
 
 ### Strategy layer (existing)
 
-- **Same as today.** A “strategy” is: entry logic (e.g. family signal) + exit rules (stop, target, time stop) + risk_config. Family strategies are just strategies whose entry is “when this family fires.” They get a strategy spec, go through the validator, get approved or tombstoned per `docs/strategy-validation-policy.md`.
+- **Same as today.** A “strategy” is: entry logic (e.g. family signal) + exit rules (stop, target, time stop) + risk_config. Family strategies are just strategies whose entry is “when this family fires.” They get a strategy spec, go through the validator, get approved or tombstoned per `.planning/plans/REFERENCE/strategy-validation-policy.md`.
 
 ### Portfolio layer (future)
 

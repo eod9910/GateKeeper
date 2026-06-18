@@ -1,5 +1,7 @@
 # Multi-Agent Patterns — PRD
 
+Checklist: multi-agent-patterns-checklist.md
+
 **Created:** 2026-04-29
 **Updated:** 2026-04-29
 **Status:** PHASE A CODE COMPLETE — awaiting first valuation refresh to populate data
@@ -512,5 +514,5 @@ Phase C: Adversarial Debate (output flows through B's gate)
 | `backend/src/services/visionService.ts` | Runtime binding (where prompts are built) |
 | `backend/src/services/copilotTools.ts` | Tool implementations (where decisions are made) |
 | `backend/src/services/ledgerEngines.ts` | Engine layer (deterministic computation) |
-| `.planning/plans/ACTIVE/market-intelligence-checklist.md` | MI scenario engine build state |
-| `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd-pdr.md` | MI scenario engine PRD |
+| `.planning/plans/ACTIVE/market-intelligence-scenario-engine-checklist.md` | MI scenario engine build state |
+| `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd.md` | MI scenario engine PRD |

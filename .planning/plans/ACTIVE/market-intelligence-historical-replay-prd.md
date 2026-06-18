@@ -1,10 +1,26 @@
 # Market Intelligence Historical Replay Engine - PRD
 
+Checklist: market-intelligence-historical-replay-checklist.md
+
+Status: ACTIVE
+Updated: 2026-06-01
+
 ## Purpose
 
 Build a point-in-time historical replay system that tests whether Market Intelligence perturbation signals would have pointed us toward useful trades before the outcome was known.
 
 The first target is the eigen/PCA perturbation layer: find stocks whose price behavior diverged from broad factor structure, then walk forward to measure whether the signal had predictive or triage value.
+
+The current target is broader than the first eigen prototype: make this the Phase 5 proof loop for Market Intelligence. The replay engine should decide which live signals deserve weight, which should be demoted, and what thresholds produce a manageable number of high-quality candidates.
+
+## Current Status - 2026-06-01
+
+The PRD and checklist already exist in `ACTIVE`. Phase 1 price-only eigen replay has a working prototype and a successful smoke run. The next useful work is Phase 2 plus calibration reporting:
+
+- add PIT fundamentals / valuation overlays;
+- test revenue growth, revenue acceleration, earnings surprise, and valuation state as cross-filters;
+- measure whether social, macro, options, and mixed-engine corroboration improve hit rate where causal data exists;
+- convert results into score-weight and threshold recommendations for the live Market Intelligence page.
 
 ## Problem
 
@@ -162,17 +178,30 @@ The replay engine is useful if it can answer these questions with evidence:
 - Do options/social overlays improve selection where available?
 - What threshold produces a manageable number of live cards?
 - Which signals should be promoted into Market Intelligence and which should be killed?
+- Which fundamental filters matter more: revenue, earnings surprise, valuation state, quality, or liquidity?
+- Do `mixed_*` corroborated scenarios outperform single-engine signals enough to justify a ranking bonus?
+- What hold period works best by signal family: 1 week, 1 month, 3 months, 6 months, or 1 year?
 
 ## Initial Recommendation
 
-Build Phase 1 first. It is the fastest honest test because price history is already available. Then add Phase 2 PIT valuation because it is the most important cross-check and we already have the data architecture.
+Phase 1 is already prototyped. Continue with Phase 2 PIT valuation/fundamental overlays, then add calibration tables that compare signal families and combinations. Options/social replay should be added carefully after collection gaps are addressed.
 
-Options/social replay should be added carefully after collection gaps are addressed.
+The first "decision-grade" report should not just say whether eigen perturbation works. It should rank combinations such as:
+
+- eigen residual only;
+- eigen + undervalued;
+- eigen + revenue growth;
+- eigen + revenue acceleration;
+- eigen + positive earnings surprise;
+- depressed price + revenue acceleration;
+- social buzz + improving fundamentals;
+- macro scenario + exposed ticker + valuation support;
+- mixed-engine corroboration vs single-engine signal.
 
 ## Related Plans
 
 - `.planning/plans/ACTIVE/backtesting-master.md`
-- `.planning/plans/ACTIVE/market-intelligence-checklist.md`
-- `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd-pdr.md`
-- `.planning/plans/ACTIVE/ledger-data-foundation-and-pit-ingestion-plan.md`
+- `.planning/plans/ACTIVE/market-intelligence-scenario-engine-checklist.md`
+- `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd.md`
+- `.planning/plans/ACTIVE/ledger-data-foundation-and-pit-ingestion-prd.md`
 - `.planning/plans/ACTIVE/ledger-source-priority-matrix.md`

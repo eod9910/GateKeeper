@@ -1,5 +1,7 @@
 # SEC EDGAR Filings Integration — PRD
 
+Checklist: edgar-filings-checklist.md
+
 **Created:** 2026-04-29
 **Updated:** 2026-04-29
 **Status:** IN PROGRESS

@@ -1,5 +1,7 @@
 # Frontend React + TypeScript Migration - PRD
 
+Checklist: frontend-react-migration-checklist.md
+
 ## Purpose
 
 Migrate the frontend from static HTML plus large vanilla JavaScript files to an incremental React + TypeScript application architecture.

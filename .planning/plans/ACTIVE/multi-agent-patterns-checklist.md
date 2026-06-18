@@ -1,5 +1,9 @@
 # Multi-Agent Patterns — Build Checklist
 
+Percent complete: 39% (17 complete, 0 partial, 27 remaining)
+
+PRD: multi-agent-patterns-prd.md
+
 Living tracker for the Multi-Agent Patterns PRD.
 Source of truth for "what have we actually finished?" — not "what code exists".
 
