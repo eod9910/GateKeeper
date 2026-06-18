@@ -109,6 +109,64 @@ def load_data_from_csv(filepath: str) -> List[OHLCV]:
 
 _UNIVERSE_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'data', 'universe'))
 
+YAHOO_SYMBOL_ALIASES = {
+    # TradingView / broker-style continuous futures -> Yahoo Finance futures.
+    # Yahoo does not resolve symbols like ES1 or ES1!, but it does resolve ES=F.
+    "ES1": "ES=F",
+    "MES1": "MES=F",
+    "NQ1": "NQ=F",
+    "MNQ1": "MNQ=F",
+    "YM1": "YM=F",
+    "MYM1": "MYM=F",
+    "RTY1": "RTY=F",
+    "M2K1": "M2K=F",
+    "CL1": "CL=F",
+    "MCL1": "MCL=F",
+    "NG1": "NG=F",
+    "GC1": "GC=F",
+    "MGC1": "MGC=F",
+    "SI1": "SI=F",
+    "HG1": "HG=F",
+    "ZB1": "ZB=F",
+    "ZN1": "ZN=F",
+    "ZF1": "ZF=F",
+    "ZT1": "ZT=F",
+    "6E1": "6E=F",
+    "6B1": "6B=F",
+    "6J1": "6J=F",
+    "6A1": "6A=F",
+    "6C1": "6C=F",
+    "BTC1": "BTC=F",
+    "ETH1": "ETH=F",
+}
+
+FUTURES_MONTH_CODES = "FGHJKMNQUVXZ"
+
+
+def _normalize_yahoo_symbol(symbol: str) -> str:
+    """Map app/chart aliases to the symbol Yahoo Finance actually resolves."""
+    raw = str(symbol or "").strip()
+    if not raw:
+        return raw
+    key = raw.upper()
+    if key.startswith("$"):
+        key = key[1:]
+    if key.startswith("/"):
+        key = key[1:]
+    if key.endswith("!"):
+        key = key[:-1]
+    contract_match = None
+    for year_len in (4, 2):
+        if len(key) > year_len + 1 and key[-year_len:].isdigit() and key[-year_len - 1] in FUTURES_MONTH_CODES:
+            contract_match = key[: -year_len - 1]
+            break
+    if contract_match:
+        mapped_root = YAHOO_SYMBOL_ALIASES.get(contract_match) or YAHOO_SYMBOL_ALIASES.get(f"{contract_match}1")
+        if mapped_root:
+            return mapped_root
+        return f"{contract_match}=F"
+    return YAHOO_SYMBOL_ALIASES.get(key, raw)
+
 
 def _get_universe_csv_path(symbol: str) -> Optional[str]:
     """Return path to pre-downloaded universe CSV for this symbol, or None if not found."""
@@ -151,6 +209,66 @@ def get_refresh_interval_seconds(interval: str) -> int:
 
 _IN_MEMORY_CACHE = {}
 
+# Yahoo Finance hard retention limits per intraday interval. Asking for a
+# longer window than Yahoo will serve causes the entire request to fail with
+# "data not available... must be within the last N days", which silently
+# poisoned the trading desk cache for 5m/15m/30m before we mapped these.
+INTRADAY_FETCH_PERIOD = {
+    '1m': '7d',
+    '2m': '60d',
+    '5m': '60d',
+    '15m': '60d',
+    '30m': '60d',
+    '60m': '730d',
+    '90m': '60d',
+    '1h': '730d',
+    '4h': '730d',
+}
+
+# Full 1h/4h backfills can use Yahoo's ~2-year hourly window, but routine
+# refreshes should only ask for recent bars so chart loads stay light.
+INTRADAY_INCREMENTAL_PERIOD = {
+    **INTRADAY_FETCH_PERIOD,
+    '60m': '60d',
+    '1h': '60d',
+    '4h': '60d',
+}
+INTRADAY_INTERVALS = set(INTRADAY_FETCH_PERIOD.keys())
+
+
+def _yahoo_safe_intraday_period(interval: str, requested: str) -> str:
+    """Return a Yahoo-acceptable period for an intraday interval, never longer
+    than what Yahoo will actually serve for that resolution."""
+    cap = INTRADAY_FETCH_PERIOD.get(interval)
+    if not cap:
+        return requested or '60d'
+    cap_days = _parse_period_days(cap) or 60
+    requested_days = _parse_period_days(requested or '')
+    if requested_days is None:
+        return cap
+    if requested_days > cap_days:
+        return cap
+    return requested or cap
+
+
+def _touch_cache_file(symbol: str, interval: str) -> None:
+    """Bump the cache file mtime to "now" without rewriting its contents.
+
+    Used when an incremental refresh fails (e.g. Yahoo rejects the window or
+    the symbol is briefly unreachable) so cache_needs_refresh() doesn't fire
+    on every subsequent chart load and replay the same broken request. The
+    user still sees stale data, but the next genuine refresh window will pick
+    up new bars instead of the page hammering Yahoo on every keystroke.
+    """
+    path = get_cache_path(symbol, interval)
+    if not os.path.exists(path):
+        return
+    try:
+        import time as _time
+        os.utime(path, (_time.time(), _time.time()))
+    except Exception:
+        pass
+
 
 def _parse_period_days(period: str) -> Optional[int]:
     """Convert yfinance period strings like '10y'/'730d' to days."""
@@ -178,7 +296,14 @@ def _parse_period_days(period: str) -> Optional[int]:
 
 
 def _normalize_intraday_period(period: str, max_days: int = 720) -> str:
-    """Clamp intraday requests to a Yahoo-safe lookback window."""
+    """Clamp intraday requests to a Yahoo-safe lookback window.
+
+    NOTE: the `max_days=720` default is only correct for `1h` (Yahoo serves up
+    to 730d of 1h data). Sub-hour intraday intervals are capped much tighter
+    (60d for 5m/15m/30m, 7d for 1m). Callers must pass the per-interval cap
+    or use _yahoo_safe_intraday_period() directly. We keep the parameter so
+    existing callers that already know the interval-specific cap still work.
+    """
     p = str(period or "").strip().lower() or "60d"
     if p == "max":
         return f"{max_days}d"
@@ -443,19 +568,110 @@ def aggregate_bars(data: List[OHLCV], factor: int) -> List[OHLCV]:
 def _download_from_yahoo(symbol: str, period: str, interval: str) -> List[OHLCV]:
     """Raw download from Yahoo Finance. Returns list of OHLCV bars."""
     ticker = yf.Ticker(symbol)
-    df = ticker.history(period=period, interval=interval)
-    
+
+    def _fallback_periods(fetch_period: str) -> List[str]:
+        candidates = []
+        if interval in INTRADAY_INTERVALS:
+            candidates.append(INTRADAY_FETCH_PERIOD[interval])
+        elif interval == "1d":
+            # Some valid Yahoo symbols (ASH, intermittently others) throw from
+            # yfinance on period=max even though bounded daily windows work.
+            candidates.extend(["10y", "5y", "2y", "1y", "6mo", "60d"])
+        elif interval in ("1wk", "1mo", "3mo"):
+            candidates.extend(["10y", "5y", "2y", "1y"])
+        else:
+            candidates.append("5y")
+
+        seen = {str(fetch_period or "").strip().lower()}
+        out = []
+        for candidate in candidates:
+            key = str(candidate or "").strip().lower()
+            if key and key not in seen:
+                out.append(candidate)
+                seen.add(key)
+        return out
+
+    def _normalize_yahoo_frame(df):
+        if df is None:
+            return None
+        if hasattr(df, "columns") and isinstance(df.columns, pd.MultiIndex):
+            # yf.download() can return either (Price, Ticker) or (Ticker, Price)
+            # columns. For a single requested symbol, collapse to the OHLCV axis.
+            for level in range(df.columns.nlevels):
+                values = {str(value).lower() for value in df.columns.get_level_values(level)}
+                if {"open", "high", "low", "close"}.issubset(values):
+                    df = df.copy()
+                    df.columns = df.columns.get_level_values(level)
+                    break
+            else:
+                try:
+                    df = df.xs(symbol, axis=1, level=-1)
+                except Exception:
+                    pass
+        return df
+
+    def _history(fetch_period: str):
+        try:
+            return _normalize_yahoo_frame(ticker.history(period=fetch_period, interval=interval))
+        except Exception as exc:
+            print(
+                f"Warning: Yahoo history failed for {symbol} ({fetch_period}, {interval}): {exc}",
+                file=sys.stderr,
+            )
+            return None
+
+    def _download(fetch_period: str):
+        try:
+            return _normalize_yahoo_frame(yf.download(
+                symbol,
+                period=fetch_period,
+                interval=interval,
+                progress=False,
+                auto_adjust=False,
+                threads=False,
+            ))
+        except Exception as exc:
+            print(
+                f"Warning: Yahoo download failed for {symbol} ({fetch_period}, {interval}): {exc}",
+                file=sys.stderr,
+            )
+            return None
+
+    df = _history(period)
+    attempted_period = period
+
     if df is None or df.empty:
-        intraday_intervals = {'1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h'}
-        fallback_period = "5y"
-        if interval in intraday_intervals:
-            requested_days = _parse_period_days(period)
-            fallback_period = "365d" if requested_days is not None and requested_days >= 365 else "60d"
+        # Fall back to windows Yahoo will actually serve for this interval.
+        # Intraday remains capped. Daily/weekly/monthly use a ladder because
+        # yfinance can fail on "max" for valid symbols while bounded windows
+        # still return clean data.
+        for fallback_period in _fallback_periods(period):
+            print(
+                f"Warning: No data returned for {symbol}. Trying interval-safe period ({fallback_period})...",
+                file=sys.stderr,
+            )
+            attempted_period = fallback_period
+            df = _history(fallback_period)
+            if df is not None and not df.empty:
+                break
+
+    if df is None or df.empty:
         print(
-            f"Warning: No data returned for {symbol}. Trying shorter period ({fallback_period})...",
+            f"Warning: Yahoo history returned no data for {symbol}. Trying yf.download ({attempted_period}, {interval})...",
             file=sys.stderr,
         )
-        df = ticker.history(period=fallback_period, interval=interval)
+        df = _download(attempted_period)
+
+    if df is None or df.empty:
+        for fallback_period in _fallback_periods(attempted_period):
+            print(
+                f"Warning: Yahoo download returned no data for {symbol}. Trying yf.download ({fallback_period}, {interval})...",
+                file=sys.stderr,
+            )
+            attempted_period = fallback_period
+            df = _download(fallback_period)
+            if df is not None and not df.empty:
+                break
         
     if df is None or df.empty:
         raise ValueError(f"No data available for symbol: {symbol}")
@@ -497,16 +713,21 @@ def fetch_data_yfinance(symbol: str, period: str = "10y", interval: str = "1wk",
     """
     if not HAS_YFINANCE:
         raise ImportError("yfinance is required to fetch market data. Install with: pip install yfinance")
+
+    requested_symbol = str(symbol or "").strip()
+    symbol = _normalize_yahoo_symbol(requested_symbol)
+    if requested_symbol and symbol != requested_symbol:
+        print(f"Yahoo symbol alias: {requested_symbol} -> {symbol}", file=sys.stderr)
     
     # Handle 4h by downloading 1h and aggregating
     needs_aggregation = (interval == '4h')
     yahoo_interval = '1h' if needs_aggregation else interval
     
-    # Yahoo intraday history has hard retention limits; stay comfortably inside
-    # them so chart timeframe switches do not fail near the boundary.
-    intraday_intervals = {'1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h'}
-    if yahoo_interval in intraday_intervals:
-        period = _normalize_intraday_period(period, max_days=720)
+    # Yahoo intraday history has hard retention limits per resolution; clamp
+    # the requested period BEFORE the freshness check so we never ask Yahoo
+    # for a window it cannot serve (which is what poisoned 5m/15m caches).
+    if yahoo_interval in INTRADAY_INTERVALS:
+        period = _yahoo_safe_intraday_period(yahoo_interval, period)
     
     requested_period = period
 
@@ -538,9 +759,8 @@ def fetch_data_yfinance(symbol: str, period: str = "10y", interval: str = "1wk",
     def _needs_historical_backfill() -> bool:
         if not cached_data:
             return False
-        # Intraday ranges are hard-limited by Yahoo (1h source -> ~730d max).
-        if yahoo_interval == '1h':
-            return False
+        # Intraday requests were already clamped to Yahoo's hard limit, so this
+        # can deepen stale 1h/4h caches from an old 60d source to the 730d cap.
 
         req_p = str(requested_period).strip().lower()
         src_p = _get_cache_source_period(symbol, interval)
@@ -591,7 +811,16 @@ def fetch_data_yfinance(symbol: str, period: str = "10y", interval: str = "1wk",
     if cached_data and not force_refresh:
         print(f"Incremental update for {symbol} ({interval})...", file=sys.stderr)
         try:
-            incremental_period = '60d' if interval in ('1d', '1h', '4h') else '1y'
+            # Per-interval cap: must respect Yahoo's hard retention limits
+            # (5m/15m/30m = 60d, 1m = 7d). Asking for '1y' on these used to
+            # fail every time and leave the cache stuck. Daily/weekly/monthly
+            # behavior is unchanged from before this fix.
+            if yahoo_interval in INTRADAY_INTERVALS:
+                incremental_period = INTRADAY_INCREMENTAL_PERIOD.get(yahoo_interval, INTRADAY_FETCH_PERIOD[yahoo_interval])
+            elif interval == '1d':
+                incremental_period = '60d'
+            else:
+                incremental_period = '1y'
             new_bars = _download_from_yahoo(symbol, incremental_period, yahoo_interval)
             if needs_aggregation:
                 new_bars = aggregate_bars(new_bars, 4)
@@ -601,6 +830,11 @@ def fetch_data_yfinance(symbol: str, period: str = "10y", interval: str = "1wk",
             return merged
         except Exception as e:
             print(f"Incremental update failed for {symbol}, using cached data: {e}", file=sys.stderr)
+            # Bump the cache file mtime so cache_needs_refresh() doesn't fire
+            # again immediately on the next chart load and replay the same
+            # broken request. The underlying data stays stale; the next real
+            # refresh window will retry. This breaks the silent retry storm.
+            _touch_cache_file(symbol, interval)
             return cached_data
     
     # 4. No cache at all — full download
@@ -615,6 +849,7 @@ def fetch_data_yfinance(symbol: str, period: str = "10y", interval: str = "1wk",
     except Exception as e:
         if cached_data:
             print(f"Download failed for {symbol}, using stale cache: {e}", file=sys.stderr)
+            _touch_cache_file(symbol, interval)
             return cached_data
         print(f"Error fetching {symbol}: {e}", file=sys.stderr)
         raise

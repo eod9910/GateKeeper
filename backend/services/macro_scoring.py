@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional
 
 
 MACRO_WEIGHTS: Dict[str, float] = {
@@ -169,6 +169,44 @@ def _gather_evidence_stats(
     }
 
 
+def _gather_scenario_context(
+    conn: sqlite3.Connection,
+    situation_id: int,
+) -> Dict:
+    """Pull scenario-level flags/metadata used for importance floors."""
+    row = conn.execute(
+        """
+        SELECT primary_theme, validity_flags_json, metadata_json
+        FROM market_situations
+        WHERE id = ?
+        """,
+        (situation_id,),
+    ).fetchone()
+    if not row:
+        return {"primary_theme": "", "validity_flags": [], "metadata": {}}
+
+    flags: List[str] = []
+    metadata: Dict = {}
+    try:
+        parsed = json.loads(row["validity_flags_json"] or "[]")
+        if isinstance(parsed, list):
+            flags = [str(v) for v in parsed]
+    except Exception:
+        flags = []
+    try:
+        parsed_meta = json.loads(row["metadata_json"] or "{}")
+        if isinstance(parsed_meta, dict):
+            metadata = parsed_meta
+    except Exception:
+        metadata = {}
+
+    return {
+        "primary_theme": str(row["primary_theme"] or ""),
+        "validity_flags": flags,
+        "metadata": metadata,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Top-level orchestration
 # ---------------------------------------------------------------------------
@@ -190,6 +228,12 @@ def score_macro_scenario(
     attention, novelty) degrade gracefully via weight renormalization.
     """
     stats = _gather_evidence_stats(conn, situation_id)
+    scenario_context = _gather_scenario_context(conn, situation_id)
+    existing_flags = list(scenario_context["validity_flags"])
+    is_policy_shock = (
+        "POLICY_SHOCK" in existing_flags
+        or bool(scenario_context["metadata"].get("policy_shock_type"))
+    )
 
     event = compute_event_score(
         evidence_count=stats["evidence_count"],
@@ -203,6 +247,11 @@ def score_macro_scenario(
         distinct_source_types=stats["distinct_source_types"],
         distinct_communities=stats["distinct_communities"],
     )
+    if is_policy_shock:
+        # A single Reuters/AP/official policy action can be market-moving before
+        # source breadth exists. Do not bury it merely because it is early.
+        event = max(event, 0.8)
+        source_breadth = max(source_breadth, 0.35)
 
     if novelty_score is None:
         novelty_score = compute_novelty_from_evidence(conn, situation_id)
@@ -228,6 +277,8 @@ def score_macro_scenario(
         weighted_base - crowding_penalty - validity_penalty,
         0.0, 1.0,
     )
+    if is_policy_shock:
+        scenario_score_0_1 = max(scenario_score_0_1, 0.72)
     scenario_score_100 = round(scenario_score_0_1 * 100, 2)
 
     # D25: Macro scenarios are evidence-backed. Confidence derives from
@@ -239,17 +290,22 @@ def score_macro_scenario(
              + 0.10 * (1.0 if stats["has_fed_source"] or stats["has_econ_data"] else 0.0),
         0.0, 0.99,
     )
+    if is_policy_shock:
+        confidence = max(confidence, 0.58)
 
     # Signal strength (0-100): magnitude proxy based on event gravity.
     signal_strength = int(round(_clamp(
         event * 70 + source_breadth * 30, 0.0, 100.0
     )))
+    if is_policy_shock:
+        signal_strength = max(signal_strength, 72)
 
-    validity_flags: List[str] = []
+    validity_flags: List[str] = list(existing_flags)
     # D25: Macro scenarios need >=2 distinct mainstream sources to be
     # considered "evidence-backed".
-    if stats["distinct_source_types"] < 2:
+    if stats["distinct_source_types"] < 2 and not is_policy_shock:
         validity_flags.append("INSUFFICIENT_SOURCE_DIVERSITY")
+    validity_flags = sorted(set(validity_flags))
 
     breakdown: Dict[str, object] = {
         "weights_used": {k: MACRO_WEIGHTS[k] for k in present},
@@ -262,6 +318,7 @@ def score_macro_scenario(
         "evidence_stats": stats,
         "crowding_penalty": crowding_penalty,
         "validity_penalty": validity_penalty,
+        "importance_floor": "policy_shock" if is_policy_shock else None,
     }
 
     return MacroScoringResult(

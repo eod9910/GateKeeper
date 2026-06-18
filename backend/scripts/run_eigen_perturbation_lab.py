@@ -40,7 +40,41 @@ RESEARCH_DIR = DATA_DIR / "research"
 OPTIONS_DB = DATA_DIR / "options-flow.sqlite"
 MARKET_INTEL_DB = DATA_DIR / "market-intelligence.sqlite"
 EDGAR_DB = DATA_DIR / "edgar-filings.sqlite"
+SOCIAL_INTEL_DB = DATA_DIR / "social-intelligence.sqlite"
 VALUATION_SNAPSHOT = RESEARCH_DIR / "valuation_universe_snapshot.json"
+
+# --- Fade-candidate composite ------------------------------------------------
+# The one setup with statistical legs (run_dcf_funnel_study + _tmp_overvaluation_z):
+# DCF overvalued + price stretched (>=2 sigma above own trend) + euphoric crowd
+# underperforms peers ~-2.5% to -4% over 3 months (t~-2 to -3.4). The crowd leg
+# is the differentiator — overvalued+stretched alone is ~flat; euphoria on top is
+# what makes it fade. Crowd is perma-bull, so we require a real positive net share
+# over a minimum count.
+CROWD_SENT_WIN_DAYS = 45
+FADE_CROWD_BULL_SHARE = 0.55   # bull / (bull+bear) among directional crowd posts
+FADE_CROWD_MIN_POSTS = 6       # minimum directional posts to trust the read
+
+# --- Fade entry timing (double-top / failed-retest) --------------------------
+# The fade flag detects the CONDITION (overvalued+stretched+euphoric); this adds
+# the price TRIGGER so the board doesn't tell you to short into a hole. The clean
+# short is the double top: price tags the prior high, makes a lower high, then
+# breaks the neckline (the trough between the two peaks).
+FADE_TIMING_LOOKBACK = 252     # bars of context for the dominant peak (~1y)
+FADE_TIMING_MIN_BARS = 60
+FADE_NEAR_HIGH_PCT = 0.04      # within 4% of the prior high == "tagging" it
+FADE_BROKEN_PCT = 0.12         # >=12% off the peak == it has actually corrected
+FADE_INSIDER_SELL_USD = 1_000_000.0  # net open-market insider selling that confirms a fade
+
+# --- Contrarian-bottom WATCH (forward paper-track, NOT yet backtested) -------
+# Cheap (DCF undervalued) + crowd has turned bearish (capitulation) + an eigen
+# DOWN move flagged it. We could NOT backtest this — the social sentiment feed is
+# too thin before 2026 — so this is logged forward (mi_contrarian_watch) so we can
+# evaluate it once the dense 2026+ crowd data has forward returns. Treat as a
+# watchlist hypothesis, not a validated signal.
+CONTRARIAN_UNDERVAL = 25.0     # gap >= this => undervalued
+CONTRARIAN_BEAR_SHARE = 0.45   # crowd bull share <= this => bearish skew
+CONTRARIAN_MIN_POSTS = 6       # min directional crowd posts to trust the mood
+CONTRARIAN_EIGEN_DOWN = -2.0   # residual z <= this => idiosyncratic down move
 
 # --- Convergence scoring -------------------------------------------------
 # The convergence score is built ONLY from "footprint" signals: hard evidence
@@ -64,6 +98,29 @@ ACTIVIST_LOOKBACK_DAYS = 120
 # Social-only discovery: a buzz spike with no hard footprint surfaces as a
 # Tier-3 "narrative-only / unconfirmed watch" row.
 SOCIAL_DISCOVERY_Z = 2.0
+
+# --- Real Volume (eigen-volume) confirmation -----------------------------
+# Idiosyncratic log-volume after removing the market-wide volume tide
+# (single-factor cross-sectional demean), z-scored over a trailing window.
+# Validated as a *confirmation filter* on eigen-price moves, NOT a standalone
+# vote (run_breakout_volume_study.py): real-vol-confirmed breakouts carry
+# t~3-4 forward excess at 6-12mo; real-vol-absent breakouts are a drag.
+# Thresholds come from that study's buckets.
+ZVOL_WIN = 120
+REAL_VOL_CONFIRM = 0.5   # name-specific volume clearly elevated -> conviction
+REAL_VOL_ABSENT = 0.0    # at/below the market tide -> breakout to skip
+
+# --- Price extension (how stretched is the price vs its OWN history) ---------
+# Sigma of current log-price above the stock's long-term log-LINEAR growth
+# trend, fit over its full available history (point-in-time = the latest bar).
+# Validated as a FADE input (run_dcf_funnel_study + _tmp_overvaluation_z):
+# overvalued (DCF) + stretched (>=2 sigma) + euphoric crowd underperforms peers
+# ~-4% over 3 months (t~-2.2). Stretch correlates ~0.25 with the DCF gap, so it
+# is a complementary — not redundant — overvaluation read. Long-side: it does
+# NOT separate winners, so this is a short/caution flag only.
+PRICE_EXT_MIN_BARS = 120
+PRICE_EXT_STRETCH = 2.0   # >= 2 sigma above own trend -> stretched (fade input)
+PRICE_EXT_EXTREME = 3.0   # >= 3 sigma -> extended/exhaustion (strong fade input)
 
 
 @dataclass
@@ -123,6 +180,233 @@ def load_close_series(symbol: str, price_dir: Path, min_bars: int) -> Optional[p
         return s
     except Exception:
         return None
+
+
+def load_volume_series(symbol: str, price_dir: Path, min_bars: int) -> Optional[pd.Series]:
+    path = price_dir / f"{safe_symbol(symbol)}_1d.csv"
+    if not path.exists():
+        return None
+    try:
+        df = pd.read_csv(path, usecols=["date", "volume"])
+        if len(df) < min_bars:
+            return None
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
+        df = df.dropna(subset=["date", "volume"]).drop_duplicates("date", keep="last")
+        df = df.sort_values("date")
+        if len(df) < min_bars:
+            return None
+        return pd.Series(df["volume"].to_numpy(dtype=float), index=df["date"], name=symbol)
+    except Exception:
+        return None
+
+
+def compute_real_volume(
+    symbols: Sequence[str],
+    *,
+    price_dir: Path,
+    lookback: int,
+) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    """Latest-day Real Volume (eigen-volume) residual per symbol.
+
+    For each symbol we z-score log-volume over a trailing ZVOL_WIN window, then
+    subtract the cross-sectional mean z (the market-wide volume tide) on each
+    day. The residual is the name-specific volume conviction. We report the
+    latest day plus a 3-day slope and a confirmed/weak/absent state.
+    """
+    series: List[pd.Series] = []
+    min_bars = ZVOL_WIN + 5
+    for symbol in symbols:
+        v = load_volume_series(symbol, price_dir, min_bars=min_bars)
+        if v is not None:
+            series.append(v)
+    if len(series) < 20:
+        return {}, {"symbols": len(series), "note": "insufficient volume coverage"}
+
+    vol = pd.concat(series, axis=1).sort_index()
+    vol = vol.tail(max(lookback, ZVOL_WIN) + 5)
+    logv = np.log1p(vol)
+    roll_mean = logv.rolling(ZVOL_WIN).mean()
+    roll_std = logv.rolling(ZVOL_WIN).std().replace(0, np.nan)
+    z = (logv - roll_mean) / roll_std
+    market_factor = z.mean(axis=1)            # common volume tide per day
+    resid = z.sub(market_factor, axis=0)      # idiosyncratic (single-factor demean)
+    resid = resid.replace([np.inf, -np.inf], np.nan)
+    resid = resid.dropna(axis=0, how="all")
+    if resid.empty:
+        return {}, {"symbols": 0, "note": "no residual rows"}
+
+    latest = resid.iloc[-1]
+    prior_3d = resid.iloc[-4:-1].mean(axis=0) if len(resid) >= 4 else None
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for sym in latest.index:
+        val = latest[sym]
+        if val is None or not np.isfinite(val):
+            continue
+        val = float(val)
+        slope = None
+        if prior_3d is not None and np.isfinite(prior_3d.get(sym, np.nan)):
+            slope = float(val - prior_3d[sym])
+        state = "confirmed" if val > REAL_VOL_CONFIRM else ("absent" if val <= REAL_VOL_ABSENT else "weak")
+        out[str(sym).upper()] = {
+            "real_vol_z": round(val, 3),
+            "real_vol_slope_3d": round(slope, 3) if slope is not None else None,
+            "state": state,
+        }
+    meta = {
+        "as_of": str(resid.index[-1].date()),
+        "symbols": int(latest.notna().sum()),
+        "zvol_window": ZVOL_WIN,
+        "confirm_threshold": REAL_VOL_CONFIRM,
+    }
+    return out, meta
+
+
+def compute_price_extension(
+    symbols: Sequence[str],
+    *,
+    price_dir: Path,
+) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    """Per-symbol price-extension: how many sigma the latest close sits above
+    (or below) the stock's own long-term log-linear price trend, fit over its
+    full available history. A high positive z means the price has run far above
+    its historical growth path — a stretched/exhaustion read used as a FADE
+    input (strongest when the DCF also says overvalued and the crowd is bullish).
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+    used = 0
+    latest_date: Optional[pd.Timestamp] = None
+    for symbol in symbols:
+        s = load_close_series(symbol, price_dir, min_bars=PRICE_EXT_MIN_BARS)
+        if s is None or len(s) < PRICE_EXT_MIN_BARS:
+            continue
+        s = s[s > 0].dropna()
+        if len(s) < PRICE_EXT_MIN_BARS:
+            continue
+        lp = np.log(s.to_numpy(dtype=float))
+        x = np.arange(len(lp), dtype=float)
+        try:
+            slope, intercept = np.polyfit(x, lp, 1)
+        except Exception:
+            continue
+        resid = lp - (intercept + slope * x)
+        sd = float(np.std(resid, ddof=1))
+        if not np.isfinite(sd) or sd <= 0:
+            continue
+        z = float(resid[-1] / sd)
+        if not np.isfinite(z):
+            continue
+        pmin = float(s.min())
+        pmax = float(s.max())
+        range_pos = (float(s.iloc[-1]) - pmin) / (pmax - pmin) if pmax > pmin else None
+        if z >= PRICE_EXT_EXTREME:
+            state = "extended"
+        elif z >= PRICE_EXT_STRETCH:
+            state = "stretched"
+        elif z <= -PRICE_EXT_STRETCH:
+            state = "depressed"
+        else:
+            state = "normal"
+        out[str(symbol).upper()] = {
+            "price_ext_z": round(z, 3),
+            "range_pos": round(range_pos, 3) if range_pos is not None else None,
+            "history_days": int(len(lp)),
+            "state": state,
+            "last_price": round(float(s.iloc[-1]), 4),
+        }
+        used += 1
+        if latest_date is None or s.index[-1] > latest_date:
+            latest_date = s.index[-1]
+    meta = {
+        "as_of": str(latest_date.date()) if latest_date is not None else None,
+        "symbols": used,
+        "stretch_threshold": PRICE_EXT_STRETCH,
+        "extreme_threshold": PRICE_EXT_EXTREME,
+    }
+    return out, meta
+
+
+def compute_fade_timing(
+    symbols: Sequence[str],
+    *,
+    price_dir: Path,
+) -> Dict[str, Dict[str, Any]]:
+    """Per-symbol entry-timing state for a fade, derived from the price structure
+    of the dominant recent peak (double-top / failed-retest logic):
+
+      extended  - still pinned near the high; hasn't corrected -> don't chase
+      broken    - corrected >=12% off the peak, no retest yet -> WAIT for retest
+      retest    - rallied back within 4% of the prior high (a lower/equal high),
+                  neckline intact -> ARMED, watch for rejection (right shoulder)
+      confirmed - closed below the post-peak trough (neckline broken) -> TRIGGER
+
+    Close-based and deterministic. Only meaningful for names the fade flag already
+    surfaced; it answers "is this top actually setting up to short *now*?".
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+    for symbol in symbols:
+        s = load_close_series(symbol, price_dir, min_bars=FADE_TIMING_MIN_BARS)
+        if s is None:
+            continue
+        s = s[s > 0].dropna()
+        if len(s) < FADE_TIMING_MIN_BARS:
+            continue
+        w = s.tail(FADE_TIMING_LOOKBACK)
+        vals = w.to_numpy(dtype=float)
+        n = len(vals)
+        peak_idx = int(np.argmax(vals))
+        peak = float(vals[peak_idx])
+        last = float(vals[-1])
+        if peak <= 0:
+            continue
+        drawdown = (last - peak) / peak
+        bars_since_peak = n - 1 - peak_idx
+        # Deepest trough after the peak == the neckline of a would-be double top.
+        if peak_idx < n - 1:
+            after = vals[peak_idx + 1:]
+            trough_rel = int(np.argmin(after))
+            trough_idx = peak_idx + 1 + trough_rel
+            trough = float(vals[trough_idx])
+        else:
+            trough_idx = peak_idx
+            trough = peak
+        max_pullback = (trough - peak) / peak
+        # Best rebound after the trough == the potential second top (right shoulder).
+        if trough_idx < n - 1:
+            reb = vals[trough_idx + 1:]
+            reb_rel = int(np.argmax(reb))
+            rebound_idx = trough_idx + 1 + reb_rel
+            rebound = float(vals[rebound_idx])
+        else:
+            rebound_idx = trough_idx
+            rebound = trough
+        rebound_vs_peak = (rebound - peak) / peak  # <= 0 (peak is the window max)
+        bars_since_rebound = n - 1 - rebound_idx
+
+        has_broken = max_pullback <= -FADE_BROKEN_PCT
+        retested = has_broken and rebound_vs_peak >= -FADE_NEAR_HIGH_PCT
+        if not has_broken:
+            state, action = "extended", "still at highs — don't chase"
+        elif last < trough:
+            state, action = "confirmed", "neckline broken — fade trigger"
+        elif retested:
+            state, action = "retest", "retesting prior high — armed, watch for rejection"
+        else:
+            state, action = "broken", "rolled over — WAIT for retest of the high"
+        out[str(symbol).upper()] = {
+            "state": state,
+            "action": action,
+            "peak": round(peak, 2),
+            "last": round(last, 2),
+            "drawdown_pct": round(drawdown * 100, 1),
+            "max_pullback_pct": round(max_pullback * 100, 1),
+            "rebound_vs_peak_pct": round(rebound_vs_peak * 100, 1),
+            "neckline": round(trough, 2),
+            "bars_since_peak": int(bars_since_peak),
+            "bars_since_rebound": int(bars_since_rebound),
+        }
+    return out
 
 
 def build_returns_matrix(
@@ -319,6 +603,189 @@ def latest_social_overlay(db_path: Path) -> Dict[str, Dict[str, Any]]:
             "confirmation_count": int(r["confirmation_count"] or 0),
         }
     return out
+
+
+def latest_crowd_sentiment(db_path: Path, lookback_days: int = CROWD_SENT_WIN_DAYS) -> Dict[str, Dict[str, Any]]:
+    """Per-symbol crowd mood: net bullish share of directional social posts over a
+    trailing window. Used as the 'euphoric crowd' leg of the fade composite (and a
+    standalone read of where the perma-bull crowd actually stands). Bullish-skew is
+    the norm, so the fade gate requires a clear positive share over a min count."""
+    if not db_path.exists():
+        return {}
+    cur_cut = (datetime.now(timezone.utc) - pd.Timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    prev_cut = (datetime.now(timezone.utc) - pd.Timedelta(days=2 * lookback_days)).strftime("%Y-%m-%d")
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    except Exception:
+        return {}
+    try:
+        rows = conn.execute(
+            """
+            SELECT UPPER(symbol) AS sym, sentiment_label AS lbl,
+                   SUM(CASE WHEN trade_date >= ? THEN 1 ELSE 0 END) AS cur_n,
+                   SUM(CASE WHEN trade_date >= ? AND trade_date < ? THEN 1 ELSE 0 END) AS prev_n
+            FROM social_post_sentiment
+            WHERE trade_date >= ? AND sentiment_label IN ('bullish','bearish')
+            GROUP BY UPPER(symbol), sentiment_label
+            """,
+            (cur_cut, prev_cut, cur_cut, prev_cut),
+        ).fetchall()
+    except Exception:
+        return {}
+    finally:
+        conn.close()
+    agg: Dict[str, Dict[str, int]] = {}
+    for sym, lbl, cur_n, prev_n in rows:
+        cur = agg.setdefault(str(sym).upper(), {"bull": 0, "bear": 0, "pbull": 0, "pbear": 0})
+        if lbl == "bullish":
+            cur["bull"] += int(cur_n or 0); cur["pbull"] += int(prev_n or 0)
+        elif lbl == "bearish":
+            cur["bear"] += int(cur_n or 0); cur["pbear"] += int(prev_n or 0)
+    out: Dict[str, Dict[str, Any]] = {}
+    for sym, c in agg.items():
+        ndir = c["bull"] + c["bear"]
+        if ndir <= 0:
+            continue
+        share = c["bull"] / ndir
+        mood = "bullish" if share >= 0.55 else ("bearish" if share <= 0.45 else "mixed")
+        prev_n = c["pbull"] + c["pbear"]
+        prev_share = (c["pbull"] / prev_n) if prev_n > 0 else None
+        # capitulation: crowd was bullish last window, turned bearish this window
+        flip_to_bear = bool(prev_share is not None and prev_share >= 0.55 and share <= 0.45)
+        out[sym] = {
+            "bull": c["bull"], "bear": c["bear"],
+            "n_directional": ndir,
+            "net_bull_share": round(share, 3),
+            "mood": mood,
+            "window_days": lookback_days,
+            "prev_n_directional": prev_n,
+            "prev_bull_share": round(prev_share, 3) if prev_share is not None else None,
+            "flip_to_bear": flip_to_bear,
+        }
+    return out
+
+
+def assess_fade_candidate(
+    valuation: Optional[Dict[str, Any]],
+    price_extension: Optional[Dict[str, Any]],
+    crowd: Optional[Dict[str, Any]],
+    insider: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Compose the backtested fade setup: DCF overvalued + price stretched
+    (>=2 sigma above its own trend) + euphoric crowd. Returns the leg breakdown
+    plus a 'candidate' flag (all three) so the board can surface shorts directly.
+
+    Insider selling-into-strength (net open-market distribution) is a fourth
+    CONFIRMING leg: it can stand in for the crowd leg (so a fade still fires when
+    social data is thin but insiders are dumping) and upgrades confidence to
+    'strong' when it stacks on top of an euphoric crowd."""
+    gap = None
+    if valuation:
+        try:
+            gap = float(valuation.get("valuation_gap_pct")) if valuation.get("valuation_gap_pct") is not None else None
+        except (TypeError, ValueError):
+            gap = None
+    overvalued = bool(valuation and (
+        str(valuation.get("valuation_state") or "") == "overvalued" or (gap is not None and gap <= -25.0)
+    ))
+    pe_z = None
+    if price_extension and price_extension.get("price_ext_z") is not None:
+        try:
+            pe_z = float(price_extension.get("price_ext_z"))
+        except (TypeError, ValueError):
+            pe_z = None
+    stretched = bool(pe_z is not None and pe_z >= PRICE_EXT_STRETCH)
+    crowd_n = int((crowd or {}).get("n_directional") or 0)
+    crowd_share = (crowd or {}).get("net_bull_share")
+    crowd_bullish = bool(
+        crowd and crowd_n >= FADE_CROWD_MIN_POSTS
+        and crowd_share is not None and float(crowd_share) >= FADE_CROWD_BULL_SHARE
+    )
+    sell_value = 0.0
+    net_value = 0.0
+    if insider:
+        try:
+            sell_value = float(insider.get("sell_value") or 0.0)
+            net_value = float(insider.get("net_value") or 0.0)
+        except (TypeError, ValueError):
+            sell_value, net_value = 0.0, 0.0
+    insider_selling = bool(sell_value >= FADE_INSIDER_SELL_USD and net_value < 0)
+    # Only emit when the eigen move is already on the board AND at least the two
+    # hard legs (overvalued + stretched) fire. The confirming third leg can be
+    # an euphoric crowd OR insiders distributing into the strength.
+    if not (overvalued and stretched):
+        return None
+    candidate = overvalued and stretched and (crowd_bullish or insider_selling)
+    legs = {
+        "overvalued": overvalued,
+        "stretched": stretched,
+        "crowd_bullish": crowd_bullish,
+        "insider_selling": insider_selling,
+    }
+    if candidate and crowd_bullish and insider_selling:
+        confidence = "strong"
+    elif candidate:
+        confidence = "high"
+    else:
+        confidence = "partial"
+    detail = []
+    if gap is not None:
+        detail.append(f"DCF {round(gap)}%")
+    elif overvalued:
+        detail.append("DCF overvalued")
+    if pe_z is not None:
+        detail.append(f"price +{pe_z:.1f}\u03c3 vs trend")
+    if crowd and crowd_share is not None:
+        detail.append(f"crowd {round(float(crowd_share) * 100)}% bull (n={crowd_n})")
+    if insider_selling:
+        detail.append(f"insider selling ${sell_value/1e6:.1f}M")
+    return {
+        "candidate": candidate,
+        "confidence": confidence,
+        "legs": legs,
+        "detail": "; ".join(detail),
+    }
+
+
+def assess_contrarian_watch(
+    valuation: Optional[Dict[str, Any]],
+    crowd: Optional[Dict[str, Any]],
+    residual_z: Optional[float],
+) -> Optional[Dict[str, Any]]:
+    """Contrarian-bottom WATCH: undervalued + bearish/capitulating crowd + eigen
+    DOWN. Forward-tracking hypothesis only (see CONTRARIAN_* note). Emits whenever
+    undervalued + eigen-down fire so the crowd leg can be evaluated forward."""
+    gap = None
+    if valuation and valuation.get("valuation_gap_pct") is not None:
+        try:
+            gap = float(valuation.get("valuation_gap_pct"))
+        except (TypeError, ValueError):
+            gap = None
+    undervalued = bool(valuation and (
+        str(valuation.get("valuation_state") or "") == "undervalued" or (gap is not None and gap >= CONTRARIAN_UNDERVAL)
+    ))
+    eigen_down = bool(residual_z is not None and math.isfinite(residual_z) and residual_z <= CONTRARIAN_EIGEN_DOWN)
+    if not (undervalued and eigen_down):
+        return None
+    crowd_n = int((crowd or {}).get("n_directional") or 0)
+    share = (crowd or {}).get("net_bull_share")
+    bearish = bool(crowd and crowd_n >= CONTRARIAN_MIN_POSTS and share is not None and float(share) <= CONTRARIAN_BEAR_SHARE)
+    flip = bool((crowd or {}).get("flip_to_bear"))
+    watch = bool(undervalued and eigen_down and (bearish or flip))
+    legs = {"undervalued": undervalued, "eigen_down": eigen_down, "crowd_bearish": bearish, "crowd_flip_to_bear": flip}
+    detail = []
+    if gap is not None:
+        detail.append(f"DCF +{round(gap)}%")
+    if residual_z is not None and math.isfinite(residual_z):
+        detail.append(f"eigen {residual_z:+.1f}\u03c3")
+    if crowd and share is not None:
+        detail.append(f"crowd {round(float(share) * 100)}% bull (n={crowd_n})" + (", FLIPPED" if flip else ""))
+    return {
+        "watch": watch,
+        "confidence": "watch" if watch else "partial",
+        "legs": legs,
+        "detail": "; ".join(detail),
+    }
 
 
 def latest_insider_overlay(db_path: Path, lookback_days: int = INSIDER_LOOKBACK_DAYS) -> Dict[str, Dict[str, Any]]:
@@ -580,6 +1047,10 @@ def attach_overlays(
     valuations: Dict[str, Dict[str, Any]],
     insiders: Dict[str, Dict[str, Any]],
     activists: Dict[str, Dict[str, Any]],
+    real_volumes: Dict[str, Dict[str, Any]],
+    price_extensions: Optional[Dict[str, Dict[str, Any]]] = None,
+    crowd_sentiments: Optional[Dict[str, Dict[str, Any]]] = None,
+    fade_timings: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     records: List[Dict[str, Any]] = []
     for row in ranked.to_dict(orient="records"):
@@ -606,6 +1077,17 @@ def attach_overlays(
         rec["valuation"] = valuations.get(symbol)
         rec["insider"] = insiders.get(symbol)
         rec["activist"] = activists.get(symbol)
+        rec["real_volume"] = real_volumes.get(symbol)
+        rec["price_extension"] = (price_extensions or {}).get(symbol)
+        rec["crowd_sentiment"] = (crowd_sentiments or {}).get(symbol)
+        rec["fade"] = assess_fade_candidate(
+            rec.get("valuation"), rec.get("price_extension"), rec.get("crowd_sentiment"), rec.get("insider")
+        )
+        if rec["fade"] is not None:
+            rec["fade"]["timing"] = (fade_timings or {}).get(symbol)
+        rec["contrarian"] = assess_contrarian_watch(
+            rec.get("valuation"), rec.get("crowd_sentiment"), rec.get("residual_z")
+        )
         rec["cross_signal_count"] = sum(
             1 for key in ("options_flow", "social_arb", "valuation", "insider", "activist") if rec.get(key)
         )
@@ -766,6 +1248,11 @@ def write_convergence_db(
                 "valuation": rec.get("valuation"),
                 "insider": rec.get("insider"),
                 "activist": rec.get("activist"),
+                "real_volume": rec.get("real_volume"),
+                "price_extension": rec.get("price_extension"),
+                "crowd_sentiment": rec.get("crowd_sentiment"),
+                "fade": rec.get("fade"),
+                "contrarian": rec.get("contrarian"),
                 "residual_z_change_1d": rec.get("residual_z_change_1d"),
                 "residual_z_slope_3d": rec.get("residual_z_slope_3d"),
                 "unexplained_return_pct": rec.get("unexplained_return_pct"),
@@ -793,6 +1280,77 @@ def write_convergence_db(
             written += 1
         conn.commit()
         return written
+    finally:
+        conn.close()
+
+
+CONTRARIAN_WATCH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS mi_contrarian_watch (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT, as_of TEXT, symbol TEXT,
+    entry_price REAL, gap_pct REAL, residual_z REAL,
+    crowd_share REAL, prev_crowd_share REAL, crowd_n INTEGER,
+    crowd_bearish INTEGER, crowd_flip INTEGER, full_watch INTEGER,
+    detail TEXT, created_at TEXT,
+    UNIQUE(as_of, symbol)
+);
+"""
+
+
+def write_contrarian_watch(
+    db_path: Path,
+    rows: Sequence[Dict[str, Any]],
+    run_id: str,
+    as_of: Optional[str],
+) -> int:
+    """Append-only forward ledger of contrarian-bottom WATCH fires (one row per
+    symbol per as_of date). This is the paper-track record we will evaluate once
+    the dense 2026+ crowd data accrues forward returns. Captures across the whole
+    scored universe, not just the displayed board, and is independent of board
+    retention. Idempotent per (as_of, symbol)."""
+    fires = [r for r in rows if (r.get("contrarian") or {})]
+    if not fires:
+        return 0
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=30)
+    try:
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.executescript(CONTRARIAN_WATCH_SCHEMA)
+        now = datetime.now(timezone.utc).isoformat()
+        written = 0
+        for rec in fires:
+            c = rec.get("contrarian") or {}
+            legs = c.get("legs") or {}
+            val = rec.get("valuation") or {}
+            crowd = rec.get("crowd_sentiment") or {}
+            pe = rec.get("price_extension") or {}
+            try:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO mi_contrarian_watch (
+                        run_id, as_of, symbol, entry_price, gap_pct, residual_z,
+                        crowd_share, prev_crowd_share, crowd_n,
+                        crowd_bearish, crowd_flip, full_watch, detail, created_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        run_id, as_of, rec.get("symbol"),
+                        pe.get("last_price"),
+                        val.get("valuation_gap_pct"),
+                        rec.get("residual_z"),
+                        crowd.get("net_bull_share"), crowd.get("prev_bull_share"),
+                        int(crowd.get("n_directional") or 0),
+                        1 if legs.get("crowd_bearish") else 0,
+                        1 if legs.get("crowd_flip_to_bear") else 0,
+                        1 if c.get("watch") else 0,
+                        c.get("detail"), now,
+                    ),
+                )
+                written += conn.total_changes and 1 or 0
+            except Exception:
+                continue
+        conn.commit()
+        return sum(1 for _ in fires)
     finally:
         conn.close()
 
@@ -827,11 +1385,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         min_coverage=min(max(float(args.min_coverage), 0.5), 1.0),
     )
     ranked, pca_meta = run_pca_residuals(returns, n_factors=max(1, int(args.factors)))
+    real_volumes, real_vol_meta = compute_real_volume(
+        [m.symbol for m in selected],
+        price_dir=price_dir,
+        lookback=max(30, int(args.lookback)),
+    )
+    price_extensions, price_ext_meta = compute_price_extension(
+        [m.symbol for m in selected],
+        price_dir=price_dir,
+    )
+    fade_timings = compute_fade_timing(
+        [m.symbol for m in selected],
+        price_dir=price_dir,
+    )
     options = latest_options_overlay(OPTIONS_DB)
     social = latest_social_overlay(MARKET_INTEL_DB)
     valuations = valuation_overlay(VALUATION_SNAPSHOT)
     insiders = latest_insider_overlay(EDGAR_DB)
     activists = latest_activist_overlay(EDGAR_DB)
+    crowd_sentiments = latest_crowd_sentiment(SOCIAL_INTEL_DB)
     # Score the full ranked set so non-eigen convergence (insider + options +
     # demand) is captured; the JSON/MD top list stays eigen-ranked for compat.
     all_rows = attach_overlays(
@@ -842,6 +1414,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         valuations,
         insiders,
         activists,
+        real_volumes,
+        price_extensions,
+        crowd_sentiments,
+        fade_timings,
     )
     top_rows = all_rows[: max(1, int(args.top))]
 
@@ -880,6 +1456,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     persist_rows = footprint_rows + discovery_rows
 
     convergence_written = 0
+    contrarian_logged = 0
     convergence_db = str(args.convergence_db or "").strip()
     if convergence_db:
         convergence_written = write_convergence_db(
@@ -887,6 +1464,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             persist_rows,
             run_id=run_id,
             generated_at=generated_at,
+            as_of=load_stats.get("end_date"),
+        )
+        # Forward paper-track ledger across the WHOLE scored universe (all_rows),
+        # not just the displayed board, so we capture every contrarian fire.
+        contrarian_logged = write_contrarian_watch(
+            Path(convergence_db),
+            all_rows,
+            run_id=run_id,
             as_of=load_stats.get("end_date"),
         )
 
@@ -902,6 +1487,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "out_md": str(out_md),
         "load_stats": load_stats,
         "pca": payload["pca"],
+        "real_volume": real_vol_meta,
+        "price_extension": price_ext_meta,
+        "fade": {
+            "crowd_symbols": len(crowd_sentiments),
+            "candidates": sum(1 for r in all_rows if (r.get("fade") or {}).get("candidate")),
+            "partial": sum(1 for r in all_rows if r.get("fade") and not r["fade"].get("candidate")),
+            "armed_retest": sum(1 for r in all_rows if (((r.get("fade") or {}).get("timing")) or {}).get("state") == "retest"),
+            "trigger_confirmed": sum(1 for r in all_rows if (((r.get("fade") or {}).get("timing")) or {}).get("state") == "confirmed"),
+        },
+        "contrarian_watch": {
+            "logged": contrarian_logged,
+            "full_watch": sum(1 for r in all_rows if (r.get("contrarian") or {}).get("watch")),
+            "partial": sum(1 for r in all_rows if r.get("contrarian") and not r["contrarian"].get("watch")),
+        },
         "convergence": {
             "run_id": run_id,
             "db": convergence_db or None,

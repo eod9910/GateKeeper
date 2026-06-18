@@ -321,7 +321,23 @@ const JOB_REGISTRY: readonly JobDefinition[] = [
       'Macro Engine cluster matching (PRD D21 M3-M4). Matches embedded macro hits ' +
       'against open news_cluster scenarios by cosine similarity (>=0.78) + entity ' +
       'overlap (>=1). Creates new market_situations or attaches evidence to existing ones.',
-    defaultArgs: [],
+    defaultArgs: ['--limit', '1000', '--commit-every', '100'],
+  },
+  {
+    name: 'news_consequence_analysis',
+    kind: 'engine',
+    scriptPath: path.join(
+      COLLECTOR_SCRIPTS_DIR,
+      'run_news_consequence_analysis.py',
+    ),
+    defaultCronExpression: '14 */2 * * *',
+    defaultTimezone: 'America/Los_Angeles',
+    description:
+      'LLM consequence-analysis pass for newly created Macro scenarios. ' +
+      'Runs immediately after macro_clustering to reason through market ' +
+      'ramifications, valuation assumptions, second-order effects, and ' +
+      'invalidation evidence before ordinary scoring can bury a one-source shock.',
+    defaultArgs: ['--llm-provider', 'openai', '--since-hours', '6', '--limit', '25'],
   },
   {
     name: 'cluster_naming',
@@ -855,7 +871,7 @@ const JOB_REGISTRY: readonly JobDefinition[] = [
       'Precompiles Ledger Eigen investigation reports for the latest positive ' +
       'pre-explosion pressure hits after the daily clean-universe eigen scan. ' +
       'Caches reports so clicking a Market Intelligence hit opens immediately.',
-    defaultArgs: ['--limit', '12'],
+    defaultArgs: ['--limit', '6'],
   },
 ] as const;
 
@@ -1207,6 +1223,15 @@ function spawnJobProcess(
             : `${_runtimes[def.name].last_message || ''}\n[eigen_report_precompiler] ${started.message}`.trim(),
         });
       }
+      // Auto-scan narrative theses across the refreshed convergence board so the
+      // UI can show thesis flags without anyone asking. Fire-and-forget HTTP call
+      // into our own Node process (the extractor lives there, not in Python).
+      try {
+        const port = process.env.PORT || '3002';
+        void fetch(`http://127.0.0.1:${port}/api/market-intelligence/convergence/theses/scan`, {
+          method: 'POST',
+        }).catch(() => { /* best-effort background trigger */ });
+      } catch { /* best-effort */ }
     }
   });
 

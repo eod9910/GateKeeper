@@ -220,6 +220,37 @@ def find_latest_13f(cik: str) -> Optional[Dict[str, str]]:
     return None
 
 
+def find_all_13f(cik: str, max_quarters: int = 12) -> List[Dict[str, str]]:
+    """Return ALL recent 13F-HR filings for a CIK (newest first), up to max_quarters.
+
+    The submissions ``recent`` block holds ~1000 filings; for a fund filing
+    quarterly that easily spans several years, which is enough for our backfill.
+    """
+    padded = cik.zfill(10)
+    data = _fetch_json(f"{SUBMISSIONS_BASE}/CIK{padded}.json")
+    if not data:
+        return []
+    recent = data.get("filings", {}).get("recent", {})
+    forms = recent.get("form", [])
+    accessions = recent.get("accessionNumber", [])
+    filing_dates = recent.get("filingDate", [])
+    primary_docs = recent.get("primaryDocument", [])
+
+    out: List[Dict[str, str]] = []
+    for i, form in enumerate(forms):
+        if form in ("13F-HR", "13F-HR/A"):
+            out.append({
+                "form": form,
+                "accession": accessions[i] if i < len(accessions) else "",
+                "filing_date": filing_dates[i] if i < len(filing_dates) else "",
+                "primary_doc": primary_docs[i] if i < len(primary_docs) else "",
+                "cik": cik,
+            })
+            if len(out) >= max_quarters:
+                break
+    return out
+
+
 def find_infotable_url(cik: str, accession: str) -> Optional[str]:
     """Find the infotable XML document in a 13F filing."""
     accession_no_dashes = accession.replace("-", "")
@@ -580,12 +611,68 @@ def generate_13f_alerts(conn: sqlite3.Connection, symbols_with_holdings: Set[str
 # Main
 # ---------------------------------------------------------------------------
 
+def process_filing(conn, args, cik, fund_name, filing, name_map, universe_symbols,
+                   symbols_with_holdings: Set[str]) -> Tuple[int, int, bool]:
+    """Process one 13F-HR filing: parse infotable, match to universe, store.
+
+    Returns (holdings_stored, holdings_matched, processed_flag).
+    """
+    accession = filing["accession"]
+    filing_date = filing["filing_date"]
+    _print(f"  {filing['form']} filed {filing_date} (acc: {accession})")
+
+    if not args.dry_run and is_accession_collected(conn, accession, cik):
+        _print(f"  [skip] Already in database")
+        update_fund_registry(conn, cik, filing_date, "", accession)
+        return (0, 0, False)
+
+    report_period = extract_report_period(cik, accession)
+    _print(f"  Report period: {report_period or 'unknown'}")
+
+    infotable_url = find_infotable_url(cik, accession)
+    if not infotable_url:
+        _print(f"  [skip] Could not find infotable XML")
+        return (0, 0, False)
+
+    xml_str = _fetch(infotable_url, accept="application/xml")
+    if not xml_str:
+        _print(f"  [skip] Could not download infotable")
+        return (0, 0, False)
+
+    holdings = parse_infotable_xml(xml_str)
+    matched = 0
+    for h in holdings:
+        ticker = match_issuer_to_ticker(h["issuer_name"], name_map, universe_symbols)
+        h["symbol"] = ticker if ticker else None
+        if ticker:
+            matched += 1
+    universe_holdings = [h for h in holdings if h.get("symbol")]
+    _print(f"  Parsed {len(holdings)} holdings, matched {matched} to universe")
+
+    if args.dry_run:
+        for h in universe_holdings[:10]:
+            _print(f"    {h['symbol']:6s} | {h['issuer_name'][:30]:30s} | {h.get('shares') or 0:,} shs")
+        return (0, matched, True)
+
+    inserted = insert_holdings(conn, cik, fund_name, report_period or "unknown",
+                               filing_date, accession, universe_holdings)
+    update_fund_registry(conn, cik, filing_date, report_period or "", accession)
+    for h in universe_holdings:
+        if h.get("symbol"):
+            symbols_with_holdings.add(h["symbol"])
+    return (inserted, matched, True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Collect 13F institutional holdings")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print what would be collected without storing")
     parser.add_argument("--fund-cik", type=str, default=None,
                         help="Collect only this specific fund CIK (for testing)")
+    parser.add_argument("--backfill", action="store_true",
+                        help="Walk ALL historical 13F-HR quarters per fund (not just latest)")
+    parser.add_argument("--max-quarters", type=int, default=12,
+                        help="Max historical quarters per fund when backfilling (default: 12 = ~3y)")
     args = parser.parse_args()
 
     run_id = str(uuid.uuid4())
@@ -624,81 +711,32 @@ def main() -> None:
         fund_name = fund.get("short_name") or fund.get("name") or cik
         _print(f"\n[13f] ({i+1}/{len(funds)}) {fund_name} (CIK {cik})...")
 
-        filing = find_latest_13f(cik)
-        if not filing:
-            _print(f"  [skip] No 13F-HR filing found")
-            continue
-
-        accession = filing["accession"]
-        filing_date = filing["filing_date"]
-        _print(f"  Found {filing['form']} filed {filing_date} (acc: {accession})")
-
-        if not args.dry_run and fund.get("last_accession") == accession:
-            _print(f"  [skip] Already collected this filing")
-            continue
-
-        if not args.dry_run and is_accession_collected(conn, accession, cik):
-            _print(f"  [skip] Already in database")
-            update_fund_registry(conn, cik, filing_date, "", accession)
-            continue
-
-        report_period = extract_report_period(cik, accession)
-        _print(f"  Report period: {report_period or 'unknown'}")
-
-        infotable_url = find_infotable_url(cik, accession)
-        if not infotable_url:
-            _print(f"  [skip] Could not find infotable XML")
-            continue
-
-        xml_str = _fetch(infotable_url, accept="application/xml")
-        if not xml_str:
-            _print(f"  [skip] Could not download infotable")
-            continue
-
-        holdings = parse_infotable_xml(xml_str)
-        _print(f"  Parsed {len(holdings)} total holdings")
-
-        matched = 0
-        for h in holdings:
-            ticker = match_issuer_to_ticker(h["issuer_name"], name_map, universe_symbols)
-            if ticker:
-                h["symbol"] = ticker
-                matched += 1
-            else:
-                h["symbol"] = None
-
-        universe_holdings = [h for h in holdings if h.get("symbol")]
-        _print(f"  Matched {matched}/{len(holdings)} to universe")
-
-        if args.dry_run:
-            for h in universe_holdings[:10]:
-                val_k = h["value_thousands"] or 0
-                if val_k >= 1_000_000:
-                    val_str = f"${val_k / 1_000_000:.1f}B"
-                elif val_k >= 1_000:
-                    val_str = f"${val_k / 1_000:.1f}M"
-                else:
-                    val_str = f"${val_k}K"
-                shares_str = f"{h['shares']:,}" if h['shares'] else "N/A"
-                _print(f"    {h['symbol']:6s} | {h['issuer_name'][:30]:30s} | {shares_str:>12s} shs | {val_str:>10s}")
-            if len(universe_holdings) > 10:
-                _print(f"    ... and {len(universe_holdings) - 10} more")
+        if args.backfill:
+            filings = find_all_13f(cik, max_quarters=args.max_quarters)
+            if not filings:
+                _print(f"  [skip] No 13F-HR filings found")
+                continue
+            _print(f"  Backfilling {len(filings)} 13F-HR quarter(s)")
         else:
-            inserted = insert_holdings(
-                conn, cik, fund_name,
-                report_period or "unknown",
-                filing_date, accession,
-                universe_holdings,
-            )
-            total_holdings_stored += inserted
-            update_fund_registry(conn, cik, filing_date, report_period or "", accession)
+            latest = find_latest_13f(cik)
+            if not latest:
+                _print(f"  [skip] No 13F-HR filing found")
+                continue
+            if not args.dry_run and fund.get("last_accession") == latest["accession"]:
+                _print(f"  [skip] Already collected this filing")
+                continue
+            filings = [latest]
 
-            for h in universe_holdings:
-                if h.get("symbol"):
-                    symbols_with_holdings.add(h["symbol"])
+        fund_did_process = False
+        for filing in filings:
+            stored, matched, processed = process_filing(
+                conn, args, cik, fund_name, filing, name_map, universe_symbols, symbols_with_holdings)
+            total_holdings_stored += stored
+            total_matched += matched
+            fund_did_process = fund_did_process or processed
 
-        total_funds_processed += 1
-        total_matched += matched
+        if fund_did_process:
+            total_funds_processed += 1
 
     if not args.dry_run and symbols_with_holdings:
         total_alerts = generate_13f_alerts(conn, symbols_with_holdings)

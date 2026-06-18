@@ -40,6 +40,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import http.client
 import html
 import json
 import re
@@ -275,20 +276,32 @@ def _iter_hn_pages(
     """Yield individual hits across up to `max_pages` pages, stopping early
     when a page is empty or the API reports no more pages."""
     for page in range(max_pages):
-        try:
-            payload = _hn_search(
-                query,
-                tag=tag,
-                since_unix=since_unix,
-                page=page,
-                hits_per_page=hits_per_page,
-                timeout=timeout,
-            )
-        except urllib.error.URLError as err:
-            print(
-                f"[hn] WARN: query={query!r} tag={tag} page={page} failed: {err}",
-                file=sys.stderr,
-            )
+        payload: Optional[Dict[str, Any]] = None
+        for attempt in range(1, 4):
+            try:
+                payload = _hn_search(
+                    query,
+                    tag=tag,
+                    since_unix=since_unix,
+                    page=page,
+                    hits_per_page=hits_per_page,
+                    timeout=timeout,
+                )
+                break
+            except (
+                urllib.error.URLError,
+                http.client.RemoteDisconnected,
+                TimeoutError,
+                OSError,
+            ) as err:
+                if attempt >= 3:
+                    print(
+                        f"[hn] WARN: query={query!r} tag={tag} page={page} failed: {err}",
+                        file=sys.stderr,
+                    )
+                    return
+                time.sleep(0.5 * attempt)
+        if payload is None:
             return
         hits = payload.get("hits") or []
         for hit in hits:

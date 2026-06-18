@@ -366,7 +366,7 @@ export interface ValidationReport {
   };
 
   // Overall verdict
-  pass_fail: 'PASS' | 'FAIL' | 'NEEDS_REVIEW';
+  pass_fail: 'PASS' | 'FAIL' | 'NEEDS_REVIEW' | 'INSUFFICIENT_DATA' | 'PROMISING_BUT_NOT_VALIDATED';
   pass_fail_reasons: string[];
 
   // Human decision

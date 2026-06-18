@@ -23,7 +23,7 @@ const router = Router();
 
 void loadAllSweeps();
 
-type SweepStage = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier2r' | 'tier3';
+type SweepStage = 'candidate' | 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier2r' | 'tier3';
 
 function latestReportByTier(reports: any[], strategyVersionId: string, tier: string): any | null {
   const matches = reports
@@ -75,7 +75,7 @@ const SWEEP_PRESETS: Record<string, SweepParamDef[]> = {
     {
       label: 'Stop Type',
       param_path: 'risk_config.stop_type',
-      values: ['percentage', 'atr', 'swing_low'],
+      values: ['percentage', 'atr_multiple'],
     },
   ],
   atr_multiplier: [
@@ -177,7 +177,19 @@ router.get('/:sweepId', (req: Request, res: Response) => {
 
 router.post('/run', async (req: Request, res: Response) => {
   try {
-    const { strategy_version_id, preset, sweep_params, tier, interval, universal_dims } = req.body;
+    const {
+      strategy_version_id,
+      preset,
+      sweep_params,
+      tier,
+      interval,
+      universal_dims,
+      evidence_mode,
+      evidence_target_trades,
+      session_id,
+      session_started_at,
+      session_note,
+    } = req.body;
 
     if (!strategy_version_id || typeof strategy_version_id !== 'string') {
       return res.status(400).json({ success: false, error: 'strategy_version_id is required' });
@@ -211,23 +223,20 @@ router.post('/run', async (req: Request, res: Response) => {
     if (totalVariants === 0) return res.status(400).json({ success: false, error: 'At least one value is required' });
     if (totalVariants > 20) return res.status(400).json({ success: false, error: `Grid produces ${totalVariants} variants — maximum is 20. Reduce the number of values.` });
 
-    const requestedTier = String(tier || 'tier1').trim().toLowerCase();
-    if (requestedTier === 'tier3') {
-      const allReports = await getAllValidationReports();
-      const sweepStage = resolveSweepStage(allReports, strategy_version_id);
-      if (!sweepStage || sweepStage.stage !== 'tier3') {
-        return res.status(400).json({
-          success: false,
-          error: `Tier 3 sweep is only allowed for Tier 3 baselines. ${strategy_version_id} is not a Tier 3 baseline.`,
-        });
-      }
-    }
-
     const sweepId = await runSweep(
       strategy_version_id,
       params,
       tier || 'tier1',
       interval,
+      {
+        mode: typeof evidence_mode === 'string' ? evidence_mode : null,
+        target_trades: Number.isFinite(Number(evidence_target_trades)) ? Number(evidence_target_trades) : null,
+      },
+      {
+        id: typeof session_id === 'string' ? session_id : null,
+        started_at: typeof session_started_at === 'string' ? session_started_at : null,
+        note: typeof session_note === 'string' ? session_note : null,
+      },
     );
 
     res.json({ success: true, data: { sweep_id: sweepId } });
@@ -506,8 +515,8 @@ router.get('/strategies/list', async (_req: Request, res: Response) => {
     const pushIfSweepEligible = (candidate: any) => {
       const strategyVersionId = String(candidate?.strategy_version_id || '').trim();
       if (!strategyVersionId || seenIds.has(strategyVersionId)) return;
-      const sweepStage = resolveSweepStage(allReports, strategyVersionId);
-      if (!sweepStage) return;
+      const sweepStage = resolveSweepStage(allReports, strategyVersionId)
+        || { stage: 'candidate' as SweepStage, title: 'Sweep candidate' };
       seenIds.add(strategyVersionId);
       filtered.push({
         ...candidate,

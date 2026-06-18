@@ -10,7 +10,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { deleteAppRecord, listAppRecords, writeAppRecord } from './appStateDb';
-import { deleteStrategy, getAllStrategies, getStrategy, getStrategyOrComposite, saveStrategy, getValidationReport, saveValidationReport, getTradeInstances, saveTradeInstances, deleteValidationReport } from './storageService';
+import { deleteStrategy, getAllStrategies, getStrategy, getStrategyOrComposite, saveStrategy, deleteValidationReport } from './storageService';
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const SWEEPS_DIR = path.join(DATA_DIR, 'sweep-results');
@@ -73,9 +73,14 @@ export interface SweepVariant {
 
 export interface SweepReport {
   sweep_id: string;
+  session_id?: string | null;
+  session_started_at?: string | null;
+  session_note?: string | null;
   base_strategy_version_id: string;
   sweep_params: SweepParamDef[];
   tier: string;
+  evidence_mode?: string | null;
+  evidence_target_trades?: number | null;
   interval: string;
   status: 'running' | 'completed' | 'failed' | 'cancelled';
   variants: SweepVariant[];
@@ -209,6 +214,59 @@ function toFiniteNumber(value: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function toFundamentalPercent(value: any): number | null {
+  const n = toFiniteNumber(value);
+  if (n == null || n === 0) return null;
+  const abs = Math.abs(n);
+  return abs <= 1 ? abs * 100 : abs;
+}
+
+function syncFundamentalSourceExitAliases(spec: any, risk: any, exit: any): void {
+  const backtestConfig = (spec?.backtest_config && typeof spec.backtest_config === 'object') ? spec.backtest_config : null;
+  const sourceConfig = (backtestConfig?.source_config && typeof backtestConfig.source_config === 'object')
+    ? backtestConfig.source_config
+    : null;
+  if (!sourceConfig) return;
+
+  const sourceExit = (sourceConfig.exit && typeof sourceConfig.exit === 'object') ? sourceConfig.exit : {};
+  const stopType = String(risk.stop_type || '').trim().toLowerCase();
+  const stopPct = toFundamentalPercent(risk.stop_value);
+  if (stopPct != null && (!stopType || ['fixed_pct', 'percentage', 'percent'].includes(stopType))) {
+    sourceExit.stop_loss_pct = -stopPct;
+  }
+
+  const maxHold = toFiniteNumber(risk.max_hold_bars ?? exit.time_stop_bars);
+  if (maxHold != null && maxHold > 0) {
+    sourceExit.max_hold_days = Math.round(maxHold);
+  }
+
+  const trailingPct = toFundamentalPercent(risk.trailing_stop_pct ?? exit.trailing?.percent);
+  if (trailingPct != null) {
+    sourceExit.trailing_stop_pct = trailingPct;
+  }
+
+  const takeProfitR = toFiniteNumber(risk.take_profit_R ?? risk.take_profit_r ?? exit.target_level);
+  const ladder = Array.isArray(risk.take_profit_ladder_pct)
+    ? risk.take_profit_ladder_pct
+    : Array.isArray(exit.take_profit_ladder_pct)
+      ? exit.take_profit_ladder_pct
+      : null;
+  const normalizedLadder = ladder
+    ? ladder
+      .map((value: any) => toFiniteNumber(value))
+      .filter((value: number | null): value is number => value != null && value > 0)
+    : [];
+  if (takeProfitR != null && takeProfitR > 0 && stopPct != null && stopPct > 0) {
+    sourceExit.take_profit_ladder_pct = [Number((takeProfitR * stopPct).toFixed(6))];
+  } else if (normalizedLadder.length) {
+    sourceExit.take_profit_ladder_pct = normalizedLadder;
+  }
+
+  sourceConfig.exit = sourceExit;
+  backtestConfig.source_config = sourceConfig;
+  spec.backtest_config = backtestConfig;
+}
+
 function syncRiskExitAliases(spec: any): any {
   const next = spec && typeof spec === 'object' ? spec : {};
   const risk = (next.risk_config && typeof next.risk_config === 'object') ? next.risk_config : {};
@@ -235,6 +293,7 @@ function syncRiskExitAliases(spec: any): any {
 
   next.risk_config = risk;
   next.exit_config = exit;
+  syncFundamentalSourceExitAliases(next, risk, exit);
   return next;
 }
 
@@ -291,11 +350,23 @@ async function cleanupTempStrategy(variantId: string): Promise<void> {
   } catch {}
 }
 
-async function startValidatorJob(strategyVersionId: string, tier: string, interval: string): Promise<string> {
+async function startValidatorJob(
+  strategyVersionId: string,
+  tier: string,
+  interval: string,
+  evidence?: { mode?: string | null; target_trades?: number | null },
+): Promise<string> {
   const res = await fetch(`${API_BASE}/validator/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ strategy_version_id: strategyVersionId, tier, interval, skip_tier_gate: true }),
+    body: JSON.stringify({
+      strategy_version_id: strategyVersionId,
+      tier,
+      interval,
+      skip_tier_gate: true,
+      evidence_mode: evidence?.mode || null,
+      evidence_target_trades: evidence?.target_trades || null,
+    }),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -344,7 +415,7 @@ function computeSweepFitnessScore(report: any, summary: {
     : Math.max(0, 1 - (summary.max_drawdown_pct - 30) / 70);
   const verdictMultiplier = summary.pass_fail === 'PASS'
     ? 1
-    : summary.pass_fail === 'NEEDS_REVIEW'
+    : (summary.pass_fail === 'NEEDS_REVIEW' || summary.pass_fail === 'PROMISING_BUT_NOT_VALIDATED')
       ? 0.85
       : 0;
 
@@ -360,7 +431,7 @@ function computeSweepFitnessScore(report: any, summary: {
 function variantVerdictRank(variant: SweepVariant): number {
   const verdict = String(variant.metrics?.pass_fail || '').toUpperCase();
   if (verdict === 'PASS') return 2;
-  if (verdict === 'NEEDS_REVIEW') return 1;
+  if (verdict === 'NEEDS_REVIEW' || verdict === 'PROMISING_BUT_NOT_VALIDATED') return 1;
   if (verdict === 'FAIL') return 0;
   return -1;
 }
@@ -437,6 +508,8 @@ export async function runSweep(
   sweepParams: SweepParamDef[],
   tier: string = 'tier1',
   interval?: string,
+  evidence?: { mode?: string | null; target_trades?: number | null },
+  session?: { id?: string | null; started_at?: string | null; note?: string | null },
 ): Promise<string> {
   const baseStrategy = await getStrategyOrComposite(baseStrategyVersionId);
   if (!baseStrategy) throw new Error(`Strategy not found: ${baseStrategyVersionId}`);
@@ -478,9 +551,14 @@ export async function runSweep(
 
   const sweep: SweepReport = {
     sweep_id: sweepId,
+    session_id: String(session?.id || '').trim() || null,
+    session_started_at: String(session?.started_at || '').trim() || null,
+    session_note: String(session?.note || '').trim() || null,
     base_strategy_version_id: baseStrategyVersionId,
     sweep_params: sweepParams,
     tier,
+    evidence_mode: evidence?.mode || null,
+    evidence_target_trades: evidence?.target_trades || null,
     interval: effectiveInterval,
     status: 'running',
     variants,
@@ -493,7 +571,7 @@ export async function runSweep(
   await persistSweep(sweep);
 
   // Run variants sequentially in background
-  setImmediate(() => executeSweep(sweep, baseStrategy, effectiveInterval, tier));
+  setImmediate(() => executeSweep(sweep, baseStrategy, effectiveInterval, tier, evidence));
 
   return sweepId;
 }
@@ -503,6 +581,7 @@ async function executeSweep(
   baseStrategy: any,
   interval: string,
   tier: string,
+  evidence?: { mode?: string | null; target_trades?: number | null },
 ): Promise<void> {
   for (const variant of sweep.variants) {
     if (sweep.status !== 'running') break;
@@ -543,7 +622,7 @@ async function executeSweep(
       let jobId: string | null = null;
       for (let attempt = 0; attempt < 6; attempt++) {
         try {
-          jobId = await startValidatorJob(variant.variant_id, variantTier, variantInterval);
+          jobId = await startValidatorJob(variant.variant_id, variantTier, variantInterval, evidence);
           break;
         } catch (err: any) {
           if (err.message?.includes('429') || err.message?.includes('Too many')) {
@@ -713,24 +792,6 @@ export async function pruneSweepVariantsByReportId(reportId: string): Promise<vo
   }
 }
 
-// ─── Copy report to promoted strategy ────────────────────────────────────────
-
-async function copyReportToPromotedId(variantReportId: string, newStrategyVersionId: string): Promise<void> {
-  try {
-    const report = await getValidationReport(variantReportId);
-    if (!report) return;
-    const newReportId = `${newStrategyVersionId}_promoted`;
-    const cloned = { ...report, report_id: newReportId, strategy_version_id: newStrategyVersionId };
-    await saveValidationReport(cloned);
-    const trades = await getTradeInstances(variantReportId);
-    if (trades.length > 0) await saveTradeInstances(newReportId, trades);
-  } catch {
-    // Non-fatal — if the variant report was already cleaned up, skip silently
-  }
-}
-
-// ─── Promote winner ───────────────────────────────────────────────────────────
-
 export async function promoteWinner(sweepId: string, baseStrategyVersionId: string, variantId?: string): Promise<string> {
   const sweep = activeSweeps.get(sweepId);
   if (!sweep) throw new Error('Sweep not found');
@@ -811,7 +872,7 @@ export async function promoteWinner(sweepId: string, baseStrategyVersionId: stri
   spec.strategy_version_id = newId;
   spec.strategy_id = strategyId;
   spec.version = nextVersion;
-  spec.status = 'rejected'; // Hidden until user explicitly clicks "Send to Validator"
+  spec.status = 'testing';
   spec.name = rewritePromotedName(spec.name);
   spec.created_at = new Date().toISOString();
   spec.updated_at = new Date().toISOString();
@@ -820,7 +881,26 @@ export async function promoteWinner(sweepId: string, baseStrategyVersionId: stri
   const promoLabel = pvs2.length > 0
     ? pvs2.map(pv => `${pv.label}=${pv.value}`).join(', ')
     : `${paramLabel || 'parameter'}=${valueLabel}`;
-  spec.description = `${String(spec.description || '').trim()}\n\nPromoted from sweep ${sweepId} via ${promoLabel}.`.trim();
+  const promotedAt = new Date().toISOString();
+  spec.description = `${String(spec.description || '').trim()}\n\nPromoted from sweep ${sweepId} via ${promoLabel}.\nLifecycle state: optimized sweep candidate, not validated.`.trim();
+  spec.lifecycle_state = 'sweep_candidate';
+  spec.validation_status = 'not_validated';
+  spec.strategy_tags = Array.from(new Set([
+    ...(Array.isArray(spec.strategy_tags) ? spec.strategy_tags : []),
+    'sweep_candidate',
+    'requires_validation',
+  ]));
+  spec.sweep_evidence = {
+    sweep_id: sweep.sweep_id,
+    variant_id: variant.variant_id,
+    source_strategy_version_id: sweep.base_strategy_version_id,
+    scope: sweep.tier,
+    interval: sweep.interval,
+    promoted_at: promotedAt,
+    metrics: variant.metrics || null,
+    report_id: variant.report_id || null,
+    note: 'Sweep evidence only. Validation tier status must be earned by running Validator on this promoted strategy.',
+  };
 
   // Preserve the base pattern id so downstream tools (smart plan, sweep engine) can always
   // resolve the pattern definition JSON for tunable params / suggested_values / manifest.
@@ -832,14 +912,9 @@ export async function promoteWinner(sweepId: string, baseStrategyVersionId: stri
   }
 
   await saveStrategy(spec);
-  // Copy the variant's validation report to the promoted ID so the tier gate
-  // sees a Tier 1 PASS for the new strategy version without re-running.
-  if (variant.report_id) {
-    await copyReportToPromotedId(variant.report_id, newId);
-  }
   sweep.promoted_strategy_version_id = newId;
   sweep.promoted_variant_id = variant.variant_id;
-  sweep.promoted_at = new Date().toISOString();
+  sweep.promoted_at = promotedAt;
   await persistSweep(sweep);
 
   return newId;

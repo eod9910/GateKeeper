@@ -824,9 +824,21 @@
           "asset_key": "ai_chips",
           "direction": "down",
           "magnitude": "large"
+        },
+        {
+          "asset_type": "sector",
+          "asset_key": "frontier_ai_platforms",
+          "direction": "down",
+          "magnitude": "large"
         }
       ],
       "second_order": [
+        {
+          "asset_type": "sector",
+          "asset_key": "ai_servers_networking",
+          "direction": "down",
+          "magnitude": "moderate"
+        },
         {
           "asset_type": "sector",
           "asset_key": "grid_equipment",
@@ -851,7 +863,46 @@
           "NVDA",
           "AMD",
           "AVGO",
-          "MRVL"
+          "MRVL",
+          "TSM"
+        ],
+        "frontier_ai_platforms": [
+          "MSFT",
+          "GOOGL",
+          "AMZN",
+          "META",
+          "ORCL",
+          "PLTR"
+        ],
+        "ai_servers_networking": [
+          "SMCI",
+          "DELL",
+          "ANET"
+        ],
+        "grid_equipment": [
+          "ETN",
+          "GEV",
+          "PWR",
+          "VRT"
+        ],
+        "datacenter_reits": [
+          "EQIX",
+          "DLR"
+        ],
+        "utilities_datacenter_exposed": [
+          "CEG",
+          "VST",
+          "TLN"
+        ],
+        "specialty_cooling": [
+          "VRT",
+          "CARR",
+          "MOD"
+        ],
+        "cybersecurity_counterweight": [
+          "CRWD",
+          "PANW",
+          "ZS"
         ]
       }
     },

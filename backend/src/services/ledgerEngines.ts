@@ -167,6 +167,48 @@ type SpecialSituationConfig = {
   model_limitations: string[];
 };
 
+type RelativeMultiplesConfig = {
+  schema_version: number;
+  engine_class: 'relative_multiples';
+  valuation_method: string;
+  small_cap_market_cap_ceiling: number;
+  unstable_market_cap_ceiling: number;
+  sector_ev_sales_bands: Record<string, ReitMultipleBand>;
+  sector_price_book_bands: Record<string, ReitMultipleBand>;
+  blend_weights: {
+    ev_sales: number;
+    price_book: number;
+  };
+  risk_haircut: {
+    base_pct: number;
+    weak_quality_extra_pct: number;
+    mixed_quality_extra_pct: number;
+    high_leverage_extra_pct: number;
+    negative_fcf_extra_pct: number;
+    debt_to_equity_threshold: number;
+    max_pct: number;
+  };
+  required_inputs: string[];
+  model_limitations: string[];
+};
+
+type AssetManagerFreConfig = {
+  schema_version: number;
+  engine_class: 'asset_manager_fre';
+  valuation_method: string;
+  fre_multiple_bands: ReitMultipleBand;
+  carry_multiple_bands: ReitMultipleBand;
+  default_fee_earnings_margin_pct: number;
+  revenue_growth_multiple_adjustment: {
+    divisor: number;
+    min_delta: number;
+    max_delta: number;
+  };
+  quality_premiums: Record<string, number>;
+  required_inputs: string[];
+  model_limitations: string[];
+};
+
 type ValuationAuditConfig = {
   schema_version: number;
   purpose: string;
@@ -360,6 +402,91 @@ const DEFAULT_SPECIAL_SITUATION_CONFIG: SpecialSituationConfig = {
   ],
 };
 
+const DEFAULT_RELATIVE_MULTIPLES_CONFIG: RelativeMultiplesConfig = {
+  schema_version: 1,
+  engine_class: 'relative_multiples',
+  valuation_method: 'relative_multiple_asset_floor',
+  small_cap_market_cap_ceiling: 300000000,
+  unstable_market_cap_ceiling: 2000000000,
+  sector_ev_sales_bands: {
+    technology: { low: 1.5, mid: 3.0, high: 6.0 },
+    'communication services': { low: 1.0, mid: 2.5, high: 5.0 },
+    healthcare: { low: 1.2, mid: 2.8, high: 5.5 },
+    'consumer cyclical': { low: 0.5, mid: 1.2, high: 2.5 },
+    'consumer defensive': { low: 0.6, mid: 1.3, high: 2.5 },
+    industrials: { low: 0.7, mid: 1.5, high: 3.0 },
+    'basic materials': { low: 0.5, mid: 1.2, high: 2.5 },
+    energy: { low: 0.5, mid: 1.2, high: 2.5 },
+    utilities: { low: 1.0, mid: 2.0, high: 3.5 },
+    'real estate': { low: 1.5, mid: 3.0, high: 6.0 },
+    diversified: { low: 0.7, mid: 1.5, high: 3.0 },
+  },
+  sector_price_book_bands: {
+    technology: { low: 1.2, mid: 2.5, high: 4.5 },
+    'communication services': { low: 0.9, mid: 1.8, high: 3.5 },
+    healthcare: { low: 1.0, mid: 2.2, high: 4.0 },
+    'consumer cyclical': { low: 0.7, mid: 1.5, high: 3.0 },
+    'consumer defensive': { low: 0.9, mid: 1.8, high: 3.2 },
+    industrials: { low: 0.8, mid: 1.6, high: 3.0 },
+    'basic materials': { low: 0.6, mid: 1.3, high: 2.4 },
+    energy: { low: 0.6, mid: 1.2, high: 2.2 },
+    utilities: { low: 0.8, mid: 1.4, high: 2.2 },
+    'real estate': { low: 0.7, mid: 1.3, high: 2.2 },
+    diversified: { low: 0.8, mid: 1.6, high: 3.0 },
+  },
+  blend_weights: { ev_sales: 0.6, price_book: 0.4 },
+  risk_haircut: {
+    base_pct: 5,
+    weak_quality_extra_pct: 15,
+    mixed_quality_extra_pct: 7,
+    high_leverage_extra_pct: 10,
+    negative_fcf_extra_pct: 10,
+    debt_to_equity_threshold: 150,
+    max_pct: 40,
+  },
+  required_inputs: [
+    'annual revenue with shares outstanding, or book value per share',
+    'current price',
+  ],
+  model_limitations: [
+    'This is a relative-multiple and asset-floor proxy for small/micro-cap or non-normalizable operating companies, not a discounted-cash-flow valuation.',
+    'Sector multiple bands are static reference ranges, not live peer-group medians; treat the output as a wide, low-confidence band.',
+    'A risk haircut is applied for weak cash-flow quality, high leverage, and negative free cash flow, but the model cannot fully price going-concern, dilution, or covenant risk.',
+    'EV/EBITDA and P/E cross-checks are not applied when EBITDA or earnings are negative or distorted; EV/Sales and Price/Book carry the estimate.',
+  ],
+};
+
+const DEFAULT_ASSET_MANAGER_FRE_CONFIG: AssetManagerFreConfig = {
+  schema_version: 1,
+  engine_class: 'asset_manager_fre',
+  valuation_method: 'asset_manager_fre_distributable_earnings',
+  fre_multiple_bands: { low: 14, mid: 19, high: 24 },
+  carry_multiple_bands: { low: 4, mid: 7, high: 10 },
+  default_fee_earnings_margin_pct: 35,
+  revenue_growth_multiple_adjustment: {
+    divisor: 4,
+    min_delta: -3,
+    max_delta: 4,
+  },
+  quality_premiums: {
+    high: 2,
+    good: 1,
+    mixed: 0,
+    weak: -2,
+  },
+  required_inputs: [
+    'fee-related earnings, distributable earnings, adjusted net income, free cash flow, or revenue proxy',
+    'shares outstanding',
+    'current price',
+  ],
+  model_limitations: [
+    'This is a first-pass asset-manager valuation built around fee-related or distributable earnings, not book value.',
+    'When true FRE, distributable earnings, incentive fees, carry, or AUM are missing, the model falls back to generic financial-statement proxies and confidence should stay low.',
+    'Carry and performance fees are cyclical and path-dependent; a static multiple cannot fully value fund marks, realization timing, fundraising cadence, or fee-rate compression.',
+    'A dedicated peer set and segment-level FRE/carry extraction should replace the proxy assumptions once those data points are collected.',
+  ],
+};
+
 const DEFAULT_VALUATION_AUDIT_CONFIG: ValuationAuditConfig = {
   schema_version: 1,
   purpose: 'Post-valuation QA rules that make sure backend valuation outputs follow Ledger workspace doctrine.',
@@ -446,6 +573,10 @@ const REIT_AFFO_CONFIG = loadLedgerValuationConfig(
 const SPECIAL_SITUATION_CONFIG = loadLedgerValuationConfig(
   path.join('special-situations', 'config.json'),
   DEFAULT_SPECIAL_SITUATION_CONFIG,
+);
+const RELATIVE_MULTIPLES_CONFIG = loadLedgerValuationConfig(
+  path.join('smallcap-relative-multiples', 'config.json'),
+  DEFAULT_RELATIVE_MULTIPLES_CONFIG,
 );
 const VALUATION_AUDIT_CONFIG = loadLedgerValuationConfig(
   path.join('valuation-audit', 'config.json'),
@@ -620,8 +751,71 @@ function parseFirstMatchText(text: string, patterns: RegExp[]): string | null {
 function isFinancialCompanyForDcf(snapshot: Record<string, any> | null | undefined): boolean {
   const sector = trimString(snapshot?.sector)?.toLowerCase() || '';
   const industry = trimString(snapshot?.industry)?.toLowerCase() || '';
-  const haystack = `${sector} ${industry}`;
+  const companyName = trimString(snapshot?.companyName)?.toLowerCase()
+    || trimString(snapshot?.name)?.toLowerCase()
+    || trimString(snapshot?.sec_name)?.toLowerCase()
+    || '';
+  const description = trimString(snapshot?.businessDescription)?.toLowerCase() || '';
+  const haystack = `${sector} ${industry} ${companyName} ${description}`;
+  if (/\breit\b|\breal estate investment trust\b/.test(haystack)) {
+    return false;
+  }
+  if (isCapitalLightFinancialForDcf(snapshot)) {
+    return false;
+  }
   return /\bfinancial\b|\bbank\b|\bbanks\b|\binsurance\b|\bcredit\b|\blender\b|\blending\b|\bmortgage\b|\basset management\b|\bcapital markets\b|\bconsumer finance\b/.test(haystack);
+}
+
+function isReitLikeForDcf(snapshot: Record<string, any> | null | undefined): boolean {
+  const sector = trimString(snapshot?.sector)?.toLowerCase() || '';
+  const industry = trimString(snapshot?.industry)?.toLowerCase() || '';
+  const companyName = trimString(snapshot?.companyName)?.toLowerCase()
+    || trimString(snapshot?.name)?.toLowerCase()
+    || trimString(snapshot?.sec_name)?.toLowerCase()
+    || '';
+  const description = trimString(snapshot?.businessDescription)?.toLowerCase() || '';
+  return /\breit\b|\breal estate investment trust\b/.test(`${sector} ${industry} ${companyName} ${description}`);
+}
+
+function isCapitalLightFinancialForDcf(snapshot: Record<string, any> | null | undefined): boolean {
+  const industry = trimString(snapshot?.industry)?.toLowerCase() || '';
+  const companyName = trimString(snapshot?.companyName)?.toLowerCase()
+    || trimString(snapshot?.name)?.toLowerCase()
+    || trimString(snapshot?.sec_name)?.toLowerCase()
+    || '';
+  const description = trimString(snapshot?.businessDescription)?.toLowerCase() || '';
+  return /\b(asset management|investment management|wealth management|alternative asset|private equity|investment advisory|fund manager|capital markets)\b/.test(`${industry} ${companyName} ${description}`);
+}
+
+/**
+ * Runtime check (not persisted): an operating company is better valued with relative
+ * multiples + asset floor than with a multi-stage DCF when it is small/micro-cap, or when
+ * its cash-flow base is not normalizable (no positive operating or free cash flow to
+ * forecast from). This only ever upgrades a `dcf_operating` resolution; business-model
+ * classes (financial, REIT, pre-profit, special situation) are left untouched.
+ */
+function shouldUseRelativeMultiplesEngine(ledgerBase: LedgerContextSummary): boolean {
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const marketCap = toFiniteNumber(snapshot.marketCap);
+  if (marketCap != null && marketCap > 0 && marketCap < RELATIVE_MULTIPLES_CONFIG.small_cap_market_cap_ceiling) {
+    return true;
+  }
+  // The cash-flow-instability leg is gated to smaller names. A large-cap with one
+  // negative-FCF (growth-capex) year is still a DCF candidate; generic sector multiples
+  // would misvalue a premium compounder. Above the unstable ceiling we leave it on DCF.
+  if (marketCap != null && marketCap >= RELATIVE_MULTIPLES_CONFIG.unstable_market_cap_ceiling) {
+    return false;
+  }
+  const freeCashFlow = toFiniteNumber(snapshot.freeCashFlowTTM);
+  const operatingCashFlow = toFiniteNumber(snapshot.operatingCashFlowTTM);
+  // Only treat the base as non-normalizable when there is ACTUAL evidence of non-positive
+  // cash flow and no evidence of positive cash flow. Missing data must not misroute an
+  // otherwise-healthy name (e.g. a name whose snapshot lacks cash-flow fields).
+  const anyPresentNonPositive = (freeCashFlow != null && freeCashFlow <= 0)
+    || (operatingCashFlow != null && operatingCashFlow <= 0);
+  const anyPositive = (freeCashFlow != null && freeCashFlow > 0)
+    || (operatingCashFlow != null && operatingCashFlow > 0);
+  return anyPresentNonPositive && !anyPositive;
 }
 
 function resolveValuationEngineClass(ledgerBase: LedgerContextSummary): string {
@@ -631,26 +825,45 @@ function resolveValuationEngineClass(ledgerBase: LedgerContextSummary): string {
   if (hardFlags.length) {
     return 'special_situation';
   }
+  let resolved: string | null = null;
   const stored = symbol ? getSymbolClassification(symbol) : null;
   if (stored?.valuationEngineClass) {
-    return stored.valuationEngineClass;
+    resolved = stored.valuationEngineClass;
+    const routingSnapshot = {
+      ...snapshot,
+      sector: trimString(snapshot.sector) || stored.sector,
+      industry: trimString(snapshot.industry) || stored.industry,
+    };
+    if (resolved === 'roe_book_value' && isReitLikeForDcf(routingSnapshot)) {
+      resolved = 'reit_affo';
+    } else if (resolved === 'roe_book_value' && isCapitalLightFinancialForDcf(routingSnapshot)) {
+      resolved = 'dcf_operating';
+    }
+  } else {
+    const inferred = classifyCompanyFromSnapshot(snapshot);
+    if (symbol && inferred) {
+      upsertSymbolClassification(symbol, {
+        sector: inferred.sector,
+        industry: inferred.industry,
+        companyType: inferred.companyType,
+        valuationEngineClass: inferred.valuationEngineClass,
+        classificationSource: inferred.classificationSource,
+        classificationConfidence: inferred.classificationConfidence,
+        lastClassifiedAt: new Date().toISOString(),
+      });
+    }
+    if (inferred?.valuationEngineClass) {
+      resolved = inferred.valuationEngineClass;
+    }
   }
-  const inferred = classifyCompanyFromSnapshot(snapshot);
-  if (symbol && inferred) {
-    upsertSymbolClassification(symbol, {
-      sector: inferred.sector,
-      industry: inferred.industry,
-      companyType: inferred.companyType,
-      valuationEngineClass: inferred.valuationEngineClass,
-      classificationSource: inferred.classificationSource,
-      classificationConfidence: inferred.classificationConfidence,
-      lastClassifiedAt: new Date().toISOString(),
-    });
+  if (!resolved) {
+    resolved = isFinancialCompanyForDcf(snapshot) ? 'roe_book_value' : 'dcf_operating';
   }
-  if (inferred?.valuationEngineClass) {
-    return inferred.valuationEngineClass;
+  // Size / stability override is a runtime routing decision, not a persisted classification.
+  if (resolved === 'dcf_operating' && shouldUseRelativeMultiplesEngine(ledgerBase)) {
+    return 'relative_multiples';
   }
-  return isFinancialCompanyForDcf(snapshot) ? 'roe_book_value' : 'dcf_operating';
+  return resolved;
 }
 
 export function detectCorporateAction(ledgerBase: LedgerContextSummary): Record<string, any> | null {
@@ -1018,7 +1231,7 @@ type ValuationAuditFinding = {
 
 function buildValuationAudit(
   result: Record<string, any>,
-  engineClass: 'dcf_operating' | 'reit_affo',
+  engineClass: 'dcf_operating' | 'reit_affo' | 'relative_multiples',
 ): Record<string, any> {
   const config = VALUATION_AUDIT_CONFIG;
   const findings: ValuationAuditFinding[] = [];
@@ -1132,11 +1345,33 @@ function buildValuationAudit(
 
 type LedgerEvidenceAssessment = {
   sufficient: boolean;
-  status: 'sufficient' | 'no_company_data' | 'not_in_database';
+  status: 'sufficient' | 'no_company_data' | 'not_in_database' | 'foreign_no_filings';
   message: string;
   coverageTier: string | null;
   analysisMode: 'filing_backed' | 'vendor_snapshot_only' | 'insufficient';
 };
+
+const US_DOMICILE_TOKENS = new Set([
+  'united states',
+  'united states of america',
+  'usa',
+  'us',
+  'u.s.',
+  'u.s.a.',
+  'america',
+]);
+
+// Detects a non-US domicile from the vendor snapshot so Ledger can plainly say
+// "this is a foreign company" instead of showing a blank/provisional read.
+// Conservative: only flags when the country is explicitly a known non-US value
+// (an empty/unknown country is NOT treated as foreign, to avoid false positives).
+function detectForeignDomicile(snapshot: Record<string, any>): { isForeign: boolean; countryLabel: string | null } {
+  const rawCountry = trimString(snapshot?.country) || trimString(snapshot?.countryName);
+  if (!rawCountry) return { isForeign: false, countryLabel: null };
+  const normalized = rawCountry.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (US_DOMICILE_TOKENS.has(normalized)) return { isForeign: false, countryLabel: null };
+  return { isForeign: true, countryLabel: rawCountry };
+}
 
 function countAvailableMetrics(period: LedgerPeriod | null | undefined): number {
   const metrics = period?.metrics || {};
@@ -1210,6 +1445,22 @@ function assessLedgerEvidence(ledgerBase: LedgerContextSummary): LedgerEvidenceA
       message: hasMeaningfulSnapshot
         ? 'I have only partial coverage on this company. It appears to be a foreign reporting filer that uses forms like 20-F, 6-K, or 40-F, so I do not have the domestic 10-K/10-Q filing coverage Ledger relies on for a real analysis yet.'
         : 'I do not have strong Ledger coverage on this company. It appears to be a foreign reporting filer that uses forms like 20-F, 6-K, or 40-F, so the domestic 10-K/10-Q filing path Ledger relies on is not available here.',
+      coverageTier,
+      analysisMode: 'insufficient',
+    };
+  }
+
+  // Foreign company with no domestic filing coverage: say so plainly rather than
+  // attempting a provisional vendor read with a blank DCF/thesis. Placed AFTER the
+  // full_filing_supported and explicit foreign_reporting branches so US filers and
+  // already-handled foreign-reporting names keep their existing behavior.
+  const foreignDomicile = detectForeignDomicile(snapshot);
+  if (foreignDomicile.isForeign && !hasStructuredCoverage && !hasFilingEvidence) {
+    return {
+      sufficient: false,
+      status: 'foreign_no_filings',
+      message:
+        `This is a foreign company (${foreignDomicile.countryLabel}). It reports to its home-country regulator using forms like 20-F, 40-F, or 6-K rather than the SEC domestic 10-K/10-Q filings Ledger relies on, so we don't have the financial-statement data needed to run a DCF or build a fundamental thesis here.`,
       coverageTier,
       analysisMode: 'insufficient',
     };
@@ -1822,6 +2073,17 @@ export type CalibrationAdjustment = {
   sample_size: number;
 };
 
+export type NarrativeDcfAdjustment = {
+  direction: 'bull' | 'bear';
+  specificity: number;
+  revenue_growth_delta_pct: number;
+  classification?: string | null;
+  headline?: string | null;
+  driver?: string | null;
+  rationale?: string | null;
+  sources?: number[];
+};
+
 type DcfEngineOptions = {
   revenue_growth_near_term_pct?: number | null;
   target_operating_margin_pct?: number | null;
@@ -1829,6 +2091,7 @@ type DcfEngineOptions = {
   terminal_growth_pct?: number | null;
   forecast_years?: number | null;
   calibration_adjustments?: CalibrationAdjustment[] | null;
+  narrative_adjustment?: NarrativeDcfAdjustment | null;
 };
 
 export function runFinancialCompanyValuationEngine(
@@ -2137,8 +2400,12 @@ export function runDcfValuationEngine(
   options: DcfEngineOptions = {},
 ): Record<string, any> {
   const dcfConfig = OPERATING_DCF_CONFIG;
-  if (resolveValuationEngineClass(ledgerBase) === 'roe_book_value') {
+  const resolvedEngineClass = resolveValuationEngineClass(ledgerBase);
+  if (resolvedEngineClass === 'roe_book_value') {
     return runFinancialCompanyValuationEngine(ledgerBase, options);
+  }
+  if (resolvedEngineClass === 'relative_multiples') {
+    return runRelativeMultiplesValuationEngine(ledgerBase, options);
   }
   const snapshot = ledgerBase?.current_snapshot || {};
   const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
@@ -2414,7 +2681,13 @@ export function runDcfValuationEngine(
     },
   ] as const;
 
-  const scenarioOutputs = scenarioConfigs.map((scenario) => {
+  const valueScenario = (scenario: {
+    name: string;
+    revenueGrowthPct: number;
+    targetFcfMarginPct: number;
+    discountRatePct: number;
+    terminalGrowthPct: number;
+  }) => {
     const yearlyForecast = [];
     let revenue = Number(annualRevenue);
     let pvOfCashFlows = 0;
@@ -2476,7 +2749,9 @@ export function runDcfValuationEngine(
       equity_value: Math.round(equityValue),
       fair_value_per_share: fairValuePerShare ? Number(fairValuePerShare.toFixed(2)) : null,
     };
-  });
+  };
+
+  const scenarioOutputs = scenarioConfigs.map(valueScenario);
 
   const bear = scenarioOutputs.find((row) => row.scenario === 'bear') || null;
   const base = scenarioOutputs.find((row) => row.scenario === 'base') || null;
@@ -2488,6 +2763,58 @@ export function runDcfValuationEngine(
   const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midFairValue)) && Number(currentPrice)
     ? ((Number(midFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
     : null;
+
+  // --- Narrative-adjusted case ---
+  // Social-narrative theses lead fundamentals, so we model the thesis as a
+  // revenue-growth delta in a SEPARATE scenario. The base case stays anchored to
+  // the filings; the gap between base and narrative fair value is the actionable
+  // expectation gap. Skipped when the caller pinned revenue growth explicitly.
+  let narrativeCase: Record<string, any> | null = null;
+  const narrativeAdj = options.narrative_adjustment;
+  if (
+    narrativeAdj &&
+    hasFiniteNumber(narrativeAdj.revenue_growth_delta_pct) &&
+    Number(narrativeAdj.revenue_growth_delta_pct) !== 0 &&
+    !hasFiniteNumber(options.revenue_growth_near_term_pct)
+  ) {
+    const delta = Number(narrativeAdj.revenue_growth_delta_pct);
+    const adjustedGrowth = clamp(calibratedGrowthPct + delta, 0.5, 28);
+    const narrativeOutput = valueScenario({
+      name: 'narrative',
+      revenueGrowthPct: adjustedGrowth,
+      targetFcfMarginPct: calibratedFcfMarginPct,
+      discountRatePct,
+      terminalGrowthPct,
+    });
+    const narrativeFairValue = narrativeOutput.fair_value_per_share;
+    const gapVsBasePct = Number.isFinite(Number(midFairValue)) && Number(midFairValue) && Number.isFinite(Number(narrativeFairValue))
+      ? ((Number(narrativeFairValue) - Number(midFairValue)) / Number(midFairValue)) * 100
+      : null;
+    const priceVsNarrativePct = Number.isFinite(Number(currentPrice)) && Number(currentPrice) && Number.isFinite(Number(narrativeFairValue))
+      ? ((Number(narrativeFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
+      : null;
+    narrativeCase = {
+      applied: true,
+      direction: narrativeAdj.direction,
+      specificity: hasFiniteNumber(narrativeAdj.specificity) ? Number(narrativeAdj.specificity) : null,
+      classification: narrativeAdj.classification ?? null,
+      headline: narrativeAdj.headline ?? null,
+      driver: narrativeAdj.driver ?? null,
+      rationale: narrativeAdj.rationale ?? null,
+      sources: Array.isArray(narrativeAdj.sources) ? narrativeAdj.sources : [],
+      revenue_growth_delta_pct: Number(delta.toFixed(2)),
+      base_revenue_growth_pct: Number(calibratedGrowthPct.toFixed(2)),
+      adjusted_revenue_growth_pct: Number(adjustedGrowth.toFixed(2)),
+      assumptions: narrativeOutput.assumptions,
+      fair_value_per_share: narrativeFairValue,
+      fair_value_display: toMoneyString(narrativeFairValue),
+      base_fair_value_per_share: midFairValue,
+      base_fair_value_display: toMoneyString(midFairValue),
+      narrative_vs_base_pct: Number.isFinite(Number(gapVsBasePct)) ? Number(Number(gapVsBasePct).toFixed(2)) : null,
+      current_price: currentPrice,
+      price_vs_narrative_pct: Number.isFinite(Number(priceVsNarrativePct)) ? Number(Number(priceVsNarrativePct).toFixed(2)) : null,
+    };
+  }
 
   const priceVsValueJudgment = buildValuationPriceJudgment(currentPrice, midFairValue);
 
@@ -2581,6 +2908,7 @@ export function runDcfValuationEngine(
       valuation_quality_score: qualityGrade === 'high' ? 0.85 : qualityGrade === 'good' ? 0.7 : qualityGrade === 'mixed' ? 0.5 : 0.3,
     },
     calibration_applied: Object.keys(calibrationApplied).length > 0 ? calibrationApplied : null,
+    narrative_case: narrativeCase,
     special_situations: {
       corporate_action: corporateAction,
       hard_flags: hardFlags,
@@ -2943,6 +3271,273 @@ export function runReitAffoValuationEngine(
   return {
     ...result,
     valuation_audit: buildValuationAudit(result, 'reit_affo'),
+  };
+}
+
+export function runRelativeMultiplesValuationEngine(
+  ledgerBase: LedgerContextSummary,
+  options: DcfEngineOptions = {},
+): Record<string, any> {
+  void options;
+  const config = RELATIVE_MULTIPLES_CONFIG;
+  const snapshot = ledgerBase?.current_snapshot || {};
+  const latestAnnual = ledgerBase?.annual_context?.latest_annual || null;
+  const retrieval = ledgerBase?.evidence_context?.retrieval || {};
+  const retrievalResults = Array.isArray(retrieval?.results) ? retrieval.results : [];
+  const evidenceAssessment = assessLedgerEvidence(ledgerBase);
+  const earningsQuality = runEarningsQualityEngine(ledgerBase);
+  const financialAnalysis = runFinancialAnalysisEngine(ledgerBase);
+  const corporateAction = detectCorporateAction(ledgerBase);
+  const hardFlags = detectLedgerHardFlags(ledgerBase);
+  const companyName = trimString(ledgerBase?.company_name) || trimString(snapshot.companyName);
+  const currentPrice = toFiniteNumber(snapshot.currentPrice);
+  const marketCap = toFiniteNumber(snapshot.marketCap);
+  const sharesOutstanding = toFiniteNumber(snapshot.sharesOutstanding)
+    ?? (Number.isFinite(Number(marketCap)) && Number.isFinite(Number(currentPrice)) && Number(currentPrice)
+      ? Number(marketCap) / Number(currentPrice)
+      : null);
+
+  if (!evidenceAssessment.sufficient) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'relative_multiples_valuation_engine',
+      valuation_method: config.valuation_method,
+      valuation_engine_class: config.engine_class,
+      confidence_level: 'low',
+      status: evidenceAssessment.status,
+      coverage_tier: evidenceAssessment.coverageTier,
+      analysis_mode: evidenceAssessment.analysisMode,
+      summary: evidenceAssessment.message,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      model_limitations: ['Insufficient Ledger evidence for a relative-multiple valuation.'],
+      price_vs_value_judgment: {
+        judgment: evidenceAssessment.status,
+        summary: evidenceAssessment.message,
+      },
+    };
+  }
+
+  const sectorRaw = trimString(snapshot.sector);
+  const sectorKey = sectorRaw ? sectorRaw.toLowerCase() : '';
+  const evSalesBand = config.sector_ev_sales_bands[sectorKey] || config.sector_ev_sales_bands.diversified;
+  const pbBand = config.sector_price_book_bands[sectorKey] || config.sector_price_book_bands.diversified;
+
+  const annualRevenue = preferConsistentStatementValue(getMetricValue(latestAnnual, 'revenue'), snapshot.annualRevenue)
+    ?? resolveAnnualRevenue(latestAnnual, snapshot);
+  const totalDebt = toFiniteNumber(snapshot.totalDebt) ?? toFiniteNumber(snapshot.debt);
+  const enterpriseValue = toFiniteNumber(snapshot.enterpriseValue);
+  let netDebt: number;
+  if (Number.isFinite(Number(enterpriseValue)) && Number.isFinite(Number(marketCap))) {
+    netDebt = Number(enterpriseValue) - Number(marketCap);
+  } else if (Number.isFinite(Number(totalDebt))) {
+    netDebt = Number(totalDebt);
+  } else {
+    netDebt = 0;
+  }
+  const debtToEquity = toFiniteNumber(snapshot.debtToEquity);
+  const priceToBook = toFiniteNumber((snapshot as any).priceToBook);
+  const bookValuePerShare = [
+    toFiniteNumber((snapshot as any).bookValuePerShare),
+    Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(priceToBook)) && Number(priceToBook) > 0
+      ? Number(currentPrice) / Number(priceToBook)
+      : null,
+  ].find((value) => value != null && Number.isFinite(Number(value))) ?? null;
+  const freeCashFlow = preferConsistentStatementValue(getMetricValue(latestAnnual, 'free_cash_flow'), snapshot.freeCashFlowTTM);
+  const qualityGrade = trimString(earningsQuality?.earnings_quality_grade) || 'mixed';
+
+  const canEvSales = Number.isFinite(Number(annualRevenue)) && Number(annualRevenue) > 0
+    && Number.isFinite(Number(sharesOutstanding)) && Number(sharesOutstanding) > 0;
+  const canPriceBook = Number.isFinite(Number(bookValuePerShare)) && Number(bookValuePerShare) > 0;
+
+  const missingInputs = cleanList([
+    canEvSales || canPriceBook ? null : 'annual revenue with shares outstanding, or book value per share',
+    Number.isFinite(Number(currentPrice)) ? null : 'current price',
+  ], 8);
+
+  if (missingInputs.length) {
+    return {
+      symbol: ledgerBase?.symbol || null,
+      company_name: companyName,
+      engine: 'relative_multiples_valuation_engine',
+      valuation_method: config.valuation_method,
+      valuation_engine_class: config.engine_class,
+      confidence_level: 'low',
+      status: 'insufficient_inputs',
+      missing_inputs: missingInputs,
+      summary: `A relative-multiple valuation could not be completed because key inputs are missing: ${missingInputs.join(', ')}.`,
+      fair_value_range: null,
+      base_case_assumptions: null,
+      bear_case_assumptions: null,
+      bull_case_assumptions: null,
+      scenario_outputs: [],
+      model_limitations: config.model_limitations,
+      price_vs_value_judgment: {
+        judgment: 'insufficient_inputs',
+        summary: 'There is not enough revenue/share or book-value input to produce a defensible relative-multiple valuation.',
+      },
+    };
+  }
+
+  let riskHaircutPct = config.risk_haircut.base_pct;
+  if (qualityGrade === 'weak') riskHaircutPct += config.risk_haircut.weak_quality_extra_pct;
+  else if (qualityGrade === 'mixed') riskHaircutPct += config.risk_haircut.mixed_quality_extra_pct;
+  if (Number.isFinite(Number(debtToEquity)) && Number(debtToEquity) > config.risk_haircut.debt_to_equity_threshold) {
+    riskHaircutPct += config.risk_haircut.high_leverage_extra_pct;
+  }
+  if (Number.isFinite(Number(freeCashFlow)) && Number(freeCashFlow) < 0) {
+    riskHaircutPct += config.risk_haircut.negative_fcf_extra_pct;
+  }
+  riskHaircutPct = clamp(riskHaircutPct, 0, config.risk_haircut.max_pct);
+  const haircutFactor = 1 - riskHaircutPct / 100;
+  const wEv = config.blend_weights.ev_sales;
+  const wPb = config.blend_weights.price_book;
+  const liquidationFloorPerShare = canPriceBook ? Number(bookValuePerShare) * (pbBand.low * 0.5) : null;
+
+  const valueAtMultiples = (evMultiple: number, pbMultiple: number, applyFloor: boolean): {
+    fair_value_per_share: number;
+    ev_sales_per_share: number | null;
+    price_book_per_share: number | null;
+  } => {
+    const evSalesPerShare = canEvSales
+      ? (Number(annualRevenue) * evMultiple - netDebt) / Number(sharesOutstanding)
+      : null;
+    const priceBookPerShare = canPriceBook ? Number(bookValuePerShare) * pbMultiple : null;
+    let blended: number | null;
+    if (evSalesPerShare != null && priceBookPerShare != null) {
+      blended = wEv * evSalesPerShare + wPb * priceBookPerShare;
+    } else {
+      blended = evSalesPerShare ?? priceBookPerShare;
+    }
+    let value = blended == null ? 0 : blended * haircutFactor;
+    if (applyFloor && liquidationFloorPerShare != null && value < liquidationFloorPerShare) {
+      value = liquidationFloorPerShare;
+    }
+    if (value < 0) value = 0;
+    return {
+      fair_value_per_share: Number(value.toFixed(2)),
+      ev_sales_per_share: evSalesPerShare != null ? Number(evSalesPerShare.toFixed(2)) : null,
+      price_book_per_share: priceBookPerShare != null ? Number(priceBookPerShare.toFixed(2)) : null,
+    };
+  };
+
+  const scenarioConfigs = [
+    { name: 'bear', evMultiple: evSalesBand.low, pbMultiple: pbBand.low, applyFloor: true },
+    { name: 'base', evMultiple: evSalesBand.mid, pbMultiple: pbBand.mid, applyFloor: false },
+    { name: 'bull', evMultiple: evSalesBand.high, pbMultiple: pbBand.high, applyFloor: false },
+  ] as const;
+
+  const scenarioOutputs = scenarioConfigs.map((scenario) => {
+    const valued = valueAtMultiples(scenario.evMultiple, scenario.pbMultiple, scenario.applyFloor);
+    return {
+      scenario: scenario.name,
+      assumptions: {
+        ev_sales_multiple: Number(scenario.evMultiple.toFixed(2)),
+        price_book_multiple: Number(scenario.pbMultiple.toFixed(2)),
+        risk_haircut_pct: Number(riskHaircutPct.toFixed(1)),
+        ev_sales_implied_per_share: valued.ev_sales_per_share,
+        price_book_implied_per_share: valued.price_book_per_share,
+      },
+      fair_value_per_share: valued.fair_value_per_share,
+    };
+  });
+  const bear = scenarioOutputs.find((row) => row.scenario === 'bear') || null;
+  const base = scenarioOutputs.find((row) => row.scenario === 'base') || null;
+  const bull = scenarioOutputs.find((row) => row.scenario === 'bull') || null;
+  const lowFairValue = bear?.fair_value_per_share ?? null;
+  const midFairValue = base?.fair_value_per_share ?? null;
+  const highFairValue = bull?.fair_value_per_share ?? null;
+  const upsidePctToMid = Number.isFinite(Number(currentPrice)) && Number.isFinite(Number(midFairValue)) && Number(currentPrice)
+    ? ((Number(midFairValue) - Number(currentPrice)) / Number(currentPrice)) * 100
+    : null;
+  const priceVsValueJudgment = buildValuationPriceJudgment(currentPrice, midFairValue);
+  const primaryLeg = canEvSales && canPriceBook ? 'ev_sales_and_price_book' : canEvSales ? 'ev_sales' : 'price_book';
+
+  const result = {
+    symbol: ledgerBase?.symbol || null,
+    company_name: companyName,
+    engine: 'relative_multiples_valuation_engine',
+    valuation_method: config.valuation_method,
+    valuation_engine_class: config.engine_class,
+    analysis_mode: evidenceAssessment.analysisMode,
+    confidence_level: 'low',
+    normalized_relative_base: {
+      annual_revenue: annualRevenue,
+      shares_outstanding: sharesOutstanding,
+      net_debt: netDebt,
+      book_value_per_share: bookValuePerShare,
+      free_cash_flow: freeCashFlow,
+      market_cap: marketCap,
+      sector: sectorRaw,
+      sector_ev_sales_band: evSalesBand,
+      sector_price_book_band: pbBand,
+      primary_leg: primaryLeg,
+      risk_haircut_pct: Number(riskHaircutPct.toFixed(1)),
+      liquidation_floor_per_share: liquidationFloorPerShare != null ? Number(liquidationFloorPerShare.toFixed(2)) : null,
+      current_price: currentPrice,
+    },
+    base_case_assumptions: base?.assumptions || null,
+    bear_case_assumptions: bear?.assumptions || null,
+    bull_case_assumptions: bull?.assumptions || null,
+    scenario_outputs: scenarioOutputs,
+    fair_value_range: {
+      low_per_share: lowFairValue,
+      mid_per_share: midFairValue,
+      high_per_share: highFairValue,
+      current_price: currentPrice,
+      current_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+      low_display: toMoneyString(lowFairValue),
+      mid_display: toMoneyString(midFairValue),
+      high_display: toMoneyString(highFairValue),
+    },
+    key_sensitivities: [
+      canEvSales ? `EV/Sales of about ${Number(evSalesBand.mid.toFixed(1))}x on revenue of ${toMoneyString(annualRevenue)} (net debt ${toMoneyString(netDebt)}).` : 'No usable revenue/share base for an EV/Sales read.',
+      canPriceBook ? `Price/Book of about ${Number(pbBand.mid.toFixed(1))}x on book value per share of ${toMoneyString(bookValuePerShare)}.` : 'No usable book value for a Price/Book read.',
+      `A risk haircut of about ${toPctString(riskHaircutPct)} is applied for quality, leverage, and cash-flow risk.`,
+      'This is a wide, low-confidence band; dilution, going-concern, and covenant risk are only partially captured.',
+    ],
+    model_limitations: config.model_limitations,
+    price_vs_value_judgment: {
+      judgment: priceVsValueJudgment,
+      summary: priceVsValueJudgment === 'undervalued'
+        ? 'The relative-multiple and asset-floor read suggests the stock trades below a reasonable peer-multiple range.'
+        : priceVsValueJudgment === 'overvalued'
+          ? 'The stock trades above what the current relative-multiple and asset-floor read appears to justify.'
+          : priceVsValueJudgment === 'roughly_fair'
+            ? 'The current price is near the relative-multiple midpoint.'
+            : 'Price versus value could not be judged cleanly from the current relative-multiple inputs.',
+      current_price: currentPrice,
+      midpoint_fair_value: midFairValue,
+      upside_to_midpoint_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    supporting_context: {
+      earnings_quality_grade: earningsQuality?.earnings_quality_grade || null,
+      financial_analysis_value_view: financialAnalysis?.price_vs_value_judgment?.judgment || null,
+      sector: sectorRaw,
+      industry: trimString(snapshot.industry),
+      market_cap: marketCap,
+      debt_to_equity: debtToEquity,
+      valuation_gap_pct: Number.isFinite(Number(upsidePctToMid)) ? Number(Number(upsidePctToMid).toFixed(2)) : null,
+    },
+    special_situations: {
+      corporate_action: corporateAction,
+      hard_flags: hardFlags,
+      primary_hard_flag: hardFlags[0] || null,
+    },
+    recommended_methods: [
+      'ev_sales_vs_peers',
+      'price_to_book_vs_peers',
+      'tangible_book_or_nav_floor',
+      'dilution_and_runway_check',
+    ],
+  };
+  return {
+    ...result,
+    valuation_audit: buildValuationAudit(result, 'relative_multiples'),
   };
 }
 
@@ -3452,6 +4047,9 @@ export function runValuationEngine(
   }
   if (engineClass === 'sales_scenario') {
     return runSalesScenarioValuationEngine(ledgerBase, options);
+  }
+  if (engineClass === 'relative_multiples') {
+    return runRelativeMultiplesValuationEngine(ledgerBase, options);
   }
   return runDcfValuationEngine(ledgerBase, options);
 }

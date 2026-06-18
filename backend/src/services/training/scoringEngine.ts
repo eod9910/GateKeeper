@@ -37,15 +37,17 @@ export function computeOutcomeScore(resolution?: ForwardResolution): number {
 
 export function summarizeSessionStats(attempts: TrainingAttempt[], cooldownUntil?: string | null): TrainingSessionStats {
   const resolved = attempts.filter((attempt) => attempt.status === 'resolved' && attempt.resolution);
-  const wins = resolved.filter((attempt) => (attempt.resolution?.rMultiple || 0) > 0).length;
-  const losses = resolved.filter((attempt) => (attempt.resolution?.rMultiple || 0) <= 0).length;
-  const totalR = resolved.reduce((sum, attempt) => sum + (attempt.resolution?.rMultiple || 0), 0);
+  const filled = resolved.filter((a) => a.resolution?.entryHit && a.resolution?.exitReason !== 'no_fill');
+  const wins = filled.filter((attempt) => (attempt.resolution?.rMultiple || 0) > 0).length;
+  const losses = filled.filter((attempt) => (attempt.resolution?.rMultiple || 0) <= 0).length;
+  const totalR = filled.reduce((sum, attempt) => sum + (attempt.resolution?.rMultiple || 0), 0);
   const totalProcess = attempts.reduce((sum, attempt) => sum + (attempt.scoreSnapshot?.processScore || computeProcessScore(attempt.ruleEvaluations)), 0);
   const attemptsCount = attempts.length;
   const resolvedCount = resolved.length;
-  const winRate = resolvedCount ? (wins / resolvedCount) * 100 : 0;
-  const avgR = resolvedCount ? totalR / resolvedCount : 0;
-  const expectancy = resolvedCount ? totalR / resolvedCount : 0;
+  const filledCount = filled.length;
+  const winRate = filledCount ? (wins / filledCount) * 100 : 0;
+  const avgR = filledCount ? totalR / filledCount : 0;
+  const expectancy = filledCount ? totalR / filledCount : 0;
   const processAdherence = attemptsCount ? totalProcess / attemptsCount : 0;
   const recent = attempts.slice(-5);
   const recentProcess = recent.length
@@ -53,8 +55,6 @@ export function summarizeSessionStats(attempts: TrainingAttempt[], cooldownUntil
     : 0;
 
   // TP hit-rate tracking: among filled trades, how often was each TP level reached?
-  const filled = resolved.filter((a) => a.resolution?.entryHit);
-  const filledCount = filled.length;
   const tp1Hits = filled.filter((a) => a.resolution?.exitReason === 'tp_hit').length;
   const tp2Hits = filled.filter((a) => a.resolution?.tp2?.hit).length;
   const tp3Hits = filled.filter((a) => a.resolution?.tp3?.hit).length;

@@ -43,6 +43,17 @@ import {
 import { buildResearchCatalogSnapshot } from '../services/researchCatalogService';
 import { getValuationBacktestStatus, runValuationBacktest } from '../services/valuationBacktestService';
 import { getValuationSignalStrategyStatus, runValuationSignalStrategy } from '../services/valuationSignalStrategyService';
+import {
+  compareFundamentalBacktestRuns,
+  getFundamentalBacktestRun,
+  getFundamentalSweepSession,
+  getFundamentalBacktestStatus,
+  listFundamentalBacktestRuns,
+  promoteFundamentalRunToSweep,
+  promoteFundamentalSweepWinnerToStrategy,
+  runFundamentalBacktest,
+  runFundamentalSweepSession,
+} from '../services/fundamentalBacktestService';
 
 const router = Router();
 
@@ -124,6 +135,104 @@ router.post('/valuation-signal-strategy/run', (req: Request, res: Response) => {
 });
 
 // ─── POST /sessions ───────────────────────────────────────────────────────────
+
+router.get('/fundamental-backtest', (_req: Request, res: Response) => {
+  try {
+    res.json({ success: true, data: getFundamentalBacktestStatus() });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/fundamental-backtest/run', (req: Request, res: Response) => {
+  try {
+    const payload = runFundamentalBacktest(req.body || {});
+    res.json({ success: true, data: payload });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/fundamental-backtest/runs', (req: Request, res: Response) => {
+  try {
+    const limit = Number.isFinite(Number(req.query.limit)) ? Number(req.query.limit) : 50;
+    res.json({ success: true, data: listFundamentalBacktestRuns(limit) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/fundamental-backtest/runs/:id', (req: Request, res: Response) => {
+  try {
+    const run = getFundamentalBacktestRun(req.params.id);
+    if (!run) return res.status(404).json({ success: false, error: 'Saved run not found' });
+    res.json({ success: true, data: run });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/fundamental-backtest/runs/:id/promote-sweep', async (req: Request, res: Response) => {
+  try {
+    const session = promoteFundamentalRunToSweep(req.params.id);
+    const payload = await promoteFundamentalSweepWinnerToStrategy(session.session_id);
+    res.json({
+      success: true,
+      data: {
+        session: payload.session,
+        session_id: payload.session.session_id,
+        strategy_version_id: payload.strategy_version_id,
+        url: `/parameter-sweep?strategy_version_id=${encodeURIComponent(payload.strategy_version_id)}`,
+      },
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/fundamental-backtest/sweep-sessions/:id', (req: Request, res: Response) => {
+  try {
+    const session = getFundamentalSweepSession(req.params.id);
+    if (!session) return res.status(404).json({ success: false, error: 'Fundamental sweep session not found' });
+    res.json({ success: true, data: session });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/fundamental-backtest/sweep-sessions/:id/run', (req: Request, res: Response) => {
+  try {
+    const session = runFundamentalSweepSession(req.params.id, req.body?.sweep_params);
+    res.json({ success: true, data: session });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/fundamental-backtest/sweep-sessions/:id/promote-strategy', async (req: Request, res: Response) => {
+  try {
+    const variantId = typeof req.body?.variant_id === 'string' ? req.body.variant_id.trim() : '';
+    const payload = await promoteFundamentalSweepWinnerToStrategy(req.params.id, variantId || undefined);
+    res.json({
+      success: true,
+      data: {
+        ...payload,
+        url: `/validator.html?strategy_version_id=${encodeURIComponent(payload.strategy_version_id)}`,
+      },
+    });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/fundamental-backtest/runs/compare', (req: Request, res: Response) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    res.json({ success: true, data: compareFundamentalBacktestRuns(ids) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 router.post('/sessions', async (req: Request, res: Response) => {
   try {

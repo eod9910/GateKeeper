@@ -90,6 +90,7 @@ export type SymbolTheme =
 export type ValuationEngineClass =
   | 'roe_book_value'
   | 'reit_affo'
+  | 'asset_manager_fre'
   | 'sales_scenario'
   | 'special_situation'
   | 'dcf_operating'
@@ -711,19 +712,6 @@ export function classifyCompanyFromSnapshot(snapshot: Record<string, any> | null
   })();
   (consumerProfile as any).consumerCycleBucket = bucketForCategory(consumerProfile.consumerSpendingCategory);
 
-  if (/\bfinancial\b|\bbank\b|\bbanks\b|\binsurance\b|\bcredit\b|\blender\b|\blending\b|\bmortgage\b|\basset management\b|\bcapital markets\b|\bconsumer finance\b/.test(haystack)) {
-    return {
-      sector,
-      industry,
-      companyType: 'financial_company',
-      valuationEngineClass: 'roe_book_value',
-      classificationSource: 'snapshot_rule',
-      classificationConfidence: 0.92,
-      themeMemberships,
-      ...consumerProfile,
-    };
-  }
-
   if (/\breit\b|\breal estate investment trust\b/.test(haystack)) {
     return {
       sector,
@@ -732,6 +720,32 @@ export function classifyCompanyFromSnapshot(snapshot: Record<string, any> | null
       valuationEngineClass: 'reit_affo',
       classificationSource: 'snapshot_rule',
       classificationConfidence: 0.9,
+      themeMemberships,
+      ...consumerProfile,
+    };
+  }
+
+  const capitalLightFinancial = /\b(asset management|investment management|wealth management|alternative asset|private equity|investment advisory|fund manager|capital markets)\b/.test(haystack);
+  if (capitalLightFinancial) {
+    return {
+      sector,
+      industry,
+      companyType: 'operating_company',
+      valuationEngineClass: 'asset_manager_fre',
+      classificationSource: 'snapshot_rule',
+      classificationConfidence: 0.88,
+      themeMemberships,
+      ...consumerProfile,
+    };
+  }
+  if (!capitalLightFinancial && /\bfinancial\b|\bbank\b|\bbanks\b|\binsurance\b|\bcredit\b|\blender\b|\blending\b|\bmortgage\b|\bconsumer finance\b/.test(haystack)) {
+    return {
+      sector,
+      industry,
+      companyType: 'financial_company',
+      valuationEngineClass: 'roe_book_value',
+      classificationSource: 'snapshot_rule',
+      classificationConfidence: 0.92,
       themeMemberships,
       ...consumerProfile,
     };

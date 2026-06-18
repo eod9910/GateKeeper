@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import argparse
 import copy
-import contextlib
 import hashlib
-import io
 import json
 import math
 import multiprocessing
@@ -35,15 +33,10 @@ _tl = threading.local()
 # overwhelming the machine on large universes.
 _N_BACKTEST_WORKERS = max(1, min(3, int(os.getenv("BACKTEST_WORKERS", "3"))))
 
-try:
-    import yfinance as yf
-except Exception:
-    yf = None
-
 from backtestEngine import run_backtest_on_bars, trades_to_dicts, _entry_signal_indices_from_spec, _safe_float
 from robustnessTests import expectancy, out_of_sample, walk_forward, monte_carlo
 from fundamentals_pit_query import run_fundamental_validation, run_valuation_state_validation
-from platform_sdk.ohlcv import OHLCV
+from platform_sdk.ohlcv import OHLCV, fetch_data_yfinance
 from platform_sdk.rdp import clear_rdp_cache, clear_rdp_precomputed, rdp_cache_stats, set_backtest_mode as _set_rdp_backtest_mode
 from platform_sdk.swing_structure import set_backtest_mode as _set_swing_backtest_mode
 
@@ -632,6 +625,7 @@ _TIER_TRADE_THRESHOLDS: Dict[str, Dict[str, int]] = {
     "tier2": {"min_trades_pass": 500, "min_trades_fail": 300},
     # Robustness/stress layer expects deeper sample size.
     "tier3": {"min_trades_pass": 800, "min_trades_fail": 400},
+    "clean": {"min_trades_pass": 50, "min_trades_fail": 30},
     # Custom large cap universe — treated like Tier 1, no sensitivity.
     "large_cap_known": {"min_trades_pass": 300, "min_trades_fail": 150},
     # Index-based universes — baseline only, no sensitivity, scaled thresholds.
@@ -792,71 +786,60 @@ def _load_known_live_symbols() -> set[str]:
     return _KNOWN_LIVE_SYMBOLS
 
 
-def _aggregate_bars_dicts(bars: List[Dict[str, Any]], factor: int) -> List[Dict[str, Any]]:
-    """Aggregate 1h bars into N-hour bars (e.g. factor=4 for 4h)."""
-    if factor <= 1 or not bars:
-        return bars
-    out: List[Dict[str, Any]] = []
-    for i in range(0, len(bars), factor):
-        chunk = bars[i : i + factor]
-        if not chunk:
-            break
-        agg = {
-            "timestamp": chunk[0]["timestamp"],
-            "open": chunk[0]["open"],
-            "high": max(b["high"] for b in chunk),
-            "low": min(b["low"] for b in chunk),
-            "close": chunk[-1]["close"],
-        }
-        out.append(agg)
-    return out
-
-
-_OHLCV_REDIRECT_LOCK = threading.Lock()
+def _parse_bar_datetime(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            candidate = datetime.strptime(text[:25] if "%z" in fmt else text[:19 if "%H" in fmt else 10], fmt)
+            return candidate.replace(tzinfo=None)
+        except Exception:
+            pass
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return None
 
 
 def load_ohlcv(symbol: str, interval: str, date_start: str, date_end: str) -> tuple[List[Dict[str, Any]], str]:
-    if yf is None:
-        raise RuntimeError("yfinance is not installed")
+    try:
+        start_dt = datetime.strptime(str(date_start)[:10], "%Y-%m-%d")
+        end_dt = datetime.strptime(str(date_end)[:10], "%Y-%m-%d")
+    except Exception:
+        return [], "no_data"
 
-    needs_aggregation = interval == "4h"
-    yahoo_interval = "1h" if needs_aggregation else interval
+    if end_dt <= start_dt:
+        return [], "no_data"
 
-    # redirect_stderr/redirect_stdout swap the global sys.stderr/stdout which
-    # is not thread-safe. Serialize only the redirect section so the
-    # diagnostic capture doesn't cross-contaminate between threads. The
-    # yfinance HTTP I/O itself still releases the GIL for network wait.
-    stderr_buf = io.StringIO()
-    stdout_buf = io.StringIO()
-    with _OHLCV_REDIRECT_LOCK:
-        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(stdout_buf):
-            df = yf.download(symbol, start=date_start, end=date_end, interval=yahoo_interval, progress=False, auto_adjust=False)
-    diag = (stderr_buf.getvalue() + "\n" + stdout_buf.getvalue()).strip()
-    if df is None or len(df) == 0:
-        if _is_invalid_symbol_diag(diag):
-            if str(symbol or "").strip().upper() in _load_known_live_symbols():
-                return [], "no_data"
+    span_days = max(1, (end_dt - start_dt).days)
+    fetch_years = max(1, math.ceil((span_days + 14) / 365))
+    period = "max" if fetch_years >= 10 else f"{fetch_years}y"
+
+    try:
+        source_bars = fetch_data_yfinance(symbol, period=period, interval=interval) or []
+    except Exception:
+        if str(symbol or "").strip().upper() not in _load_known_live_symbols():
             return [], "invalid_symbol"
         return [], "no_data"
 
     bars: List[Dict[str, Any]] = []
-    def _coerce_num(v: Any) -> float:
-        if hasattr(v, "iloc"):
-            return float(v.iloc[0])
-        return float(v)
-
-    for idx, row in df.iterrows():
-        ts = idx.to_pydatetime().strftime("%Y-%m-%d %H:%M:%S")
-        o = _coerce_num(row.get("Open", row.get("open", 0.0)))
-        h = _coerce_num(row.get("High", row.get("high", 0.0)))
-        l = _coerce_num(row.get("Low", row.get("low", 0.0)))
-        c = _coerce_num(row.get("Close", row.get("close", 0.0)))
-        if any(math.isnan(v) for v in [o, h, l, c]):
+    for bar in source_bars:
+        ts = str(getattr(bar, "timestamp", "") or "")
+        parsed = _parse_bar_datetime(ts)
+        if parsed is None or parsed < start_dt or parsed >= end_dt:
             continue
-        bars.append({"timestamp": ts, "open": o, "high": h, "low": l, "close": c})
-
-    if needs_aggregation:
-        bars = _aggregate_bars_dicts(bars, 4)
+        try:
+            o = float(getattr(bar, "open", 0.0))
+            h = float(getattr(bar, "high", 0.0))
+            l = float(getattr(bar, "low", 0.0))
+            c = float(getattr(bar, "close", 0.0))
+            v = float(getattr(bar, "volume", 0.0) or 0.0)
+        except Exception:
+            continue
+        if any(math.isnan(vv) for vv in [o, h, l, c]):
+            continue
+        bars.append({"timestamp": ts, "open": o, "high": h, "low": l, "close": c, "volume": v})
 
     if not bars:
         return [], "no_data"
@@ -1063,9 +1046,16 @@ def _pass_fail_tier1(
     review_reasons: List[str] = []
 
     if ts["total_trades"] < thresholds["min_trades_fail"]:
-        review_reasons.append(
-            f"Too few trades for {tier_label} confidence: {ts['total_trades']} < {thresholds['min_trades_fail']}"
+        reason = (
+            "Insufficient trade sample. Expectancy and Monte Carlo statistics are not reliable: "
+            f"{ts['total_trades']} < {thresholds['min_trades_fail']}"
         )
+        if ts["expectancy_R"] > 0:
+            return {
+                "verdict": "PROMISING_BUT_NOT_VALIDATED",
+                "reasons": [reason, f"Positive expectancy ({ts['expectancy_R']:.3f}R), but the sample is too small to validate."],
+            }
+        return {"verdict": "INSUFFICIENT_DATA", "reasons": [reason]}
     if ts["expectancy_R"] <= thresholds.get("min_expectancy_R", 0.0):
         if is_small:
             hard_reasons.append(
@@ -1213,6 +1203,8 @@ def run_pipeline(
     validation_tier: str = "tier3",
     job_id: str | None = None,
     force_refresh: bool = False,
+    evidence_mode: str | None = None,
+    evidence_target_trades: int | None = None,
 ) -> Dict[str, Any]:
     # Clear RDP caches at the start of each run so a fresh run isn't polluted
     # by a prior run's data (different date ranges → different bar arrays).
@@ -1258,17 +1250,23 @@ def run_pipeline(
         "valuation_regime_fair_sample100",
         "valuation_regime_overvalued_sample100",
     )
-    _VALID_TIERS = ("tier1", "tier1b", "tier1s", "tier1bs", "tier2", "tier3",
+    _VALID_TIERS = ("tier1", "tier1b", "tier1s", "tier1bs", "tier2", "tier3", "clean",
                     "large_cap_known", "sp500", "sp400", "sp600") + _REGIME_TIERS + _VALUATION_SAMPLE_TIERS
     if tier_key not in _VALID_TIERS:
         tier_key = "tier3"
     thresholds = _validator_thresholds(spec, tier_key, universe_size=len(symbols))
-    is_tier1_fast = tier_key in ("tier1", "tier1b", "tier1s", "tier1bs", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS or tier_key in _VALUATION_SAMPLE_TIERS
-    tier1_skip_sensitivity = tier_key in ("tier1", "tier1b", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS or tier_key in _VALUATION_SAMPLE_TIERS
+    evidence_target = int(evidence_target_trades or 0)
+    if evidence_target > 0:
+        thresholds["min_trades_pass"] = evidence_target
+        thresholds["min_trades_fail"] = min(30, evidence_target)
+        thresholds["evidence_target_trades"] = evidence_target
+    is_tier1_fast = tier_key in ("tier1", "tier1b", "tier1s", "tier1bs", "clean", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS or tier_key in _VALUATION_SAMPLE_TIERS
+    tier1_skip_sensitivity = tier_key in ("tier1", "tier1b", "clean", "large_cap_known", "sp500", "sp400", "sp600") or tier_key in _REGIME_TIERS or tier_key in _VALUATION_SAMPLE_TIERS
     evidence_tier_label = (
         "Tier 1S" if tier_key == "tier1s"
         else "Tier 1BS" if tier_key == "tier1bs"
         else "Tier 1B" if tier_key == "tier1b"
+        else "Clean 500" if tier_key == "clean"
         else "Sample 100" if tier_key in _VALUATION_SAMPLE_TIERS
         else "Tier 1"
     )
@@ -1278,6 +1276,7 @@ def run_pipeline(
     data_cache: Dict[str, List[Dict[str, Any]]] = {}
     all_trades: List[Dict[str, Any]] = []
     all_trades_no_rules: List[Dict[str, Any]] = []
+    max_concurrent = int((spec.get("risk_config") or {}).get("max_concurrent_positions", 0))
     exec_totals = {
         "breakeven_triggers": 0,
         "ladder_lock_triggers": 0,
@@ -1406,9 +1405,11 @@ def run_pipeline(
         _emit_progress(0.25, "saving_snapshot", f"Snapshot saved: {os.path.basename(snapshot_path)}")
 
     # Stage 2: parallel baseline backtests from local snapshot.
+    can_early_stop_for_evidence = evidence_target > 0 and max_concurrent <= 0
+    baseline_workers = 1 if can_early_stop_for_evidence else _N_BACKTEST_WORKERS
     _emit_progress(
         0.25, "running_backtest",
-        f"Running baseline backtests from snapshot ({n_symbols} symbols, {_N_BACKTEST_WORKERS} workers)...",
+        f"Running baseline backtests from snapshot ({n_symbols} symbols, {baseline_workers} workers)...",
     )
 
     # Separate symbols that have data from those that don't.
@@ -1427,7 +1428,7 @@ def run_pipeline(
 
     processed_data_cache: Dict[str, List[Dict[str, Any]]] = {}
     with ProcessPoolExecutor(
-        max_workers=_N_BACKTEST_WORKERS,
+        max_workers=baseline_workers,
         initializer=_worker_init,
     ) as executor:
         future_to_sym = {
@@ -1458,7 +1459,7 @@ def run_pipeline(
             avg_bt = statistics.mean(_backtest_times)
             remaining = n_symbols - n_completed
             # With parallel workers the effective wall-clock remaining is shorter
-            eta = (remaining / _N_BACKTEST_WORKERS) * avg_bt + extra_passes_after_baseline * n_symbols * avg_bt
+            eta = (remaining / baseline_workers) * avg_bt + extra_passes_after_baseline * n_symbols * avg_bt
             detail = f"Backtested {sym} ({n_completed}/{n_symbols})"
             if result["error"]:
                 detail += f" - error: {result['error'][:60]}"
@@ -1486,14 +1487,29 @@ def run_pipeline(
             exec_totals["pct_trades_hitting_scale_out_sum"] += float(es.get("pct_trades_hitting_scale_out", 0.0))
             exec_totals["symbols_counted"] += 1
 
+            if can_early_stop_for_evidence and len(all_trades) >= evidence_target:
+                tier1_early_stop_reason = f"Evidence target reached: {len(all_trades)} >= {evidence_target} trades."
+                for f in future_to_sym:
+                    f.cancel()
+                _emit_progress(
+                    0.25 + (n_completed / n_symbols) * baseline_progress_span,
+                    "running_backtest",
+                    tier1_early_stop_reason,
+                )
+                break
+
     # Portfolio-level filter: max concurrent positions
-    max_concurrent = int((spec.get("risk_config") or {}).get("max_concurrent_positions", 0))
     if max_concurrent > 0 and len(all_trades) > 0:
         all_trades = _filter_max_concurrent(all_trades, max_concurrent)
         if not is_tier1_fast:
             all_trades_no_rules = _filter_max_concurrent(all_trades_no_rules, max_concurrent)
 
     ts = _trade_summary(all_trades)
+    evidence_symbols_with_trades = {
+        str(t.get("symbol") or "").strip().upper()
+        for t in all_trades
+        if str(t.get("symbol") or "").strip()
+    }
     r_vals = [float(t.get("R_multiple", 0.0)) for t in all_trades]
     streak = _streaks(r_vals)
     risk = _risk_metrics(r_vals, r_to_pct=thresholds["r_to_pct"])
@@ -1651,27 +1667,44 @@ def run_pipeline(
 
     if is_tier1_fast:
         _emit_progress(0.49, "parameter_sensitivity", f"{evidence_tier_label} baseline complete.")
-        oos = {
-            "is_expectancy": ts["expectancy_R"],
-            "is_n": ts["total_trades"],
-            "oos_expectancy": ts["expectancy_R"],
-            "oos_n": ts["total_trades"],
-            "split_date": date_end,
-            "oos_degradation_pct": 0.0,
-        }
-        wf = {
-            "windows": [],
-            "avg_test_expectancy": ts["expectancy_R"],
-            "pct_profitable_windows": 1.0 if ts["expectancy_R"] > 0 else 0.0,
-        }
-        mc = {
-            "simulations": 0,
-            "median_dd_pct": risk["max_drawdown_pct"],
-            "p95_dd_pct": risk["max_drawdown_pct"],
-            "p99_dd_pct": risk["max_drawdown_pct"],
-            "median_final_R": sum(r_vals) if r_vals else 0.0,
-            "p5_final_R": min(r_vals) if r_vals else 0.0,
-        }
+        if ts["total_trades"] >= 30:
+            oos = out_of_sample(all_trades)
+            oos["reliable"] = bool(oos.get("is_n", 0) >= 8 and oos.get("oos_n", 0) >= 8)
+            oos["reliability_note"] = "Time-based OOS split computed from fast-tier trades." if oos["reliable"] else "OOS unreliable: each side needs at least 8 trades."
+            wf = walk_forward(all_trades)
+            wf["reliable"] = bool(wf.get("windows"))
+            wf["reliability_note"] = "Walk-forward computed from fast-tier trades." if wf["reliable"] else "Walk-forward unreliable: not enough trades for valid windows."
+            mc = monte_carlo(all_trades, simulations=1000, seed=42, r_to_pct=thresholds["r_to_pct"])
+            mc["reliable"] = True
+            mc["reliability_note"] = "Monte Carlo sample is large enough for directional reliability."
+        else:
+            oos = {
+                "is_expectancy": ts["expectancy_R"],
+                "is_n": ts["total_trades"],
+                "oos_expectancy": 0.0,
+                "oos_n": 0,
+                "split_date": date_end,
+                "oos_degradation_pct": 0.0,
+                "reliable": False,
+                "reliability_note": "Insufficient trade sample. Expectancy and OOS statistics are not reliable.",
+            }
+            wf = {
+                "windows": [],
+                "avg_test_expectancy": 0.0,
+                "pct_profitable_windows": 0.0,
+                "reliable": False,
+                "reliability_note": "Insufficient trade sample. Walk-forward statistics are not reliable.",
+            }
+            mc = {
+                "simulations": 0,
+                "median_dd_pct": 0.0,
+                "p95_dd_pct": 0.0,
+                "p99_dd_pct": 0.0,
+                "median_final_R": sum(r_vals) if r_vals else 0.0,
+                "p5_final_R": min(r_vals) if r_vals else 0.0,
+                "reliable": False,
+                "reliability_note": "Insufficient trade sample. Monte Carlo statistics are not reliable.",
+            }
         if tier1_skip_sensitivity:
             _emit_progress(0.88, "parameter_sensitivity", f"{evidence_tier_label} — sensitivity skipped (use Tier 1S to include).")
             sens = {
@@ -1766,6 +1799,16 @@ def run_pipeline(
             },
             "max_concurrent_positions": max_concurrent if max_concurrent > 0 else None,
             "validation_thresholds": thresholds,
+            "evidence_mode": evidence_mode,
+            "evidence_target_trades": evidence_target or None,
+            "evidence_source_universe_size": len(symbols),
+            "evidence_target_reached": bool(evidence_target > 0 and len(all_trades) >= evidence_target),
+            "evidence_symbols_processed": tier1_symbols_processed if is_tier1_fast else n_symbols,
+            "evidence_symbols_with_trades": len(evidence_symbols_with_trades),
+            "evidence_trades_per_processed_symbol": (
+                round(len(all_trades) / max(1, tier1_symbols_processed if is_tier1_fast else n_symbols), 4)
+            ),
+            "evidence_trades_per_source_symbol": round(len(all_trades) / max(1, len(symbols)), 4),
             "tier_runtime_profile": f"{tier_key}_baseline_only" if is_tier1_fast else "full_robustness",
             "tier1_early_stop_reason": tier1_early_stop_reason,
             "tier1_symbols_processed": tier1_symbols_processed if is_tier1_fast else n_symbols,
@@ -1831,13 +1874,24 @@ def main() -> None:
     p.add_argument("--universe", default="")
     p.add_argument("--tier", default="tier3")
     p.add_argument("--force-refresh", action="store_true")
+    p.add_argument("--evidence-mode", default="")
+    p.add_argument("--evidence-target-trades", type=int, default=0)
     args = p.parse_args()
 
     with open(args.spec, "r", encoding="utf-8") as f:
         spec = json.load(f)
 
     universe = [s.strip() for s in args.universe.split(",") if s.strip()] if args.universe else None
-    result = run_pipeline(spec, args.date_start, args.date_end, universe, args.tier, force_refresh=args.force_refresh)
+    result = run_pipeline(
+        spec,
+        args.date_start,
+        args.date_end,
+        universe,
+        args.tier,
+        force_refresh=args.force_refresh,
+        evidence_mode=args.evidence_mode or None,
+        evidence_target_trades=args.evidence_target_trades or None,
+    )
     print(json.dumps(result))
 
 

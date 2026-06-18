@@ -633,6 +633,7 @@ export interface ApiScenarioDetail extends ApiScenarioListItem {
   first_order_effects: OrderEffectSnapshot[];
   second_order_effects: OrderEffectSnapshot[];
   confidence_reasons: string[];
+  consequence_analysis: Record<string, unknown> | null;
   conviction_layer: ConvictionLayer | null;
   affected_sectors: string[];
   affected_assets: string[];

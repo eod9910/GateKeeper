@@ -377,6 +377,53 @@
         "asymmetric_seed": true,
         "priority": "high"
       }
+    },
+    {
+      "concept_key": "frontier_ai_access_controls",
+      "target_type": "event_type",
+      "target_key": "frontier_ai_access_control",
+      "display_label": "Frontier AI export/access controls",
+      "metadata": {
+        "rationale": "Restrictions on frontier model deployment can impair AI lab valuations and downstream AI compute, cloud, data-center, and power-infrastructure capex assumptions.",
+        "search_terms": [
+          "AI export controls",
+          "frontier model export controls",
+          "foreign nationals AI model access",
+          "Anthropic Fable access",
+          "Anthropic Mythos",
+          "AI model licensing regime",
+          "government blocks AI model access",
+          "national security AI model"
+        ],
+        "expected_communities": ["hackernews", "bluesky", "forums", "discord_public"],
+        "watch_tickers": [
+          "NVDA",
+          "AMD",
+          "AVGO",
+          "MRVL",
+          "TSM",
+          "SMCI",
+          "DELL",
+          "ANET",
+          "VRT",
+          "ETN",
+          "GEV",
+          "PWR",
+          "CEG",
+          "VST",
+          "MSFT",
+          "GOOGL",
+          "AMZN",
+          "META",
+          "ORCL",
+          "PLTR",
+          "CRWD",
+          "PANW",
+          "ZS"
+        ],
+        "asymmetric_seed": true,
+        "priority": "high"
+      }
     }
   ]
 }

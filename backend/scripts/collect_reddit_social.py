@@ -24,6 +24,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.services.social_intelligence_db import SocialIntelligenceDb
+from backend.services.social_text_quality import (
+    content_dedup_key as _content_dedup_key,
+    score_spam as _score_spam,
+    classify_topic as _classify_topic,
+)
 
 DATA_DIR = ROOT / "backend" / "data"
 DEFAULT_UNIVERSE_PATH = DATA_DIR / "universe_clean.json"
@@ -232,7 +237,16 @@ def build_clean_and_sentiment(
     bearish_terms = ("bear", "sell", "short", "dump", "miss", "weak", "fraud",
                      "puts", "overvalued", "downside", "crash", "drill", "baghold")
 
+    from collections import Counter as _Counter
+    _dedup_keys: List[Optional[str]] = []
     for post in raw_posts:
+        _bt = _clean_text(post.get("body_text"))
+        _pid = str(post.get("platform_post_id") or "").strip()
+        _plat = str(post.get("platform") or "").strip().lower()
+        _dedup_keys.append(_content_dedup_key(_bt, f"{_plat}:{_pid}"))
+    _dedup_freq = _Counter(k for k in _dedup_keys if k)
+
+    for post, duplicate_group_key in zip(raw_posts, _dedup_keys):
         body_text = _clean_text(post.get("body_text"))
         symbol = str(post.get("symbol") or "").strip().upper()
         platform = str(post.get("platform") or "").strip()
@@ -244,8 +258,15 @@ def build_clean_and_sentiment(
 
         author_key = str(post.get("author_id") or post.get("author_handle") or "").strip().lower() or None
         normalized_text = body_text.lower() if body_text else ""
-        duplicate_group_key = hashlib.md5(normalized_text.encode("utf-8")).hexdigest() if normalized_text else None
         canonical_post_key = f"{platform.lower()}:{platform_post_id}"
+        token_count = len(body_text.split()) if body_text else 0
+        has_ticker_mention = f"${symbol.lower()}" in normalized_text or symbol.lower() in normalized_text
+        is_spam, spam_score = _score_spam(
+            body_text,
+            token_count=token_count,
+            dedup_frequency=_dedup_freq.get(duplicate_group_key, 1),
+            has_ticker_mention=has_ticker_mention,
+        )
 
         clean_posts.append({
             "platform_post_id": platform_post_id,
@@ -256,10 +277,10 @@ def build_clean_and_sentiment(
             "trade_date": trade_date,
             "posted_at": posted_at,
             "cleaned_text": body_text,
-            "token_count": len(body_text.split()) if body_text else 0,
-            "has_ticker_mention": f"${symbol.lower()}" in normalized_text or symbol.lower() in normalized_text,
-            "is_spam": False,
-            "spam_score": 0.0,
+            "token_count": token_count,
+            "has_ticker_mention": has_ticker_mention,
+            "is_spam": is_spam,
+            "spam_score": spam_score,
             "duplicate_group_key": duplicate_group_key,
             "payload": {
                 "platform_post_id": platform_post_id,
@@ -294,7 +315,7 @@ def build_clean_and_sentiment(
             "sentiment_score": sentiment_score,
             "sentiment_confidence": sentiment_confidence,
             "sentiment_model": "keyword_v1_reddit",
-            "topic_label": None,
+            "topic_label": _classify_topic(body_text, is_spam=is_spam),
             "hype_score": 1.0 if is_hype else 0.0,
             "fear_score": 1.0 if is_fear else 0.0,
             "payload": {"platform_post_id": platform_post_id},

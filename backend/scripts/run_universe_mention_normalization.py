@@ -57,13 +57,48 @@ TICKER_BLACKLIST: Set[str] = {
     # Common all-caps words/product terms that are valid tickers but too noisy
     # without an explicit cashtag or company-name context.
     "LIVE", "OLED",
+    # 4-char acronyms/benchmark names that pass the prose length filter but are
+    # almost never deliberate ticker references on HN/forums.
+    "GAIA", "SAAS", "PAAS", "IAAS", "JSON", "HTML", "HTTP", "REST", "CRUD",
+    "STEM",
 }
 
 COMPANY_ALIAS_BLACKLIST: Set[str] = {
     # Generic technology/domain words that are also public-company names.
     # These must be detected through richer context, not raw exact phrase match.
+    # Observed false-positive aliases on long-form prose (HN/forums/4chan):
+    # "frontier models" -> ULCC, "strategy" -> MSTR, "honest answer" -> HNST,
+    # "design pattern" -> PTRN, "popular" -> BPOP, "freedom" -> FRHC,
+    # "target audience" -> TGT, "quantum computing" -> QUBT, etc. These are
+    # common English/tech words that collide constantly; require richer context.
     "interface",
     "quantum",
+    "quantum computing",
+    "frontier",
+    "strategy",
+    "honest",
+    "pattern",
+    "popular",
+    "freedom",
+    "target",
+    "coffee",
+    "bandwidth",
+    "square",
+    "signal",
+    # Second-tier common-word aliases surfaced by dry-run validation:
+    # "universal" -> UVV, "innovate" -> VATE, "employers" -> EIG,
+    # "vertex" -> VERX (graph/3D vertex), "reliance" -> RS, "coherent" -> COHR.
+    "universal",
+    "innovate",
+    "employers",
+    "vertex",
+    "reliance",
+    "coherent",
+    # Third-tier: common HN/programmer vocabulary that are also company names.
+    # "integer" -> ITGR, "graham" -> GHC (Paul Graham), "fossil" -> FOSL.
+    "integer",
+    "graham",
+    "fossil",
 }
 
 COMPANY_SUFFIX_RE = re.compile(
@@ -77,6 +112,24 @@ COMPANY_SUFFIX_RE = re.compile(
 PUNCT_RE = re.compile(r"[^a-z0-9$]+")
 CASHTAG_RE = re.compile(r"\$([A-Z][A-Z0-9]{0,5})\b")
 BARE_TICKER_RE = re.compile(r"\b([A-Z]{2,5})\b")
+
+
+# Sources where a bare all-caps token is a deliberate ticker reference (retail
+# cashtag culture). On long-form prose (HN, forums, 4chan, news, YouTube,
+# Reddit) bare acronyms are overwhelmingly English/tech jargon (UI, AGI, CC,
+# OS, CI, CV, OSS, CTO, MS, IP, DB, VS ...), so bare-ticker matching is
+# restricted there — see match_hit.
+TICKER_NATIVE_SOURCE_PREFIXES = ("stocktwits", "yahoo_community")
+# On prose sources, only accept bare tickers at least this long. The observed
+# acronym false positives are all 2-3 chars; legit prose ticker references
+# (NVDA, TSLA, MSFT, GOOGL, AMZN, PLTR ...) are 4+. Cashtags ($AMD) and company
+# aliases ("advanced micro devices") still catch shorter names.
+PROSE_BARE_TICKER_MIN_LEN = 4
+
+
+def allows_bare_ticker(source_type: str) -> bool:
+    st = str(source_type or "").lower()
+    return any(st.startswith(p) for p in TICKER_NATIVE_SOURCE_PREFIXES)
 
 
 def now_unix() -> int:
@@ -271,11 +324,17 @@ def match_hit(
             key = (symbol, "ticker_cashtag", f"${symbol}")
             matches[key] = {"symbol": symbol, "method": "ticker_cashtag", "text": f"${symbol}"}
 
+    native_source = allows_bare_ticker(str(row["source_type"]))
     for match in BARE_TICKER_RE.finditer(text):
         symbol = match.group(1).upper()
-        if symbol in symbols and symbol not in TICKER_BLACKLIST:
-            key = (symbol, "ticker_bare", symbol)
-            matches[key] = {"symbol": symbol, "method": "ticker_bare", "text": symbol}
+        if symbol not in symbols or symbol in TICKER_BLACKLIST:
+            continue
+        # Prose: reject short bare tokens (2-3 chars) — almost always acronyms
+        # (UI/CC/OS/CI/CV/OSS/AGI/CTO/MS/IP/DB/VS), not deliberate tickers.
+        if not native_source and len(symbol) < PROSE_BARE_TICKER_MIN_LEN:
+            continue
+        key = (symbol, "ticker_bare", symbol)
+        matches[key] = {"symbol": symbol, "method": "ticker_bare", "text": symbol}
 
     # Alias matching is intentionally conservative: exact normalized phrase
     # with whitespace boundaries, no substring matching inside words.

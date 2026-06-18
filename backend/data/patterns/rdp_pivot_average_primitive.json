@@ -1,0 +1,109 @@
+{
+  "pattern_id": "rdp_pivot_average_primitive",
+  "name": "RDP Pivot Average (Primitive)",
+  "category": "price_action",
+  "description": "Anchor-structure indicator that averages the last N RDP pivot prices, plots each rolling average at the newest pivot, and connects those averages as a chart baseline.",
+  "author": "system",
+  "version": "1.0.0",
+  "plugin_file": "plugins/rdp_pivot_average_primitive.py",
+  "plugin_function": "run_rdp_pivot_average_primitive_plugin",
+  "pattern_type": "rdp_pivot_average_primitive",
+  "chart_indicator": true,
+  "default_structure_config": {
+    "swing_method": "rdp",
+    "swing_epsilon_pct": 0.05
+  },
+  "default_setup_params": {
+    "pattern_type": "rdp_pivot_average_primitive",
+    "pivot_window": 3,
+    "swing_epsilon_pct": 0.05,
+    "use_exact_epsilon": false,
+    "pivot_source": "auto",
+    "lookback_bars": 500,
+    "show_rdp_path": true,
+    "extend_to_latest_bar": true,
+    "signal_direction": "cross_above"
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "pivot_window",
+      "label": "Pivot Average Window",
+      "type": "int",
+      "min": 2,
+      "max": 12,
+      "default": 3,
+      "description": "Number of consecutive RDP pivot prices to average into each plotted baseline point."
+    },
+    {
+      "key": "swing_epsilon_pct",
+      "label": "RDP Epsilon",
+      "type": "float",
+      "min": 0.005,
+      "max": 0.2,
+      "step": 0.005,
+      "default": 0.05,
+      "description": "RDP sensitivity as a fraction of price range. Higher values keep fewer, larger pivots."
+    },
+    {
+      "key": "use_exact_epsilon",
+      "label": "Use Exact Epsilon",
+      "type": "bool",
+      "default": false,
+      "description": "When enabled, bypasses adaptive RDP epsilon selection and uses the configured epsilon directly."
+    },
+    {
+      "key": "pivot_source",
+      "label": "Pivot Source",
+      "type": "enum",
+      "options": ["auto", "structure", "rdp"],
+      "default": "auto",
+      "description": "auto prefers precomputed structure pivots when available, otherwise runs RDP fresh."
+    },
+    {
+      "key": "lookback_bars",
+      "label": "Lookback Window",
+      "type": "int",
+      "min": 50,
+      "max": 2000,
+      "default": 500,
+      "description": "Only use RDP pivots inside the last N bars."
+    },
+    {
+      "key": "show_rdp_path",
+      "label": "Show RDP Path",
+      "type": "bool",
+      "default": true,
+      "description": "Draw the underlying RDP pivot path as a dashed reference line."
+    },
+    {
+      "key": "extend_to_latest_bar",
+      "label": "Extend To Latest Bar",
+      "type": "bool",
+      "default": true,
+      "description": "Extend the latest pivot average horizontally to the current bar so the baseline remains visible at the chart edge."
+    },
+    {
+      "key": "signal_direction",
+      "label": "Signal Direction",
+      "type": "enum",
+      "options": ["cross_above", "cross_below"],
+      "default": "cross_above",
+      "description": "Backtest signal mode: close crossing above or below the current RDP pivot average baseline."
+    }
+  ],
+  "suggested_timeframes": ["D", "W", "4H", "1H"],
+  "min_data_bars": 100,
+  "status": "experimental",
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "anchor_structure",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "moderate",
+  "search_tags": ["rdp", "pivot", "average", "baseline", "swing", "structure", "trend"],
+  "source_kind": "native"
+}

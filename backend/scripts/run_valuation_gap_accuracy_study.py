@@ -78,6 +78,7 @@ class StudyObservation:
     operating_margin_pct: Optional[float]
     free_cash_flow_margin_pct: Optional[float]
     current_ratio: Optional[float]
+    debt_to_equity: Optional[float]
     quality_grade: str
     quality_score: int
     horizon_returns: Dict[int, Optional[float]]
@@ -527,6 +528,30 @@ def _valuation_state(gap_pct: float, threshold_pct: float) -> str:
     return "roughly_fair"
 
 
+# Valuation reliability guardrails (mirror build_universe_valuation_snapshot.py). Non-investable
+# nano / sub-penny names and implausible gaps are not actionable signals: a fair value over a
+# near-zero price manufactures absurd percentages that historically blew up the short sleeve.
+# When the guard is enabled these observations are tagged 'unrated' so the strategy/portfolio
+# selectors (which only trade 'undervalued' / 'overvalued') will skip them.
+VALUATION_RELIABLE_MIN_PRICE = 1.0
+VALUATION_RELIABLE_MIN_MARKET_CAP = 25_000_000.0
+VALUATION_RELIABLE_MAX_ABS_GAP_PCT = 300.0
+
+
+def _is_unreliable_valuation(
+    price: Optional[float],
+    market_cap: Optional[float],
+    gap_pct: float,
+) -> bool:
+    if price is None or float(price) < VALUATION_RELIABLE_MIN_PRICE:
+        return True
+    if market_cap is not None and market_cap < VALUATION_RELIABLE_MIN_MARKET_CAP:
+        return True
+    if abs(gap_pct) > VALUATION_RELIABLE_MAX_ABS_GAP_PCT:
+        return True
+    return False
+
+
 def _forward_return_pct(bars: List[Dict[str, Any]], asof_index: int, horizon: int) -> Optional[float]:
     if asof_index < 0 or asof_index + horizon >= len(bars):
         return None
@@ -576,6 +601,7 @@ def _evaluate_symbol(
     end_date: Optional[str],
     gap_threshold_pct: float,
     horizons: Sequence[int],
+    reliability_guard: bool = False,
 ) -> List[StudyObservation]:
     observations: List[StudyObservation] = []
     max_forward_bars = max(horizons)
@@ -611,7 +637,20 @@ def _evaluate_symbol(
         if not dcf:
             continue
 
+        debt_to_equity = _safe_float(snapshot.get("debtToEquity"))
+        if debt_to_equity is None:
+            total_debt = _safe_float(snapshot.get("totalDebt"))
+            equity = _safe_float(snapshot.get("total_equity")) or _safe_float(snapshot.get("shareholders_equity"))
+            if total_debt is not None and equity not in (None, 0):
+                debt_to_equity = total_debt / equity
+
         valuation_state = _valuation_state(float(dcf["valuation_gap_pct"]), gap_threshold_pct)
+        if reliability_guard and _is_unreliable_valuation(
+            price,
+            _safe_float(snapshot.get("marketCap")),
+            float(dcf["valuation_gap_pct"]),
+        ):
+            valuation_state = "unrated"
         horizon_returns = {h: _forward_return_pct(bars, index, h) for h in horizons}
         horizon_hit_target = {
             h: _hit_target(bars, index, h, float(dcf["fair_value_mid"]), valuation_state)
@@ -637,6 +676,7 @@ def _evaluate_symbol(
                 operating_margin_pct=_safe_float(dcf["operating_margin_pct"]),
                 free_cash_flow_margin_pct=_safe_float(dcf["free_cash_flow_margin_pct"]),
                 current_ratio=_safe_float(dcf["current_ratio"]),
+                debt_to_equity=debt_to_equity,
                 quality_grade=str(dcf["quality_grade"]),
                 quality_score=int(dcf["quality_score"]),
                 horizon_returns=horizon_returns,
@@ -803,6 +843,7 @@ def _write_csv(path: Path, observations: Sequence[StudyObservation], horizons: S
         "operating_margin_pct",
         "free_cash_flow_margin_pct",
         "current_ratio",
+        "debt_to_equity",
         "quality_grade",
         "quality_score",
     ]
@@ -832,6 +873,7 @@ def _write_csv(path: Path, observations: Sequence[StudyObservation], horizons: S
                 "operating_margin_pct": obs.operating_margin_pct,
                 "free_cash_flow_margin_pct": obs.free_cash_flow_margin_pct,
                 "current_ratio": obs.current_ratio,
+                "debt_to_equity": obs.debt_to_equity,
                 "quality_grade": obs.quality_grade,
                 "quality_score": obs.quality_score,
             }

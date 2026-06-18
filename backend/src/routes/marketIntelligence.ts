@@ -91,7 +91,8 @@ import {
 } from '../types/marketIntelligence';
 
 import { bulkLookupSymbolNames, getSymbolClassification } from '../services/symbolCatalog';
-import { getConfiguredOpenAIKey } from '../services/aiSettings';
+import { getConfiguredOpenAIKey, getRoleModelOverride } from '../services/aiSettings';
+import { recordAdhocNarrativeThesis } from '../services/narrativeThesisStore';
 import { runWebCatalystCheck } from '../services/webCatalystSearch';
 import { loadLedgerWorkspaceSkill } from '../services/ledgerWorkspaceSkills';
 
@@ -135,6 +136,9 @@ const SOCIAL_INTELLIGENCE_DB_PATH = path.join(
   'data',
   'social-intelligence.sqlite',
 );
+const CLEAN_UNIVERSE_PATH = path.join(PROJECT_ROOT, 'backend', 'data', 'universe_clean.json');
+const PRICE_UNIVERSE_DIR = path.join(PROJECT_ROOT, 'backend', 'data', 'universe');
+const FUNDAMENTALS_PIT_DB_PATH = path.join(PROJECT_ROOT, 'backend', 'data', 'fundamentals-pit.sqlite');
 
 const COLLECTOR_SCRIPTS: Record<string, string> = {
   hackernews: path.join(
@@ -257,6 +261,140 @@ function latestEigenRows(limit = 500): any[] {
 function latestEigenScanId(): string | null {
   const live = readJsonIfExists(EIGEN_LIVE_OUTPUT);
   return String(live?.meta?.generated_at || live?.pca?.latest_date || '').trim() || null;
+}
+
+function safeFiniteNumber(value: any): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pctChange(now: number | null, prev: number | null): number | null {
+  if (now == null || prev == null || prev === 0) return null;
+  return ((now / prev) - 1) * 100;
+}
+
+function safeSymbolFile(symbol: string): string {
+  return symbol.replace(/[\/=-]/g, '_');
+}
+
+function cleanUniverseSymbols(): string[] {
+  const payload = readJsonIfExists(CLEAN_UNIVERSE_PATH);
+  const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.stocks) ? payload.stocks : [];
+  return Array.from(new Set<string>(
+    rows
+      .map((row: any) => String(row?.symbol || row?.ticker || '').trim().toUpperCase())
+      .filter((symbol: string) => /^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol)),
+  )).sort();
+}
+
+function latestPriceFeatures(symbol: string, asOf: string): any | null {
+  const filePath = path.join(PRICE_UNIVERSE_DIR, `${safeSymbolFile(symbol)}_1d.csv`);
+  if (!fs.existsSync(filePath)) return null;
+  const lines = fs.readFileSync(filePath, 'utf-8').trim().split(/\r?\n/);
+  if (lines.length < 121) return null;
+  const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
+  const idxDate = header.indexOf('date');
+  const idxClose = header.indexOf('close');
+  const idxVolume = header.indexOf('volume');
+  if (idxDate < 0 || idxClose < 0) return null;
+  const rows = lines.slice(1)
+    .map((line) => {
+      const cols = line.split(',');
+      const date = String(cols[idxDate] || '').slice(0, 10);
+      const close = safeFiniteNumber(cols[idxClose]);
+      const volume = idxVolume >= 0 ? safeFiniteNumber(cols[idxVolume]) : null;
+      return date && close != null ? { date, close, volume } : null;
+    })
+    .filter((row): row is { date: string; close: number; volume: number | null } => !!row && row.date <= asOf);
+  if (rows.length < 120) return null;
+  const latest = rows[rows.length - 1];
+  if (!String(latest.date).startsWith('2026')) return null;
+  const window252 = rows.slice(-252);
+  const closes = window252.map((row: any) => row.close).filter((n: any) => Number.isFinite(n));
+  if (closes.length < 120) return null;
+  const high = Math.max(...closes);
+  const low = Math.min(...closes);
+  if (high === low) return null;
+  const rangePos252d = (latest.close - low) / (high - low);
+  const window63 = rows.slice(-63);
+  const dollarValues = window63
+    .map((row: any) => row.volume != null ? row.close * row.volume : null)
+    .filter((n): n is number => Number.isFinite(n))
+    .sort((a: number, b: number) => a - b);
+  const mid = Math.floor(dollarValues.length / 2);
+  const dollarVolume63d = dollarValues.length
+    ? dollarValues.length % 2
+      ? dollarValues[mid]
+      : (dollarValues[mid - 1] + dollarValues[mid]) / 2
+    : null;
+  return {
+    as_of: latest.date,
+    price: latest.close,
+    range_pos_252d: rangePos252d,
+    dollar_volume_63d: dollarVolume63d,
+  };
+}
+
+function loadFundamentalRows(symbols: string[], asOf: string): Map<string, any[]> {
+  const out = new Map<string, any[]>();
+  if (!symbols.length || !fs.existsSync(FUNDAMENTALS_PIT_DB_PATH)) return out;
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(FUNDAMENTALS_PIT_DB_PATH, { readOnly: true });
+  const keys = [
+    'revenue',
+    'net_income',
+    'current_assets',
+    'current_liabilities',
+  ];
+  try {
+    for (let i = 0; i < symbols.length; i += 500) {
+      const batch = symbols.slice(i, i + 500);
+      const keyPlaceholders = keys.map(() => '?').join(',');
+      const symbolPlaceholders = batch.map(() => '?').join(',');
+      const rows = db.prepare(
+        `SELECT UPPER(symbol) AS symbol, fact_key, value_numeric, period_end, available_at
+         FROM pit_statement_facts
+         WHERE period_type = 'quarterly'
+           AND fact_key IN (${keyPlaceholders})
+           AND UPPER(symbol) IN (${symbolPlaceholders})
+           AND available_at <= ?
+         ORDER BY UPPER(symbol), period_end`,
+      ).all(...keys, ...batch, asOf) as any[];
+      for (const row of rows) {
+        const symbol = String(row.symbol || '').toUpperCase();
+        if (!out.has(symbol)) out.set(symbol, []);
+        out.get(symbol)!.push(row);
+      }
+    }
+  } finally {
+    db.close();
+  }
+  return out;
+}
+
+function fundamentalReaccelerationFeatures(rows: any[]): any | null {
+  if (!rows.length) return null;
+  const byPeriod = new Map<string, any>();
+  rows.forEach((row) => {
+    const period = String(row.period_end || '').slice(0, 10);
+    if (!period) return;
+    const bucket = byPeriod.get(period) || { period_end: period };
+    bucket[String(row.fact_key)] = safeFiniteNumber(row.value_numeric);
+    byPeriod.set(period, bucket);
+  });
+  const periods = Array.from(byPeriod.values()).sort((a, b) => String(a.period_end).localeCompare(String(b.period_end)));
+  const revRows = periods.filter((p) => p.revenue != null);
+  if (revRows.length < 8) return null;
+  const currentTtm = revRows.slice(-4).reduce((sum, p) => sum + Number(p.revenue), 0);
+  const prevTtm = revRows.slice(-8, -4).reduce((sum, p) => sum + Number(p.revenue), 0);
+  const latest = periods[periods.length - 1] || {};
+  const revenueTtmGrowthPct = pctChange(currentTtm, prevTtm);
+  return {
+    revenue_ttm_growth_pct: revenueTtmGrowthPct,
+    latest_period_end: latest.period_end || null,
+    current_ratio: latest.current_liabilities ? latest.current_assets / latest.current_liabilities : null,
+    net_margin_latest_pct: latest.revenue && latest.net_income != null ? (latest.net_income / latest.revenue) * 100 : null,
+  };
 }
 
 function eigenReportCachePath(symbol: string): string {
@@ -1584,6 +1722,81 @@ router.get('/eigen-perturbations/latest', (req: Request, res: Response) => {
   }
 });
 
+router.get('/reacceleration-screen/latest', (req: Request, res: Response) => {
+  try {
+    const limit = Math.max(1, Math.min(500, asNumber(req.query.limit) ?? 100));
+    const asOf = String(req.query.as_of || '2026-05-29').slice(0, 10);
+    const rangePosMax = asNumber(req.query.range_pos_max) ?? 0.10;
+    const revenueGrowthMin = asNumber(req.query.revenue_ttm_growth_min) ?? 17.7;
+    const minDollarVolume = asNumber(req.query.min_dollar_volume) ?? 1_000_000;
+    const symbols = cleanUniverseSymbols();
+    const priceRows: any[] = [];
+    for (const symbol of symbols) {
+      const price = latestPriceFeatures(symbol, asOf);
+      if (!price) continue;
+      if (Number(price.range_pos_252d) > rangePosMax) continue;
+      if ((Number(price.dollar_volume_63d) || 0) < minDollarVolume) continue;
+      priceRows.push({ symbol, ...price });
+    }
+
+    const fundamentals = loadFundamentalRows(priceRows.map((row) => row.symbol), asOf);
+    const rows = priceRows
+      .map((row) => {
+        const features = fundamentalReaccelerationFeatures(fundamentals.get(row.symbol) || []);
+        if (!features) return null;
+        if (features.revenue_ttm_growth_pct == null || features.revenue_ttm_growth_pct < revenueGrowthMin) return null;
+        const qualityFlags = [
+          features.current_ratio != null && features.current_ratio < 0.75 ? 'liquidity stress' : null,
+          features.net_margin_latest_pct != null && features.net_margin_latest_pct < -50 ? 'heavy losses' : null,
+          row.dollar_volume_63d != null && row.dollar_volume_63d < 5_000_000 ? 'thin liquidity' : null,
+        ].filter(Boolean);
+        return {
+          symbol: row.symbol,
+          as_of: row.as_of,
+          price: row.price,
+          range_pos_252d: row.range_pos_252d,
+          revenue_ttm_growth_pct: features.revenue_ttm_growth_pct,
+          dollar_volume_63d: row.dollar_volume_63d,
+          current_ratio: features.current_ratio,
+          net_margin_latest_pct: features.net_margin_latest_pct,
+          latest_period_end: features.latest_period_end,
+          quality_flags: qualityFlags,
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => {
+        const liqA = Number(a.dollar_volume_63d || 0);
+        const liqB = Number(b.dollar_volume_63d || 0);
+        const revA = Number(a.revenue_ttm_growth_pct || 0);
+        const revB = Number(b.revenue_ttm_growth_pct || 0);
+        return revB - revA || liqB - liqA;
+      });
+
+    res.json({
+      success: true,
+      data: {
+        meta: {
+          as_of: asOf,
+          symbols_in_clean_universe: symbols.length,
+          depressed_liquid_symbols: priceRows.length,
+          total_matches: rows.length,
+          returned: Math.min(limit, rows.length),
+          screen: {
+            range_pos_252d_lte: rangePosMax,
+            revenue_ttm_growth_pct_gte: revenueGrowthMin,
+            dollar_volume_63d_gte: minDollarVolume,
+          },
+        },
+        rows: rows.slice(0, limit),
+        schema_version: MARKET_INTELLIGENCE_SCHEMA_VERSION,
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof HttpError) return sendError(res, err.code, err.message);
+    sendError(res, 'INTERNAL', err?.message || String(err));
+  }
+});
+
 router.get('/convergence/latest', (req: Request, res: Response) => {
   try {
     const limit = Math.max(1, Math.min(500, asNumber(req.query.limit) ?? 100));
@@ -1621,7 +1834,20 @@ router.get('/convergence/latest', (req: Request, res: Response) => {
         tierClause = ' AND tier = ?';
         params.push(tierFilter);
       }
-      params.push(limit);
+
+      // Optional free-text search across symbol/name/sector. When present we
+      // search the WHOLE latest run (raise the cap) so a low-score match still
+      // surfaces instead of being cut off by the top-N score ordering.
+      const searchTerm = String(req.query.q ?? '').trim().toUpperCase();
+      let searchClause = '';
+      let effectiveLimit = limit;
+      if (searchTerm) {
+        searchClause = ' AND (UPPER(symbol) LIKE ? OR UPPER(name) LIKE ? OR UPPER(sector) LIKE ?)';
+        const like = `%${searchTerm}%`;
+        params.push(like, like, like);
+        effectiveLimit = 500;
+      }
+      params.push(effectiveLimit);
 
       const rawRows = db.prepare(
         `SELECT symbol, name, sector, residual_z, direction, convergence_score,
@@ -1629,7 +1855,7 @@ router.get('/convergence/latest', (req: Request, res: Response) => {
                 COALESCE(narrative_only, 0) AS narrative_only,
                 votes_json, overlays_json
          FROM mi_convergence
-         WHERE run_id = ?${tierClause}
+         WHERE run_id = ?${tierClause}${searchClause}
          ORDER BY convergence_score DESC, aligned_count DESC
          LIMIT ?`,
       ).all(...params) as any[];
@@ -1686,57 +1912,416 @@ router.get('/convergence/latest', (req: Request, res: Response) => {
 });
 
 // Agent-summarized "what's going on behind the scenes?" for a convergence row.
-async function generateCatalystNarrative(
+// Cheap, no-LLM pre-filter: drop obvious social noise so we only spend tokens on
+// posts that might contain a real business thesis. This is the cost-control gate
+// that lets the extractor run automatically over the whole convergence board.
+const THESIS_NOISE_PATTERNS: RegExp[] = [
+  /\bRSI\s*[:=]/i, /\bMACD\s*[:=]/i, /\bMA\s*\d{1,3}\s*[:=]/i, /\bvol\s*[:=]\s*\d/i,
+  /\bentry\s*[:=].*\bexit\s*[:=]/i, /\bROI\s*[:=]?\s*\d/i, /\bcontracts? to trade/i,
+  /quantumstockalerts|dailypickai|freealerts|stockalert|\.com\/free/i,
+  /to the moon|🚀|🌙|💎|🙌/i,
+  /\bRECAP\b/i, /\b52[\s-]?week (low|high)\b/i, /buy sell high/i,
+  /^\$[A-Z]{1,6}[\s.!?]*$/,
+  // Acronym collisions: tickers that double as finance jargon. e.g. RMD = Required
+  // Minimum Distribution; these retirement/benefits posts are not about the company.
+  /\b(required )?minimum distribution\b/i,
+  /\bsocial security (benefit|check|income|payment)/i,
+  /\b(401\(?k\)?|roth ira|traditional ira)\b/i,
+];
+
+// Topicality gate: a company NAME appearing in a long post does not mean the
+// post is ABOUT the company. Long-form sources (esp. HackerNews) drag in
+// structural noise where the name is incidental — monthly hiring/resume threads
+// ("Location:/Remote:/Technologies: ... MongoDB ..."), freelance solicitations,
+// and bare tech-stack enumerations. These score high on length and would crowd
+// the limited model window with non-thesis text. Drop them deterministically.
+const INCIDENTAL_MENTION_PATTERNS: RegExp[] = [
+  /\bwho('?s| is| wants to be)\s+(hiring|hired)\b/i, // HN "Who is hiring / wants to be hired"
+  /\b(seeking|hiring)\s+(a\s+)?(freelanc|contractor)/i,
+  /\bfreelancer\?\b/i,
+  /\bwilling to relocate\b/i,
+  /\bremote\s*:\s*(yes|no|only|hybrid)\b/i,
+  /\blocation\s*:\s*.{1,40}\bremote\s*:/is, // resume template (location + remote lines)
+  /\btechnologies\s*:\s*\S/i, // resume/stack enumeration label
+];
+
+// $CASHTAG matcher used to detect multi-ticker "co-tag" pump/list posts.
+const CASHTAG_RE = /\$([A-Za-z]{1,6})\b/g;
+
+// Generic business-argument / causal cue words. Used to rank which posts carry a
+// real thesis (vs equally-long off-topic chatter) when selecting what the model
+// reads. Deliberately symbol-agnostic so it does not overfit to any one story.
+const ARG_CUE_RE = /\b(because|due to|leads? to|result(?:s|ing)?|replac|disrupt|displac|cannibal|substitut|threat|risk|decline|erod|demand|revenue|margin|market share|earnings|guidance|competit|patent|recall|approval|adoption|tailwind|headwind|secular|moat|obsolet|undermin)\b/gi;
+
+function thesisSubstanceScore(text: string): number {
+  const t = String(text || '');
+  let score = t.length;
+  const cues = t.match(ARG_CUE_RE);
+  if (cues && cues.length) score += 150 + cues.length * 40; // bias toward argument-bearing posts
+  return score;
+}
+
+function isThesisNoise(text: string | null | undefined, symbol?: string | null): boolean {
+  const t = String(text || '').trim();
+  if (t.length < 25) return true;
+  if (t.split(/\s+/).length < 6) return true;
+  if (THESIS_NOISE_PATTERNS.some((re) => re.test(t))) return true;
+  // Topicality gate: incidental name-drops (hiring/resume/stack-list posts).
+  if (INCIDENTAL_MENTION_PATTERNS.some((re) => re.test(t))) return true;
+  // Bare tool/stack enumeration: a long comma list with no business-argument
+  // language is a catalog (e.g. "Next.js, React, MongoDB, Postgres, ..."), not a
+  // thesis. Require argument cues to survive when comma density is high.
+  const commaCount = (t.match(/,/g) || []).length;
+  const cueCount = (t.match(ARG_CUE_RE) || []).length;
+  if (commaCount >= 8 && cueCount === 0) return true;
+  // Co-tag spam: collect distinct cashtags. Posts that tag many tickers are
+  // lists/cross-promotion, not a single-name business thesis.
+  const tags: string[] = [];
+  CASHTAG_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CASHTAG_RE.exec(t)) !== null) {
+    const tag = m[1].toUpperCase();
+    if (!tags.includes(tag)) tags.push(tag);
+  }
+  if (tags.length >= 4) return true;
+  // Piggyback co-tag: target tagged alongside another ticker that LEADS the post
+  // (classic microcap pump riding a liquid name's feed, e.g. "$IXHL $RMD ...").
+  // Only drop SHORT such posts — a long co-tagged post may carry a real cross-name
+  // thesis (e.g. a disruptor pill vs an incumbent's CPAP business), so keep those
+  // and let the model judge.
+  if (symbol && tags.length >= 2 && t.length < 140) {
+    const sym = symbol.toUpperCase();
+    if (tags[0] !== sym && tags.includes(sym)) return true;
+  }
+  return false;
+}
+
+// Gather the social evidence for a symbol: live buzz first (fresh, what the
+// Scanner shows), then stored snapshot, then the organic-discovery feed.
+async function gatherSymbolBuzzItems(symbol: string): Promise<{
+  items: any[]; buzzSummary: string | null; dataFreshness: string; qualityFlags: any[];
+}> {
+  const items: any[] = [];
+  let buzzSummary: string | null = null;
+  let dataFreshness = 'none';
+
+  try {
+    const port = process.env.PORT || '3002';
+    // Bound the live buzz sub-fetch: for an uncached symbol it can trigger a slow
+    // upstream download and stall the entire thesis path for minutes. The stored
+    // and MI corpora below are a sufficient fallback, so cap and move on.
+    const liveCtl = new AbortController();
+    const liveTimer = setTimeout(() => liveCtl.abort(), 8000);
+    let liveRes: globalThis.Response;
+    let livePayload: any;
+    try {
+      liveRes = await fetch(
+        `http://127.0.0.1:${port}/api/fundamentals/${encodeURIComponent(symbol)}/buzz`,
+        { signal: liveCtl.signal },
+      );
+      livePayload = await liveRes.json() as any;
+    } finally {
+      clearTimeout(liveTimer);
+    }
+    const live = livePayload?.data;
+    if (liveRes.ok && livePayload?.success && live) {
+      const msgs = Array.isArray(live.recent_messages) ? live.recent_messages : [];
+      for (const m of msgs) {
+        if (!m.body) continue;
+        items.push({
+          source_type: m.source || 'social', source_community: null,
+          posted_at: m.created_at || m.posted_at || null,
+          author: m.user || m.author || null, title: null,
+          excerpt: String(m.body).slice(0, 320), sentiment: m.sentiment || null,
+          source_url: m.source_url || null, alias_risk: false,
+        });
+      }
+      if (msgs.length) dataFreshness = 'live';
+      buzzSummary = [
+        live.source_label ? `sources ${live.source_label}` : '',
+        live.sampled_message_count != null ? `${live.sampled_message_count} sampled` : '',
+        live.watchlist_count != null ? `${live.watchlist_count} watchers` : '',
+        (live.bullish_pct != null || live.bearish_pct != null) ? `bull/bear ${live.bullish_pct ?? '?'}%/${live.bearish_pct ?? '?'}%` : '',
+      ].filter(Boolean).join(' · ') || null;
+    }
+  } catch { /* live fetch is best-effort */ }
+
+  if (!items.length) {
+    const buzz = latestSocialBuzzSnapshot(symbol);
+    if (buzz?.available) {
+      const bs = buzz.buzz_score || {};
+      buzzSummary = [
+        `final buzz ${bs.final_buzz_score ?? 'n/a'} (${bs.score_validity || 'n/a'}/${bs.confidence_tier || 'n/a'})`,
+        `7d mentions ${buzz.mention_count_7d ?? 'n/a'}, 7d authors ${buzz.unique_authors_7d ?? 'n/a'}`,
+        Array.isArray(bs.reason_codes) && bs.reason_codes.length ? `flags ${bs.reason_codes.join(', ')}` : '',
+      ].filter(Boolean).join(' · ');
+      for (const m of (buzz.recent_messages || [])) {
+        if (!m.body) continue;
+        items.push({
+          source_type: m.source || 'social', source_community: null,
+          posted_at: m.posted_at, author: m.author, title: null,
+          excerpt: m.body, sentiment: m.sentiment, source_url: null, alias_risk: false,
+        });
+      }
+      if (items.length) dataFreshness = 'stored';
+    }
+  }
+
+  // Deep historical corpus: the stored cleaned posts hold sharper theses that may
+  // have already scrolled out of the live rolling window. Pull a wider window so
+  // aged-out causal posts (e.g. the GLP-1 thesis) are not missed.
+  try {
+    if (fs.existsSync(SOCIAL_INTELLIGENCE_DB_PATH)) {
+      const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync(SOCIAL_INTELLIGENCE_DB_PATH, { readOnly: true });
+      try {
+        // Two passes so a substantive thesis can't age out behind a flood of
+        // recent low-substance chatter: (1) most RECENT posts for freshness, and
+        // (2) the LONGEST posts across ALL history — long-form posts carry the
+        // argument (e.g. the GLP-1 -> CPAP demand thesis that surfaced months ago).
+        const recentRows = db.prepare(
+          `SELECT platform, posted_at, cleaned_text
+           FROM social_posts_clean
+           WHERE UPPER(symbol) = ? AND COALESCE(is_spam, 0) = 0
+             AND cleaned_text IS NOT NULL AND LENGTH(TRIM(cleaned_text)) > 0
+           ORDER BY posted_at DESC LIMIT 100`,
+        ).all(symbol.toUpperCase()) as any[];
+        const substantiveRows = db.prepare(
+          `SELECT platform, posted_at, cleaned_text
+           FROM social_posts_clean
+           WHERE UPPER(symbol) = ? AND COALESCE(is_spam, 0) = 0
+             AND cleaned_text IS NOT NULL AND LENGTH(TRIM(cleaned_text)) > 60
+           ORDER BY LENGTH(cleaned_text) DESC LIMIT 60`,
+        ).all(symbol.toUpperCase()) as any[];
+        const rows = [...recentRows, ...substantiveRows];
+        for (const r of rows) {
+          items.push({
+            source_type: r.platform || 'social', source_community: null,
+            posted_at: r.posted_at, author: null, title: null,
+            excerpt: String(r.cleaned_text).slice(0, 320), sentiment: null,
+            source_url: null, alias_risk: false,
+          });
+        }
+        if (rows.length && dataFreshness === 'none') dataFreshness = 'stored';
+      } finally { db.close(); }
+    }
+  } catch { /* deep corpus is best-effort */ }
+
+  // Substantive cross-platform corpus: HackerNews / niche forums / 4chan
+  // long-form arguments mapped to this symbol via universe_symbol_mentions
+  // (now precision-filtered — bare acronyms and generic-word aliases removed).
+  // The catalyst-evidence pull below is recency-bounded and can miss the LONGEST
+  // argument posts, which carry the actual causal thesis (the same reason the
+  // social_posts_clean block above runs a "longest posts" pass). Pull the
+  // longest reliable mentions explicitly so HN/forum substance reaches the
+  // substance-ranked window the model reads.
+  try {
+    const miPath = getMarketIntelligenceDbPath();
+    if (fs.existsSync(miPath)) {
+      const { DatabaseSync } = require('node:sqlite');
+      const mdb = new DatabaseSync(miPath, { readOnly: true });
+      try {
+        const hasTbl = mdb.prepare(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name='universe_symbol_mentions'`,
+        ).get() as { name?: string } | undefined;
+        if (hasTbl) {
+          const rows = mdb.prepare(
+            `SELECT h.source_type, h.title, h.body_text, h.source_url,
+                    m.posted_at, m.author, m.matched_text, m.match_method
+             FROM universe_symbol_mentions m
+             JOIN mi_raw_hits h ON h.id = m.hit_id
+             WHERE m.symbol = ?
+               AND h.body_text IS NOT NULL
+               AND LENGTH(TRIM(h.body_text)) > 120
+             ORDER BY LENGTH(h.body_text) DESC
+             LIMIT 40`,
+          ).all(symbol.toUpperCase()) as any[];
+          for (const r of rows) {
+            // With the hardened matcher, company_alias / cashtag / bare-ticker
+            // matches are all trustworthy; alias_risk is effectively retired here.
+            const body = String(r.body_text || '').replace(/\s+/g, ' ').trim();
+            if (!body) continue;
+            items.push({
+              source_type: r.source_type || 'web', source_community: null,
+              posted_at: r.posted_at, author: r.author,
+              title: r.title ? String(r.title).slice(0, 200) : null,
+              excerpt: body.slice(0, 420), sentiment: null,
+              source_url: r.source_url || null, alias_risk: false,
+            });
+          }
+          if (rows.length && dataFreshness === 'none') dataFreshness = 'stored';
+        }
+      } finally { mdb.close(); }
+    }
+  } catch { /* substantive MI corpus is best-effort */ }
+
+  const evidence = latestSymbolCatalystEvidence(symbol);
+  for (const it of (Array.isArray(evidence?.items) ? evidence.items : [])) {
+    items.push({
+      source_type: it.source_type, source_community: it.source_community,
+      posted_at: it.posted_at, author: it.author, title: it.title,
+      excerpt: it.excerpt, sentiment: null, source_url: it.source_url, alias_risk: it.alias_risk,
+    });
+    if (dataFreshness === 'none') dataFreshness = 'stored';
+  }
+
+  // Dedupe by normalized text (live + stored corpora overlap heavily).
+  const seen = new Set<string>();
+  const deduped = items.filter((it) => {
+    const k = String(it.excerpt || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  deduped.sort((a, b) => String(b.posted_at || '').localeCompare(String(a.posted_at || '')));
+  return { items: deduped, buzzSummary, dataFreshness, qualityFlags: evidence?.quality_flags ?? [] };
+}
+
+export interface ExtractedThesis {
+  claim: string;
+  driver: string | null;
+  mechanism: string | null;
+  direction: 'bull' | 'bear' | null;
+  specificity: number | null;
+  sources: number[];
+}
+
+export interface ThesisResult {
+  has_thesis: boolean;
+  theses: ExtractedThesis[];
+  headline: string | null;
+  narrative: string | null;
+  classification: string | null;
+  signal_count: number;
+  noise_count: number;
+  used_sources: any[];
+}
+
+const THESIS_CLASSES = [
+  'Narrative ahead of damage',
+  'Narrative ahead of improvement',
+  'Hype ahead of economics',
+  'Fear ahead of evidence',
+  'Recovery before recognition',
+  'Real risk, but likely over-discounted',
+  'Real excitement, but likely over-earned in price',
+];
+
+// The thesis extractor: separate the rare real business thesis from social noise.
+async function extractSymbolThesis(
   apiKey: string,
   symbol: string,
   footprint: { direction?: string; convergence_score?: number; tier?: number; narrative_only?: boolean; votes?: any[] },
   items: any[],
   buzzSummary: string | null,
-): Promise<string | null> {
-  if (!Array.isArray(items) || !items.length) return null;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  const numbered = items.slice(0, 12).map((it, i) => {
+): Promise<ThesisResult> {
+  const all = Array.isArray(items) ? items : [];
+  const signal = all.filter((it) => !isThesisNoise(it.excerpt, symbol));
+  const empty: ThesisResult = {
+    has_thesis: false, theses: [], headline: null, narrative: null,
+    classification: null, signal_count: signal.length, noise_count: all.length - signal.length,
+    used_sources: [],
+  };
+  if (!signal.length) return empty;
+
+  // Select what the model reads by SUBSTANCE, not recency: a real causal thesis
+  // is a prose ARGUMENT, while noise is short. Ranking by length alone is unstable
+  // — when the live feed is busy, equally-long off-topic chatter (e.g. buyout
+  // threads) evicts the thesis posts from the window, so the SAME symbol can
+  // return a thesis on one page and "no thesis" on another. Score by length PLUS
+  // business-argument cue words so causal posts win their slots deterministically.
+  const used = [...signal]
+    .map((it) => ({ it, score: thesisSubstanceScore(String(it.excerpt || '')) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 36)
+    .map((x) => x.it);
+  const usedSources = used.map((it, i) => ({
+    idx: i + 1, source_type: it.source_type, source_community: it.source_community,
+    posted_at: it.posted_at, author: it.author, title: it.title,
+    excerpt: it.excerpt, source_url: it.source_url, alias_risk: it.alias_risk,
+  }));
+  const numbered = used.map((it, i) => {
     const parts = [
-      `[${i + 1}] (${it.source_type || '?'}${it.source_community ? '/' + it.source_community : ''}, ${it.posted_at || '?'})`,
+      `[${i + 1}] (${it.source_type || '?'}, ${it.posted_at || '?'})`,
       it.title ? `title: ${it.title}` : '',
       it.excerpt ? `text: ${it.excerpt}` : '',
-      it.sentiment ? `sentiment: ${it.sentiment}` : '',
-      it.alias_risk ? '(ALIAS RISK: ticker match may be a false positive)' : '',
+      it.alias_risk ? '(ALIAS RISK)' : '',
     ].filter(Boolean);
     return parts.join(' ');
   }).join('\n');
+
   const footprintLabel = footprint.narrative_only
-    ? 'This symbol has NO hard footprint yet — it surfaced ONLY from a social buzz spike (narrative-only / unconfirmed).'
-    : `This symbol surfaced on the convergence board: direction ${footprint.direction || 'n/a'}, score ${footprint.convergence_score ?? 'n/a'}, tier ${footprint.tier ?? 'n/a'}, footprint votes ${(footprint.votes || []).map((v: any) => v.source).join(', ') || 'none'}.`;
-  const prompt = `You are Ledger, a skeptical market-intelligence analyst. Answer one question only: "What is going on behind the scenes with ${symbol}?"
+    ? `${symbol} has NO hard footprint yet — it surfaced ONLY from a social buzz spike (narrative-only).`
+    : `${symbol} is on the convergence board: direction ${footprint.direction || 'n/a'}, score ${footprint.convergence_score ?? 'n/a'}, tier ${footprint.tier ?? 'n/a'}.`;
+
+  const prompt = `You are Ledger, a skeptical market-intelligence analyst monitoring social buzz in real time. Your job is NOT to summarize chatter. Detect whether these posts contain a MATERIAL, NON-OBVIOUS business thesis about ${symbol} — a concrete causal claim of the form: external driver -> mechanism -> impact on the company's economics (e.g. "GLP-1 weight-loss drugs -> less obesity -> less sleep apnea -> fewer CPAP sales -> ResMed demand risk").
+
+Ignore noise: price targets, emojis, RSI/MACD/MA bot posts, recap lists, generic hype or fear with no mechanism, multi-ticker pump/co-tag list posts (a post tagging ${symbol} alongside unrelated tickers — especially a microcap leading the post), and posts where "${symbol}" is a coincidental acronym rather than the company (e.g. RMD = Required Minimum Distribution / retirement content). Only count a thesis if there is a real causal argument about the business.
+
+The thesis is often IMPLICIT, SPREAD ACROSS several posts, or stated only as a REBUTTAL — a post arguing "the GLP-1 worry is overdone" or "a pill could replace CPAP" still reveals a real demand-risk thesis worth surfacing. Synthesize the underlying thesis from fragments across posts. You MAY use well-known cause-and-effect to complete the MECHANISM (e.g. GLP-1/weight-loss drugs reduce obesity -> obesity drives sleep apnea -> sleep apnea drives CPAP demand -> ${symbol} revenue) as long as the DRIVER (e.g. "GLP-1", "Ozempic", a competing pill) and the COMPANY LINK are actually mentioned in the posts. Do not invent a driver the posts never mention.
 
 ${footprintLabel}
-${buzzSummary ? `\nBUZZ CONTEXT: ${buzzSummary}` : ''}
+${buzzSummary ? `BUZZ CONTEXT: ${buzzSummary}` : ''}
 
-Below are the most recent social/forum posts mentioning ${symbol}, numbered. Use ONLY this evidence.
-
-EVIDENCE:
+POSTS (numbered):
 ${numbered}
 
-Write 3-5 sentences describing the emerging narrative that could explain the activity. Cite sources inline as [1], [2] matching the numbers above. Rules:
-- If the posts are low-substance ticker chatter, hype with no thesis, or alias false-positives, say plainly that there is NO real narrative yet and do not manufacture one.
-- Distinguish a genuine thesis (a reason to own/avoid) from noise (price targets, rocket emojis, recap lists).
-- Do not invent facts that are not in the evidence. No disclaimers, no preamble.`;
+Return STRICT JSON only:
+{
+  "has_thesis": boolean,
+  "theses": [ { "claim": "<=20 words", "driver": "external force e.g. GLP-1 drugs", "mechanism": "how it flows to the company's economics", "direction": "bull"|"bear", "specificity": 0.0-1.0, "sources": [post numbers] } ],
+  "headline": "<=12 word tag of the most important thesis, or null",
+  "narrative": "2-4 plain-English sentences citing [n], or null",
+  "classification": one of ${JSON.stringify(THESIS_CLASSES)} or null
+}
+Rules: If the posts are only noise with no causal business thesis, set has_thesis=false, theses=[], headline=null, narrative=null, classification=null. Do not invent facts not present in the posts.`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       signal: controller.signal,
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: getRoleModelOverride('thesis_extractor') || 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 500,
+        temperature: 0.1,
+        max_tokens: 700,
+        response_format: { type: 'json_object' },
       }),
     });
     const result = await response.json() as any;
-    return result.choices?.[0]?.message?.content || null;
+    // Surface API failures (e.g. 429 insufficient_quota) instead of silently
+    // returning empty — otherwise a billing/quota error is mislabeled in the UI
+    // as "no real business thesis detected", which is dangerously misleading.
+    if (!response.ok || result?.error) {
+      const detail = result?.error?.message || `OpenAI API error ${response.status}`;
+      throw new Error(detail);
+    }
+    const raw = result.choices?.[0]?.message?.content;
+    if (!raw) return empty;
+    let parsed: any;
+    try { parsed = JSON.parse(raw); } catch { return empty; }
+    const theses: ExtractedThesis[] = Array.isArray(parsed.theses) ? parsed.theses.map((t: any) => ({
+      claim: String(t.claim || '').slice(0, 200),
+      driver: t.driver ? String(t.driver).slice(0, 80) : null,
+      mechanism: t.mechanism ? String(t.mechanism).slice(0, 300) : null,
+      direction: (t.direction === 'bull' || t.direction === 'bear') ? t.direction : null,
+      specificity: typeof t.specificity === 'number' ? t.specificity : null,
+      sources: Array.isArray(t.sources) ? t.sources.filter((n: any) => Number.isInteger(n)) : [],
+    })).filter((t: ExtractedThesis) => t.claim) : [];
+    const classification = THESIS_CLASSES.includes(parsed.classification) ? parsed.classification : null;
+    return {
+      has_thesis: Boolean(parsed.has_thesis) && theses.length > 0,
+      theses,
+      headline: parsed.headline ? String(parsed.headline).slice(0, 120) : null,
+      narrative: parsed.narrative ? String(parsed.narrative) : null,
+      classification,
+      signal_count: signal.length,
+      noise_count: all.length - signal.length,
+      used_sources: usedSources,
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -1745,7 +2330,7 @@ Write 3-5 sentences describing the emerging narrative that could explain the act
 router.get('/convergence/:symbol/catalyst', async (req: Request, res: Response) => {
   try {
     const symbol = String(req.params.symbol || '').trim().toUpperCase();
-    if (!symbol) throw new HttpError('BAD_REQUEST', 'symbol is required');
+    if (!symbol) throw new HttpError('VALIDATION_ERROR', 'symbol is required');
 
     // Footprint context for the symbol (latest convergence run), best-effort.
     let footprint: any = {};
@@ -1781,98 +2366,12 @@ router.get('/convergence/:symbol/catalyst', async (req: Request, res: Response) 
       } catch { /* footprint is best-effort */ }
     }
 
-    // Social evidence for the narrative. Primary source is a LIVE buzz fetch
-    // (same as the Scanner's SOCIAL BUZZ panel) so posts are fresh; if that
-    // fails we fall back to the stored buzz snapshot. Either way we also fold
-    // in the organic-discovery feed (HN/4chan/forums) from market-intelligence.
-    const items: any[] = [];
-    let buzzSummary: string | null = null;
-    let dataFreshness = 'none';
+    const { items, buzzSummary, dataFreshness, qualityFlags } = await gatherSymbolBuzzItems(symbol);
 
-    try {
-      const port = process.env.PORT || '3002';
-      const liveRes = await fetch(`http://127.0.0.1:${port}/api/fundamentals/${encodeURIComponent(symbol)}/buzz`);
-      const livePayload = await liveRes.json() as any;
-      const live = livePayload?.data;
-      if (liveRes.ok && livePayload?.success && live) {
-        const msgs = Array.isArray(live.recent_messages) ? live.recent_messages : [];
-        for (const m of msgs) {
-          if (!m.body) continue;
-          items.push({
-            source_type: m.source || 'social',
-            source_community: null,
-            posted_at: m.created_at || m.posted_at || null,
-            author: m.user || m.author || null,
-            title: null,
-            excerpt: String(m.body).slice(0, 320),
-            sentiment: m.sentiment || null,
-            source_url: m.source_url || null,
-            alias_risk: false,
-          });
-        }
-        if (msgs.length) dataFreshness = 'live';
-        buzzSummary = [
-          live.source_label ? `sources ${live.source_label}` : '',
-          live.sampled_message_count != null ? `${live.sampled_message_count} sampled` : '',
-          live.watchlist_count != null ? `${live.watchlist_count} watchers` : '',
-          (live.bullish_pct != null || live.bearish_pct != null) ? `bull/bear ${live.bullish_pct ?? '?'}%/${live.bearish_pct ?? '?'}%` : '',
-        ].filter(Boolean).join(' · ') || null;
-      }
-    } catch { /* live fetch is best-effort; fall back below */ }
-
-    if (!items.length) {
-      const buzz = latestSocialBuzzSnapshot(symbol);
-      if (buzz?.available) {
-        const bs = buzz.buzz_score || {};
-        buzzSummary = [
-          `final buzz ${bs.final_buzz_score ?? 'n/a'} (${bs.score_validity || 'n/a'}/${bs.confidence_tier || 'n/a'})`,
-          `7d mentions ${buzz.mention_count_7d ?? 'n/a'}, 7d authors ${buzz.unique_authors_7d ?? 'n/a'}`,
-          Array.isArray(bs.reason_codes) && bs.reason_codes.length ? `flags ${bs.reason_codes.join(', ')}` : '',
-        ].filter(Boolean).join(' · ');
-        for (const m of (buzz.recent_messages || [])) {
-          if (!m.body) continue;
-          items.push({
-            source_type: m.source || 'social', source_community: null,
-            posted_at: m.posted_at, author: m.author, title: null,
-            excerpt: m.body, sentiment: m.sentiment, source_url: null, alias_risk: false,
-          });
-        }
-        if (items.length) dataFreshness = 'stored';
-      }
-    }
-
-    const evidence = latestSymbolCatalystEvidence(symbol);
-    for (const it of (Array.isArray(evidence?.items) ? evidence.items : [])) {
-      items.push({
-        source_type: it.source_type,
-        source_community: it.source_community,
-        posted_at: it.posted_at,
-        author: it.author,
-        title: it.title,
-        excerpt: it.excerpt,
-        sentiment: null,
-        source_url: it.source_url,
-        alias_risk: it.alias_risk,
-      });
-      if (dataFreshness === 'none') dataFreshness = 'stored';
-    }
-
-    items.sort((a, b) => String(b.posted_at || '').localeCompare(String(a.posted_at || '')));
-    const capped = items.slice(0, 12);
-    const sources = capped.map((it, i) => ({
-      idx: i + 1,
-      source_type: it.source_type,
-      source_community: it.source_community,
-      posted_at: it.posted_at,
-      title: it.title,
-      excerpt: it.excerpt,
-      source_url: it.source_url,
-      alias_risk: it.alias_risk,
-    }));
-
-    let narrative: string | null = null;
+    let thesis: ThesisResult | null = null;
     let narrativeStatus = 'ok';
-    if (!capped.length) {
+    let narrativeDetail: string | null = null;
+    if (!items.length) {
       narrativeStatus = 'no_evidence';
     } else {
       const apiKey = getConfiguredOpenAIKey();
@@ -1880,10 +2379,15 @@ router.get('/convergence/:symbol/catalyst', async (req: Request, res: Response) 
         narrativeStatus = 'no_api_key';
       } else {
         try {
-          narrative = await generateCatalystNarrative(apiKey, symbol, footprint, capped, buzzSummary);
-          if (!narrative) narrativeStatus = 'empty';
+          thesis = await extractSymbolThesis(apiKey, symbol, footprint, items, buzzSummary);
+          if (!thesis) narrativeStatus = 'empty';
+          else if (!thesis.has_thesis) narrativeStatus = 'no_thesis';
+          // Persist so the Ledger DCF (and future backtests) can read this
+          // thesis without paying for another model call.
+          if (thesis) recordAdhocNarrativeThesis(symbol, thesis);
         } catch (e: any) {
-          narrativeStatus = 'error';
+          narrativeStatus = /quota|429|rate limit/i.test(String(e?.message || '')) ? 'quota' : 'error';
+          narrativeDetail = String(e?.message || 'Thesis extraction failed').slice(0, 240);
         }
       }
     }
@@ -1893,15 +2397,510 @@ router.get('/convergence/:symbol/catalyst', async (req: Request, res: Response) 
       data: {
         symbol,
         footprint,
-        narrative,
+        narrative: thesis?.narrative ?? null,
         narrative_status: narrativeStatus,
+        narrative_detail: narrativeDetail,
+        has_thesis: thesis?.has_thesis ?? false,
+        headline: thesis?.headline ?? null,
+        theses: thesis?.theses ?? [],
+        classification: thesis?.classification ?? null,
+        signal_count: thesis?.signal_count ?? 0,
+        noise_count: thesis?.noise_count ?? 0,
         buzz_summary: buzzSummary,
         data_freshness: dataFreshness,
-        evidence_count: capped.length,
-        reliable_item_count: capped.filter((it) => !it.alias_risk).length,
-        quality_flags: evidence?.quality_flags ?? [],
-        sources,
+        evidence_count: items.length,
+        reliable_item_count: (thesis?.used_sources ?? []).filter((it: any) => !it.alias_risk).length,
+        quality_flags: qualityFlags,
+        sources: thesis?.used_sources ?? [],
         schema_version: MARKET_INTELLIGENCE_SCHEMA_VERSION,
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof HttpError) return sendError(res, err.code, err.message);
+    sendError(res, 'INTERNAL', err?.message || String(err));
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Narrative thesis scan: run the thesis extractor across the whole convergence
+// board and cache results so the UI can show ⚠ thesis flags instantly. Because
+// each symbol takes ~30s (deep corpus + LLM), this runs as a background batch
+// (auto-triggered after each convergence run) and the board reads the cache.
+// ---------------------------------------------------------------------------
+
+function ensureNarrativeThesesTable(db: any): void {
+  db.exec(`CREATE TABLE IF NOT EXISTS mi_narrative_theses (
+    run_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    has_thesis INTEGER NOT NULL DEFAULT 0,
+    headline TEXT,
+    classification TEXT,
+    direction TEXT,
+    theses_json TEXT,
+    narrative TEXT,
+    signal_count INTEGER,
+    noise_count INTEGER,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (run_id, symbol)
+  )`);
+}
+
+// How long a cached thesis stays "fresh". Theses are cached per symbol and
+// reused across eigen runs; a board scan only spends LLM calls on symbols that
+// are new to the board or whose thesis is older than this. With the daily
+// scheduled eigen run (~24h apart) this yields a once-a-day refresh, while
+// repeated runs within a day (e.g. a manual eigen re-run) cost nothing.
+const THESIS_FRESH_HOURS = 20;
+
+let _thesisScanRunning = false;
+let _thesisScanStatus: { running: boolean; run_id: string | null; scanned: number; total: number; with_thesis: number; started_at: string | null; finished_at: string | null } = {
+  running: false, run_id: null, scanned: 0, total: 0, with_thesis: 0, started_at: null, finished_at: null,
+};
+
+async function scanBoardThesesInternal(opts: { limit?: number; force?: boolean } = {}): Promise<typeof _thesisScanStatus> {
+  if (_thesisScanRunning) return _thesisScanStatus;
+  const dbPath = getMarketIntelligenceDbPath();
+  const apiKey = getConfiguredOpenAIKey();
+  if (!fs.existsSync(dbPath) || !apiKey) return _thesisScanStatus;
+  _thesisScanRunning = true;
+  _thesisScanStatus = { running: true, run_id: null, scanned: 0, total: 0, with_thesis: 0, started_at: new Date().toISOString(), finished_at: null };
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(dbPath);
+  try {
+    ensureNarrativeThesesTable(db);
+    const latest = db.prepare(
+      `SELECT run_id FROM mi_convergence ORDER BY generated_at DESC, id DESC LIMIT 1`,
+    ).get() as { run_id?: string } | undefined;
+    const runId = latest?.run_id || null;
+    if (!runId) return _thesisScanStatus;
+    _thesisScanStatus.run_id = runId;
+
+    const board = db.prepare(
+      `SELECT symbol, direction, convergence_score, tier,
+              COALESCE(narrative_only, 0) AS narrative_only, votes_json
+       FROM mi_convergence WHERE run_id = ?
+       ORDER BY convergence_score DESC LIMIT ?`,
+    ).all(runId, opts.limit ?? 40) as any[];
+
+    // Incremental cache: a symbol is "done" if it already has a thesis newer
+    // than THESIS_FRESH_HOURS — regardless of which run_id produced it. So only
+    // board names that are new or stale get an LLM call; everything else is
+    // carried forward from cache.
+    const done = new Set<string>();
+    if (!opts.force) {
+      const cutoffIso = new Date(Date.now() - THESIS_FRESH_HOURS * 3600 * 1000).toISOString();
+      for (const r of db.prepare(
+        `SELECT symbol, MAX(updated_at) AS last_updated
+         FROM mi_narrative_theses GROUP BY symbol`,
+      ).all() as any[]) {
+        if (r.last_updated && String(r.last_updated) >= cutoffIso) done.add(String(r.symbol));
+      }
+    }
+    const todo = board.filter((b) => !done.has(String(b.symbol)));
+    _thesisScanStatus.total = todo.length;
+
+    const insert = db.prepare(
+      `INSERT OR REPLACE INTO mi_narrative_theses
+       (run_id, symbol, has_thesis, headline, classification, direction, theses_json, narrative, signal_count, noise_count, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    );
+
+    const concurrency = 3;
+    for (let i = 0; i < todo.length; i += concurrency) {
+      const batch = todo.slice(i, i + concurrency);
+      const results = await Promise.all(batch.map(async (b) => {
+        const symbol = String(b.symbol).toUpperCase();
+        const footprint = {
+          direction: b.direction, convergence_score: b.convergence_score, tier: b.tier,
+          narrative_only: !!b.narrative_only,
+          votes: (() => { try { return JSON.parse(b.votes_json || '[]'); } catch { return []; } })(),
+        };
+        try {
+          const { items, buzzSummary } = await gatherSymbolBuzzItems(symbol);
+          const t = items.length ? await extractSymbolThesis(apiKey, symbol, footprint, items, buzzSummary) : null;
+          return { symbol, t };
+        } catch { return { symbol, t: null as ThesisResult | null }; }
+      }));
+      const now = new Date().toISOString();
+      for (const { symbol, t } of results) {
+        insert.run(
+          runId, symbol, t?.has_thesis ? 1 : 0, t?.headline ?? null, t?.classification ?? null,
+          t?.theses?.[0]?.direction ?? null, JSON.stringify(t?.theses ?? []), t?.narrative ?? null,
+          t?.signal_count ?? 0, t?.noise_count ?? 0, now,
+        );
+        _thesisScanStatus.scanned += 1;
+        if (t?.has_thesis) _thesisScanStatus.with_thesis += 1;
+      }
+    }
+    return _thesisScanStatus;
+  } finally {
+    db.close();
+    _thesisScanRunning = false;
+    _thesisScanStatus = { ..._thesisScanStatus, running: false, finished_at: new Date().toISOString() };
+  }
+}
+
+// Kick off a background board scan (fire-and-forget). Auto-called after each
+// convergence run by the scheduler, and available manually.
+router.post('/convergence/theses/scan', (req: Request, res: Response) => {
+  const force = String(req.query.force || '') === '1' || req.body?.force === true;
+  const limit = asNumber(req.query.limit) ?? undefined;
+  if (_thesisScanRunning) {
+    return res.json({ success: true, data: { started: false, reason: 'already_running', status: _thesisScanStatus } });
+  }
+  void scanBoardThesesInternal({ force, limit }).catch(() => { /* background */ });
+  res.json({ success: true, data: { started: true, status: _thesisScanStatus } });
+});
+
+// Read cached theses for the latest convergence board (fast; no LLM).
+router.get('/convergence/theses', (req: Request, res: Response) => {
+  try {
+    const dbPath = getMarketIntelligenceDbPath();
+    if (!fs.existsSync(dbPath)) return res.json({ success: true, data: { run_id: null, theses: {}, scan_status: _thesisScanStatus } });
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const tbl = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='mi_narrative_theses'`).get();
+      const latest = db.prepare(`SELECT run_id FROM mi_convergence ORDER BY generated_at DESC, id DESC LIMIT 1`).get() as any;
+      const runId = latest?.run_id || null;
+      const map: Record<string, any> = {};
+      if (tbl && runId) {
+        // Carry forward: show the most recent thesis per symbol regardless of
+        // which run produced it, so theses never "disappear" when a new eigen
+        // run mints a fresh run_id before the incremental rescan completes.
+        const boardSyms = new Set(
+          (db.prepare(`SELECT DISTINCT symbol FROM mi_convergence WHERE run_id = ?`).all(runId) as any[])
+            .map((r) => String(r.symbol)),
+        );
+        const rows = db.prepare(
+          `SELECT t.* FROM mi_narrative_theses t
+           JOIN (SELECT symbol, MAX(updated_at) AS mx FROM mi_narrative_theses GROUP BY symbol) m
+             ON m.symbol = t.symbol AND m.mx = t.updated_at`,
+        ).all() as any[];
+        const freshCutoff = new Date(Date.now() - THESIS_FRESH_HOURS * 3600 * 1000).toISOString();
+        for (const r of rows) {
+          const sym = String(r.symbol);
+          if (boardSyms.size && !boardSyms.has(sym)) continue;  // only current board names
+          map[sym] = {
+            has_thesis: !!r.has_thesis,
+            headline: r.headline,
+            classification: r.classification,
+            direction: r.direction,
+            signal_count: r.signal_count,
+            noise_count: r.noise_count,
+            theses: (() => { try { return JSON.parse(r.theses_json || '[]'); } catch { return []; } })(),
+            narrative: r.narrative,
+            updated_at: r.updated_at,
+            stale: !(r.updated_at && String(r.updated_at) >= freshCutoff),
+            from_run: r.run_id,
+          };
+        }
+      }
+      res.json({
+        success: true,
+        data: {
+          run_id: runId,
+          scanned_count: Object.keys(map).length,
+          with_thesis: Object.values(map).filter((m: any) => m.has_thesis).length,
+          theses: map,
+          scan_status: _thesisScanStatus,
+        },
+      });
+    } finally {
+      db.close();
+    }
+  } catch (err: any) {
+    sendError(res, 'INTERNAL', err?.message || String(err));
+  }
+});
+
+router.get('/social-thesis-alerts', (req: Request, res: Response) => {
+  try {
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50) || 50));
+    const dbPath = getMarketIntelligenceDbPath();
+    if (!fs.existsSync(dbPath)) {
+      return res.json({ success: true, data: { items: [], total: 0 } });
+    }
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    let rows: any[] = [];
+    try {
+      const tbl = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='mi_narrative_theses'`).get();
+      if (!tbl) return res.json({ success: true, data: { items: [], total: 0 } });
+      rows = db.prepare(
+        `SELECT t.* FROM mi_narrative_theses t
+         JOIN (
+           SELECT symbol, MAX(updated_at) AS mx
+           FROM mi_narrative_theses
+           WHERE has_thesis = 1
+           GROUP BY symbol
+         ) m ON m.symbol = t.symbol AND m.mx = t.updated_at
+         WHERE t.has_thesis = 1
+         ORDER BY t.updated_at DESC
+         LIMIT ?`,
+      ).all(limit) as any[];
+    } finally {
+      db.close();
+    }
+
+    const latestBuzz: Record<string, any> = {};
+    if (fs.existsSync(SOCIAL_INTELLIGENCE_DB_PATH) && rows.length) {
+      const socialDb = new DatabaseSync(SOCIAL_INTELLIGENCE_DB_PATH, { readOnly: true });
+      try {
+        const stmt = socialDb.prepare(
+          `SELECT trade_date, buzz_zscore, unique_author_zscore, engagement_zscore,
+                  mention_velocity, mention_acceleration,
+                  yahoo_mentions, stocktwits_mentions, final_buzz_score,
+                  score_validity, is_score_valid
+           FROM ticker_buzz_scores
+           WHERE symbol = ?
+           ORDER BY trade_date DESC
+           LIMIT 1`,
+        );
+        for (const r of rows) {
+          const sym = String(r.symbol || '').toUpperCase();
+          latestBuzz[sym] = stmt.get(sym) || null;
+        }
+      } finally {
+        socialDb.close();
+      }
+    }
+
+    const freshCutoff = new Date(Date.now() - THESIS_FRESH_HOURS * 3600 * 1000).toISOString();
+    const items = rows.map((r) => {
+      let theses: any[] = [];
+      try {
+        const parsed = JSON.parse(r.theses_json || '[]');
+        if (Array.isArray(parsed)) theses = parsed;
+      } catch { /* ignore malformed cache rows */ }
+      const sym = String(r.symbol || '').toUpperCase();
+      return {
+        symbol: sym,
+        has_thesis: !!r.has_thesis,
+        headline: r.headline,
+        classification: r.classification,
+        direction: r.direction,
+        theses,
+        narrative: r.narrative,
+        signal_count: r.signal_count,
+        noise_count: r.noise_count,
+        updated_at: r.updated_at,
+        stale: !(r.updated_at && String(r.updated_at) >= freshCutoff),
+        from_run: r.run_id,
+        latest_buzz: latestBuzz[sym] || null,
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        total: items.length,
+        generated_at: new Date().toISOString(),
+      },
+    });
+  } catch (err: any) {
+    sendError(res, 'INTERNAL', err?.message || String(err));
+  }
+});
+
+router.get('/event-risk-radar', (req: Request, res: Response) => {
+  try {
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 75) || 75));
+    const days = Math.max(1, Math.min(180, Number(req.query.days || 45) || 45));
+    const symbolFilter = String(req.query.symbol || '').trim().toUpperCase();
+    if (symbolFilter && !/^[A-Z][A-Z0-9.-]{0,8}$/.test(symbolFilter)) {
+      throw new HttpError('VALIDATION_ERROR', 'symbol must be a valid ticker');
+    }
+    if (!fs.existsSync(OPTIONS_FLOW_DB_PATH)) {
+      return res.json({ success: true, data: { items: [], total: 0, as_of: null } });
+    }
+
+    const { DatabaseSync } = require('node:sqlite');
+    const optionsDb = new DatabaseSync(OPTIONS_FLOW_DB_PATH, { readOnly: true });
+    let alertRows: any[] = [];
+    let asOf: string | null = null;
+    try {
+      const latest = optionsDb.prepare(`SELECT MAX(trade_date) AS trade_date FROM options_flow_alerts`).get() as any;
+      asOf = latest?.trade_date || null;
+      if (!asOf) return res.json({ success: true, data: { items: [], total: 0, as_of: null } });
+      const cutoffMs = Date.parse(`${asOf}T00:00:00Z`) - (days - 1) * 86_400_000;
+      const cutoff = new Date(cutoffMs).toISOString().slice(0, 10);
+      const sql = `
+        SELECT symbol, trade_date, alert_type, severity, headline, detail, metrics_json, created_at
+        FROM options_flow_alerts
+        WHERE trade_date >= ?
+        ${symbolFilter ? 'AND symbol = ?' : ''}
+        ORDER BY trade_date DESC, symbol ASC`;
+      alertRows = symbolFilter
+        ? optionsDb.prepare(sql).all(cutoff, symbolFilter) as any[]
+        : optionsDb.prepare(sql).all(cutoff) as any[];
+    } finally {
+      optionsDb.close();
+    }
+
+    const bySymbol = new Map<string, any>();
+    const severityRank: Record<string, number> = { critical: 4, high: 3, notable: 2, medium: 2, low: 1 };
+    for (const row of alertRows) {
+      const sym = String(row.symbol || '').toUpperCase();
+      if (!sym) continue;
+      const current = bySymbol.get(sym) || {
+        symbol: sym,
+        latest_trade_date: row.trade_date,
+        alert_count: 0,
+        critical_count: 0,
+        high_count: 0,
+        downside_count: 0,
+        upside_count: 0,
+        max_severity: row.severity || null,
+        option_headlines: [],
+        alerts: [],
+      };
+      current.alert_count += 1;
+      const sev = String(row.severity || '').toLowerCase();
+      if (sev === 'critical') current.critical_count += 1;
+      if (sev === 'high') current.high_count += 1;
+      if (severityRank[sev] > severityRank[String(current.max_severity || '').toLowerCase()]) {
+        current.max_severity = row.severity;
+      }
+      if (String(row.trade_date || '') > String(current.latest_trade_date || '')) current.latest_trade_date = row.trade_date;
+      const blob = `${row.alert_type || ''} ${row.headline || ''} ${row.detail || ''}`.toLowerCase();
+      if (/\bputs?\b|\bdownside\b|\bskew\b|\bprotection\b|\bbear(?:ish)?\b/.test(blob)) current.downside_count += 1;
+      if (/\bcalls?\b|\bupside\b|\bbull(?:ish)?\b/.test(blob)) current.upside_count += 1;
+      if (current.option_headlines.length < 3 && row.headline) current.option_headlines.push(row.headline);
+      if (current.alerts.length < 6) {
+        current.alerts.push({
+          trade_date: row.trade_date,
+          alert_type: row.alert_type,
+          severity: row.severity,
+          headline: row.headline,
+          detail: row.detail,
+        });
+      }
+      bySymbol.set(sym, current);
+    }
+
+    const symbols = Array.from(bySymbol.keys());
+    const latestBuzz: Record<string, any> = {};
+    const socialContext: Record<string, any> = {};
+    if (symbols.length && fs.existsSync(SOCIAL_INTELLIGENCE_DB_PATH)) {
+      const socialDb = new DatabaseSync(SOCIAL_INTELLIGENCE_DB_PATH, { readOnly: true });
+      try {
+        const buzzStmt = socialDb.prepare(`
+          SELECT trade_date, buzz_zscore, unique_author_zscore, engagement_zscore,
+                 mention_velocity, mention_acceleration, yahoo_mentions, stocktwits_mentions,
+                 final_buzz_score, score_validity, is_score_valid
+          FROM ticker_buzz_scores
+          WHERE symbol = ?
+          ORDER BY trade_date DESC
+          LIMIT 1`);
+        const postStmt = socialDb.prepare(`
+          SELECT posted_at, platform, author_handle, body_text, like_count, reply_count, engagement_score
+          FROM social_posts_raw
+          WHERE symbol = ?
+            AND posted_at >= ?
+            AND body_text IS NOT NULL
+            AND LENGTH(TRIM(body_text)) > 0
+          ORDER BY posted_at DESC
+          LIMIT 8`);
+        for (const sym of symbols) {
+          latestBuzz[sym] = buzzStmt.get(sym) || null;
+          const posts = postStmt.all(sym, new Date(Date.now() - days * 86_400_000).toISOString()) as any[];
+          const keywordCounts: Record<string, number> = {
+            trial: 0, safety: 0, approval: 0, dilution: 0, shorting: 0, fraud: 0, earnings: 0,
+          };
+          for (const post of posts) {
+            const text = String(post.body_text || '').toLowerCase();
+            if (/trial|phase|lotis|data|fda|drug|study/.test(text)) keywordCounts.trial += 1;
+            if (/safety|adverse|death|fatal|grade 5|toxicity/.test(text)) keywordCounts.safety += 1;
+            if (/approval|accepted|filing|pdufa/.test(text)) keywordCounts.approval += 1;
+            if (/dilution|offering|atm|cash|runway/.test(text)) keywordCounts.dilution += 1;
+            if (/short|shorting|puts|put|hedge/.test(text)) keywordCounts.shorting += 1;
+            if (/fraud|investigat|lawsuit|sec/.test(text)) keywordCounts.fraud += 1;
+            if (/earnings|revenue|eps|guidance/.test(text)) keywordCounts.earnings += 1;
+          }
+          socialContext[sym] = {
+            keyword_counts: keywordCounts,
+            posts: posts.slice(0, 4).map((post) => ({
+              posted_at: post.posted_at,
+              platform: post.platform,
+              author: post.author_handle,
+              text: String(post.body_text || '').replace(/\s+/g, ' ').trim().slice(0, 220),
+              likes: post.like_count,
+              replies: post.reply_count,
+              engagement: post.engagement_score,
+            })),
+          };
+        }
+      } finally {
+        socialDb.close();
+      }
+    }
+
+    const latestTheses: Record<string, any> = {};
+    const miDbPath = getMarketIntelligenceDbPath();
+    if (symbols.length && fs.existsSync(miDbPath)) {
+      const miDb = new DatabaseSync(miDbPath, { readOnly: true });
+      try {
+        const tbl = miDb.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='mi_narrative_theses'`).get();
+        if (tbl) {
+          const thesisStmt = miDb.prepare(`
+            SELECT t.*
+            FROM mi_narrative_theses t
+            JOIN (SELECT symbol, MAX(updated_at) AS mx FROM mi_narrative_theses WHERE symbol = ? GROUP BY symbol) m
+              ON m.symbol = t.symbol AND m.mx = t.updated_at
+            LIMIT 1`);
+          for (const sym of symbols) latestTheses[sym] = thesisStmt.get(sym) || null;
+        }
+      } finally {
+        miDb.close();
+      }
+    }
+
+    const items = Array.from(bySymbol.values()).map((item: any) => {
+      const buzz = latestBuzz[item.symbol] || null;
+      const thesis = latestTheses[item.symbol] || null;
+      const social = socialContext[item.symbol] || { keyword_counts: {}, posts: [] };
+      const buzzZ = Number(buzz?.buzz_zscore);
+      const score =
+        item.critical_count * 30 +
+        item.high_count * 15 +
+        item.downside_count * 18 +
+        item.upside_count * 6 +
+        (Number.isFinite(buzzZ) && buzzZ >= 4 ? 24 : Number.isFinite(buzzZ) && buzzZ >= 2 ? 12 : 0) +
+        (thesis?.has_thesis ? 22 : 0) +
+        Math.min(18, Object.values(social.keyword_counts || {}).reduce((n: number, v: any) => n + Number(v || 0), 0) * 3);
+      const posture = item.downside_count && item.upside_count
+        ? 'binary_event'
+        : item.downside_count
+          ? 'downside_protection'
+          : item.upside_count
+            ? 'upside_speculation'
+            : 'options_anomaly';
+      return {
+        ...item,
+        risk_score: Math.round(score),
+        posture,
+        latest_buzz: buzz,
+        social_context: social,
+        thesis: thesis ? {
+          has_thesis: !!thesis.has_thesis,
+          headline: thesis.headline,
+          classification: thesis.classification,
+          direction: thesis.direction,
+          updated_at: thesis.updated_at,
+        } : null,
+      };
+    }).sort((a: any, b: any) => b.risk_score - a.risk_score || String(b.latest_trade_date).localeCompare(String(a.latest_trade_date))).slice(0, limit);
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        total: items.length,
+        as_of: asOf,
+        lookback_days: days,
+        generated_at: new Date().toISOString(),
       },
     });
   } catch (err: any) {
@@ -2470,6 +3469,88 @@ router.post('/emerging-topics/:id/promote', (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// BASE-BREAK CAUSE EXTRACTOR
+//   GET /base-break-cause/:symbols
+// For a symbol (or comma-separated list) that has left a multi-year price base,
+// this runs the point-in-time cause extractor and returns, per symbol: the base
+// + breakout, the PIT fundamental inflection (the leading cause), and a
+// lead/lag verdict (did the fundamentals go public before price broke out?).
+// Synchronous: the script is fast (~5s) and emits a JSON array on stdout.
+// ============================================================================
+
+const CAUSE_EXTRACTOR_SCRIPT_PATH = path.join(
+  PROJECT_ROOT,
+  'backend',
+  'scripts',
+  'run_base_break_cause_extractor.py',
+);
+
+function runBaseBreakCause(symbols: string[]): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(CAUSE_EXTRACTOR_SCRIPT_PATH)) {
+      reject(new Error(`Cause extractor script missing at ${CAUSE_EXTRACTOR_SCRIPT_PATH}`));
+      return;
+    }
+    const args = [
+      CAUSE_EXTRACTOR_SCRIPT_PATH,
+      '--symbols',
+      symbols.join(','),
+      '--json',
+    ];
+    const child = spawn(PYTHON_BIN, args, {
+      cwd: PROJECT_ROOT,
+      windowsHide: true,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
+    child.stdout?.on('data', (c) => out.push(Buffer.from(c)));
+    child.stderr?.on('data', (c) => err.push(Buffer.from(c)));
+    child.on('error', (e) => reject(e));
+    child.on('exit', (code) => {
+      const stdout = Buffer.concat(out).toString('utf-8').trim();
+      const stderr = Buffer.concat(err).toString('utf-8').trim();
+      if (code !== 0) {
+        reject(new Error(`extractor exit ${code}: ${stderr.slice(-500) || stdout.slice(-500)}`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (parseErr: any) {
+        reject(new Error(`failed to parse extractor output: ${parseErr?.message || parseErr}`));
+      }
+    });
+  });
+}
+
+router.get('/base-break-cause/:symbols', async (req: Request, res: Response) => {
+  try {
+    const raw = String(req.params.symbols || '');
+    const symbols = raw
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => /^[A-Z][A-Z0-9.-]{0,9}$/.test(s))
+      .slice(0, 12);
+    if (!symbols.length) {
+      return sendError(res, 'VALIDATION_ERROR', 'Provide 1-12 valid symbols, comma-separated.');
+    }
+    const results = await runBaseBreakCause(symbols);
+    res.json({
+      success: true,
+      data: {
+        results,
+        symbols,
+        script: 'backend/scripts/run_base_break_cause_extractor.py',
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof HttpError) return sendError(res, err.code, err.message);
+    sendError(res, 'INTERNAL', err?.message || String(err));
+  }
+});
+
+// ============================================================================
 // SETTINGS — JSON file persistence (matches the social-intelligence pattern)
 // ============================================================================
 
@@ -2492,8 +3573,46 @@ function num(n: unknown, dec = 1): string {
   return x.toFixed(dec);
 }
 
+// Tickers named directly in the scenario TEXT (title/summary/claims), e.g.
+// "Is Vistra (VST) the best ...", "$VST", "NYSE: VST". These are the SUBJECT of
+// the story — without them the Ledger cross-check has nothing to value, which is
+// why a clearly single-name story ("(VST)") was returning "no mapped companies".
+// Validated against the universe classification so we don't fetch garbage.
+function scenarioSubjectTickers(detail: any, maxSymbols = 4): string[] {
+  const text = [detail?.title, detail?.summary]
+    .concat(Array.isArray(detail?.claims) ? detail.claims.map((c: any) => (typeof c === 'string' ? c : c?.text || c?.claim || '')) : [])
+    .filter(Boolean)
+    .join('  ');
+  if (!text) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string) => {
+    const s = String(raw || '').trim().toUpperCase();
+    if (!s || seen.has(s) || !/^[A-Z][A-Z0-9.-]{0,5}$/.test(s)) return;
+    if (!getSymbolClassification(s)) return; // must be a known universe symbol
+    seen.add(s);
+    out.push(s);
+  };
+  const patterns = [
+    /\$([A-Za-z]{1,5})\b/g,                          // $VST
+    /\(([A-Z]{1,5})\)/g,                             // Vistra (VST)
+    /\b(?:NYSE|NASDAQ|NYSEARCA|AMEX|OTC)\s*:\s*([A-Z]{1,5})\b/g, // NYSE: VST
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      push(m[1]);
+      if (out.length >= maxSymbols) return out;
+    }
+  }
+  return out;
+}
+
 function scenarioSymbols(detail: any, maxSymbols = 6): string[] {
   const symbols = new Set<string>();
+  // Subject tickers named in the story text come first — they are what the user
+  // is actually asking about and must be valued.
+  for (const s of scenarioSubjectTickers(detail, 4)) symbols.add(s);
   for (const c of Array.isArray(detail?.top_universe_candidates) ? detail.top_universe_candidates : []) {
     const symbol = String(c?.symbol || '').trim().toUpperCase();
     if (symbol) symbols.add(symbol);
@@ -2509,15 +3628,133 @@ function scenarioSymbols(detail: any, maxSymbols = 6): string[] {
   return Array.from(symbols).slice(0, maxSymbols);
 }
 
+// Cheap, no-LLM lookup of any thesis the social/buzz extractor has already minted
+// for these symbols (mi_narrative_theses). Lets the scenario brief answer "has the
+// social feed generated a thesis on this company?" without a fresh extraction.
+function lookupCachedTheses(symbols: string[]): Record<string, any> {
+  const map: Record<string, any> = {};
+  if (!symbols.length) return map;
+  try {
+    const dbPath = getMarketIntelligenceDbPath();
+    if (!fs.existsSync(dbPath)) return map;
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const tbl = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='mi_narrative_theses'`).get();
+      if (!tbl) return map;
+      const freshCutoff = new Date(Date.now() - THESIS_FRESH_HOURS * 3600 * 1000).toISOString();
+      const stmt = db.prepare(
+        `SELECT t.* FROM mi_narrative_theses t
+         JOIN (SELECT symbol, MAX(updated_at) AS mx FROM mi_narrative_theses WHERE symbol = ? GROUP BY symbol) m
+           ON m.symbol = t.symbol AND m.mx = t.updated_at LIMIT 1`,
+      );
+      for (const symbol of symbols) {
+        const r = stmt.get(symbol) as any;
+        if (!r) continue;
+        map[symbol] = {
+          has_thesis: !!r.has_thesis,
+          headline: r.headline,
+          classification: r.classification,
+          direction: r.direction,
+          narrative: r.narrative,
+          signal_count: r.signal_count,
+          noise_count: r.noise_count,
+          theses: (() => { try { return JSON.parse(r.theses_json || '[]'); } catch { return []; } })(),
+          updated_at: r.updated_at,
+          stale: !(r.updated_at && String(r.updated_at) >= freshCutoff),
+        };
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    return map;
+  }
+  return map;
+}
+
+// One- or two-sentence plain-English synopsis of what the story actually CLAIMS,
+// assembled from the title + the freshest evidence text. Gives the brief a "what
+// is this even about" line instead of jumping straight into signal stats.
+function scenarioStorySynopsis(detail: any): { headline: string | null; claim: string | null; sources: string[] } {
+  const headline = detail?.title ? String(detail.title).trim() : null;
+  const texts: string[] = [];
+  const sources: string[] = [];
+  for (const e of Array.isArray(detail?.evidence_timeline) ? detail.evidence_timeline.slice(0, 5) : []) {
+    const t = e?.summary || e?.text || e?.excerpt || e?.headline || e?.title || '';
+    if (t) texts.push(String(t).trim());
+    const src = e?.source || e?.source_type || e?.platform || e?.publisher;
+    if (src) sources.push(String(src));
+  }
+  const claim = (detail?.summary && String(detail.summary).trim())
+    || (texts.length ? texts.join(' ').slice(0, 400) : null);
+  return { headline, claim, sources: Array.from(new Set(sources)).slice(0, 4) };
+}
+
+function fetchDcfPredictionSnapshot(symbol: string): any | null {
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    const dbPath = path.join(PROJECT_ROOT, 'backend', 'data', 'app-state.sqlite');
+    if (!fs.existsSync(dbPath)) return null;
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const row = db.prepare(
+        `SELECT *
+           FROM dcf_predictions
+          WHERE symbol = ?
+          ORDER BY prediction_date DESC, id DESC
+          LIMIT 1`,
+      ).get(String(symbol || '').toUpperCase()) as any;
+      if (!row) return null;
+      return {
+        currentPrice: row.price_at_prediction ?? null,
+        marketCap: null,
+        sector: row.sector ?? null,
+        industry: row.industry ?? null,
+        revenueGrowthPct: row.revenue_growth_pct ?? null,
+        profitMarginPct: row.operating_margin_pct ?? null,
+        freeCashFlowTTM: row.reported_fcf ?? row.quality_adjusted_fcf ?? null,
+        valuationSnapshot: {
+          fairValueLow: row.fair_value_low ?? null,
+          fairValueMid: row.fair_value_mid ?? null,
+          fairValueHigh: row.fair_value_high ?? null,
+          valuationGapPct: row.valuation_gap_pct ?? null,
+          valuationState: row.judgment ?? null,
+          qualityGrade: row.confidence_level ?? null,
+          qualityScore: null,
+        },
+        riskFlags: [],
+        tags: [
+          row.source ? `source:${row.source}` : null,
+          row.engine_version ? `engine:${row.engine_version}` : null,
+          row.prediction_date ? `asof:${row.prediction_date}` : null,
+        ].filter(Boolean),
+      };
+    } finally {
+      db.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 async function fetchFundamentalSnapshot(symbol: string): Promise<any | null> {
+  const dcfSnapshot = fetchDcfPredictionSnapshot(symbol);
+  if (dcfSnapshot) return dcfSnapshot;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
   try {
     const port = process.env.PORT || 3002;
-    const response = await fetch(`http://localhost:${port}/api/fundamentals/${encodeURIComponent(symbol)}`);
+    const response = await fetch(`http://localhost:${port}/api/fundamentals/${encodeURIComponent(symbol)}`, {
+      signal: controller.signal,
+    });
     const payload = await response.json() as any;
     if (!payload?.success || !payload?.data) return null;
     return payload.data.snapshot || payload.data;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -2678,10 +3915,10 @@ Reference specific numbers. No disclaimers.`;
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: getRoleModelOverride('ledger') || 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.25,
-        max_tokens: 900,
+        max_tokens: 2200,
       }),
     });
     const result = await response.json() as any;
@@ -2746,16 +3983,116 @@ async function buildNarrativeClusterReport(detail: any): Promise<any> {
 
 function deterministicScenarioBrief(report: any): string {
   const s = report.scenario;
-  const top = (report.candidate_fundamentals || [])[0];
-  const topLine = top && !top.unavailable
-    ? `Top expression ${top.symbol}: valuation ${top.valuation_state || 'N/A'} (${pct(top.valuation_gap_pct)}), quality ${top.quality_grade || top.quality_score || 'N/A'}, revenue growth ${pct(top.revenue_growth_pct)}, risk flags ${(top.risk_flags || []).map((r: any) => r.code).join(', ') || 'none'}.`
-    : 'No Ledger-backed ticker expression is available yet, so this is a scenario-quality review rather than a single-name trade review.';
+  const subj: string[] = Array.isArray(report.subject_tickers) ? report.subject_tickers : [];
+  // Prefer a subject ticker (the name the story is about) for the valuation line.
+  const fundamentals: any[] = report.candidate_fundamentals || [];
+  const subjFund = fundamentals.find((f) => !f.unavailable && subj.includes(String(f.symbol).toUpperCase()));
+  const top = subjFund || fundamentals.find((f) => !f.unavailable) || fundamentals[0];
+  const synopsis = report.story_synopsis || {};
+  const synopsisLine = synopsis.claim
+    ? `${synopsis.headline ? synopsis.headline + ' — ' : ''}${String(synopsis.claim).slice(0, 320)}${subj.length ? ` Subject: ${subj.join(', ')}.` : ''}`
+    : (synopsis.headline || 'No story text available.');
+  const valLine = top && !top.unavailable
+    ? `${top.symbol}: ${top.valuation_engine || 'valuation'} fair value ${top.fair_value == null ? 'N/A' : top.fair_value}, current price ${top.current_price == null ? 'N/A' : top.current_price}, gap ${pct(top.valuation_gap_pct)} (${top.valuation_state || 'N/A'}); quality ${top.quality_grade || top.quality_score || 'N/A'}, revenue growth ${pct(top.revenue_growth_pct)}, risk flags ${(top.risk_flags || []).map((r: any) => r.code).join(', ') || 'none'}.`
+    : `No Ledger valuation snapshot is available${subj.length ? ` for ${subj.join(', ')}` : ''} yet, so this is a scenario-quality review rather than a single-name valuation.`;
+  const theses: Record<string, any> = report.social_theses || {};
+  const subjThesis = subj.map((t) => theses[t]).find((x) => x && x.has_thesis)
+    || Object.values(theses).find((x: any) => x && x.has_thesis) as any;
+  const thesisLine = subjThesis && subjThesis.has_thesis
+    ? `Buzz-thesis extractor: "${subjThesis.headline || 'thesis'}" (${subjThesis.direction || 'n/a'}${subjThesis.classification ? ', ' + subjThesis.classification : ''})${subjThesis.stale ? ' [stale]' : ''}.`
+    : (Object.keys(theses).length
+        ? 'Buzz-thesis extractor has no material thesis for the subject ticker(s) yet — only low-substance chatter.'
+        : 'No cached social thesis for the subject ticker(s).');
   return [
+    `**STORY SYNOPSIS:** ${synopsisLine}`,
     `**SCENARIO SIGNAL:** ${s.title} is a ${scenarioEngineLabel(s.detection_path)} scenario with signal strength ${s.signal_strength}/100, confidence ${num(s.confidence_score, 2)}, status ${s.status}, and ${report.evidence_timeline.length} evidence item(s). The theme is ${s.primary_theme}, with a ${s.time_horizon || 'unknown'} time horizon.`,
     `**EVIDENCE QUALITY:** Source breadth is ${num(s.source_breadth_score, 2)} and authenticity is ${s.authenticity_score == null ? 'N/A' : num(s.authenticity_score, 2)}. Peak z-score is ${s.peak_z_score == null ? 'N/A' : num(s.peak_z_score, 1)}. Flags: ${(s.validity_flags || []).join(', ') || 'none'}.`,
-    `**LEDGER CROSS-CHECK:** ${topLine}`,
+    `**LEDGER CROSS-CHECK (VALUATION/DCF):** ${valLine}`,
+    `**SOCIAL / THESIS CHECK:** ${thesisLine}`,
     `**BOTTOM LINE:** ${report.verdict.risk_level} - ${report.verdict.summary} Watch for fresh corroborating evidence, movement in the mapped tickers, and whether the top expressions remain tradable after valuation and quality checks.`,
   ].join('\n\n');
+}
+
+function valuationFragilityRows(report: any, limit = 16): any[] {
+  const fundamentals: any[] = Array.isArray(report.candidate_fundamentals)
+    ? report.candidate_fundamentals
+    : [];
+  const rankBySymbol = new Map<string, any>();
+  for (const c of Array.isArray(report.top_universe_candidates) ? report.top_universe_candidates : []) {
+    const symbol = String(c?.symbol || '').toUpperCase();
+    if (symbol) rankBySymbol.set(symbol, c);
+  }
+  return fundamentals
+    .filter((f) => f && !f.unavailable)
+    .map((f) => ({
+      ...f,
+      exposure_direction: rankBySymbol.get(String(f.symbol || '').toUpperCase())?.exposure_direction || null,
+      composite_rank: rankBySymbol.get(String(f.symbol || '').toUpperCase())?.composite_rank ?? null,
+    }))
+    .sort((a, b) => {
+      const gapA = Math.abs(Number(a.valuation_gap_pct) || 0);
+      const gapB = Math.abs(Number(b.valuation_gap_pct) || 0);
+      return gapB - gapA;
+    })
+    .slice(0, limit);
+}
+
+function deterministicScenarioShareableReport(report: any): string {
+  const s = report.scenario || {};
+  const ca = report.consequence_analysis || {};
+  const rows = valuationFragilityRows(report, 12);
+  const evidence = Array.isArray(report.evidence_timeline) ? report.evidence_timeline.slice(0, 5) : [];
+  const ramifications = [
+    ...(Array.isArray(ca.scenario_branches) ? ca.scenario_branches : []),
+    ...(Array.isArray(ca.dependency_chains) ? ca.dependency_chains : []),
+    ...(Array.isArray(ca.workflow_constraints) ? ca.workflow_constraints : []),
+    ...(Array.isArray(ca.second_order_effects) ? ca.second_order_effects : []),
+  ].filter(Boolean).slice(0, 12);
+  const valuationTable = rows.length
+    ? rows.map((r) =>
+        `| ${r.symbol} | ${r.exposure_direction || 'n/a'} | ${r.valuation_engine || 'n/a'} | ${r.current_price ?? 'N/A'} | ${r.fair_value ?? 'N/A'} | ${pct(r.valuation_gap_pct)} | ${r.valuation_state || 'N/A'} | ${r.composite_rank == null ? 'N/A' : num(r.composite_rank, 1)} |`,
+      ).join('\n')
+    : '| none | n/a | n/a | N/A | N/A | N/A | N/A | N/A |';
+  const evidenceLines = evidence.length
+    ? evidence.map((e: any) => `- ${e.source_name || e.source || 'source'}: ${e.headline_or_label || e.text || e.summary || 'evidence'}`).join('\n')
+    : '- No evidence rows were returned.';
+  const ramificationsLines = ramifications.length
+    ? ramifications.map((r: any) => `- ${r}`).join('\n')
+    : '- No consequence-analysis branches were available.';
+  return [
+    `# ${s.title || report.slug || 'Market Intelligence Report'}`,
+    `Generated: ${report.generated_at || new Date().toISOString()}`,
+    '',
+    '## Bottom Line',
+    `${report.verdict?.risk_level || 'WATCH'} - ${report.verdict?.summary || 'Scenario requires review.'}`,
+    '',
+    '## Story Synopsis',
+    report.story_synopsis?.claim || s.summary || s.title || 'No synopsis available.',
+    '',
+    '## Signal And Evidence Quality',
+    `Signal strength ${s.signal_strength ?? 'N/A'}/100, confidence ${num(s.confidence_score, 2)}, source breadth ${num(s.source_breadth_score, 2)}, evidence count ${s.evidence_count ?? 'N/A'}, flags ${(s.validity_flags || []).join(', ') || 'none'}.`,
+    '',
+    evidenceLines,
+    '',
+    '## Analyst Ramifications',
+    ca.core_thesis || 'No analyst consequence thesis was available.',
+    '',
+    ramificationsLines,
+    '',
+    '## Exposure And Valuation Fragility',
+    '| Symbol | Direction | Valuation Engine | Price | Fair Value | Gap | State | Rank |',
+    '|---|---:|---|---:|---:|---:|---|---:|',
+    valuationTable,
+    '',
+    '## Market-Wide Risk',
+    'Watch whether the shock affects large index-weight constituents, crowded AI-capex beneficiaries, and companies whose valuations depend on continued AI demand growth. Overvalued exposed names have more downside convexity if the market starts cutting AI growth assumptions.',
+    '',
+    '## What Confirms Or Breaks This',
+    [
+      ...(Array.isArray(ca.confirming_evidence) ? ca.confirming_evidence.map((x: any) => `Confirming: ${x}`) : []),
+      ...(Array.isArray(ca.invalidating_evidence) ? ca.invalidating_evidence.map((x: any) => `Invalidating: ${x}`) : []),
+    ].slice(0, 10).map((x) => `- ${x}`).join('\n') || '- Watch for primary-source clarification, reversal, or confirmation.',
+  ].join('\n');
 }
 
 function buildScenarioVerdict(report: any): { risk_level: string; summary: string; signals: string[] } {
@@ -2786,14 +4123,26 @@ function buildScenarioVerdict(report: any): { risk_level: string; summary: strin
 
 async function generateScenarioNarrative(apiKey: string, report: any): Promise<string | null> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), 75_000);
   const prompt = `You are Ledger, a skeptical financial analyst inside a market-intelligence workstation.
 
-The user clicked a Macro/Social Arbitrage scenario and wants the same level of investigation as an options-flow anomaly report.
-Answer: what is going on here, and is this worth paying attention to?
+The user clicked a Macro/Social Arbitrage scenario and wants a polished, shareable
+intelligence memo. You are not filling in a deterministic template. You are
+ingesting the structured evidence packet below and writing the report from that
+data, using the analysis rules embedded in the packet.
+
+Separate reported facts from inference. Use the deterministic data as evidence,
+then synthesize the market, economic, geopolitical, valuation, and workflow
+ramifications in clear prose.
 
 SCENARIO:
 ${JSON.stringify(report.scenario, null, 2)}
+
+STORY SYNOPSIS INPUT (title + freshest evidence text):
+${JSON.stringify(report.story_synopsis, null, 2)}
+
+SUBJECT TICKERS (named directly in the story — value these first):
+${JSON.stringify(report.subject_tickers, null, 2)}
 
 EVIDENCE TIMELINE:
 ${JSON.stringify(report.evidence_timeline, null, 2)}
@@ -2804,20 +4153,40 @@ ${JSON.stringify(report.exposure_list, null, 2)}
 TOP UNIVERSE CANDIDATES:
 ${JSON.stringify(report.top_universe_candidates, null, 2)}
 
-LEDGER / FUNDAMENTAL CROSS-CHECK:
+LEDGER / FUNDAMENTAL + VALUATION (DCF) CROSS-CHECK:
 ${JSON.stringify(report.candidate_fundamentals, null, 2)}
+
+SOCIAL / THESIS CHECK (what the buzz-thesis extractor already found for these tickers):
+${JSON.stringify(report.social_theses, null, 2)}
 
 EXISTING CONVICTION LAYER:
 ${JSON.stringify(report.conviction_layer, null, 2)}
 
-Write a concise but detailed intelligence brief with these sections:
-1. SCENARIO SIGNAL: what triggered this and how fresh/credible it is.
-2. EVIDENCE QUALITY: source breadth, authenticity/z-score, corroboration, and flags.
-3. LEDGER CROSS-CHECK: inspect mapped companies with the correct company-type lens. Do not apply generic distress heuristics blindly.
-4. TRADE/RESEARCH EXPRESSION: which symbols or sectors best express it, and what is weak or missing.
-5. BOTTOM LINE: clear verdict: ignore, monitor, or investigate now. Include what would confirm or invalidate it.
+AI CONSEQUENCE ANALYSIS / SCENARIO TREE:
+${JSON.stringify(report.consequence_analysis, null, 2)}
 
-Reference specific numbers. No disclaimers.`;
+VALUATION FRAGILITY TABLE (mapped exposure names with Ledger valuation where available):
+${JSON.stringify(report.valuation_fragility, null, 2)}
+
+Write a readable, shareable intelligence report in Markdown. It should be suitable
+to paste into an email, internal note, or YouTube comment. It must be more
+detailed than a dashboard card, but still direct.
+
+Required sections:
+1. STORY SYNOPSIS: 1-2 plain-English sentences stating WHAT THE STORY ACTUALLY CLAIMS and why it matters (the actual narrative, not the signal stats). If there is a subject ticker, name it.
+2. SCENARIO SIGNAL: what triggered this and how fresh/credible it is.
+3. EVIDENCE QUALITY: source breadth, authenticity/z-score, corroboration, and flags.
+4. ANALYST RAMIFICATIONS: discuss the consequence-analysis branches, including second-order effects, dependency chains, and workflow constraints.
+5. LEDGER CROSS-CHECK (VALUATION/DCF): value the exposed mapped tickers, not only the subject ticker. State valuation engine, fair value, current price, valuation gap %, and overvalued/undervalued/fair where available. For operating companies this is DCF; REITs use AFFO/NAV, financials use ROE/book, pre-profit names use sales-scenario logic. Do not call every valuation a DCF.
+6. EXPOSURE MAP / WHO GETS HIT: explain first-order and second-order exposure. Highlight overvalued short-loser names when the scenario implies demand, revenue, margin, or growth-assumption risk.
+7. MARKET-WIDE RAMIFICATIONS: discuss index concentration, AI-capex crowdedness, S&P/Nasdaq spillovers, liquidity/derisking channels, and whether a major component falling can mechanically pressure the broader market.
+8. ECONOMIC AND GEOPOLITICAL RAMIFICATIONS: discuss policy reversal risk, retaliation, labor/workforce constraints, foreign-national/contractor/customer access issues, compliance burden, and international relations if relevant.
+9. WHAT WOULD CONFIRM OR INVALIDATE IT: primary-source checks, reversal/clarification, market confirmation, affected-company comments, and price action.
+10. BOTTOM LINE: clear verdict: ignore, monitor, investigate now, or urgent.
+
+Reference specific numbers. Round prices/fair values to two decimals and valuation
+gaps to one decimal. Do not dump raw JSON. Be explicit when data is missing. No
+generic disclaimers.`;
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -2828,10 +4197,10 @@ Reference specific numbers. No disclaimers.`;
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: process.env.MI_SCENARIO_REPORT_MODEL || getRoleModelOverride('ledger') || 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.25,
-        max_tokens: 900,
+        max_tokens: 3200,
       }),
     });
     const result = await response.json() as any;
@@ -2842,13 +4211,16 @@ Reference specific numbers. No disclaimers.`;
 }
 
 async function buildScenarioIntelligenceReport(detail: any): Promise<any> {
-  const symbols = scenarioSymbols(detail, 6);
+  const subjectTickers = scenarioSubjectTickers(detail, 4);
+  const symbols = scenarioSymbols(detail, 16);
   const candidateFundamentals = await Promise.all(
     symbols.map(async (symbol) => {
       const snapshot = await fetchFundamentalSnapshot(symbol);
       return snapshot ? summarizeFundamentals(symbol, snapshot) : { symbol, unavailable: true };
     }),
   );
+  const socialTheses = lookupCachedTheses(symbols);
+  const storySynopsis = scenarioStorySynopsis(detail);
   const report: any = {
     scenario_id: detail.id,
     slug: detail.slug,
@@ -2881,9 +4253,14 @@ async function buildScenarioIntelligenceReport(detail: any): Promise<any> {
     top_universe_candidates: Array.isArray(detail.top_universe_candidates) ? detail.top_universe_candidates.slice(0, 12) : [],
     first_order_effects: detail.first_order_effects || [],
     second_order_effects: detail.second_order_effects || [],
+    consequence_analysis: detail.consequence_analysis || null,
     conviction_layer: detail.conviction_layer || null,
     candidate_fundamentals: candidateFundamentals,
+    subject_tickers: subjectTickers,
+    story_synopsis: storySynopsis,
+    social_theses: socialTheses,
   };
+  report.valuation_fragility = valuationFragilityRows(report, 16);
   report.verdict = buildScenarioVerdict(report);
   let narrative: string | null = null;
   try {
@@ -2892,7 +4269,9 @@ async function buildScenarioIntelligenceReport(detail: any): Promise<any> {
   } catch {
     narrative = null;
   }
+  report.report_author = narrative ? 'ai' : 'deterministic_fallback';
   report.narrative = narrative || deterministicScenarioBrief(report);
+  report.shareable_report = narrative || deterministicScenarioShareableReport(report);
   return report;
 }
 

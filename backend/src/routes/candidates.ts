@@ -738,6 +738,7 @@ router.get('/symbols', async (req: Request, res: Response) => {
       largecaps: intersectSymbols(sourceAll, [...sp500, ...largeCapKnown]),
       crypto: normalizeSymbolArray(symbols.crypto),
       undervalued: intersectSymbols(sourceAll, undervalued),
+      undervalued_below_mean: intersectSymbols(sourceAll, undervalued),
       fairvalue: intersectSymbols(sourceAll, fairValue),
       overvalued: intersectSymbols(sourceAll, overvalued),
       socialbullish: intersectSymbols(sourceAll, socialCriteria.socialbullish),

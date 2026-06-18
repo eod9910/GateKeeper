@@ -129,12 +129,20 @@ def build_cik_to_ticker(ticker_to_cik: Dict[str, str]) -> Dict[str, str]:
 # EFTS polling
 # ---------------------------------------------------------------------------
 
-def poll_efts(form_types: str, start_date: str, end_date: str) -> List[dict]:
-    """Poll EFTS for recent filings. Returns list of hit dicts."""
+def poll_efts(form_types: str, start_date: str, end_date: str,
+              ciks: Optional[str] = None, max_pages: Optional[int] = None) -> List[dict]:
+    """Poll EFTS for filings. Returns list of hit dicts.
+
+    When ``ciks`` is provided (a zero-padded 10-digit CIK, or comma list), results
+    are restricted to filings that reference that CIK. This is what makes a
+    per-issuer historical backfill cheap: instead of scanning the whole market in a
+    window, we ask EDGAR only for the filings tied to one company.
+    """
     all_hits: List[dict] = []
     offset = 0
+    pages = max_pages if max_pages is not None else MAX_PAGES
 
-    for _ in range(MAX_PAGES):
+    for _ in range(pages):
         url = (
             f"{EFTS_BASE}?"
             f"q=%22%22"
@@ -144,6 +152,7 @@ def poll_efts(form_types: str, start_date: str, end_date: str) -> List[dict]:
             f"&enddt={end_date}"
             f"&from={offset}"
             f"&size={PAGE_SIZE}"
+            + (f"&ciks={ciks}" if ciks else "")
         )
         data = _fetch_json(url)
         if not data:
@@ -474,7 +483,7 @@ def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA busy_timeout = 60000")
     conn.executescript(SCHEMA_SQL)
     return conn
 
@@ -628,6 +637,137 @@ def generate_alerts(conn: sqlite3.Connection, symbol: str, lookback_days: int = 
 
 
 # ---------------------------------------------------------------------------
+# Per-issuer historical backfill
+# ---------------------------------------------------------------------------
+
+def backfill_symbol(
+    conn: sqlite3.Connection,
+    symbol: str,
+    issuer_cik: str,
+    cik_to_ticker: Dict[str, str],
+    start_date: str,
+    end_date: str,
+    dry_run: bool = False,
+) -> Dict[str, int]:
+    """Backfill all Form 4 + SC 13D/13G filings for ONE issuer over a date range.
+
+    Filtering EFTS by the issuer's CIK keeps each symbol's pull to tens/low-hundreds
+    of filings, so multi-year history is feasible on the free EDGAR API.
+    """
+    cik10 = str(issuer_cik).lstrip("0").zfill(10)
+    cik_int = str(int(issuer_cik))
+    stats = {"form4_hits": 0, "txns": 0, "activist_hits": 0, "activist": 0, "alerts": 0}
+
+    # --- Form 4 (insider transactions) ---
+    f4_hits = poll_efts("4", start_date, end_date, ciks=cik10)
+    stats["form4_hits"] = len(f4_hits)
+    seen: Set[str] = set()
+    for hit in f4_hits:
+        meta = parse_efts_hit(hit)
+        if not meta:
+            continue
+        accession = meta["accession"]
+        if accession in seen or is_accession_known(conn, accession):
+            continue
+        seen.add(accession)
+
+        xml_url = meta.get("xml_url") or find_ownership_xml_url(meta["filer_cik"], meta["accession_no_dashes"])
+        if not xml_url:
+            continue
+        xml_str = _fetch(xml_url, accept="application/xml")
+        if not xml_str:
+            continue
+        parsed = parse_form4_xml(xml_str, accession, meta["file_date"])
+        if not parsed:
+            continue
+        # Trust the issuer CIK on the filing; the ticker symbol on old filings
+        # can differ, so key on CIK and stamp the requested symbol.
+        if cik_int and str(parsed.get("issuer_cik") or "").lstrip("0") not in ("", cik_int):
+            continue
+        for txn in parsed["transactions"]:
+            txn["symbol"] = symbol
+        if dry_run:
+            for txn in parsed["transactions"]:
+                _print(f"    [dry] {symbol} | {parsed['insider_name']} ({parsed['insider_title']}) | "
+                       f"{txn['transaction_type']} {txn.get('shares') or 0:,.0f} @ "
+                       f"${txn.get('price_per_share') or 0:.2f} | {txn.get('transaction_date')}")
+        else:
+            stats["txns"] += insert_transactions(conn, parsed["transactions"])
+
+    # --- SC 13D/13G (activist / large holders) ---
+    td_hits = poll_efts("SC 13D,SC 13D/A,SC 13G,SC 13G/A", start_date, end_date, ciks=cik10)
+    stats["activist_hits"] = len(td_hits)
+    for hit in td_hits:
+        meta = parse_efts_hit(hit)
+        if not meta:
+            continue
+        accession = meta["accession"]
+        if accession in seen or is_accession_known(conn, accession):
+            continue
+        seen.add(accession)
+
+        stake_meta = extract_13d_from_efts(meta, cik_to_ticker)
+        if not stake_meta:
+            continue
+        # We queried by SUBJECT company CIK, so the target IS this symbol.
+        stake_meta["symbol"] = symbol
+        stake_meta["cik"] = cik_int
+        if dry_run:
+            _print(f"    [dry] 13D/G {symbol} <- {stake_meta.get('filer_name')} "
+                   f"({meta['form_type']}) {meta['file_date']}")
+        elif insert_activist_stake(conn, stake_meta):
+            stats["activist"] += 1
+
+    if not dry_run:
+        stats["alerts"] = generate_alerts(conn, symbol, lookback_days=10000)
+    return stats
+
+
+def run_backfill(symbols: List[str], days: int, dry_run: bool = False) -> None:
+    end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    _print(f"[edgar-backfill] {len(symbols)} symbol(s) | {start_date} -> {end_date} ({days}d)")
+
+    ticker_to_cik = load_or_fetch_cik_map()
+    cik_to_ticker = build_cik_to_ticker(ticker_to_cik)
+    conn = get_db()
+
+    run_id = str(uuid.uuid4())
+    conn.execute(
+        "INSERT INTO edgar_fetch_runs (run_id, started_at, status, form_types_polled) VALUES (?,?,?,?)",
+        (run_id, _utc_now(), "running", f"backfill:4,SC 13D/G ({days}d)"),
+    )
+    conn.commit()
+
+    totals = {"txns": 0, "activist": 0, "alerts": 0, "no_cik": 0, "symbols": 0}
+    for i, symbol in enumerate(symbols, 1):
+        cik = ticker_to_cik.get(symbol.upper())
+        if not cik:
+            totals["no_cik"] += 1
+            _print(f"[{i}/{len(symbols)}] {symbol}: no CIK mapping, skipped")
+            continue
+        s = backfill_symbol(conn, symbol.upper(), cik, cik_to_ticker, start_date, end_date, dry_run)
+        totals["txns"] += s["txns"]
+        totals["activist"] += s["activist"]
+        totals["alerts"] += s["alerts"]
+        totals["symbols"] += 1
+        _print(f"[{i}/{len(symbols)}] {symbol}: form4_hits={s['form4_hits']} txns+{s['txns']} "
+               f"| 13D/G_hits={s['activist_hits']} +{s['activist']} | alerts+{s['alerts']}")
+
+    conn.execute(
+        """UPDATE edgar_fetch_runs SET completed_at=?, status=?, filings_in_universe=?,
+           transactions_inserted=?, alerts_generated=?, notes_json=? WHERE run_id=?""",
+        (_utc_now(), "completed", totals["symbols"], totals["txns"], totals["alerts"],
+         json.dumps({"mode": "backfill", "days": days, "symbols": len(symbols),
+                     "no_cik": totals["no_cik"], "activist": totals["activist"]}), run_id),
+    )
+    conn.commit()
+    conn.close()
+    _print(f"\n[edgar-backfill] Complete: {json.dumps(totals)}")
+    _print(json.dumps({"backfill": True, **totals}))
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -643,7 +783,22 @@ def main() -> None:
                         help="Comma-separated form types to poll")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print what would be collected without storing")
+    parser.add_argument("--backfill-symbols", type=str, default=None,
+                        help="Comma-separated tickers to backfill per-issuer (Form 4 + 13D/13G history)")
+    parser.add_argument("--backfill-universe", action="store_true",
+                        help="Backfill the entire clean universe per-issuer (long run)")
+    parser.add_argument("--backfill-days", type=int, default=1095,
+                        help="How many days of history to backfill (default: 1095 = ~3y)")
     args = parser.parse_args()
+
+    # --- Backfill mode (per-issuer historical pull) ---
+    if args.backfill_symbols or args.backfill_universe:
+        if args.backfill_universe:
+            symbols = sorted(load_universe(UNIVERSE_PATH))
+        else:
+            symbols = [s.strip().upper() for s in args.backfill_symbols.split(",") if s.strip()]
+        run_backfill(symbols, args.backfill_days, dry_run=args.dry_run)
+        return
 
     run_id = str(uuid.uuid4())
     started_at = _utc_now()

@@ -111,6 +111,7 @@ def _collect_observations_by_date(
             end_date=None,
             gap_threshold_pct=20.0,
             horizons=[252],
+            reliability_guard=True,
         )
         for obs in observations:
             if obs.valuation_state != sleeve.valuation_state:

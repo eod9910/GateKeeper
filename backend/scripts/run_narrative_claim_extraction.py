@@ -139,6 +139,33 @@ THEME_RULES: Sequence[Dict[str, Any]] = [
         "flags": ["VERIFY_PRIMARY_SOURCES"],
     },
     {
+        "theme": "ai_capex_pullback",
+        "claim_type": "policy_valuation_shock",
+        "claim_text": "Frontier AI export or access controls may impair AI commercialization, private-lab valuations, and downstream compute or data-center capex assumptions.",
+        "patterns": [
+            r"\b(anthropic|openai|frontier (?:ai )?model|fable|mythos|ai model).{0,100}\b(export control|foreign access|foreign national|access restriction|suspend access|halt foreign access|national security|licen[cs]e|licen[cs]ing)\b",
+            r"\b(export control|foreign access|foreign national|national security|access restriction).{0,100}\b(ai model|frontier (?:ai )?model|anthropic|openai|fable|mythos)\b",
+            r"\bgovernment.{0,100}\b(block|halt|suspend|restrict).{0,100}\b(ai model|frontier (?:ai )?model|anthropic|openai|fable|mythos)\b",
+        ],
+        "tickers": [
+            "NVDA", "AMD", "AVGO", "MRVL", "TSM", "SMCI", "DELL", "ANET",
+            "VRT", "ETN", "GEV", "PWR", "CEG", "VST", "MSFT", "GOOGL",
+            "AMZN", "META", "ORCL", "PLTR", "CRWD", "PANW", "ZS",
+        ],
+        "entities": [
+            "frontier AI models",
+            "AI export controls",
+            "foreign national access",
+            "AI commercialization risk",
+        ],
+        "confidence": 0.64,
+        "flags": [
+            "VERIFY_PRIMARY_SOURCES",
+            "POLICY_SHOCK",
+            "REVERSAL_RISK_3_TO_7_DAYS",
+        ],
+    },
+    {
         "theme": "semis_supply_shock",
         "claim_type": "supply_chain_signal",
         "claim_text": "Semiconductor supply, export controls, or foundry constraints may be changing the investable setup.",

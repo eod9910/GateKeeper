@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { DatabaseSync } from 'node:sqlite';
 import * as storage from '../services/storageService';
 import { getPersistedBridgeStrategyVersionId } from '../services/executionBridge';
 import { ApiResponse, StrategySpec, StrategyAssetClass, ValidationReport, TradeInstance, ValidatorComparisonDiagnostics } from '../types';
@@ -26,7 +27,7 @@ import { pruneSweepVariantsByReportId } from '../services/sweepEngine';
 
 const router = Router();
 const BACKTEST_STRATEGY_TAG = 'backtest_strategy';
-const VALIDATOR_TIER_KEYS = new Set(['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3']);
+const VALIDATOR_TIER_KEYS = new Set(['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3', 'clean']);
 
 function normalizeValidatorTier(input: any): string {
   const tier = String(input || '').trim().toLowerCase();
@@ -98,6 +99,8 @@ interface RunJob {
   status: RunJobStatus;
   strategy_version_id: string;
   tier?: ValidationTier;
+  evidence_mode?: EvidenceMode | null;
+  evidence_target_trades?: number | null;
   asset_class?: StrategyAssetClass;
   interval?: string;
   date_start?: string;
@@ -135,8 +138,16 @@ const RUN_JOBS_DOCUMENT_KEY = 'all';
 const MAX_CONCURRENT_RUNS = Math.max(1, Number(process.env.VALIDATOR_MAX_CONCURRENT_RUNS || 2));
 const PIPELINE_BASE_TIMEOUT_MS = Math.max(60_000, Number(process.env.VALIDATOR_PIPELINE_TIMEOUT_MS || 10 * 60_000));
 const VALIDATOR_USE_PY_SERVICE = isPyServiceEnabled();
-type ValidationTier = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'valuation_regime_undervalued' | 'valuation_regime_undervalued_sample100' | 'valuation_regime_fair' | 'valuation_regime_fair_sample100' | 'valuation_regime_overvalued' | 'valuation_regime_overvalued_sample100' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
-const VALIDATION_TIER_KEYS: ValidationTier[] = ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3', 'large_cap_known', 'sp500', 'sp400', 'sp600', 'valuation_regime_undervalued', 'valuation_regime_undervalued_sample100', 'valuation_regime_fair', 'valuation_regime_fair_sample100', 'valuation_regime_overvalued', 'valuation_regime_overvalued_sample100', 'regime_expansion', 'regime_distribution', 'regime_accumulation', 'regime_markdown'];
+type ValidationTier = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'clean' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'valuation_regime_undervalued' | 'valuation_regime_undervalued_sample100' | 'valuation_regime_fair' | 'valuation_regime_fair_sample100' | 'valuation_regime_overvalued' | 'valuation_regime_overvalued_sample100' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
+type EvidenceMode = 'evidence_50' | 'evidence_100' | 'evidence_200' | 'evidence_500' | 'full_clean';
+const VALIDATION_TIER_KEYS: ValidationTier[] = ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3', 'clean', 'large_cap_known', 'sp500', 'sp400', 'sp600', 'valuation_regime_undervalued', 'valuation_regime_undervalued_sample100', 'valuation_regime_fair', 'valuation_regime_fair_sample100', 'valuation_regime_overvalued', 'valuation_regime_overvalued_sample100', 'regime_expansion', 'regime_distribution', 'regime_accumulation', 'regime_markdown'];
+const EVIDENCE_TARGET_TRADE_COUNTS: Record<Exclude<EvidenceMode, 'full_clean'>, number> = {
+  evidence_50: 50,
+  evidence_100: 100,
+  evidence_200: 200,
+  evidence_500: 500,
+};
+const EVIDENCE_MODE_KEYS = new Set<EvidenceMode>(['evidence_50', 'evidence_100', 'evidence_200', 'evidence_500', 'full_clean']);
 const ASSET_CLASSES: StrategyAssetClass[] = ['futures', 'stocks', 'options', 'forex', 'crypto'];
 const OPTIONABLE_UNIVERSE_FILE = path.join(__dirname, '..', '..', 'data', 'universe', 'optionable.json');
 const STOCKS_TIER1B_TARGET_SYMBOLS = Math.max(150, Number(process.env.VALIDATOR_TIER1B_STOCKS_TARGET_SYMBOLS || 250));
@@ -147,6 +158,24 @@ const TIER1_MIXED_CAP_SYMBOLS = loadUniverseSymbolsSync('validation_tier1_stocks
 const TIER1B_MIXED_CAP_SYMBOLS = loadUniverseSymbolsSync('validation_tier1b_stocks');
 const TIER2_MIXED_CAP_SYMBOLS = loadUniverseSymbolsSync('validation_tier2_stocks');
 const TIER3_MIXED_CAP_HOLDOUT_SYMBOLS = loadUniverseSymbolsSync('validation_tier3_stocks');
+const SYMBOL_CATALOG_DB_PATH = path.join(__dirname, '..', '..', 'data', 'symbol-catalog.sqlite');
+const CLEAN_UNIVERSE_SETTINGS = {
+  SYMBOL_UNIVERSE_SIZE: Math.max(30, Number(process.env.SYMBOL_UNIVERSE_SIZE || process.env.VALIDATOR_CLEAN_UNIVERSE_SIZE || 500)),
+  MIN_PRICE: Math.max(0, Number(process.env.MIN_PRICE || process.env.VALIDATOR_CLEAN_MIN_PRICE || 10)),
+  MIN_AVERAGE_VOLUME: Math.max(0, Number(process.env.MIN_AVERAGE_VOLUME || process.env.VALIDATOR_CLEAN_MIN_AVERAGE_VOLUME || 1_000_000)),
+  MIN_HISTORY_DAYS: Math.max(0, Number(process.env.MIN_HISTORY_DAYS || process.env.VALIDATOR_CLEAN_MIN_HISTORY_DAYS || 504)),
+  EXCLUDE_ETFS: String(process.env.EXCLUDE_ETFS || process.env.VALIDATOR_CLEAN_EXCLUDE_ETFS || '1') !== '0',
+  EXCLUDE_LOW_VOLUME: String(process.env.EXCLUDE_LOW_VOLUME || process.env.VALIDATOR_CLEAN_EXCLUDE_LOW_VOLUME || '1') !== '0',
+  SECTOR_DIVERSITY_ENABLED: String(process.env.SECTOR_DIVERSITY_ENABLED || process.env.VALIDATOR_CLEAN_SECTOR_DIVERSITY_ENABLED || '1') !== '0',
+};
+const CLEAN_STOCK_BASE_SYMBOLS = loadUniverseSymbolsSync('clean_stocks');
+const CLEAN_STOCK_UNIVERSE_RESULT = buildRuleBasedCleanStockUniverse(CLEAN_STOCK_BASE_SYMBOLS, CLEAN_UNIVERSE_SETTINGS);
+const CLEAN_STOCK_FULL_UNIVERSE_RESULT = buildRuleBasedCleanStockUniverse(CLEAN_STOCK_BASE_SYMBOLS, {
+  ...CLEAN_UNIVERSE_SETTINGS,
+  SYMBOL_UNIVERSE_SIZE: Math.max(CLEAN_UNIVERSE_SETTINGS.SYMBOL_UNIVERSE_SIZE, CLEAN_STOCK_BASE_SYMBOLS.length),
+});
+const CLEAN_STOCK_SAMPLE_SYMBOLS = CLEAN_STOCK_UNIVERSE_RESULT.symbols;
+const CLEAN_STOCK_FULL_SYMBOLS = CLEAN_STOCK_FULL_UNIVERSE_RESULT.symbols;
 const LARGE_CAP_KNOWN_SYMBOLS = loadUniverseSymbolsSync('large_cap_known');
 
 const REGIME_EXPANSION_SYMBOLS = loadUniverseSymbolsSync('regime_expansion');
@@ -167,6 +196,7 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     tier1bs: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier2: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F'],
     tier3: ['ES=F', 'NQ=F', 'YM=F', 'RTY=F', 'CL=F', 'GC=F', 'ZN=F', 'SI=F', 'NG=F', 'HG=F', '6E=F'],
+    clean: [],
     large_cap_known: [],
     sp500: [],
     sp400: [],
@@ -190,6 +220,7 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     tier1b: TIER1B_MIXED_CAP_SYMBOLS,
     tier2: TIER2_MIXED_CAP_SYMBOLS,
     tier3: TIER3_MIXED_CAP_HOLDOUT_SYMBOLS,
+    clean: CLEAN_STOCK_SAMPLE_SYMBOLS,
     sp500: SP500_SYMBOLS,
     sp400: SP400_SYMBOLS,
     sp600: SP600_SYMBOLS,
@@ -211,6 +242,7 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     tier1bs: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier2: ['SPY', 'QQQ', 'AAPL', 'MSFT'],
     tier3: ['SPY', 'QQQ', 'AAPL', 'MSFT', 'IWM', 'TLT'],
+    clean: [],
     large_cap_known: [],
     sp500: [],
     sp400: [],
@@ -233,6 +265,7 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     tier1bs: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier2: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X'],
     tier3: ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X', 'AUDUSD=X', 'USDCAD=X', 'NZDUSD=X'],
+    clean: [],
     large_cap_known: [],
     sp500: [],
     sp400: [],
@@ -255,6 +288,7 @@ const VALIDATION_TIER_UNIVERSES: Record<StrategyAssetClass, Record<ValidationTie
     tier1bs: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier2: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD'],
     tier3: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD'],
+    clean: [],
     large_cap_known: [],
     sp500: [],
     sp400: [],
@@ -278,6 +312,7 @@ const VALIDATION_TIER_LABELS: Record<ValidationTier, string> = {
   tier1bs: 'Tier 1BS - Evidence Expansion + Sensitivity',
   tier2: 'Tier 2 - Core Validation',
   tier3: 'Tier 3 - Robustness',
+  clean: `Clean Universe ${CLEAN_UNIVERSE_SETTINGS.SYMBOL_UNIVERSE_SIZE} - ${CLEAN_STOCK_SAMPLE_SYMBOLS.length} Stocks`,
   large_cap_known: `Large Cap (Known) - ${LARGE_CAP_KNOWN_SYMBOLS.length} Stocks`,
   sp500: `S&P 500 — ${SP500_SYMBOLS.length} Large Cap Stocks`,
   sp400: `S&P 400 — ${SP400_SYMBOLS.length} Mid Cap Stocks`,
@@ -300,6 +335,7 @@ const VALIDATION_TIER_DESCRIPTIONS: Record<ValidationTier, string> = {
   tier1bs: `Tier 1B mixed-cap evidence expansion with parameter sensitivity analysis on the same ${TIER1B_MIXED_CAP_SYMBOLS.length}-stock universe.`,
   tier2: `Core mixed-cap validation on a ${TIER2_MIXED_CAP_SYMBOLS.length}-stock universe (50 large + 50 mid + 50 small + 50 micro). Requires Tier 1 or Tier 1B PASS.`,
   tier3: `Non-overlapping mixed-cap robustness holdout on ${TIER3_MIXED_CAP_HOLDOUT_SYMBOLS.length} stocks (45 per cap bucket). Use this to confirm the edge survives outside the Tier 2 sample.`,
+  clean: `Broad clean-stock evidence expansion on a predefined, rule-based ${CLEAN_STOCK_SAMPLE_SYMBOLS.length}-symbol sample from clean_stocks. Filters: price >= ${CLEAN_UNIVERSE_SETTINGS.MIN_PRICE}, history >= ${CLEAN_UNIVERSE_SETTINGS.MIN_HISTORY_DAYS} days, ETFs excluded=${CLEAN_UNIVERSE_SETTINGS.EXCLUDE_ETFS}, sector diversity=${CLEAN_UNIVERSE_SETTINGS.SECTOR_DIVERSITY_ENABLED}. Use this when rare signals need enough trades for statistical diagnostics.`,
   large_cap_known: 'Quick large-cap spot check. Use this when you already suspect a large-cap edge and want a fast baseline before running the full S&P 500 universe.',
   sp500: 'Broad large-cap benchmark. Use this to confirm a strategy truly generalizes across large caps, not just a curated subset.',
   sp400: 'Mid-cap benchmark. Use this to see whether the edge survives outside large caps or is cap-specific.',
@@ -319,6 +355,17 @@ const VALIDATION_TIER_DESCRIPTIONS: Record<ValidationTier, string> = {
 let optionableStocksUniverseCache: string[] | null = null;
 let cleanStockUniverseCache: Set<string> | null = null;
 
+type CleanUniverseSettings = typeof CLEAN_UNIVERSE_SETTINGS;
+
+type CleanUniverseBuildResult = {
+  symbols: string[];
+  settings: CleanUniverseSettings;
+  source_count: number;
+  eligible_count: number;
+  applied_filters: string[];
+  unavailable_filters: string[];
+};
+
 function normalizeUniverseSymbols(input: any): string[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
@@ -330,6 +377,138 @@ function normalizeUniverseSymbols(input: any): string[] {
     out.push(symbol);
   }
   return out;
+}
+
+function getMetric(row: Record<string, any>, name: string): number | null {
+  if (row?.[name] == null || row?.[name] === '') return null;
+  const value = Number(row?.[name]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function buildSectorDiverseSlice(rows: Array<Record<string, any>>, targetCount: number): string[] {
+  if (!rows.length || rows.length <= targetCount) {
+    return rows.map((row) => String(row.symbol || '')).filter(Boolean);
+  }
+  const bySector = new Map<string, Array<Record<string, any>>>();
+  for (const row of rows) {
+    const sector = String(row.sector || 'Unknown').trim() || 'Unknown';
+    const bucket = bySector.get(sector) || [];
+    bucket.push(row);
+    bySector.set(sector, bucket);
+  }
+  const sectors = Array.from(bySector.keys()).sort();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  while (out.length < targetCount && sectors.length > 0) {
+    let progressed = false;
+    for (const sector of sectors) {
+      const bucket = bySector.get(sector) || [];
+      const row = bucket.shift();
+      if (!row) continue;
+      const symbol = String(row.symbol || '').trim().toUpperCase();
+      if (!symbol || seen.has(symbol)) continue;
+      seen.add(symbol);
+      out.push(symbol);
+      progressed = true;
+      if (out.length >= targetCount) break;
+    }
+    if (!progressed) break;
+  }
+  return out;
+}
+
+function buildRuleBasedCleanStockUniverse(baseSymbols: string[], settings: CleanUniverseSettings): CleanUniverseBuildResult {
+  const base = normalizeUniverseSymbols(baseSymbols);
+  const appliedFilters = [
+    `source=clean_stocks`,
+    `size<=${settings.SYMBOL_UNIVERSE_SIZE}`,
+    `min_price>=${settings.MIN_PRICE}`,
+    `min_history_days>=${settings.MIN_HISTORY_DAYS}`,
+  ];
+  const unavailableFilters: string[] = [];
+  let rows: Array<Record<string, any>> = base.map((symbol) => ({ symbol }));
+
+  try {
+    const db = new DatabaseSync(SYMBOL_CATALOG_DB_PATH, { readOnly: true });
+    try {
+      const placeholders = base.map(() => '?').join(',');
+      if (placeholders) {
+        rows = db.prepare(`
+          SELECT
+            s.symbol,
+            s.sector,
+            s.company_type,
+            s.asset_class,
+            s.active,
+            MAX(CASE WHEN sm.metric_name = 'valuation_price' THEN sm.metric_value_num END) AS valuation_price,
+            MAX(CASE WHEN sm.metric_name = 'regime_bars' THEN sm.metric_value_num END) AS regime_bars,
+            MAX(CASE WHEN sm.metric_name IN ('average_daily_volume', 'avg_daily_volume', 'avg_volume', 'volume_avg_30d') THEN sm.metric_value_num END) AS average_daily_volume
+          FROM symbols s
+          LEFT JOIN symbol_metrics sm ON sm.symbol = s.symbol
+          WHERE s.symbol IN (${placeholders})
+          GROUP BY s.symbol
+          ORDER BY s.symbol ASC
+        `).all(...base) as Array<Record<string, any>>;
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    unavailableFilters.push('symbol_catalog');
+  }
+
+  rows = rows.filter((row) => {
+    const symbol = String(row.symbol || '').trim().toUpperCase();
+    if (!symbol || symbol.includes('^') || symbol.includes('=')) return false;
+    if (row.asset_class && String(row.asset_class).toLowerCase() !== 'stocks') return false;
+    if (row.active != null && Number(row.active) === 0) return false;
+    const price = getMetric(row, 'valuation_price');
+    if (price != null && price < settings.MIN_PRICE) return false;
+    const historyDays = getMetric(row, 'regime_bars');
+    if (historyDays != null && historyDays < settings.MIN_HISTORY_DAYS) return false;
+    if (settings.EXCLUDE_ETFS) {
+      const companyType = String(row.company_type || '').toLowerCase();
+      if (/etf|fund|trust|closed.end|exchange.traded/.test(companyType)) return false;
+    }
+    return true;
+  });
+
+  if (settings.EXCLUDE_LOW_VOLUME) {
+    const hasVolume = rows.some((row) => getMetric(row, 'average_daily_volume') != null);
+    if (hasVolume) {
+      appliedFilters.push(`min_average_volume>=${settings.MIN_AVERAGE_VOLUME}`);
+      rows = rows.filter((row) => {
+        const volume = getMetric(row, 'average_daily_volume');
+        return volume == null || volume >= settings.MIN_AVERAGE_VOLUME;
+      });
+    } else {
+      unavailableFilters.push('MIN_AVERAGE_VOLUME: symbol_metrics has no average-volume metric yet');
+    }
+  }
+  if (settings.EXCLUDE_ETFS) appliedFilters.push('exclude_etfs=true');
+  if (settings.SECTOR_DIVERSITY_ENABLED) appliedFilters.push('sector_diversity=true');
+
+  rows.sort((a, b) => {
+    const sectorCmp = String(a.sector || '').localeCompare(String(b.sector || ''));
+    if (sectorCmp !== 0) return sectorCmp;
+    const aCap = getMetric(a, 'valuation_market_cap') || 0;
+    const bCap = getMetric(b, 'valuation_market_cap') || 0;
+    if (aCap !== bCap) return bCap - aCap;
+    return String(a.symbol || '').localeCompare(String(b.symbol || ''));
+  });
+
+  const symbols = settings.SECTOR_DIVERSITY_ENABLED
+    ? buildSectorDiverseSlice(rows, settings.SYMBOL_UNIVERSE_SIZE)
+    : buildDeterministicUniverseSlice(rows.map((row) => String(row.symbol || '').trim().toUpperCase()), settings.SYMBOL_UNIVERSE_SIZE);
+
+  return {
+    symbols,
+    settings,
+    source_count: base.length,
+    eligible_count: rows.length,
+    applied_filters: appliedFilters,
+    unavailable_filters: unavailableFilters,
+  };
 }
 
 async function loadCleanStockUniverseSet(): Promise<Set<string>> {
@@ -413,6 +592,7 @@ function pipelineTimeoutMs(symbolCount: number, tier: ValidationTier = 'tier2'):
     tier1bs: 4,        // tier1b universe + sensitivity — longest of the fast tiers
     tier2: 3,          // ~2.5 hours for 106 symbols
     tier3: 3,          // ~2.5 hours for 190 symbols
+    clean: 2,          // 500-name broad evidence run, baseline only
     large_cap_known: 2, // 76 symbols, baseline only
     sp500: 2,              // ~406 symbols, baseline only (no sensitivity)
     sp400: 2,              // ~341 symbols, baseline only
@@ -528,6 +708,22 @@ function parseValidationTier(input: any): ValidationTier | null {
   return (VALIDATION_TIER_KEYS as string[]).includes(key) ? key : null;
 }
 
+function parseEvidenceMode(input: any): EvidenceMode | null {
+  if (input == null) return null;
+  const key = String(input).trim().toLowerCase() as EvidenceMode;
+  return EVIDENCE_MODE_KEYS.has(key) ? key : null;
+}
+
+function parseEvidenceTargetTrades(input: any, mode: EvidenceMode | null): number | null {
+  if (mode && mode !== 'full_clean') {
+    return EVIDENCE_TARGET_TRADE_COUNTS[mode] || null;
+  }
+  if (input == null || input === '') return null;
+  const value = Math.round(Number(input));
+  if (!Number.isFinite(value) || value < 1 || value > 5000) return null;
+  return value;
+}
+
 function parseAssetClass(input: any): StrategyAssetClass | null {
   if (typeof input !== 'string') return null;
   const key = input.trim().toLowerCase();
@@ -573,6 +769,13 @@ async function getValidationTierUniverse(assetClass: StrategyAssetClass, tier: V
   return (byClass[tier] || VALIDATION_TIER_UNIVERSES.stocks[tier] || []).slice();
 }
 
+async function getEvidenceUniverse(assetClass: StrategyAssetClass, tier: ValidationTier, evidenceMode: EvidenceMode | null): Promise<string[]> {
+  if (assetClass === 'stocks' && (evidenceMode || tier === 'clean')) {
+    return (evidenceMode ? CLEAN_STOCK_FULL_SYMBOLS : CLEAN_STOCK_SAMPLE_SYMBOLS).slice();
+  }
+  return getValidationTierUniverse(assetClass, tier);
+}
+
 async function buildTierConfigPayload(assetClass: StrategyAssetClass): Promise<Record<string, any>> {
   const data: Record<string, any> = {
     asset_class: assetClass,
@@ -585,6 +788,7 @@ async function buildTierConfigPayload(assetClass: StrategyAssetClass): Promise<R
       label: VALIDATION_TIER_LABELS[key],
       description: VALIDATION_TIER_DESCRIPTIONS[key],
       symbols: await getValidationTierUniverse(assetClass, key),
+      ...(key === 'clean' && assetClass === 'stocks' ? { universe_settings: CLEAN_STOCK_UNIVERSE_RESULT } : {}),
     };
   }
   return data;
@@ -606,7 +810,7 @@ function latestTierReport(reports: any[], tierKey: ValidationTier, assetClass: S
 function isTier1EvidenceExpansionEligible(report: any): boolean {
   if (!report) return false;
   // PASS or NEEDS_REVIEW both allow Tier 1B — PASS means edge confirmed, 1B expands evidence
-  if (report?.pass_fail === 'PASS' || report?.pass_fail === 'NEEDS_REVIEW') return true;
+  if (report?.pass_fail === 'PASS' || report?.pass_fail === 'NEEDS_REVIEW' || report?.pass_fail === 'PROMISING_BUT_NOT_VALIDATED') return true;
   // FAIL is eligible only if the sole reason is too few trades
   if (report?.pass_fail !== 'FAIL') return false;
   const reasons = Array.isArray(report?.pass_fail_reasons) ? report.pass_fail_reasons : [];
@@ -619,6 +823,7 @@ async function runValidatorPipeline(
   dateEnd: string,
   universe?: string[],
   tier?: ValidationTier,
+  evidence?: { mode?: EvidenceMode | null; target_trades?: number | null },
   forceRefresh?: boolean,
   onProgress?: (evt: PipelineProgressEvent) => void,
   jobId?: string,
@@ -640,6 +845,7 @@ async function runValidatorPipeline(
           dateEnd,
           universe,
           tier || 'tier3',
+          evidence,
           Boolean(forceRefresh),
           abortController.signal,
           onProgress,
@@ -676,6 +882,12 @@ async function runValidatorPipeline(
     }
     if (tier) {
       args.push('--tier', tier);
+    }
+    if (evidence?.mode) {
+      args.push('--evidence-mode', evidence.mode);
+    }
+    if (evidence?.target_trades && evidence.target_trades > 0) {
+      args.push('--evidence-target-trades', String(Math.round(evidence.target_trades)));
     }
     if (forceRefresh) {
       args.push('--force-refresh');
@@ -788,6 +1000,675 @@ async function runValidatorPipeline(
       reject(err);
     });
   });
+}
+
+function isFundamentalBacktestStrategy(strategy: any): boolean {
+  return String(strategy?.scan_mode || '').trim() === 'fundamental_backtest'
+    || String(strategy?.entry_config?.trigger || '').trim() === 'fundamental_rebalance_signal'
+    || strategy?.backtest_config?.fundamental_backtester === true;
+}
+
+function toFiniteNumberOrNull(value: any): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toFundamentalPercent(value: any): number | null {
+  const n = toFiniteNumberOrNull(value);
+  if (n == null || n === 0) return null;
+  const abs = Math.abs(n);
+  return abs <= 1 ? abs * 100 : abs;
+}
+
+function syncFundamentalValidatorSourceConfig(strategy: any, sourceConfigInput: any): any {
+  const sourceConfig = sourceConfigInput && typeof sourceConfigInput === 'object' ? sourceConfigInput : {};
+  const risk = (strategy?.risk_config && typeof strategy.risk_config === 'object') ? strategy.risk_config : {};
+  const exitConfig = (strategy?.exit_config && typeof strategy.exit_config === 'object') ? strategy.exit_config : {};
+  const sourceExit = (sourceConfig.exit && typeof sourceConfig.exit === 'object') ? sourceConfig.exit : {};
+  const stopType = String(risk.stop_type || '').trim().toLowerCase();
+  const stopPct = toFundamentalPercent(risk.stop_value);
+
+  if (stopPct != null && (!stopType || ['fixed_pct', 'percentage', 'percent'].includes(stopType))) {
+    sourceExit.stop_loss_pct = -stopPct;
+  }
+
+  const maxHold = toFiniteNumberOrNull(risk.max_hold_bars ?? exitConfig.time_stop_bars);
+  if (maxHold != null && maxHold > 0) {
+    sourceExit.max_hold_days = Math.round(maxHold);
+  }
+
+  const trailingPct = toFundamentalPercent(risk.trailing_stop_pct ?? exitConfig.trailing?.percent);
+  if (trailingPct != null) {
+    sourceExit.trailing_stop_pct = trailingPct;
+  }
+
+  const takeProfitR = toFiniteNumberOrNull(risk.take_profit_R ?? risk.take_profit_r ?? exitConfig.target_level);
+  const ladder = Array.isArray(risk.take_profit_ladder_pct)
+    ? risk.take_profit_ladder_pct
+    : Array.isArray(exitConfig.take_profit_ladder_pct)
+      ? exitConfig.take_profit_ladder_pct
+      : null;
+  const normalizedLadder = ladder
+    ? ladder
+      .map((value: any) => toFiniteNumberOrNull(value))
+      .filter((value: number | null): value is number => value != null && value > 0)
+    : [];
+  if (takeProfitR != null && takeProfitR > 0 && stopPct != null && stopPct > 0) {
+    sourceExit.take_profit_ladder_pct = [Number((takeProfitR * stopPct).toFixed(6))];
+  } else if (normalizedLadder.length) {
+    sourceExit.take_profit_ladder_pct = normalizedLadder;
+  }
+
+  sourceConfig.exit = sourceExit;
+  return sourceConfig;
+}
+
+function buildFundamentalSourceConfigFromStrategy(strategy: any): any {
+  const backtestConfig = strategy?.backtest_config && typeof strategy.backtest_config === 'object'
+    ? strategy.backtest_config
+    : {};
+  const provenance = backtestConfig.source_config_provenance && typeof backtestConfig.source_config_provenance === 'object'
+    ? backtestConfig.source_config_provenance
+    : null;
+  const legacySource = backtestConfig.source_config && typeof backtestConfig.source_config === 'object'
+    ? backtestConfig.source_config
+    : null;
+  const base = JSON.parse(JSON.stringify(provenance || legacySource || {}));
+  const entryConfig = strategy?.entry_config && typeof strategy.entry_config === 'object'
+    ? strategy.entry_config
+    : {};
+  const fundamentalConfig = strategy?.fundamental_config && typeof strategy.fundamental_config === 'object'
+    ? strategy.fundamental_config
+    : {};
+  const variables = Array.isArray(fundamentalConfig.variables) ? fundamentalConfig.variables : [];
+  const rulesFromVariables = variables
+    .map((variable: any) => ({
+      metric: String(variable?.metric || '').trim(),
+      op: String(variable?.operator || variable?.op || '>=').trim() || '>=',
+      value: toFiniteNumberOrNull(variable?.threshold ?? variable?.value),
+    }))
+    .filter((rule: any) => rule.metric && rule.value != null);
+  const entryRules = rulesFromVariables.length
+    ? rulesFromVariables
+    : Array.isArray(entryConfig.rules)
+      ? entryConfig.rules
+      : [];
+  const exclusions = Array.isArray(entryConfig.exclusions)
+    ? entryConfig.exclusions
+    : Array.isArray(base.exclusions)
+      ? base.exclusions
+      : [];
+  const forwardBars = toFiniteNumberOrNull(fundamentalConfig.forward_bars);
+  const rebalanceFrequency = String(
+    entryConfig.rebalance_frequency ||
+    fundamentalConfig.rebalance_frequency ||
+    base.rebalance_frequency ||
+    'monthly'
+  );
+
+  return {
+    ...base,
+    name: base.name || strategy?.name || strategy?.strategy_version_id || 'fundamental_strategy',
+    rebalance_frequency: rebalanceFrequency,
+    benchmark: base.benchmark || backtestConfig.benchmark || 'SPY',
+    result_mode: base.result_mode || backtestConfig.result_mode || 'equal_weight',
+    top_n_per_date: Number(entryConfig.top_n_per_date || base.top_n_per_date || 0),
+    entry: { all: entryRules },
+    exclusions,
+    exit: {
+      ...(base.exit && typeof base.exit === 'object' ? base.exit : {}),
+      ...(forwardBars != null && forwardBars > 0 ? { max_hold_days: Math.round(forwardBars) } : {}),
+    },
+  };
+}
+
+type ValidatorVerdict = ValidationReport['pass_fail'];
+
+function fundamentalReportVerdict(report: any, tierLabel: string): { verdict: ValidatorVerdict; reasons: string[] } {
+  const ts = report?.trades_summary || {};
+  const oos = report?.robustness?.out_of_sample || {};
+  const wf = report?.robustness?.walk_forward || {};
+  const mc = report?.robustness?.monte_carlo || {};
+  const thresholds = report?.config?.validation_thresholds || {};
+  const tradeCount = Number(ts.total_trades || 0);
+  const expectancy = Number(ts.expectancy_R || 0);
+  const minTradesPass = Number(thresholds.min_trades_pass || 30);
+  const minTradesFail = Number(thresholds.min_trades_fail || 30);
+  const maxOosDeg = Number(thresholds.max_oos_degradation_pct || 50);
+  const minWf = Number(thresholds.min_wf_profitable_windows || 0.6);
+  const maxP95 = Number(thresholds.max_mc_p95_dd_pct || 30);
+  const maxP99 = Number(thresholds.max_mc_p99_dd_pct || 50);
+  const reasons: string[] = [];
+
+  if (tradeCount < minTradesFail) {
+    reasons.push(`Insufficient trade sample. Expectancy and Monte Carlo statistics are not reliable: ${tradeCount} < ${minTradesFail}.`);
+    if (expectancy > 0) {
+      reasons.push(`Promising ${tierLabel} edge (${expectancy.toFixed(2)}R), but it is not validated yet.`);
+      return { verdict: 'PROMISING_BUT_NOT_VALIDATED', reasons };
+    }
+    return { verdict: 'INSUFFICIENT_DATA', reasons };
+  }
+  if (expectancy <= 0) {
+    reasons.push(`Expectancy is not positive: ${expectancy.toFixed(2)}R.`);
+    return { verdict: 'FAIL', reasons };
+  }
+  if (tradeCount < minTradesPass) {
+    reasons.push(`Positive ${tierLabel} result, but total trades are below the stronger threshold (${tradeCount} < ${minTradesPass}).`);
+    return { verdict: 'NEEDS_REVIEW', reasons };
+  }
+
+  const oosReliable = oos.reliable !== false && Number(oos.oos_n || 0) > 0;
+  const wfReliable = wf.reliable !== false && Number(wf.total_windows || 0) > 0;
+  const mcReliable = mc.reliable !== false && Number(mc.simulations || 0) > 0;
+  if (!oosReliable) reasons.push('OOS result is unreliable because the OOS trade sample is too small.');
+  if (!wfReliable) reasons.push('Walk-forward result is unreliable because there are not enough trades per window.');
+  if (!mcReliable) reasons.push('Monte Carlo result is unreliable because the total trade sample is too small.');
+
+  const passes = (
+    oosReliable
+    && wfReliable
+    && mcReliable
+    && Number(oos.oos_expectancy || 0) > 0
+    && Number(oos.oos_degradation_pct || 0) < maxOosDeg
+    && Number(wf.pct_profitable_windows || 0) >= minWf
+    && Number(mc.p95_dd_pct || 0) < maxP95
+    && Number(mc.p99_dd_pct || 0) <= maxP99
+  );
+  if (!passes) {
+    if (Number(mc.p99_dd_pct || 0) > maxP99) reasons.push(`Monte Carlo p99 drawdown is above hard-fail ceiling: ${Number(mc.p99_dd_pct || 0).toFixed(1)}% > ${maxP99.toFixed(1)}%.`);
+    if (Number(oos.oos_expectancy || 0) <= 0) reasons.push(`OOS expectancy is not positive: ${Number(oos.oos_expectancy || 0).toFixed(2)}R.`);
+    if (Number(oos.oos_degradation_pct || 0) >= maxOosDeg) reasons.push(`OOS degradation is too high: ${Number(oos.oos_degradation_pct || 0).toFixed(1)}% >= ${maxOosDeg.toFixed(1)}%.`);
+    if (Number(wf.pct_profitable_windows || 0) < minWf) reasons.push(`Walk-forward profitable windows below threshold: ${(Number(wf.pct_profitable_windows || 0) * 100).toFixed(1)}% < ${(minWf * 100).toFixed(1)}%.`);
+    return { verdict: 'FAIL', reasons };
+  }
+
+  reasons.push(`Fundamental result cleared ${tierLabel}: ${tradeCount} trades, expectancy ${expectancy.toFixed(2)}R, OOS ${Number(oos.oos_expectancy || 0).toFixed(2)}R, WF ${(Number(wf.pct_profitable_windows || 0) * 100).toFixed(1)}%.`);
+  return { verdict: 'PASS', reasons };
+}
+
+function parseFundamentalTradeCsv(text: string): Array<Record<string, string>> {
+  const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',');
+  return lines.slice(1).map((line) => {
+    const values = line.split(',');
+    const row: Record<string, string> = {};
+    headers.forEach((header, idx) => { row[header] = values[idx] || ''; });
+    return row;
+  });
+}
+
+function averageNumber(values: number[]): number {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function stdDevNumber(values: number[]): number {
+  if (values.length < 2) return 0;
+  const avg = averageNumber(values);
+  const variance = values.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) / (values.length - 1);
+  return Math.sqrt(Math.max(0, variance));
+}
+
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function maxDrawdownRForSequence(rValues: number[]): number {
+  let equity = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
+  for (const value of rValues) {
+    equity += value;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.min(maxDrawdown, equity - peak);
+  }
+  return maxDrawdown;
+}
+
+function maxDrawdownPctForReturns(returnPcts: number[]): number {
+  let equity = 1;
+  let peak = 1;
+  let maxDrawdown = 0;
+  for (const value of returnPcts) {
+    equity *= Math.max(0, 1 + value);
+    peak = Math.max(peak, equity);
+    if (peak > 0) {
+      maxDrawdown = Math.max(maxDrawdown, Math.max(0, 1 - equity / peak));
+    }
+  }
+  return maxDrawdown;
+}
+
+function percentile(values: number[], pct: number): number {
+  if (!values.length) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((pct / 100) * sorted.length) - 1));
+  return sorted[idx];
+}
+
+function averageTradeR(trades: TradeInstance[]): number {
+  if (!trades.length) return 0;
+  return averageNumber(trades.map((trade) => Number(trade.R_multiple || 0)));
+}
+
+function degradationPct(isExpectancy: number, oosExpectancy: number): number {
+  if (Math.abs(isExpectancy) < 1e-9) return oosExpectancy >= 0 ? 0 : 100;
+  return ((isExpectancy - oosExpectancy) / Math.abs(isExpectancy)) * 100;
+}
+
+function computeTimeBasedOos(trades: TradeInstance[], minOosTrades: number): any {
+  const ordered = trades.slice().sort((a, b) => {
+    const aTime = new Date(a.entry_time || '').getTime() || 0;
+    const bTime = new Date(b.entry_time || '').getTime() || 0;
+    return aTime - bTime;
+  });
+  const splitIdx = Math.max(1, Math.floor(ordered.length * 0.7));
+  const isTrades = ordered.slice(0, splitIdx);
+  const oosTrades = ordered.slice(splitIdx);
+  const isExpectancy = averageTradeR(isTrades);
+  const oosExpectancy = averageTradeR(oosTrades);
+  const splitDate = ordered[splitIdx]?.entry_time || '';
+  const reliable = isTrades.length >= minOosTrades && oosTrades.length >= minOosTrades;
+  return {
+    mode: 'time_70_30',
+    is_expectancy: Number(isExpectancy.toFixed(4)),
+    is_n: isTrades.length,
+    oos_expectancy: Number(oosExpectancy.toFixed(4)),
+    oos_n: oosTrades.length,
+    split_date: splitDate,
+    oos_degradation_pct: Number(degradationPct(isExpectancy, oosExpectancy).toFixed(2)),
+    reliable,
+    reliability_note: reliable ? 'Reliable time-based OOS split.' : `Unreliable OOS split: each side needs at least ${minOosTrades} trades.`,
+  };
+}
+
+function computeSymbolBasedOos(trades: TradeInstance[], minOosTrades: number): any {
+  const symbols = Array.from(new Set(trades.map((trade) => String(trade.symbol || '').trim().toUpperCase()).filter(Boolean))).sort();
+  const splitIdx = Math.max(1, Math.floor(symbols.length * 0.7));
+  const isSymbols = new Set(symbols.slice(0, splitIdx));
+  const oosSymbols = new Set(symbols.slice(splitIdx));
+  const isTrades = trades.filter((trade) => isSymbols.has(String(trade.symbol || '').trim().toUpperCase()));
+  const oosTrades = trades.filter((trade) => oosSymbols.has(String(trade.symbol || '').trim().toUpperCase()));
+  const isExpectancy = averageTradeR(isTrades);
+  const oosExpectancy = averageTradeR(oosTrades);
+  const reliable = isTrades.length >= minOosTrades && oosTrades.length >= minOosTrades;
+  return {
+    mode: 'symbol_70_30',
+    is_expectancy: Number(isExpectancy.toFixed(4)),
+    is_n: isTrades.length,
+    oos_expectancy: Number(oosExpectancy.toFixed(4)),
+    oos_n: oosTrades.length,
+    is_symbol_count: isSymbols.size,
+    oos_symbol_count: oosSymbols.size,
+    oos_degradation_pct: Number(degradationPct(isExpectancy, oosExpectancy).toFixed(2)),
+    reliable,
+    reliability_note: reliable ? 'Reliable symbol-based OOS split.' : `Unreliable symbol OOS split: each side needs at least ${minOosTrades} trades.`,
+  };
+}
+
+function computeWalkForwardDiagnostics(trades: TradeInstance[], minTradesPerWindow: number): any {
+  const ordered = trades.slice().sort((a, b) => {
+    const aTime = new Date(a.entry_time || '').getTime() || 0;
+    const bTime = new Date(b.entry_time || '').getTime() || 0;
+    return aTime - bTime;
+  });
+  const windowCount = Math.min(6, Math.max(1, Math.floor(ordered.length / Math.max(1, minTradesPerWindow))));
+  const windows: any[] = [];
+  for (let i = 0; i < windowCount; i += 1) {
+    const start = Math.floor((ordered.length * i) / windowCount);
+    const end = Math.floor((ordered.length * (i + 1)) / windowCount);
+    const slice = ordered.slice(start, end);
+    const expectancyR = averageTradeR(slice);
+    windows.push({
+      index: i + 1,
+      start_date: slice[0]?.entry_time || '',
+      end_date: slice[slice.length - 1]?.exit_time || slice[slice.length - 1]?.entry_time || '',
+      trades: slice.length,
+      expectancy_R: Number(expectancyR.toFixed(4)),
+      profitable: expectancyR > 0,
+      reliable: slice.length >= minTradesPerWindow,
+    });
+  }
+  const validWindows = windows.filter((window) => window.reliable);
+  const profitable = validWindows.filter((window) => window.profitable);
+  const expectancies = validWindows.map((window) => Number(window.expectancy_R || 0));
+  const reliable = validWindows.length >= 3;
+  return {
+    windows,
+    total_windows: windows.length,
+    valid_windows: validWindows.length,
+    profitable_windows: profitable.length,
+    losing_windows: validWindows.length - profitable.length,
+    avg_test_expectancy: Number(averageNumber(expectancies).toFixed(4)),
+    worst_window_expectancy: Number((expectancies.length ? Math.min(...expectancies) : 0).toFixed(4)),
+    best_window_expectancy: Number((expectancies.length ? Math.max(...expectancies) : 0).toFixed(4)),
+    pct_profitable_windows: validWindows.length ? profitable.length / validWindows.length : 0,
+    reliable,
+    reliability_note: reliable ? 'Reliable walk-forward windows.' : `Unreliable walk-forward: need at least 3 windows with ${minTradesPerWindow}+ trades each.`,
+  };
+}
+
+function computeFundamentalRiskDiagnostics(trades: TradeInstance[]): { risk: any; monteCarlo: any } {
+  const ordered = trades.slice().sort((a, b) => {
+    const aTime = new Date(a.exit_time || a.entry_time || '').getTime() || 0;
+    const bTime = new Date(b.exit_time || b.entry_time || '').getTime() || 0;
+    return aTime - bTime;
+  });
+  const rValues = ordered.map((trade) => Number(trade.R_multiple || 0));
+  const returnPcts = ordered.map((trade) => Number(trade.pnl_net || trade.pnl_gross || 0) / 100);
+
+  let cumulativeR = 0;
+  let peakR = 0;
+  let maxDrawdownR = 0;
+  let equity = 1;
+  let peakEquity = 1;
+  let maxDrawdownPct = 0;
+  let timeUnderWater = 0;
+  let currentUnderWater = 0;
+  const recoverySpans: number[] = [];
+
+  for (let i = 0; i < ordered.length; i += 1) {
+    cumulativeR += rValues[i] || 0;
+    peakR = Math.max(peakR, cumulativeR);
+    maxDrawdownR = Math.min(maxDrawdownR, cumulativeR - peakR);
+
+    equity *= Math.max(0, 1 + (returnPcts[i] || 0));
+    peakEquity = Math.max(peakEquity, equity);
+    if (peakEquity > 0) {
+      maxDrawdownPct = Math.max(maxDrawdownPct, Math.max(0, 1 - equity / peakEquity));
+    }
+
+    if (cumulativeR < peakR) {
+      currentUnderWater += 1;
+      timeUnderWater = Math.max(timeUnderWater, currentUnderWater);
+    } else if (currentUnderWater > 0) {
+      recoverySpans.push(currentUnderWater);
+      currentUnderWater = 0;
+    }
+  }
+  if (currentUnderWater > 0) recoverySpans.push(currentUnderWater);
+
+  let losingStreak = 0;
+  let winningStreak = 0;
+  let longestLosingStreak = 0;
+  let longestWinningStreak = 0;
+  const losingStreaks: number[] = [];
+  for (const value of rValues) {
+    if (value <= 0) {
+      losingStreak += 1;
+      winningStreak = 0;
+      longestLosingStreak = Math.max(longestLosingStreak, losingStreak);
+    } else {
+      if (losingStreak > 0) losingStreaks.push(losingStreak);
+      losingStreak = 0;
+      winningStreak += 1;
+      longestWinningStreak = Math.max(longestWinningStreak, winningStreak);
+    }
+  }
+  if (losingStreak > 0) losingStreaks.push(losingStreak);
+
+  const avgReturn = averageNumber(returnPcts);
+  const returnStd = stdDevNumber(returnPcts);
+  const sharpe = returnStd > 0 ? (avgReturn / returnStd) * Math.sqrt(returnPcts.length) : null;
+  const totalReturn = equity - 1;
+  const calmar = maxDrawdownPct > 0 ? totalReturn / maxDrawdownPct : null;
+
+  const random = seededRandom(42);
+  const simulations = rValues.length >= 2 ? 500 : 0;
+  const monteCarloReliable = rValues.length >= 30;
+  const mcDrawdownsR: number[] = [];
+  const mcDrawdownsPct: number[] = [];
+  const mcFinalR: number[] = [];
+  for (let sim = 0; sim < simulations; sim += 1) {
+    const sampledIndexes = rValues.map(() => Math.floor(random() * rValues.length));
+    const sampled = sampledIndexes.map((idx) => rValues[idx] || 0);
+    const sampledReturns = sampledIndexes.map((idx) => returnPcts[idx] || 0);
+    mcDrawdownsR.push(Math.abs(maxDrawdownRForSequence(sampled)));
+    mcDrawdownsPct.push(maxDrawdownPctForReturns(sampledReturns));
+    mcFinalR.push(sampled.reduce((sum, value) => sum + value, 0));
+  }
+
+  return {
+    risk: {
+      max_drawdown_pct: Number(maxDrawdownPct.toFixed(4)),
+      max_drawdown_R: Number(maxDrawdownR.toFixed(4)),
+      longest_losing_streak: longestLosingStreak,
+      avg_losing_streak: Number(averageNumber(losingStreaks).toFixed(2)),
+      longest_winning_streak: longestWinningStreak,
+      time_under_water_bars: timeUnderWater,
+      time_under_water_trades: timeUnderWater,
+      expected_recovery_time_bars: Number(averageNumber(recoverySpans).toFixed(2)),
+      expected_recovery_trades: Number(averageNumber(recoverySpans).toFixed(2)),
+      sharpe_ratio: sharpe == null ? null : Number(sharpe.toFixed(4)),
+      calmar_ratio: calmar == null ? null : Number(calmar.toFixed(4)),
+    },
+    monteCarlo: {
+      simulations,
+      median_max_drawdown_R: Number(percentile(mcDrawdownsR, 50).toFixed(4)),
+      p95_max_drawdown_R: Number(percentile(mcDrawdownsR, 95).toFixed(4)),
+      p99_max_drawdown_R: Number(percentile(mcDrawdownsR, 99).toFixed(4)),
+      p95_max_drawdown_pct: Number(percentile(mcDrawdownsPct, 95).toFixed(4)),
+      p99_max_drawdown_pct: Number(percentile(mcDrawdownsPct, 99).toFixed(4)),
+      median_dd_pct: Number((percentile(mcDrawdownsPct, 50) * 100).toFixed(2)),
+      p95_dd_pct: Number((percentile(mcDrawdownsPct, 95) * 100).toFixed(2)),
+      p99_dd_pct: Number((percentile(mcDrawdownsPct, 99) * 100).toFixed(2)),
+      worst_dd_pct: Number((percentile(mcDrawdownsPct, 100) * 100).toFixed(2)),
+      ruin_probability_pct: 0,
+      median_final_R: Number(percentile(mcFinalR, 50).toFixed(4)),
+      reliable: monteCarloReliable,
+      reliability_note: monteCarloReliable ? 'Monte Carlo sample is large enough for directional reliability.' : 'Monte Carlo unreliable: fewer than 30 trades.',
+    },
+  };
+}
+
+async function runFundamentalValidatorPipeline(
+  strategy: StrategySpec,
+  dateStart: string,
+  dateEnd: string,
+  universe: string[],
+  tier: ValidationTier,
+  evidence: { mode?: EvidenceMode | null; target_trades?: number | null; source_universe_size?: number | null } = {},
+  onProgress?: (evt: PipelineProgressEvent) => void,
+  jobId?: string,
+): Promise<{ report: ValidationReport; trades: TradeInstance[] }> {
+  const reportId = `rpt_${uuidv4().replace(/-/g, '').slice(0, 8)}`;
+  const strategyVersionId = String(strategy.strategy_version_id || 'unknown');
+  const runnerPath = path.join(__dirname, '..', '..', 'scripts', 'run_fundamental_backtester.py');
+  const tmpDir = path.join(__dirname, '..', '..', 'data', 'research');
+  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const configPath = path.join(tmpDir, `_tmp_fundamental_validator_${stamp}.json`);
+  const outputJson = path.join(tmpDir, `_tmp_fundamental_validator_${stamp}_summary.json`);
+  const outputCsv = path.join(tmpDir, `_tmp_fundamental_validator_${stamp}_trades.csv`);
+  const sourceConfig = syncFundamentalValidatorSourceConfig(strategy, buildFundamentalSourceConfigFromStrategy(strategy));
+  const config = {
+    ...sourceConfig,
+    name: sourceConfig.name || strategy.name || strategyVersionId,
+    as_of_start: dateStart,
+    as_of_end: dateEnd,
+    universe: `validator_${tier}`,
+    universe_symbols: universe,
+    max_symbols: 0,
+    evidence_mode: evidence.mode || null,
+    evidence_target_trades: evidence.target_trades || null,
+    evidence_source_universe_size: evidence.source_universe_size || universe.length,
+  };
+
+  await fs.mkdir(tmpDir, { recursive: true });
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  const targetDetail = evidence.target_trades ? ` for target ${evidence.target_trades} trades` : '';
+  onProgress?.({ progress: 0.10, stage: 'running_fundamental_validator', detail: `Running PIT fundamental validation on ${universe.length} symbols${targetDetail}...` });
+
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn('py', [runnerPath, '--config', configPath, '--output-json', outputJson, '--output-csv', outputCsv]);
+    if (jobId) activeProcesses.set(jobId, proc);
+    let stdout = '';
+    let stderr = '';
+    const timeoutMs = pipelineTimeoutMs(universe.length, tier);
+    const timeout = setTimeout(() => {
+      killProcessTree(proc);
+      if (jobId) activeProcesses.delete(jobId);
+      reject(new Error(`Fundamental validation timed out after ${Math.round(timeoutMs / 1000)}s (${universe.length} symbols)`));
+    }, timeoutMs);
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', (err) => {
+      clearTimeout(timeout);
+      if (jobId) activeProcesses.delete(jobId);
+      reject(err);
+    });
+    proc.on('close', (code) => {
+      clearTimeout(timeout);
+      if (jobId) activeProcesses.delete(jobId);
+      if (code === 0) resolve();
+      else reject(new Error(`fundamental validator exited with code ${code}: ${stderr || stdout}`));
+    });
+  });
+
+  const summaryPayload = JSON.parse(await fs.readFile(outputJson, 'utf-8'));
+  const tradeRows = parseFundamentalTradeCsv(await fs.readFile(outputCsv, 'utf-8').catch(() => ''));
+  const summary = summaryPayload.summary || {};
+  const evidenceSummary = summaryPayload.evidence || {};
+  const configuredStopLossPct = Math.abs(Number(config?.exit?.stop_loss_pct || 0));
+  const rToPct = configuredStopLossPct > 0 ? configuredStopLossPct : 100;
+  const tradeInstances: TradeInstance[] = tradeRows.map((row, idx) => {
+    const returnPct = Number(row.return_pct || 0);
+    const rMultiple = returnPct / rToPct;
+    return {
+      trade_id: `${reportId}_${idx + 1}`,
+      report_id: reportId,
+      strategy_version_id: strategyVersionId,
+      symbol: row.symbol || '',
+      timeframe: '1d',
+      direction: 'long',
+      entry_time: row.entry_date || row.asof_date || '',
+      entry_price: Number(row.entry_price || 0),
+      entry_bar_index: 0,
+      stop_price: 0,
+      stop_distance: 0,
+      exit_time: row.exit_date || '',
+      exit_price: Number(row.exit_price || 0),
+      exit_bar_index: Number(row.holding_days || 0),
+      exit_reason: String(row.exit_reason || '').includes('stop') ? 'trailing' : String(row.exit_reason || '').includes('take_profit') ? 'target' : 'time',
+      R_multiple: Number.isFinite(rMultiple) ? Number(rMultiple.toFixed(4)) : 0,
+      pnl_gross: returnPct,
+      pnl_net: returnPct,
+      fees_applied: 0,
+      slippage_applied: 0,
+      setup_type: 'fundamental_backtest',
+      anchors_snapshot: {},
+    } as TradeInstance;
+  });
+  const winners = tradeInstances.filter((trade) => trade.R_multiple > 0);
+  const losers = tradeInstances.filter((trade) => trade.R_multiple <= 0);
+  const avgWin = winners.length ? winners.reduce((sum, trade) => sum + trade.R_multiple, 0) / winners.length : 0;
+  const avgLoss = losers.length ? losers.reduce((sum, trade) => sum + trade.R_multiple, 0) / losers.length : 0;
+  const totalR = tradeInstances.reduce((sum, trade) => sum + Number(trade.R_multiple || 0), 0);
+  const avgDurationDays = averageNumber(tradeInstances.map((trade) => Number(trade.exit_bar_index || 0)));
+  const fundamentalRisk = computeFundamentalRiskDiagnostics(tradeInstances);
+  const minTradesReliable = 30;
+  const targetTrades = evidence.target_trades && evidence.target_trades > 0
+    ? Math.round(evidence.target_trades)
+    : 50;
+  const timeOos = computeTimeBasedOos(tradeInstances, Math.max(5, Math.floor(minTradesReliable * 0.25)));
+  const symbolOos = computeSymbolBasedOos(tradeInstances, Math.max(5, Math.floor(minTradesReliable * 0.25)));
+  const walkForward = computeWalkForwardDiagnostics(tradeInstances, Math.max(3, Math.floor(minTradesReliable / 6)));
+
+  const report: ValidationReport = {
+    report_id: reportId,
+    strategy_version_id: strategyVersionId,
+    created_at: new Date().toISOString(),
+    config: {
+      date_start: dateStart,
+      date_end: dateEnd,
+      universe,
+      timeframes: ['1d'],
+      validation_tier: tier,
+      evidence_mode: evidence.mode || null,
+      evidence_target_trades: evidence.target_trades || null,
+      evidence_source_universe_size: evidence.source_universe_size || universe.length,
+      evidence_target_reached: Boolean(evidenceSummary.target_reached),
+      evidence_symbols_processed: Number(evidenceSummary.candidate_symbols_examined || evidenceSummary.evaluated_symbols || universe.length),
+      evidence_symbols_with_trades: Number(evidenceSummary.symbols_with_trades || 0),
+      evidence_candidate_rows_examined: Number(evidenceSummary.candidate_rows_examined || 0),
+      evidence_trades_per_processed_symbol: Number(evidenceSummary.trades_per_candidate_symbol || 0),
+      evidence_trades_per_source_symbol: Number(evidenceSummary.trades_per_source_symbol || 0),
+      asset_class: 'stocks',
+      costs: { commission_per_trade: 0, slippage_pct: 0.001 },
+      validation_thresholds: {
+        min_trades_pass: targetTrades,
+        min_trades_fail: Math.min(30, targetTrades),
+        strong_trades: Math.max(100, targetTrades),
+        max_oos_degradation_pct: 50,
+        min_wf_profitable_windows: 0.6,
+        max_mc_p95_dd_pct: 30,
+        max_mc_p99_dd_pct: 50,
+        max_sensitivity_score: 40,
+        r_to_pct: rToPct,
+        r_conversion_mode: configuredStopLossPct > 0 ? 'stop_loss_pct' : 'percent_return',
+      },
+      universe_selection: tier === 'clean'
+        ? (evidence.mode ? CLEAN_STOCK_FULL_UNIVERSE_RESULT : CLEAN_STOCK_UNIVERSE_RESULT)
+        : undefined,
+    },
+    trades_summary: {
+      total_trades: Number(summary.trade_count || 0),
+      winners: winners.length,
+      losers: losers.length,
+      win_rate: Number(summary.win_rate || 0),
+      avg_win_R: Number(avgWin.toFixed(4)),
+      avg_loss_R: Number(avgLoss.toFixed(4)),
+      expectancy_R: Number(((Number(summary.avg_return_pct || 0)) / rToPct).toFixed(4)),
+      profit_factor: Math.abs(avgLoss) > 0 ? Number(((avgWin * winners.length) / Math.abs(avgLoss * losers.length || 1)).toFixed(4)) : 999,
+      largest_win_R: Math.max(0, ...tradeInstances.map((trade) => trade.R_multiple)),
+      largest_loss_R: Math.min(0, ...tradeInstances.map((trade) => trade.R_multiple)),
+      total_R_return: Number(totalR.toFixed(4)),
+      avg_trade_duration_days: Number(avgDurationDays.toFixed(2)),
+    },
+    risk_summary: fundamentalRisk.risk,
+    robustness: {
+      out_of_sample: {
+        ...timeOos,
+        time_based: timeOos,
+        symbol_based: symbolOos,
+      },
+      walk_forward: walkForward,
+      monte_carlo: fundamentalRisk.monteCarlo,
+      parameter_sensitivity: { sensitivity_score: 0, tests: [] },
+    } as any,
+    execution_stats: {},
+    pass_fail: 'NEEDS_REVIEW',
+    pass_fail_reasons: [],
+    trades_summary_by_source: undefined,
+    fundamental_validation: {
+      enabled: true,
+      status: 'completed',
+      source: 'fundamental_backtester',
+      summary: summaryPayload,
+      evidence: evidenceSummary || {
+        mode: evidence.mode || null,
+        target_trades: evidence.target_trades || null,
+        source_universe_size: evidence.source_universe_size || universe.length,
+        collected_trades: tradeInstances.length,
+      },
+      r_conversion: {
+        mode: configuredStopLossPct > 0 ? 'stop_loss_pct' : 'percent_return',
+        r_to_pct: rToPct,
+        stop_loss_pct: configuredStopLossPct || null,
+      },
+    } as any,
+  } as any as ValidationReport;
+
+  const verdict = fundamentalReportVerdict(report, tier);
+  (report as any).pass_fail = verdict.verdict;
+  (report as any).pass_fail_reasons = verdict.reasons;
+
+  onProgress?.({ progress: 0.98, stage: 'finalizing_report', detail: 'Fundamental validation complete. Finalizing report...' });
+  return { report, trades: tradeInstances };
 }
 
 // =====================
@@ -1047,6 +1928,8 @@ router.post('/run', async (req: Request, res: Response) => {
       force_refresh,
       valuation_forward_bars,
       valuation_rebalance_frequency,
+      evidence_mode,
+      evidence_target_trades,
     } = req.body;
     const activeRuns = Array.from(runJobs.values()).filter((j) => j.status === 'queued' || j.status === 'running').length;
     if (activeRuns >= MAX_CONCURRENT_RUNS) {
@@ -1076,6 +1959,18 @@ router.post('/run', async (req: Request, res: Response) => {
     const parsedTier = parseValidationTier(tier);
     if (tier != null && parsedTier === null) {
       return res.status(400).json({ success: false, error: `tier must be one of: ${VALIDATION_TIER_KEYS.join(', ')}` } as ApiResponse<null>);
+    }
+    const parsedEvidenceMode = parseEvidenceMode(evidence_mode);
+    if (evidence_mode != null && parsedEvidenceMode === null) {
+      return res.status(400).json({ success: false, error: 'evidence_mode must be one of: evidence_50, evidence_100, evidence_200, evidence_500, full_clean' } as ApiResponse<null>);
+    }
+    const parsedEvidenceTargetTrades = parseEvidenceTargetTrades(evidence_target_trades, parsedEvidenceMode);
+    if (
+      evidence_target_trades != null &&
+      parsedEvidenceMode == null &&
+      parsedEvidenceTargetTrades == null
+    ) {
+      return res.status(400).json({ success: false, error: 'evidence_target_trades must be a positive number up to 5000' } as ApiResponse<null>);
     }
     const parsedAssetClass = parseAssetClass(asset_class);
     if (asset_class != null && parsedAssetClass === null) {
@@ -1117,7 +2012,7 @@ router.post('/run', async (req: Request, res: Response) => {
     const effectiveAssetClass = parsedAssetClass || resolveStrategyAssetClass(strategy);
     const strategyInterval = parseValidationInterval((strategy as any)?.interval) || '1wk';
     const effectiveInterval = parsedInterval || strategyInterval;
-    const effectiveUniverse = await getValidationTierUniverse(effectiveAssetClass, effectiveTier);
+    const effectiveUniverse = await getEvidenceUniverse(effectiveAssetClass, effectiveTier, parsedEvidenceMode);
     const existingReports = await storage.getAllValidationReports(strategy_version_id);
     const hasTierPass = (tierName: ValidationTier) =>
       existingReports.some((r: any) =>
@@ -1165,6 +2060,8 @@ router.post('/run', async (req: Request, res: Response) => {
       status: 'queued',
       strategy_version_id,
       tier: effectiveTier,
+      evidence_mode: parsedEvidenceMode,
+      evidence_target_trades: parsedEvidenceTargetTrades,
       asset_class: effectiveAssetClass,
       interval: effectiveInterval,
       date_start: ds,
@@ -1182,7 +2079,9 @@ router.post('/run', async (req: Request, res: Response) => {
       const symCount = effectiveUniverse.length;
       const runTimeoutMs = pipelineTimeoutMs(symCount, effectiveTier);
       const runTimeoutSec = Math.round(runTimeoutMs / 1000);
-      const tierLabel = VALIDATION_TIER_LABELS[effectiveTier];
+      const tierLabel = parsedEvidenceMode
+        ? `${VALIDATION_TIER_LABELS[effectiveTier]} / ${parsedEvidenceMode.replace('_', ' ')}`
+        : VALIDATION_TIER_LABELS[effectiveTier];
 
       j.status = 'running';
       j.started_at = new Date().toISOString();
@@ -1230,33 +2129,56 @@ router.post('/run', async (req: Request, res: Response) => {
             ...(valuationRebalanceFrequency ? { rebalance_frequency: valuationRebalanceFrequency } : {}),
           };
         }
-        const { report, trades } = await runValidatorPipeline(
-          strategyForRun,
-          ds,
-          de,
-          effectiveUniverse,
-          effectiveTier,
-          Boolean(force_refresh),
-          (evt) => {
-            const live = runJobs.get(jobId);
-            if (!live || live.status !== 'running') return;
-            live.progress = Math.max(live.progress, Math.min(0.98, Number(evt.progress || 0)));
-            live.stage = evt.stage || live.stage;
-            if (evt.detail) live.detail = evt.detail;
-            live.elapsed_sec = Math.round((Date.now() - startedAtMs) / 1000);
-            live.timeout_sec = runTimeoutSec;
-            if (typeof evt.eta_seconds === 'number') live.eta_seconds = evt.eta_seconds;
-            if (typeof evt.eta_display === 'string') live.eta_display = evt.eta_display;
-            void persistRunJobs();
-          },
-          jobId,
-        );
+        const progressHandler = (evt: PipelineProgressEvent) => {
+          const live = runJobs.get(jobId);
+          if (!live || live.status !== 'running') return;
+          live.progress = Math.max(live.progress, Math.min(0.98, Number(evt.progress || 0)));
+          live.stage = evt.stage || live.stage;
+          if (evt.detail) live.detail = evt.detail;
+          live.elapsed_sec = Math.round((Date.now() - startedAtMs) / 1000);
+          live.timeout_sec = runTimeoutSec;
+          if (typeof evt.eta_seconds === 'number') live.eta_seconds = evt.eta_seconds;
+          if (typeof evt.eta_display === 'string') live.eta_display = evt.eta_display;
+          void persistRunJobs();
+        };
+        const { report, trades } = isFundamentalBacktestStrategy(strategyForRun)
+          ? await runFundamentalValidatorPipeline(
+              strategyForRun,
+              ds,
+              de,
+              effectiveUniverse,
+              effectiveTier,
+              {
+                mode: parsedEvidenceMode,
+                target_trades: parsedEvidenceTargetTrades,
+                source_universe_size: effectiveUniverse.length,
+              },
+              progressHandler,
+              jobId,
+            )
+          : await runValidatorPipeline(
+              strategyForRun,
+              ds,
+              de,
+              effectiveUniverse,
+              effectiveTier,
+              {
+                mode: parsedEvidenceMode,
+                target_trades: parsedEvidenceTargetTrades,
+              },
+              Boolean(force_refresh),
+              progressHandler,
+              jobId,
+            );
         clearInterval(progressTicker);
         j.progress = Math.max(j.progress, 0.98);
         j.stage = 'saving_results';
         j.detail = 'Persisting report and trade instances...';
         report.config = report.config || ({} as any);
         (report.config as any).validation_tier = effectiveTier;
+        (report.config as any).evidence_mode = parsedEvidenceMode;
+        (report.config as any).evidence_target_trades = parsedEvidenceTargetTrades;
+        (report.config as any).evidence_source_universe_size = effectiveUniverse.length;
         (report.config as any).asset_class = effectiveAssetClass;
         (report.config as any).timeframes = [effectiveInterval];
         (report.config as any).universe = effectiveUniverse.slice();

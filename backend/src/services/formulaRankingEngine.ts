@@ -192,7 +192,7 @@ function computeRankingFitnessScore(report: any, summary: {
     : Math.max(0, 1 - (summary.max_drawdown_pct - 30) / 70);
   const verdictMultiplier = summary.pass_fail === 'PASS'
     ? 1
-    : summary.pass_fail === 'NEEDS_REVIEW'
+    : (summary.pass_fail === 'NEEDS_REVIEW' || summary.pass_fail === 'PROMISING_BUT_NOT_VALIDATED')
       ? 0.85
       : 0.5;
 

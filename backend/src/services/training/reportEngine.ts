@@ -44,27 +44,27 @@ function buildBreakdown(values: string[], limit = 10): TrainingBacktestBreakdown
     .slice(0, limit);
 }
 
-function confidenceSummary(resolvedTrades: number): TrainingBacktestConfidenceSummary {
-  if (resolvedTrades >= 200) {
+function confidenceSummary(filledTrades: number): TrainingBacktestConfidenceSummary {
+  if (filledTrades >= 200) {
     return {
       label: 'HIGH',
-      resolved_trades: resolvedTrades,
+      resolved_trades: filledTrades,
       message: 'Statistically meaningful sample size.',
     };
   }
-  if (resolvedTrades >= 50) {
+  if (filledTrades >= 50) {
     return {
       label: 'MEDIUM',
-      resolved_trades: resolvedTrades,
-      message: `Emerging edge sample (${resolvedTrades}/200 resolved trades).`,
+      resolved_trades: filledTrades,
+      message: `Emerging edge sample (${filledTrades}/200 filled trades).`,
     };
   }
   return {
     label: 'LOW',
-    resolved_trades: resolvedTrades,
-    message: resolvedTrades > 0
-      ? `Too few resolved trades to trust yet (${resolvedTrades}/50 minimum).`
-      : 'No resolved trades yet.',
+    resolved_trades: filledTrades,
+    message: filledTrades > 0
+      ? `Too few filled trades to trust yet (${filledTrades}/50 minimum).`
+      : 'No filled trades yet.',
   };
 }
 

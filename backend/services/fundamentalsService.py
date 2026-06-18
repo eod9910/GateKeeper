@@ -22,6 +22,19 @@ except ImportError:
     from sec_financial_resolver import resolve_sec_first_financials
 
 try:
+    from backend.services.social_text_quality import (
+        content_dedup_key as _content_dedup_key,
+        score_spam as _score_spam,
+        classify_topic as _classify_topic,
+    )
+except ImportError:
+    from social_text_quality import (
+        content_dedup_key as _content_dedup_key,
+        score_spam as _score_spam,
+        classify_topic as _classify_topic,
+    )
+
+try:
     import yfinance as yf
 except ImportError:
     print(json.dumps({"error": "yfinance not installed"}))
@@ -2222,7 +2235,20 @@ def build_social_intelligence_payload(symbol: str) -> Dict[str, Any]:
 
     clean_posts: List[Dict[str, Any]] = []
     post_sentiment: List[Dict[str, Any]] = []
+
+    # Pre-pass: compute content dedup keys so we can catch copy-paste/botted
+    # chatter within this batch (the full-corpus frequency is recomputed by the
+    # backfill; here we at least flag duplicates seen in the same fetch).
+    from collections import Counter as _Counter
+    _dedup_keys: List[Optional[str]] = []
     for post in raw_posts:
+        _bt = _clean_text_compact(post.get("body_text"))
+        _pid = str(post.get("platform_post_id") or "").strip()
+        _plat = str(post.get("platform") or "").strip().lower()
+        _dedup_keys.append(_content_dedup_key(_bt, f"{_plat}:{_pid}"))
+    _dedup_freq = _Counter(k for k in _dedup_keys if k)
+
+    for post, duplicate_group_key in zip(raw_posts, _dedup_keys):
         body_text = _clean_text_compact(post.get("body_text"))
         symbol_upper = str(post.get("symbol") or symbol).strip().upper()
         platform = str(post.get("platform") or "").strip()
@@ -2233,8 +2259,15 @@ def build_social_intelligence_payload(symbol: str) -> Dict[str, Any]:
             continue
         author_key = str(post.get("author_id") or post.get("author_handle") or "").strip().lower() or None
         normalized_text = body_text.lower()
-        duplicate_group_key = hashlib.md5(normalized_text.encode("utf-8")).hexdigest() if normalized_text else None
         canonical_post_key = f"{platform.lower()}:{platform_post_id}"
+        token_count = len(body_text.split()) if body_text else 0
+        has_ticker_mention = f"${symbol_upper.lower()}" in normalized_text or symbol_upper.lower() in normalized_text
+        is_spam, spam_score = _score_spam(
+            body_text,
+            token_count=token_count,
+            dedup_frequency=_dedup_freq.get(duplicate_group_key, 1),
+            has_ticker_mention=has_ticker_mention,
+        )
         clean_posts.append({
             "platform_post_id": platform_post_id,
             "symbol": symbol_upper,
@@ -2244,10 +2277,10 @@ def build_social_intelligence_payload(symbol: str) -> Dict[str, Any]:
             "trade_date": trade_date,
             "posted_at": posted_at,
             "cleaned_text": body_text,
-            "token_count": len(body_text.split()) if body_text else 0,
-            "has_ticker_mention": f"${symbol_upper.lower()}" in normalized_text or symbol_upper.lower() in normalized_text,
-            "is_spam": False,
-            "spam_score": 0.0,
+            "token_count": token_count,
+            "has_ticker_mention": has_ticker_mention,
+            "is_spam": is_spam,
+            "spam_score": spam_score,
             "duplicate_group_key": duplicate_group_key,
             "payload": {
                 "platform_post_id": platform_post_id,
@@ -2291,7 +2324,7 @@ def build_social_intelligence_payload(symbol: str) -> Dict[str, Any]:
             "sentiment_score": sentiment_score,
             "sentiment_confidence": sentiment_confidence,
             "sentiment_model": "source_or_keyword_v1",
-            "topic_label": None,
+            "topic_label": _classify_topic(body_text, is_spam=is_spam),
             "hype_score": 1.0 if "squeeze" in normalized_text or "moon" in normalized_text else 0.0,
             "fear_score": 1.0 if "panic" in normalized_text or "dump" in normalized_text else 0.0,
             "payload": {

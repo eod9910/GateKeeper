@@ -1,0 +1,104 @@
+{
+  "pattern_id": "smart_std_channel_primitive",
+  "name": "Smart Standard Deviation Channel (Primitive)",
+  "category": "indicator_signals",
+  "description": "Fire-and-forget regression standard deviation channel anchored at 1987 when available. It recalculates month by month, calibrates once to the current full SD level, then only steps upward when price reaches the next full standard deviation.",
+  "author": "ai_generated",
+  "version": "1.0.0",
+  "plugin_file": "plugins/smart_std_channel_primitive.py",
+  "plugin_function": "run_smart_std_channel_primitive_plugin",
+  "pattern_type": "smart_std_channel_primitive",
+  "chart_indicator": true,
+  "default_structure_config": {},
+  "default_setup_params": {
+    "pattern_type": "smart_std_channel_primitive",
+    "anchor_date": "1987-01-01",
+    "min_channel_sd": 2,
+    "min_regression_bars": 24,
+    "interest_threshold_sd": 4,
+    "clamp_lower_zero": true
+  },
+  "default_entry": {
+    "entry_type": "analysis_only"
+  },
+  "tunable_params": [
+    {
+      "key": "anchor_date",
+      "label": "Anchor Date",
+      "type": "string",
+      "default": "1987-01-01",
+      "description": "Start the channel at this date when data exists before it; otherwise use the earliest available bar."
+    },
+    {
+      "key": "min_channel_sd",
+      "label": "Minimum Channel SD",
+      "type": "int",
+      "min": 1,
+      "max": 6,
+      "default": 2,
+      "description": "Lowest active channel level after initial calibration."
+    },
+    {
+      "key": "min_regression_bars",
+      "label": "Minimum Regression Bars",
+      "type": "int",
+      "min": 12,
+      "max": 120,
+      "default": 24,
+      "description": "Minimum bars needed from the anchor before month-end channel calculations begin."
+    },
+    {
+      "key": "interest_threshold_sd",
+      "label": "Interest Threshold SD",
+      "type": "int",
+      "min": 3,
+      "max": 8,
+      "default": 4,
+      "description": "Level at which the primitive highlights extreme stretch conditions."
+    },
+    {
+      "key": "clamp_lower_zero",
+      "label": "Clamp Lower Band At Zero",
+      "type": "boolean",
+      "default": true,
+      "description": "Prevent the lower standard deviation channel from plotting below zero."
+    }
+  ],
+  "examples": [
+    {
+      "name": "Default 1987 Anchor",
+      "setup_config": {
+        "anchor_date": "1987-01-01",
+        "min_channel_sd": 2,
+        "min_regression_bars": 24,
+        "interest_threshold_sd": 4,
+        "clamp_lower_zero": true
+      }
+    }
+  ],
+  "suggested_timeframes": [
+    "1d",
+    "1wk",
+    "1mo",
+    "D",
+    "W",
+    "M"
+  ],
+  "min_data_bars": 24,
+  "artifact_type": "indicator",
+  "composition": "primitive",
+  "indicator_role": "structure_filter",
+  "library_tier": "advanced_experimental",
+  "autonomy_safe": true,
+  "state_compatible": true,
+  "cost_class": "cheap",
+  "search_tags": [
+    "standard_deviation",
+    "stddev",
+    "regression_channel",
+    "adaptive_channel",
+    "stretch",
+    "1987_anchor"
+  ],
+  "source_kind": "native"
+}

@@ -82,6 +82,14 @@ ENTITY_THEME_RULES: List[Tuple[str, str]] = [
     ("POLICY:FOMC", "rates_higher"),
     ("POLICY:ECB", "rates_higher"),
     ("COUNTRY:CN", "china_growth"),
+    ("POLICY:AI_EXPORT_CONTROLS", "ai_capex_pullback"),
+    ("POLICY:AI_MODEL_ACCESS_RESTRICTION", "ai_capex_pullback"),
+    ("POLICY:FOREIGN_NATIONAL_ACCESS", "ai_capex_pullback"),
+    ("POLICY:ACCESS_RESTRICTION", "ai_capex_pullback"),
+    ("MODEL:FABLE", "ai_capex_pullback"),
+    ("MODEL:MYTHOS", "ai_capex_pullback"),
+    ("TECH:FRONTIER_AI_MODEL", "ai_capex_pullback"),
+    ("COMPANY:ANTHROPIC", "ai_capex_pullback"),
     ("SECTOR:AI", "ai_capex_acceleration"),
     ("SECTOR:SEMIS", "semis_supply_shock"),
     ("SECTOR:DEFENSE", "defense_spending_up"),
@@ -120,6 +128,30 @@ ENTITY_THEME_RULES: List[Tuple[str, str]] = [
     ("SECTOR:HOUSING", "housing_demand_change"),
 ]
 
+FRONTIER_AI_ACCESS_SHOCK_RE = re.compile(
+    r"\b(anthropic|openai|frontier (?:ai )?model|fable|mythos|ai model)"
+    r".{0,100}\b(export control|foreign access|foreign national|"
+    r"access restriction|suspend access|halt foreign access|national security|"
+    r"licen[cs]e|licen[cs]ing)\b"
+    r"|"
+    r"\b(export control|foreign access|foreign national|national security|"
+    r"access restriction)\b.{0,100}\b(ai model|frontier (?:ai )?model|"
+    r"anthropic|openai|fable|mythos)\b",
+    re.IGNORECASE,
+)
+
+FRONTIER_AI_ACCESS_SHOCK_ENTITY_IDS: Set[str] = {
+    "COMPANY:ANTHROPIC",
+    "MODEL:FABLE",
+    "MODEL:MYTHOS",
+    "POLICY:AI_EXPORT_CONTROLS",
+    "POLICY:AI_MODEL_ACCESS_RESTRICTION",
+    "POLICY:FOREIGN_NATIONAL_ACCESS",
+    "POLICY:NATIONAL_SECURITY",
+    "SECTOR:AI",
+    "TECH:FRONTIER_AI_MODEL",
+}
+
 
 # ---------------------------------------------------------------------------
 # Math helpers
@@ -150,6 +182,37 @@ def entity_overlap(a: Set[str], b: Set[str]) -> int:
     return len(a & b)
 
 
+def clamp01(value: float) -> float:
+    if not math.isfinite(value):
+        return 0.0
+    return max(0.0, min(1.0, value))
+
+
+def normalize_hit_entities_for_text(
+    entities: Dict[str, Any],
+    text: str,
+) -> Dict[str, Any]:
+    """Apply deterministic event enrichments to older embedded hit metadata."""
+    normalized = dict(entities)
+    entity_ids = set(normalized.get("entity_ids", []))
+    tickers = [
+        str(t).upper()
+        for t in normalized.get("tickers", [])
+        if str(t).strip()
+    ]
+
+    if "$AI" not in text:
+        entity_ids.discard("TICKER:AI")
+        tickers = [t for t in tickers if t != "AI"]
+
+    if FRONTIER_AI_ACCESS_SHOCK_RE.search(text):
+        entity_ids.update(FRONTIER_AI_ACCESS_SHOCK_ENTITY_IDS)
+
+    normalized["entity_ids"] = sorted(entity_ids)
+    normalized["tickers"] = sorted(set(tickers))
+    return normalized
+
+
 # ---------------------------------------------------------------------------
 # DB helpers
 # ---------------------------------------------------------------------------
@@ -160,11 +223,11 @@ def open_db(db_path: str) -> sqlite3.Connection:
             f"[macro-cluster] DB missing at {db_path}. "
             f"Run backend/scripts/build_market_intelligence_db.py first."
         )
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=60)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA busy_timeout = 60000")
     return conn
 
 
@@ -290,11 +353,18 @@ def load_open_scenarios(
 def fetch_unassigned_hits(
     conn: sqlite3.Connection,
     scenarios: List[OpenScenario],
+    limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Get embedded macro hits not yet attached to any scenario."""
     all_assigned = set()
     for sc in scenarios:
         all_assigned |= sc.hit_ids
+
+    limit_clause = ""
+    params: Tuple[Any, ...] = ()
+    if limit is not None and limit > 0:
+        limit_clause = "LIMIT ?"
+        params = (int(limit),)
 
     rows = conn.execute(
         """
@@ -308,7 +378,8 @@ def fetch_unassigned_hits(
          AND s.source_id = 'hit:' || CAST(e.hit_id AS TEXT)
         WHERE s.id IS NULL
         ORDER BY h.posted_at DESC
-        """
+        """ + limit_clause,
+        params,
     ).fetchall()
 
     result = []
@@ -342,8 +413,18 @@ def load_valid_themes(path: str = THEME_TAXONOMY_PATH) -> Set[str]:
     return {t["theme_key"] for t in data.get("themes", [])}
 
 
-def infer_theme(entity_ids: Set[str], valid_themes: Set[str]) -> str:
+def infer_theme(
+    entity_ids: Set[str],
+    valid_themes: Set[str],
+    text: str = "",
+) -> str:
     """Best-effort theme assignment from entity set."""
+    if (
+        "ai_capex_pullback" in valid_themes
+        and FRONTIER_AI_ACCESS_SHOCK_RE.search(text)
+    ):
+        return "ai_capex_pullback"
+
     counts: Dict[str, int] = {}
     for eid in entity_ids:
         for pattern, theme in ENTITY_THEME_RULES:
@@ -410,6 +491,29 @@ def create_scenario(
         "seed_source_type": hit["source_type"],
         "tickers": tickers,
     }
+    validity_flags: List[str] = []
+    signal_strength = 20
+    confidence_score = 0.15
+    confidence_level = "very_low"
+    event_score = 0.2
+    source_breadth_score = 0.1
+    time_horizon = "days"
+    if (
+        primary_theme == "ai_capex_pullback"
+        and FRONTIER_AI_ACCESS_SHOCK_RE.search(f"{title}\n{summary}")
+    ):
+        signal_strength = 72
+        confidence_score = 0.58
+        confidence_level = "medium"
+        event_score = 0.8
+        source_breadth_score = 0.35
+        time_horizon = "weeks"
+        validity_flags = [
+            "POLICY_SHOCK",
+            "VERIFY_PRIMARY_SOURCES",
+            "REVERSAL_RISK_3_TO_7_DAYS",
+        ]
+        metadata["policy_shock_type"] = "frontier_ai_access_control"
 
     cur = conn.execute(
         """
@@ -430,14 +534,14 @@ def create_scenario(
             schema_version, created_at, updated_at, archived_at
         ) VALUES (
             ?, ?, ?, ?, ?,
-            'EARLY', 20, 0.15, 'very_low',
-            'days',
+            'EARLY', ?, ?, ?,
+            ?,
             ?, NULL, ?, NULL,
-            0.2, NULL, NULL,
-            NULL, 0.1,
+            ?, NULL, NULL,
+            NULL, ?,
             1,
             NULL, NULL,
-            NULL, NULL,
+            ?, NULL,
             NULL, NULL,
             'news_cluster', NULL, NULL,
             NULL, NULL, 0,
@@ -447,7 +551,11 @@ def create_scenario(
         """,
         (
             slug, title, summary, primary_theme, scenario_type,
+            signal_strength, confidence_score, confidence_level,
+            time_horizon,
             hit["posted_at"], now,
+            event_score, source_breadth_score,
+            json.dumps(validity_flags) if validity_flags else None,
             json.dumps(metadata),
             SCENARIO_SCHEMA_VERSION, now, now,
         ),
@@ -532,6 +640,7 @@ def attach_to_scenario(
     now = now_unix()
     entity_ids = set(hit["entities"].get("entity_ids", []))
     title = hit["title"][:200] if hit["title"] else ""
+    signal_score = clamp01(cos_sim)
 
     conn.execute(
         """
@@ -548,7 +657,7 @@ def attach_to_scenario(
             f"hit:{hit['hit_id']}",
             ",".join(sorted(entity_ids)[:5]),
             scenario.primary_theme,
-            cos_sim,
+            signal_score,
             1.0,
             hit["posted_at"],
             now,
@@ -577,7 +686,7 @@ def attach_to_scenario(
             (hit["body_text"] or title)[:500],
             hit.get("source_url"),
             hit["posted_at"],
-            min(1.0, cos_sim),
+            signal_score,
         ),
     )
 
@@ -620,6 +729,8 @@ def cluster(
     cosine_threshold: float = 0.78,
     min_shared_entities: int = 1,
     max_age_days: int = 30,
+    limit: int = 1000,
+    commit_every: int = 100,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> Dict[str, int]:
@@ -628,7 +739,7 @@ def cluster(
 
     valid_themes = load_valid_themes()
     scenarios = load_open_scenarios(conn, max_age_days)
-    hits = fetch_unassigned_hits(conn, scenarios)
+    hits = fetch_unassigned_hits(conn, scenarios, limit=limit)
 
     total = len(hits)
     if total == 0:
@@ -639,7 +750,8 @@ def cluster(
     print(
         f"[macro-cluster] {total} unassigned hits, "
         f"{len(scenarios)} open scenarios, "
-        f"cosine>={cosine_threshold}, shared_entities>={min_shared_entities}"
+        f"cosine>={cosine_threshold}, shared_entities>={min_shared_entities}, "
+        f"limit={limit or 'all'}, commit_every={commit_every}"
     )
 
     existing_slugs: Set[str] = set()
@@ -652,9 +764,14 @@ def cluster(
     new_scenarios = 0
     attached = 0
     skipped = 0
+    mutated_since_commit = 0
 
-    for hit in hits:
+    for idx, hit in enumerate(hits, start=1):
         hit_embedding = hit["embedding"]
+        hit["entities"] = normalize_hit_entities_for_text(
+            hit["entities"],
+            f"{hit['title']}\n{hit['body_text']}",
+        )
         hit_entity_ids = set(hit["entities"].get("entity_ids", []))
 
         best_match: Optional[OpenScenario] = None
@@ -686,6 +803,8 @@ def cluster(
                         f"(cos={best_cos:.3f}, shared={best_shared})"
                     )
             attached += 1
+            if not dry_run:
+                mutated_since_commit += 1
         elif hit_entity_ids:
             MARKET_PREFIXES = (
                 "COMMODITY:", "MACRO:", "POLICY:", "SECTOR:",
@@ -705,7 +824,11 @@ def cluster(
                     )
                 continue
 
-            theme = infer_theme(hit_entity_ids, valid_themes)
+            theme = infer_theme(
+                hit_entity_ids,
+                valid_themes,
+                f"{hit['title']}\n{hit['body_text']}",
+            )
             if theme == "uncategorized":
                 skipped += 1
                 if verbose:
@@ -726,6 +849,8 @@ def cluster(
                         f"theme={theme} entities={sorted(hit_entity_ids)[:5]}"
                     )
             new_scenarios += 1
+            if not dry_run:
+                mutated_since_commit += 1
         else:
             skipped += 1
             if verbose:
@@ -733,7 +858,17 @@ def cluster(
                     f"  [SKIP] hit_id={hit['hit_id']} - no entities extracted"
                 )
 
-    if not dry_run:
+        if (
+            not dry_run
+            and commit_every > 0
+            and mutated_since_commit >= commit_every
+        ):
+            conn.commit()
+            mutated_since_commit = 0
+            if verbose:
+                print(f"  [COMMIT] processed={idx}/{total}")
+
+    if not dry_run and mutated_since_commit > 0:
         conn.commit()
 
     conn.close()
@@ -766,6 +901,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--max-age-days", type=int, default=30,
         help="Only match against scenarios younger than N days (default 30)",
     )
+    parser.add_argument(
+        "--limit", type=int, default=1000,
+        help="Maximum unassigned embedded hits to process per run (0 = all).",
+    )
+    parser.add_argument(
+        "--commit-every", type=int, default=100,
+        help="Commit after this many scenario writes to reduce DB lock windows.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--verbose", action="store_true")
 
@@ -776,6 +919,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         cosine_threshold=args.cosine_threshold,
         min_shared_entities=args.min_shared_entities,
         max_age_days=args.max_age_days,
+        limit=args.limit,
+        commit_every=args.commit_every,
         dry_run=args.dry_run,
         verbose=args.verbose,
     )

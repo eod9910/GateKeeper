@@ -596,6 +596,7 @@ def generate_copilot_analysis(
         'energy': {
             'character_state': energy.character_state,
             'direction': energy.direction,
+            'directional_bias': energy.directional_bias,
             'velocity': energy.velocity,
             'acceleration': energy.acceleration,
             'range_compression': energy.range_compression,
@@ -1807,6 +1808,7 @@ Examples:
                 'energy_score': energy.energy_score,
                 'character_state': energy.character_state,
                 'direction': energy.direction,
+                'directional_bias': energy.directional_bias,
                 'bars_since_peak': energy.bars_since_peak
             },
             'current_price': energy.price,

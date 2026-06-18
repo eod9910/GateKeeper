@@ -93,6 +93,17 @@ POLICY_BODY_LEXICON: Dict[str, str] = {
     "epa": "POLICY:EPA",
     "fda": "POLICY:FDA",
     "cftc": "POLICY:CFTC",
+    "commerce department": "POLICY:COMMERCE",
+    "department of commerce": "POLICY:COMMERCE",
+    "bureau of industry and security": "POLICY:BIS",
+    "export control": "POLICY:EXPORT_CONTROLS",
+    "export controls": "POLICY:EXPORT_CONTROLS",
+    "foreign national": "POLICY:FOREIGN_NATIONAL_ACCESS",
+    "foreign nationals": "POLICY:FOREIGN_NATIONAL_ACCESS",
+    "foreign access": "POLICY:FOREIGN_NATIONAL_ACCESS",
+    "national security": "POLICY:NATIONAL_SECURITY",
+    "access restriction": "POLICY:ACCESS_RESTRICTION",
+    "access restrictions": "POLICY:ACCESS_RESTRICTION",
 }
 
 MACRO_CONCEPT_LEXICON: Dict[str, str] = {
@@ -212,6 +223,22 @@ SECTOR_LEXICON: Dict[str, str] = {
     "automaker": "SECTOR:AUTO",
 }
 
+FRONTIER_AI_LEXICON: Dict[str, str] = {
+    "anthropic": "COMPANY:ANTHROPIC",
+    "openai": "COMPANY:OPENAI",
+    "fable": "MODEL:FABLE",
+    "fable 5": "MODEL:FABLE",
+    "mythos": "MODEL:MYTHOS",
+    "mythos 5": "MODEL:MYTHOS",
+    "frontier model": "TECH:FRONTIER_AI_MODEL",
+    "frontier models": "TECH:FRONTIER_AI_MODEL",
+    "frontier ai": "TECH:FRONTIER_AI_MODEL",
+    "ai model access": "POLICY:AI_MODEL_ACCESS_RESTRICTION",
+    "ai access": "POLICY:AI_MODEL_ACCESS_RESTRICTION",
+    "ai export controls": "POLICY:AI_EXPORT_CONTROLS",
+    "frontier model export controls": "POLICY:AI_EXPORT_CONTROLS",
+}
+
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -227,6 +254,7 @@ class ExtractedEntities:
     macro_concepts: List[str] = field(default_factory=list)
     countries: List[str] = field(default_factory=list)
     sectors: List[str] = field(default_factory=list)
+    technology_entities: List[str] = field(default_factory=list)
 
     def all_entity_ids(self) -> List[str]:
         """Flat list of normalised entity IDs for cluster-matching."""
@@ -238,6 +266,7 @@ class ExtractedEntities:
         out.extend(self.macro_concepts)
         out.extend(self.countries)
         out.extend(self.sectors)
+        out.extend(self.technology_entities)
         return sorted(set(out))
 
     def to_dict(self) -> dict:
@@ -249,6 +278,7 @@ class ExtractedEntities:
             "macro_concepts": self.macro_concepts,
             "countries": self.countries,
             "sectors": self.sectors,
+            "technology_entities": self.technology_entities,
             "entity_ids": self.all_entity_ids(),
         }
 
@@ -315,6 +345,7 @@ class EntityExtractor:
         self._macro_re = self._build_lexicon_regex(MACRO_CONCEPT_LEXICON)
         self._country_re = self._build_lexicon_regex(COUNTRY_LEXICON)
         self._sector_re = self._build_lexicon_regex(SECTOR_LEXICON)
+        self._frontier_ai_re = self._build_lexicon_regex(FRONTIER_AI_LEXICON)
 
     # -- universe loading --------------------------------------------------
 
@@ -417,6 +448,7 @@ class EntityExtractor:
         # in macro news text (AP = Associated Press, EU = European Union,
         # WTI = West Texas Intermediate crude, III/CIA = common words)
         "AP", "EU", "WTI", "III", "CIA",
+        "AI",
     }
 
     # -- main extraction ---------------------------------------------------
@@ -497,6 +529,14 @@ class EntityExtractor:
             if entity_id not in seen_sec:
                 seen_sec.add(entity_id)
                 result.sectors.append(entity_id)
+
+        # 8) Frontier AI labs, models, and policy-access entities
+        seen_tech: Set[str] = set()
+        for m in self._frontier_ai_re.finditer(text):
+            entity_id = FRONTIER_AI_LEXICON[m.group(0).lower()]
+            if entity_id not in seen_tech:
+                seen_tech.add(entity_id)
+                result.technology_entities.append(entity_id)
 
         return result
 

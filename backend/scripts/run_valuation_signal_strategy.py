@@ -80,6 +80,7 @@ def _load_observations(
             end_date=args.end_date,
             gap_threshold_pct=float(args.gap_threshold_pct),
             horizons=[int(args.horizon)],
+            reliability_guard=True,
         )
         for obs in observations:
             if obs.valuation_state not in ("undervalued", "overvalued"):

@@ -7,7 +7,7 @@ import {
   normalizeScannerUniverseResult,
 } from './contractValidation';
 
-export type ValidationTier = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'valuation_regime_undervalued' | 'valuation_regime_undervalued_sample100' | 'valuation_regime_fair' | 'valuation_regime_fair_sample100' | 'valuation_regime_overvalued' | 'valuation_regime_overvalued_sample100' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
+export type ValidationTier = 'tier1' | 'tier1s' | 'tier1b' | 'tier1bs' | 'tier2' | 'tier3' | 'clean' | 'large_cap_known' | 'sp500' | 'sp400' | 'sp600' | 'valuation_regime_undervalued' | 'valuation_regime_undervalued_sample100' | 'valuation_regime_fair' | 'valuation_regime_fair_sample100' | 'valuation_regime_overvalued' | 'valuation_regime_overvalued_sample100' | 'regime_expansion' | 'regime_distribution' | 'regime_accumulation' | 'regime_markdown';
 
 const PY_SERVICE_BASE_URL = (process.env.PY_PLUGIN_SERVICE_URL || 'http://127.0.0.1:8100').replace(/\/+$/, '');
 const PY_SERVICE_TIMEOUT_MS = Math.max(1000, Number(process.env.PY_PLUGIN_SERVICE_TIMEOUT_MS || 30000));
@@ -84,6 +84,7 @@ export async function runValidatorPipelineViaService(
   dateEnd: string,
   universe?: string[],
   tier?: ValidationTier,
+  evidence?: { mode?: string | null; target_trades?: number | null },
   forceRefresh?: boolean,
   signal?: AbortSignal,
   onProgress?: (evt: { progress: number; stage: string; detail: string; eta_seconds?: number; eta_display?: string }) => void,
@@ -94,6 +95,8 @@ export async function runValidatorPipelineViaService(
     date_end: dateEnd,
     universe: universe && universe.length > 0 ? universe : undefined,
     tier: tier || 'tier3',
+    evidence_mode: evidence?.mode || undefined,
+    evidence_target_trades: evidence?.target_trades || undefined,
     force_refresh: Boolean(forceRefresh),
   };
 

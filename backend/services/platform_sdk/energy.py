@@ -53,6 +53,28 @@ class EnergyState:
     timestamp: str
     price: float
 
+    # Direction-aware interpretation (additive; default keeps back-compat).
+    # character_state is meaningless without direction — e.g. RECOVERING+DOWN is
+    # a decline gaining fresh energy (bearish), NOT a bullish recovery. This field
+    # collapses state x direction into an unambiguous 'bullish'/'bearish'/'neutral'
+    # bias so consumers don't have to re-derive it (and can't misread the label).
+    directional_bias: str = 'neutral'  # 'bullish' | 'bearish' | 'neutral'
+
+
+def derive_directional_bias(character_state: str, direction: str) -> str:
+    """Collapse (character_state x direction) into an unambiguous bias.
+
+    - STRONG / RECOVERING: energy is flowing WITH the move -> bias = direction.
+    - WANING / EXHAUSTED: the move is losing or has lost fuel -> 'neutral'
+      (a turn is possible, but there is no fresh directional energy yet).
+    """
+    if character_state in ('STRONG', 'RECOVERING'):
+        if direction == 'UP':
+            return 'bullish'
+        if direction == 'DOWN':
+            return 'bearish'
+    return 'neutral'
+
 
 @dataclass
 class SellingPressure:
@@ -504,7 +526,8 @@ def calculate_energy_state(
         direction=direction,
         bars_since_peak=bars_since_peak,
         timestamp=data[-1].timestamp if data else '',
-        price=data[-1].close if data else 0
+        price=data[-1].close if data else 0,
+        directional_bias=derive_directional_bias(character_state, direction),
     )
 
 

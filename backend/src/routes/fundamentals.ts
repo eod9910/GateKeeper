@@ -40,6 +40,7 @@ const LEDGER_CONTEXT_CACHE_TTL_MS = 10 * 60 * 1000;
 const FUNDAMENTALS_SCREEN_MAX_SYMBOLS = 50;
 const FUNDAMENTALS_SCREEN_CONCURRENCY = 2;
 const FUNDAMENTALS_CACHE_DIR = path.join(__dirname, '..', '..', 'data', 'fundamentals-cache');
+const UNIVERSE_DATA_DIR = path.join(__dirname, '..', '..', 'data', 'universe');
 const LEDGER_COVERAGE_SERVICE_PATH = path.join(__dirname, '..', '..', 'services', 'ledgerCoverage.py');
 const LEDGER_CONTEXT_SERVICE_PATH = path.join(__dirname, '..', '..', 'services', 'ledgerContext.py');
 const LEDGER_FINANCIAL_OVERLAY_QUERY = 'revenue operating income net income operating cash flow capital expenditures free cash flow current assets current liabilities';
@@ -137,6 +138,7 @@ type InsiderScreenRow = {
 };
 
 const fundamentalsCache = new Map<string, CachedFundamentalsEntry>();
+const fundamentalsRefreshInflight = new Map<string, Promise<LoadedFundamentalsSnapshot>>();
 const ledgerCoverageCache = new Map<string, { data: LedgerCoverageInfo; fetchedAt: number }>();
 const ledgerContextCache = new Map<string, { data: LedgerContextPayload; fetchedAt: number }>();
 
@@ -162,7 +164,7 @@ async function persistFundamentalsSnapshot(
   await writeCacheEnvelope(getFundamentalsCachePath(cacheKey), entry);
 }
 
-async function loadFundamentalsSnapshot(symbol: string, forceRefresh = false): Promise<LoadedFundamentalsSnapshot> {
+async function loadFundamentalsSnapshot(symbol: string, forceRefresh = false, cachedOnly = false): Promise<LoadedFundamentalsSnapshot> {
   const normalized = normalizeMarketDataSymbol(symbol);
   if (!normalized) {
     throw new Error('symbol required');
@@ -212,7 +214,28 @@ async function loadFundamentalsSnapshot(symbol: string, forceRefresh = false): P
     }
   }
 
-  try {
+  if (cachedOnly) {
+    if (staleFallback) {
+      return {
+        snapshot: staleFallback.entry.data,
+        freshness: buildFreshnessInfo({
+          fetchedAt: staleFallback.entry.fetchedAt,
+          ttlMs: staleFallback.entry.ttlMs,
+          cacheLayer: staleFallback.layer,
+          cacheKey,
+          version: staleFallback.entry.version,
+        }),
+      };
+    }
+    throw new Error('No cached fundamentals available for cached_only request');
+  }
+
+  const existingRefresh = !forceRefresh ? fundamentalsRefreshInflight.get(cacheKey) : null;
+  if (existingRefresh) {
+    return existingRefresh;
+  }
+
+  const refreshPromise = (async (): Promise<LoadedFundamentalsSnapshot> => {
     const snapshot = await new Promise<FundamentalsSnapshotV2>((resolve, reject) => {
       const proc = spawn('py', [FUNDAMENTALS_SERVICE_PATH, normalized]);
       let stdout = '';
@@ -289,6 +312,14 @@ async function loadFundamentalsSnapshot(symbol: string, forceRefresh = false): P
         version: entry.version,
       }),
     };
+  })();
+
+  if (!forceRefresh) {
+    fundamentalsRefreshInflight.set(cacheKey, refreshPromise);
+  }
+
+  try {
+    return await refreshPromise;
   } catch (error) {
     if (staleFallback) {
       return {
@@ -304,6 +335,10 @@ async function loadFundamentalsSnapshot(symbol: string, forceRefresh = false): P
       };
     }
     throw error;
+  } finally {
+    if (!forceRefresh && fundamentalsRefreshInflight.get(cacheKey) === refreshPromise) {
+      fundamentalsRefreshInflight.delete(cacheKey);
+    }
   }
 }
 
@@ -380,6 +415,38 @@ async function loadLedgerCoverage(symbol: string, forceRefresh = false): Promise
   return coverage;
 }
 
+const US_DOMICILE_TOKENS = new Set([
+  'united states',
+  'united states of america',
+  'usa',
+  'us',
+  'u.s.',
+  'u.s.a.',
+  'america',
+]);
+
+// Builds a user-facing coverage badge so foreign companies with no SEC filing
+// data are clearly flagged instead of showing a blank DCF/thesis. Returns null
+// for US companies or any company that has filing-backed coverage.
+function buildCoverageBadge(
+  snapshot: FundamentalsSnapshotV2,
+  coverage: LedgerCoverageInfo,
+): { kind: string; label: string; tone: string; detail: string } | null {
+  const country = String((snapshot as any)?.country || '').trim();
+  if (!country) return null;
+  const normalized = country.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (US_DOMICILE_TOKENS.has(normalized)) return null;
+  const hasFilings = coverage?.filing_pit_available === true || coverage?.coverage_tier === 'full_filing_supported';
+  if (hasFilings) return null;
+  const name = String((snapshot as any)?.companyName || snapshot.symbol || 'This company').trim();
+  return {
+    kind: 'foreign_no_sec_data',
+    label: 'FOREIGN \u2014 NO SEC DATA',
+    tone: 'warning',
+    detail: `${name} is a foreign company (${country}). It reports to its home-country regulator using forms like 20-F, 40-F, or 6-K rather than SEC 10-K/10-Q filings, so there is no filing data here to run a DCF or build a fundamental thesis.`,
+  };
+}
+
 function attachCatalogValuationSnapshot(snapshot: FundamentalsSnapshotV2): FundamentalsSnapshotV2 {
   const valuationSnapshot = getSymbolValuationSnapshot(snapshot.symbol);
   if (!valuationSnapshot) {
@@ -389,6 +456,106 @@ function attachCatalogValuationSnapshot(snapshot: FundamentalsSnapshotV2): Funda
     ...snapshot,
     valuationSnapshot,
   };
+}
+
+function finiteNumber(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function regressionDeviation(values: number[]): { fit: number; residual: number; sigma: number; z: number; slope: number } | null {
+  const n = values.length;
+  if (n < 3) return null;
+  const xMean = (n - 1) / 2;
+  const yMean = values.reduce((sum, value) => sum + value, 0) / n;
+  let denominator = 0;
+  let numerator = 0;
+  for (let i = 0; i < n; i += 1) {
+    const dx = i - xMean;
+    denominator += dx * dx;
+    numerator += dx * (values[i] - yMean);
+  }
+  if (!Number.isFinite(denominator) || denominator <= 0) return null;
+  const slope = numerator / denominator;
+  const intercept = yMean - slope * xMean;
+  const residuals = values.map((value, i) => value - (intercept + slope * i));
+  const residualMean = residuals.reduce((sum, value) => sum + value, 0) / n;
+  const variance = residuals.reduce((sum, value) => sum + Math.pow(value - residualMean, 2), 0) / Math.max(1, n - 1);
+  const sigma = Math.sqrt(variance);
+  if (!Number.isFinite(sigma) || sigma <= 0) return null;
+  const fit = intercept + slope * (n - 1);
+  const residual = values[n - 1] - fit;
+  return { fit, residual, sigma, z: residual / sigma, slope };
+}
+
+function classifyStretch(rawZ: number | null, logZ: number | null): { label: string; tone: string; severity: string } {
+  const z = Math.max(rawZ ?? -Infinity, logZ ?? -Infinity);
+  if (z >= 6) return { label: 'Extreme stretch', tone: 'danger', severity: 'extreme' };
+  if (z >= 4) return { label: 'Major stretch', tone: 'warning', severity: 'major' };
+  if (z >= 2) return { label: 'Elevated stretch', tone: 'warning', severity: 'elevated' };
+  if (z <= -4) return { label: 'Deeply compressed', tone: 'positive', severity: 'compressed' };
+  return { label: 'Normal range', tone: 'muted', severity: 'normal' };
+}
+
+async function buildStatisticalStretch(symbol: string): Promise<Record<string, unknown> | null> {
+  const sym = normalizeMarketDataSymbol(symbol);
+  if (!sym) return null;
+  const csvPath = path.join(UNIVERSE_DATA_DIR, `${sym}_1d.csv`);
+  try {
+    const text = await fs.readFile(csvPath, 'utf8');
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 503) return null;
+    const header = lines[0].split(',').map((name) => name.trim().toLowerCase());
+    const dateIdx = header.indexOf('date');
+    const closeIdx = header.indexOf('close');
+    if (closeIdx < 0) return null;
+    const dates: string[] = [];
+    const closes: number[] = [];
+    for (const line of lines.slice(1)) {
+      const cells = line.split(',');
+      const close = finiteNumber(cells[closeIdx]);
+      if (close == null || close <= 0) continue;
+      dates.push(dateIdx >= 0 ? String(cells[dateIdx] || '') : '');
+      closes.push(close);
+    }
+    if (closes.length < 500) return null;
+    const raw = regressionDeviation(closes);
+    const log = regressionDeviation(closes.map((close) => Math.log(close)));
+    if (!raw && !log) return null;
+    const latestClose = closes[closes.length - 1];
+    const logFitPrice = log ? Math.exp(log.fit) : null;
+    const rawZ = raw?.z ?? null;
+    const logZ = log?.z ?? null;
+    const classification = classifyStretch(rawZ, logZ);
+    return {
+      symbol: sym,
+      label: classification.label,
+      tone: classification.tone,
+      severity: classification.severity,
+      rawZ,
+      logZ,
+      bars: closes.length,
+      historyStart: dates[0] || null,
+      historyEnd: dates[dates.length - 1] || null,
+      latestClose,
+      rawFit: raw?.fit ?? null,
+      rawPctAboveTrend: raw?.fit ? ((latestClose - raw.fit) / raw.fit) * 100 : null,
+      logFitPrice,
+      logPctAboveTrend: logFitPrice ? ((latestClose / logFitPrice) - 1) * 100 : null,
+      method: 'full_history_regression_channel',
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function attachStatisticalStretch(snapshot: FundamentalsSnapshotV2): Promise<FundamentalsSnapshotV2> {
+  const stretch = await buildStatisticalStretch(snapshot.symbol);
+  if (!stretch) return snapshot;
+  return {
+    ...snapshot,
+    statisticalStretch: stretch,
+  } as FundamentalsSnapshotV2;
 }
 
 function metricNumeric(metric?: LedgerStatementFactValue | null): number | null {
@@ -1318,9 +1485,29 @@ router.get('/:symbol/ledger-context', async (req: Request, res: Response) => {
 });
 
 router.get('/:symbol', async (req: Request, res: Response) => {
+  const cachedOnly = String(req.query.cached_only || '').trim().toLowerCase() === 'true';
   try {
     const forceRefresh = String(req.query.force_refresh || '').trim().toLowerCase() === 'true';
-    const loaded = await loadFundamentalsSnapshot(String(req.params.symbol || ''), forceRefresh);
+    const loaded = await loadFundamentalsSnapshot(String(req.params.symbol || ''), forceRefresh, cachedOnly);
+
+    if (cachedOnly) {
+      let lightweight = attachCatalogValuationSnapshot(loaded.snapshot);
+      lightweight = attachEdgarInsiderTrades(lightweight);
+      lightweight = await attachStatisticalStretch(lightweight);
+      try {
+        const { getLatestOptionsFlow } = require('../services/optionsFlowDb');
+        const optionsFlow = getLatestOptionsFlow(lightweight.symbol);
+        if (optionsFlow) {
+          (lightweight as any).optionsFlow = optionsFlow;
+        }
+      } catch { /* options-flow.sqlite may not exist yet */ }
+      return res.status(200).json({
+        success: true,
+        data: lightweight,
+        freshness: loaded.freshness,
+      });
+    }
+
     const coverage = await loadLedgerCoverage(String(req.params.symbol || ''), forceRefresh);
     const withValuation = attachCatalogValuationSnapshot(loaded.snapshot);
     const withLedgerOverlay = await attachLedgerStatementOverlay(
@@ -1338,6 +1525,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     );
 
     enrichedSnapshot = attachEdgarInsiderTrades(enrichedSnapshot);
+    enrichedSnapshot = await attachStatisticalStretch(enrichedSnapshot);
 
     try {
       const { getLatestOptionsFlow } = require('../services/optionsFlowDb');
@@ -1347,6 +1535,8 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       }
     } catch { /* options-flow.sqlite may not exist yet */ }
 
+    (enrichedSnapshot as any).coverageBadge = buildCoverageBadge(enrichedSnapshot, coverage);
+
     return res.status(200).json({
       success: true,
       data: enrichedSnapshot,
@@ -1354,6 +1544,9 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       coverage,
     });
   } catch (error: any) {
+    if (cachedOnly) {
+      return res.status(200).json({ success: false, error: error.message });
+    }
     return res.status(500).json({ success: false, error: error.message });
   }
 });

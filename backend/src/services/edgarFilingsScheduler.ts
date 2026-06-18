@@ -12,6 +12,7 @@ export interface EdgarFilingsScheduleConfig {
   lookback_hours: number;
   timezone: string;
   time_of_day: string;
+  include_13f: boolean;
 }
 
 export interface EdgarFilingsRuntimeState {
@@ -52,6 +53,7 @@ function defaultConfig(): EdgarFilingsScheduleConfig {
     lookback_hours: 48,
     timezone: 'America/New_York',
     time_of_day: '18:00',
+    include_13f: true,
   };
 }
 
@@ -67,6 +69,7 @@ function sanitizeConfig(input: any): EdgarFilingsScheduleConfig {
     lookback_hours: Math.max(1, Math.min(168, Number(input?.lookback_hours) || base.lookback_hours)),
     timezone: String(input?.timezone ?? base.timezone).trim() || base.timezone,
     time_of_day: /^\d{2}:\d{2}$/.test(timeOfDay) ? timeOfDay : base.time_of_day,
+    include_13f: input?.include_13f !== undefined ? Boolean(input.include_13f) : base.include_13f,
   };
 }
 
@@ -239,6 +242,16 @@ export function runEdgarCollectionNow(source: 'manual' | 'scheduled' = 'manual')
       last_error: (code ?? 0) === 0 ? null : (_runtime.last_error || `Process exited with code ${code}`),
     };
     saveRuntimeState(_runtime);
+
+    // Chain the 13F collector so institutional holdings stay fresh as part of
+    // the same EDGAR update cycle (idempotent — skips already-collected quarters).
+    if ((code ?? 0) === 0 && config.include_13f) {
+      try {
+        run13fCollectionNow();
+      } catch {
+        /* non-fatal: 13F is a secondary signal */
+      }
+    }
   });
 
   return { started: true, message: `[EDGAR] Collection started (lookback ${config.lookback_hours}h)` };

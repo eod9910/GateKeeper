@@ -196,6 +196,22 @@
       "indicator_role": "anchor_structure"
     },
     {
+      "pattern_id": "rdp_pivot_average_primitive",
+      "name": "RDP Pivot Average (Primitive)",
+      "category": "price_action",
+      "definition_file": "rdp_pivot_average_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "anchor_structure",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "moderate",
+      "search_tags": ["rdp", "pivot", "average", "baseline", "swing", "structure", "trend"],
+      "source_kind": "native"
+    },
+    {
       "pattern_id": "impulse_trough_primitive",
       "name": "Impulse Trough (Primitive)",
       "category": "price_action",
@@ -346,6 +362,38 @@
       "artifact_type": "indicator",
       "composition": "primitive",
       "indicator_role": "structure_filter"
+    },
+    {
+      "pattern_id": "smart_std_channel_primitive",
+      "name": "Smart Standard Deviation Channel (Primitive)",
+      "category": "indicator_signals",
+      "definition_file": "smart_std_channel_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "structure_filter",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "cheap",
+      "search_tags": ["standard_deviation", "stddev", "regression_channel", "adaptive_channel", "stretch", "1987_anchor"],
+      "source_kind": "native"
+    },
+    {
+      "pattern_id": "statistical_value_long_primitive",
+      "name": "Statistical Value Long (Below Smart Mean)",
+      "category": "indicator_signals",
+      "definition_file": "statistical_value_long_primitive.json",
+      "status": "experimental",
+      "artifact_type": "indicator",
+      "composition": "primitive",
+      "indicator_role": "structure_filter",
+      "library_tier": "advanced_experimental",
+      "autonomy_safe": true,
+      "state_compatible": true,
+      "cost_class": "cheap",
+      "search_tags": ["undervalued", "statistical_value", "below_mean", "standard_deviation", "dcf_confirmation", "long_candidate"],
+      "source_kind": "native"
     },
     {
       "pattern_id": "ob_regime_long_entry_composite",

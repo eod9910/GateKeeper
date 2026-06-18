@@ -23,6 +23,7 @@ router.get('/settings', (_req: Request, res: Response) => {
         source,
         configured: !!resolvedKey,
         role_prompts: saved?.role_prompts || {},
+        role_models: saved?.role_models || {},
       },
     });
   } catch (err: any) {
@@ -41,8 +42,13 @@ router.post('/settings', (req: Request, res: Response) => {
     const role_prompts = req.body?.role_prompts && typeof req.body.role_prompts === 'object'
       ? req.body.role_prompts
       : existing.role_prompts;
+    // Merge incoming model selections over any existing ones so a partial
+    // update (e.g. just the Ledger dropdown) doesn't wipe the rest.
+    const role_models = req.body?.role_models && typeof req.body.role_models === 'object'
+      ? { ...(existing.role_models || {}), ...req.body.role_models }
+      : existing.role_models;
 
-    saveAISettings({ openai_api_key, role_prompts });
+    saveAISettings({ openai_api_key, role_prompts, role_models });
 
     const source = getOpenAIKeySource();
     const resolvedKey = getConfiguredOpenAIKey();
@@ -54,6 +60,7 @@ router.post('/settings', (req: Request, res: Response) => {
         source,
         configured: !!resolvedKey,
         role_prompts: loadAISettings()?.role_prompts || {},
+        role_models: loadAISettings()?.role_models || {},
       },
     });
   } catch (err: any) {

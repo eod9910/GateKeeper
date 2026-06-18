@@ -29,6 +29,15 @@ SI_DB_PATH = ROOT / "backend" / "data" / "social-intelligence.sqlite"
 EXPECTED_SCHEMA_VERSION = 6
 
 
+def _open_db(path: str, *, write: bool = False) -> sqlite3.Connection:
+    conn = sqlite3.connect(path, timeout=60)
+    conn.row_factory = sqlite3.Row
+    if write:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=60000")
+    return conn
+
+
 def _ensure_signals_table(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS consumer_brand_signals (
@@ -60,9 +69,7 @@ def run(
         print("[social-buzz-bridge] social-intelligence.sqlite not found")
         return {"status": "skipped"}
 
-    mi = sqlite3.connect(mi_db_path)
-    mi.row_factory = sqlite3.Row
-    mi.execute("PRAGMA journal_mode=WAL")
+    mi = _open_db(mi_db_path, write=True)
 
     actual = mi.execute(
         "SELECT value FROM schema_meta WHERE key='schema_version'"
@@ -72,8 +79,7 @@ def run(
 
     _ensure_signals_table(mi)
 
-    si = sqlite3.connect(si_db_path)
-    si.row_factory = sqlite3.Row
+    si = _open_db(si_db_path)
 
     ticker_to_brand = {}
     rows = mi.execute(

@@ -28,6 +28,16 @@ export interface TrainingDrawing {
   id: string;
   type: TrainingDrawingType;
   label?: string;
+  mode?: 'structure' | 'management' | 'trade_management';
+  sourceTool?: string;
+  direction?: TrainingSide;
+  entryFibLevel?: number;
+  actualEntryPrice?: number;
+  targetPrice?: number;
+  selectedStopLevel?: number;
+  stopExtensionLevels?: number[];
+  tpProgressLevels?: number[];
+  lockedStructure?: boolean;
   startTime?: string;
   endTime?: string;
   price?: number;
@@ -186,9 +196,23 @@ export interface StrategyContract {
   simulation?: TrainingSimulationConfig;
   semanticVocabulary?: SemanticVocabulary;
   semanticRequirements?: SemanticRequirements;
+  // Per-family session-template presets — variants, entry models, indicators
+  // that this contract supports for its session strategy template. When set,
+  // the frontend should read these instead of its hardcoded SESSION_FAMILY_PRESETS
+  // map. Backwards-compatible: omitted on legacy contracts, frontend falls back
+  // to the JS map.
+  sessionTemplatePresets?: Record<string, ContractFamilyPreset>;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ContractFamilyPreset {
+  variants: string[];
+  entryModels: string[];
+  indicators: string[];
+  requiredAnchorType?: 'fib' | 'line' | 'box' | 'level' | 'none';
+  retracementOptions?: number[];
 }
 
 export interface RuleEvaluation {
@@ -209,6 +233,53 @@ export interface TpLevelResult {
   rMultiple?: number;
 }
 
+export type FibAdverseBucket = 'none' | 'to_88' | 'to_100' | 'beyond_100';
+
+export interface FibAdverseExcursion {
+  entryFibPct: number;
+  maxAdverseFibPct: number;
+  adverseFromEntryPct: number;
+  price: number;
+  barIndex: number;
+  barTime: string;
+  bucket: FibAdverseBucket;
+}
+
+export interface FibTradeExcursion {
+  entryPrice: number;
+  targetPrice: number;
+  targetDistance: number;
+  structureStopPrice?: number;
+  structureStopPct?: number;
+  maxAdversePct: number;
+  maxFavorablePct: number;
+  adversePrice: number;
+  favorablePrice: number;
+  adverseBarIndex: number;
+  favorableBarIndex: number;
+  adverseBarTime: string;
+  favorableBarTime: string;
+  reached25: boolean;
+  reached50: boolean;
+  reached75: boolean;
+  reached100: boolean;
+  brokeEntry: boolean;
+}
+
+export type TrancheExitReason = 'tp1' | 'tp2' | 'tp3' | 'stop' | 'trail_stop' | 'time';
+
+// One closed slice of the position. The position is split into N equal tranches
+// (one per defined take-profit). TP exits close a single tranche; a stop/time
+// exit closes all remaining open tranches at once.
+export interface TrancheExit {
+  fraction: number;
+  exitReason: TrancheExitReason;
+  exitPrice: number;
+  rMultiple: number;
+  barIndex: number;
+  barTime: string;
+}
+
 export interface ForwardResolution {
   entryHit: boolean;
   entryBarIndex?: number;
@@ -224,8 +295,14 @@ export interface ForwardResolution {
   mae: number;
   mfe: number;
   resolverVersion: string;
+  fibAdverseExcursion?: FibAdverseExcursion;
+  fibTradeExcursion?: FibTradeExcursion;
   tp2?: TpLevelResult;
   tp3?: TpLevelResult;
+  // Scale-out / ratcheting-stop model (resolver v3+)
+  trancheCount?: number;
+  blendedRMultiple?: number;
+  tranches?: TrancheExit[];
 }
 
 export interface ScoreSnapshot {

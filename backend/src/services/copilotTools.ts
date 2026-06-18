@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import type { TradingContext, AIRole } from './visionService';
 import { runEarningsQualityEngine, runFinancialAnalysisEngine, runValuationEngine } from './ledgerEngines';
+import { buildNarrativeAdjustmentFromThesis, getLatestNarrativeThesis } from './narrativeThesisStore';
 import { logDcfPrediction, deriveMarketCapBand, getCalibrationAdjustments } from './dcfCalibrationDb';
 import { shouldVerifySpecialSituationWeb, verifySpecialSituationWeb } from './specialSituationWebVerifier';
 import { runCopilotAnalysisViaService, isPyServiceEnabled } from './pluginServiceClient';
@@ -23,7 +24,8 @@ export type WorkspaceAnalystId =
   | 'scanner_copilot'
   | 'pattern_analyst'
   | 'technical_analyst'
-  | 'financial_analyst';
+  | 'financial_analyst'
+  | 'execution_coach';
 
 type ToolSchema = {
   type: 'object';
@@ -1204,7 +1206,7 @@ async function buildConsumerCycleContextSnapshot(context: TradingContext): Promi
 async function loadUniverseFundamentalsSnapshot(symbol: string): Promise<UniverseFundamentalsSnapshot | null> {
   try {
     const port = process.env.PORT || '3002';
-    const response = await fetch(`http://127.0.0.1:${port}/api/fundamentals/${encodeURIComponent(symbol)}`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/fundamentals/${encodeURIComponent(symbol)}?cached_only=true`);
     const payload = await response.json() as any;
     if (!response.ok || !payload?.success || !payload?.data) {
       return null;
@@ -1399,6 +1401,58 @@ function buildUniverseMetricMap(
     mention_acceleration: social?.mentionAcceleration ?? null,
     net_sentiment: social?.netSentiment ?? null,
   };
+}
+
+// Metrics that can be resolved from the in-memory catalog valuation snapshot alone,
+// without fetching the per-symbol fundamentals snapshot. Used to pre-filter candidates
+// cheaply before any (cached) fundamentals lookup, so the universe screen never has to
+// enrich tens of thousands of names.
+const ROW_RESOLVABLE_METRICS = new Set<string>([
+  'valuation_gap_pct',
+  'valuation_quality_score',
+  'free_cash_flow',
+  'free_cash_flow_margin_pct',
+  'operating_margin_pct',
+  'revenue_growth_pct',
+  'current_ratio',
+  'market_cap',
+  'revenue',
+  'enterprise_value',
+  'enterprise_to_sales',
+  'price',
+]);
+
+function buildRowLevelMetricMap(row: TradableUniverseScreenRow): Record<string, number | null> {
+  const valuation = row.valuation;
+  return {
+    valuation_gap_pct: valuation?.valuationGapPct ?? null,
+    valuation_quality_score: valuation?.qualityScore ?? null,
+    free_cash_flow: valuation?.freeCashFlow ?? null,
+    free_cash_flow_margin_pct: valuation?.freeCashFlowMarginPct ?? null,
+    operating_margin_pct: valuation?.operatingMarginPct ?? null,
+    revenue_growth_pct: valuation?.revenueGrowthPct ?? null,
+    current_ratio: valuation?.currentRatio ?? null,
+    market_cap: valuation?.marketCap ?? null,
+    revenue: valuation?.revenue ?? null,
+    enterprise_value: valuation?.enterpriseValue ?? null,
+    enterprise_to_sales: valuation?.enterpriseToSales ?? null,
+    price: valuation?.price ?? null,
+  };
+}
+
+// Drop rows that already fail any filter resolvable from catalog data. Filters that
+// depend on the per-symbol snapshot (e.g. debt_to_equity) are deferred to the post-fetch
+// check. Returns the surviving rows.
+function preFilterRowsByCatalogMetrics(
+  rows: TradableUniverseScreenRow[],
+  filters: UniverseMetricFilter[],
+): TradableUniverseScreenRow[] {
+  const catalogFilters = filters.filter((filter) => ROW_RESOLVABLE_METRICS.has(filter.metric));
+  if (!catalogFilters.length) return rows;
+  return rows.filter((row) => {
+    const rowMetrics = buildRowLevelMetricMap(row);
+    return catalogFilters.every((filter) => metricFilterMatches(rowMetrics, filter));
+  });
 }
 
 function normalizeUniverseMetricFilters(value: unknown): UniverseMetricFilter[] {
@@ -1658,14 +1712,22 @@ async function buildCleanUniverseScreen(context: TradingContext, args: Record<st
   const optionableOnly = args?.optionable_only === true;
   const latestSocialBySymbol = loadLatestUniverseSocialSnapshots();
 
-  const rows = preRankUniverseRows(
+  // Hard ceiling on how many symbols we will actually enrich with a (cached) fundamentals
+  // lookup, regardless of filters. Cached reads are cheap, but this keeps the request bounded.
+  const MAX_ENRICH = 2500;
+
+  const preRanked = preRankUniverseRows(
     listTradableUniverseScreenRows(),
     direction,
     requestedTheme,
     requestedCycleBucket,
     optionableOnly,
     metricFilters.length > 0,
-  ).slice(0, maxCandidates);
+  );
+
+  // Cheap catalog-level pre-filter first (no fundamentals fetch), then cap.
+  const rows = preFilterRowsByCatalogMetrics(preRanked, metricFilters)
+    .slice(0, Math.min(maxCandidates, MAX_ENRICH));
 
   if (!rows.length) {
     return {
@@ -1687,7 +1749,7 @@ async function buildCleanUniverseScreen(context: TradingContext, args: Record<st
     cycleStatus = null;
   }
 
-  const scored = await mapWithConcurrency(rows, 6, async (row) => {
+  const scored = await mapWithConcurrency(rows, 16, async (row) => {
     const snapshot = await loadUniverseFundamentalsSnapshot(row.symbol);
     if (!snapshot) return null;
     const social = latestSocialBySymbol.get(row.symbol) || null;
@@ -1770,6 +1832,21 @@ async function buildLedgerContextSnapshot(
       ok: false,
       tool: 'get_ledger_context',
       error: 'No active scanner symbol is available in the current chat context.',
+    };
+  }
+  const scanner = getScannerContext(context);
+  const policy = (context as any)?.scannerPolicy || scanner?.scannerPolicy || {};
+  if (policy?.allowDeepLedgerContext === false) {
+    return {
+      ok: false,
+      tool: 'get_ledger_context',
+      error: 'Deep Ledger context is disabled for this automatic scanner pass. Use cached fundamentals/scanner context, and ask the user to request a full Ledger/company/filing read if they want the deeper retrieval.',
+      data: {
+        symbol,
+        available: false,
+        reason: 'scanner_cache_only_policy',
+        fundamentals_cache_policy: policy?.fundamentalsCachePolicy || null,
+      },
     };
   }
 
@@ -2051,6 +2128,19 @@ async function buildLedgerWorkflowResult(
     // calibration lookup is best-effort
   }
 
+  // Pull the latest stored social-narrative thesis for this symbol (cheap DB
+  // read — no model call) and map it into a revenue-growth scenario delta so the
+  // DCF can surface the narrative-adjusted value alongside the base case.
+  let narrativeAdjustment = null;
+  try {
+    const narrativeSymbol = String(base?.symbol || context?.symbol || '').trim().toUpperCase();
+    if (narrativeSymbol) {
+      narrativeAdjustment = buildNarrativeAdjustmentFromThesis(getLatestNarrativeThesis(narrativeSymbol));
+    }
+  } catch {
+    // narrative overlay is best-effort; never block the valuation
+  }
+
   const dcfResult = runValuationEngine(base, {
     revenue_growth_near_term_pct: toFiniteNumber(args?.revenue_growth_near_term_pct),
     target_operating_margin_pct: toFiniteNumber(args?.target_operating_margin_pct),
@@ -2058,6 +2148,7 @@ async function buildLedgerWorkflowResult(
     terminal_growth_pct: toFiniteNumber(args?.terminal_growth_pct),
     forecast_years: toFiniteNumber(args?.forecast_years),
     calibration_adjustments: calibrationAdjustments,
+    narrative_adjustment: narrativeAdjustment,
   });
 
   try {
@@ -2172,7 +2263,7 @@ export function getTradingCopilotTools(): OpenAITool[] {
       type: 'function',
       function: {
         name: 'get_energy_state',
-        description: 'Return momentum/energy FACTS for the active chart: character state (STRONG/WANING/EXHAUSTED/RECOVERING), direction, ATR-normalized velocity and acceleration, range compression, and energy score.',
+        description: 'Return momentum/energy FACTS for the active chart: character state (STRONG/WANING/EXHAUSTED/RECOVERING), direction, ATR-normalized velocity and acceleration, range compression, energy score, and directional_bias (bullish/bearish/neutral). IMPORTANT: read character_state WITH direction — e.g. RECOVERING+DOWN is a decline gaining fresh energy (bearish), not a bullish recovery. Use directional_bias for the unambiguous read.',
         parameters: tradingSymbolIntervalParams(),
       },
     },

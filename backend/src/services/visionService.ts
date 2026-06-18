@@ -10,7 +10,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { searchAppReference } from './searchService';
-import { applyRolePromptOverride, getConfiguredOpenAIKey } from './aiSettings';
+import { applyRolePromptOverride, getConfiguredOpenAIKey, getRoleModelOverride } from './aiSettings';
 import { summarizeComparisonDiagnosticsForPrompt } from './validatorComparisonService';
 import { getPredictionsForSymbol, getCalibrationAdjustments, getCalibrationErrorsForPrediction, deriveMarketCapBand, type DcfPredictionRow } from './dcfCalibrationDb';
 import {
@@ -34,6 +34,10 @@ const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-5.4';
 const OPENAI_VISION_CHAT_MODEL = process.env.OPENAI_VISION_CHAT_MODEL || 'gpt-4o';
 // Plugin Engineer — can be set to a stronger reasoning model for complex composites
 const OPENAI_PLUGIN_ENGINEER_MODEL = process.env.OPENAI_PLUGIN_ENGINEER_MODEL || 'gpt-4o';
+// Scanner Structure (technical_analyst) and Ledger (financial_analyst) each get
+// their own default so they no longer share the premium Co-Pilot chat model.
+const OPENAI_STRUCTURE_MODEL = process.env.OPENAI_STRUCTURE_MODEL || 'gpt-4o';
+const OPENAI_LEDGER_MODEL = process.env.OPENAI_LEDGER_MODEL || 'gpt-4o';
 
 export interface PhaseAnalysis {
   peak: string;
@@ -1012,18 +1016,21 @@ export type AIRole =
   | 'compliance_officer'
   | 'forensic_auditor'
   | 'plugin_engineer'
+  | 'validator_analyst'
   | 'blockly_composer'
   | 'composite_architect'
   | 'pattern_analyst'
   | 'contextual_ranker'
   | 'literal_chart_reader'
   | 'technical_analyst'
-  | 'financial_analyst';
+  | 'financial_analyst'
+  | 'execution_coach';
 
 const WORKSPACE_ANALYST_IDS: WorkspaceAnalystId[] = [
   'scanner_copilot',
   'technical_analyst',
   'financial_analyst',
+  'execution_coach',
 ];
 
 export function listWorkspaceAnalysts(): Array<{
@@ -1044,6 +1051,12 @@ export function listWorkspaceAnalysts(): Array<{
       label: 'Ledger',
       workspaceName: 'Financial Analyst Workspace',
       description: 'Focuses on filing-backed business quality, cash flow, balance sheet risk, and value.',
+    },
+    {
+      id: 'execution_coach',
+      label: 'Coach',
+      workspaceName: 'Execution Coach Workspace',
+      description: 'Focuses on training stats, execution leaks, next drills, and live-readiness discipline.',
     },
   ];
 }
@@ -1146,7 +1159,7 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
         ? 10000
         : aiRole === 'financial_analyst'
           ? 2600
-          : (aiRole === 'pattern_analyst' || aiRole === 'contextual_ranker' || aiRole === 'literal_chart_reader' || aiRole === 'technical_analyst')
+          : (aiRole === 'pattern_analyst' || aiRole === 'contextual_ranker' || aiRole === 'literal_chart_reader' || aiRole === 'technical_analyst' || aiRole === 'execution_coach')
             ? 1600
           : 800;
     const temperature = aiRole === 'statistical_interpreter'
@@ -1154,14 +1167,26 @@ export async function chatWithCopilot(message: string, context: TradingContext, 
       : (aiRole === 'plugin_engineer' || aiRole === 'composite_architect')
         ? 0.15
         : 0.7;
-    // Use frontend setting override if provided, else fall back to env var
-    const model = aiRole === 'plugin_engineer'
-      ? (pluginEngineerModelOverride || OPENAI_PLUGIN_ENGINEER_MODEL)
-      : chartImage
-        ? OPENAI_VISION_CHAT_MODEL
-        : aiRole === 'contextual_ranker'
-          ? OPENAI_VISION_CHAT_MODEL
-          : (chatModelOverride || OPENAI_CHAT_MODEL);
+    // Model selection — each named AI resolves to its own configured model.
+    // Priority: saved per-role setting (settings page) > per-request override
+    // (legacy localStorage) > env default. Image requests always need a
+    // vision-capable model regardless of role.
+    let model: string;
+    if (aiRole === 'plugin_engineer') {
+      model = getRoleModelOverride('plugin_engineer') || pluginEngineerModelOverride || OPENAI_PLUGIN_ENGINEER_MODEL;
+    } else if (chartImage) {
+      model = getRoleModelOverride('vision') || OPENAI_VISION_CHAT_MODEL;
+    } else if (aiRole === 'contextual_ranker') {
+      model = getRoleModelOverride('vision') || OPENAI_VISION_CHAT_MODEL;
+    } else if (aiRole === 'technical_analyst') {
+      model = getRoleModelOverride('structure') || OPENAI_STRUCTURE_MODEL;
+    } else if (aiRole === 'financial_analyst') {
+      model = getRoleModelOverride('ledger') || OPENAI_LEDGER_MODEL;
+    } else if (aiRole === 'validator_analyst' || aiRole === 'statistical_interpreter') {
+      model = getRoleModelOverride('validator_analyst') || chatModelOverride || OPENAI_CHAT_MODEL;
+    } else {
+      model = getRoleModelOverride('copilot') || chatModelOverride || OPENAI_CHAT_MODEL;
+    }
     console.log('[VisionChat] request:', JSON.stringify({
       role: aiRole,
       model,
@@ -1376,6 +1401,7 @@ function buildSystemPromptForRole(role: AIRole | WorkspaceAnalystId, context: Tr
     || role === 'literal_chart_reader'
     || role === 'technical_analyst'
     || role === 'financial_analyst'
+    || role === 'execution_coach'
     || role === 'scanner_copilot';
   switch (role) {
     case 'scanner_copilot':
@@ -1415,6 +1441,10 @@ function buildSystemPromptForRole(role: AIRole | WorkspaceAnalystId, context: Tr
       break;
     case 'financial_analyst':
       prompt = buildFinancialAnalystPrompt(context, userMessage, hasImage);
+      overrideRole = null;
+      break;
+    case 'execution_coach':
+      prompt = buildExecutionCoachWorkspacePrompt(context, userMessage);
       overrideRole = null;
       break;
     case 'contextual_ranker':
@@ -2006,6 +2036,65 @@ function buildTradeExecutionContextBlock(context: TradingContext): string {
     tradeDirection: context.tradeDirection ?? null,
   };
   return stringifyWorkspaceContextSection('TRADING CONTEXT', tradeContext, 4000);
+}
+
+function buildExecutionCoachWorkspacePrompt(context: TradingContext, userMessage: string): string {
+  const coachReport = (context as any).coachReport || null;
+  const stopStudy = coachReport && coachReport.stopStudy ? coachReport.stopStudy : null;
+  const tpReachSummary = (context as any).tpReachSummary || (coachReport && coachReport.tpReachStudy ? coachReport.tpReachStudy : null);
+  const equityCurveSummary = (context as any).equityCurveSummary || (coachReport && coachReport.equityCurveSimulation ? {
+    startingEquity: coachReport.equityCurveSimulation.startingEquity,
+    riskPct: coachReport.equityCurveSimulation.riskPct,
+    tradeCount: coachReport.equityCurveSimulation.tradeCount,
+    finalEquity: coachReport.equityCurveSimulation.finalEquity,
+    totalReturnPct: coachReport.equityCurveSimulation.totalReturnPct,
+    maxDrawdownPct: coachReport.equityCurveSimulation.maxDrawdownPct,
+    longestDrawdownStreak: coachReport.equityCurveSimulation.longestDrawdownStreak,
+    wins: coachReport.equityCurveSimulation.wins,
+    losses: coachReport.equityCurveSimulation.losses,
+    avgWinDollars: coachReport.equityCurveSimulation.avgWinDollars,
+    avgLossDollars: coachReport.equityCurveSimulation.avgLossDollars,
+  } : null);
+  const stopStudySummary = (context as any).stopStudySummary || (stopStudy ? {
+    eligibleTrades: stopStudy.eligibleTrades ?? null,
+    skippedTrades: stopStudy.skippedTrades ?? null,
+    practicalRead: stopStudy.practicalRead || [],
+    actualStopPlacement: stopStudy.actualStopPlacement || [],
+    entryStopMatrix: stopStudy.entryStopMatrix || [],
+    thresholdSummary: stopStudy.thresholdSummary || [],
+    bucketDistribution: stopStudy.bucketDistribution || [],
+  } : null);
+  const trainingContext = {
+    symbol: context.symbol || null,
+    timeframe: (context as any).timeframe || null,
+    side: (context as any).side || null,
+    activeSession: (context as any).activeSession || null,
+    activeContract: (context as any).activeContract || null,
+    tpReachSummary,
+    stopStudySummary,
+    equityCurveSummary,
+    coachRead: (context as any).coachRead || null,
+    coachReport,
+    chatHistory: Array.isArray(context.chatHistory) ? context.chatHistory.slice(-8) : [],
+  };
+  return buildWorkspacePrompt({
+    workspaceName: 'Execution Coach Workspace',
+    roleLabel: 'Execution Coach',
+    rawUserMessage: extractPrimaryUserMessage(userMessage),
+    skillIds: ['training-coach'],
+    liveInstructions: [
+      'Use the deterministic coachReport as the factual source of truth.',
+      'Keep the existing stats intact, then translate them into human-readable coaching language like: what this means, why it matters, what to test next.',
+      'If the user asks about take profits, TP path reach, or target placement, use tpReachSummary before any generic trading advice.',
+      'If the user asks about stops, failed stops, entry fib depth, actual stop placement, or what-if hard stop thresholds, use stopStudySummary before any generic trading advice.',
+      'If the user asks about portfolio growth, compounding, account simulation, max loss, or 3% risk, use equityCurveSummary before any generic trading advice.',
+      'Follow the user preferred style: direct, plain English, specific metrics, one practical next drill.',
+      'Separate active-session facts from contract-level facts if both are present.',
+      'Do not invent metrics. If a metric is missing, say it is missing and lower confidence.',
+    ],
+    toolRole: 'execution_coach',
+    dynamicContext: stringifyWorkspaceContextSection('EXECUTION TRAINING COACH CONTEXT', trainingContext, 18000),
+  });
 }
 
 function buildCopilotWorkspacePrompt(context: TradingContext, userMessage: string, hasImage: boolean = false): string {
@@ -4511,6 +4600,36 @@ function buildLedgerDcfExplanationResponse(
     ].join('\n');
   }
 
+  if (String(dcfData?.valuation_method || '').toLowerCase() === 'relative_multiple_asset_floor') {
+    const snapshot = financialData?.current_snapshot || {};
+    const range = dcfData?.fair_value_range || {};
+    const judgment = dcfData?.price_vs_value_judgment || {};
+    const base = dcfData?.base_case_assumptions || {};
+    const relBase = dcfData?.normalized_relative_base || {};
+    return [
+      ...buildLedgerWorkflowLead('valuation', companyName, dcfData, hydrationData),
+      '',
+      `I valued ${companyName} with the small/micro-cap relative-multiple engine, not a DCF — a multi-stage DCF is unreliable on this kind of small or lumpy cash-flow base.`,
+      `- Sector / industry: ${snapshot?.sector || 'N/A'} / ${snapshot?.industry || 'N/A'}`,
+      `- Market cap: ${ledgerDisplayMoney(relBase?.market_cap)}`,
+      `- Current price: ${ledgerDisplayMoney(judgment?.current_price || range?.current_price)}`,
+      `- Primary anchor(s): ${String(relBase?.primary_leg || 'ev_sales_and_price_book').replace(/_/g, ' ')}`,
+      '',
+      'How I got there:',
+      `- EV/Sales of about ${ledgerDisplayNumber(base?.ev_sales_multiple, 1)}x on revenue of ${ledgerDisplayMoney(relBase?.annual_revenue)} (net debt ${ledgerDisplayMoney(relBase?.net_debt)}).`,
+      `- Price/Book of about ${ledgerDisplayNumber(base?.price_book_multiple, 1)}x on book value per share of ${ledgerDisplayMoney(relBase?.book_value_per_share)}.`,
+      `- I applied a risk haircut of about ${ledgerDisplayPct(relBase?.risk_haircut_pct)} for cash-flow quality, leverage, and negative free cash flow, and floored the bear case near liquidation value.`,
+      '',
+      'Valuation range:',
+      `- Bear / base / bull fair values: ${range?.low_display || 'N/A'} / ${range?.mid_display || 'N/A'} / ${range?.high_display || 'N/A'}.`,
+      `- Judgment: ${judgment?.summary || 'Price versus value could not be judged cleanly.'}`,
+      '- This is a wide, low-confidence band by design; dilution, going-concern, and covenant risk are only partially captured.',
+      ...(Array.isArray(dcfData?.model_limitations) && dcfData.model_limitations.length
+        ? ['', 'Model limits:', ...dcfData.model_limitations.map((line: string) => `- ${line}`)]
+        : []),
+    ].join('\n');
+  }
+
   if (String(dcfData?.valuation_engine_class || '').toLowerCase() === 'special_situation') {
     const snapshot = financialData?.current_snapshot || {};
     const range = dcfData?.fair_value_range || {};
@@ -4619,9 +4738,36 @@ function buildLedgerDcfExplanationResponse(
     'What would justify the current valuation:',
     `- To justify roughly ${ledgerDisplayMoney(currentPrice)}, I would need something stronger than my current bull case of ${ledgerDisplayPct(bull?.revenue_growth_near_term_pct)} near-term growth, ${ledgerDisplayPct(bull?.target_free_cash_flow_margin_pct)} target FCF margin, and a ${ledgerDisplayPct(bull?.discount_rate_pct)} discount rate.`,
     '- In plain English, I would need to believe this business can keep compounding revenue at a very high rate, hold unusually strong cash-flow margins, and deserve a premium risk discount for longer than I currently think is prudent.',
+    ...buildLedgerNarrativeCaseLines(dcfData?.narrative_case),
     '',
     `Bottom line: ${judgment?.summary || 'The DCF still points to a demanding valuation.'}`,
   ].join('\n');
+}
+
+/**
+ * Render the narrative-adjusted (social thesis overlay) section of a DCF
+ * explanation. Returns [] when no narrative case was applied, so callers can
+ * spread it in unconditionally.
+ */
+function buildLedgerNarrativeCaseLines(narrativeCase: any): string[] {
+  if (!narrativeCase || !narrativeCase.applied) return [];
+  const gap = narrativeCase.narrative_vs_base_pct;
+  const priceGap = narrativeCase.price_vs_narrative_pct;
+  const gapText = Number.isFinite(Number(gap))
+    ? `${Number(gap) > 0 ? '+' : ''}${gap}% vs the base case`
+    : 'a different level than the base case';
+  const priceLine = Number.isFinite(Number(priceGap))
+    ? `- Against today's price, the narrative case implies ${Number(priceGap) >= 0 ? 'upside' : 'downside'} of ${Math.abs(Number(priceGap))}%. If the price has not moved yet, that delta IS the expectation gap — the market story front-running the fundamentals.`
+    : '- Current price was unavailable to size the gap against the narrative case.';
+  return [
+    '',
+    'Narrative-adjusted case (social-thesis overlay):',
+    `- ${narrativeCase.rationale || 'A social-narrative thesis is influencing demand expectations for this name.'}`,
+    `- I moved near-term revenue growth from ${ledgerDisplayPct(narrativeCase.base_revenue_growth_pct)} to ${ledgerDisplayPct(narrativeCase.adjusted_revenue_growth_pct)} in this scenario only.`,
+    `- That shifts fair value from a base of ${ledgerDisplayMoney(narrativeCase.base_fair_value_per_share)} to ${ledgerDisplayMoney(narrativeCase.fair_value_per_share)} (${gapText}).`,
+    priceLine,
+    '- This overlay is narrative-driven and is NOT in the filings; the filing-anchored base case above is unchanged.',
+  ];
 }
 
 function ledgerEvidenceText(data: any): string {

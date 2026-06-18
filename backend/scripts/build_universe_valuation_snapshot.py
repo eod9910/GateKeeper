@@ -46,6 +46,49 @@ import sync_valuation_snapshot_to_symbol_catalog as valuation_snapshot_sync  # n
 CATALOG_DB = SymbolCatalogDb(root=ROOT)
 _REIT_FACT_CACHE: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
 
+LEDGER_VALUATION_MODEL_ROOT = ROOT / "workspace" / "Financial Analyst Workspace" / "references" / "valuation-models"
+
+_DEFAULT_RELMULT_CONFIG: Dict[str, Any] = {
+    "small_cap_market_cap_ceiling": 300000000,
+    "unstable_market_cap_ceiling": 2000000000,
+    "sector_ev_sales_bands": {"diversified": {"low": 0.7, "mid": 1.5, "high": 3.0}},
+    "sector_price_book_bands": {"diversified": {"low": 0.8, "mid": 1.6, "high": 3.0}},
+    "blend_weights": {"ev_sales": 0.6, "price_book": 0.4},
+    "risk_haircut": {
+        "base_pct": 5,
+        "weak_quality_extra_pct": 15,
+        "mixed_quality_extra_pct": 7,
+        "high_leverage_extra_pct": 10,
+        "negative_fcf_extra_pct": 10,
+        "debt_to_equity_threshold": 150,
+        "max_pct": 40,
+    },
+}
+
+
+def _load_relmult_config() -> Dict[str, Any]:
+    """Load the small/micro-cap relative-multiples config shared with the Ledger engine."""
+    try:
+        path = LEDGER_VALUATION_MODEL_ROOT / "smallcap-relative-multiples" / "config.json"
+        with open(path, "r", encoding="utf-8") as handle:
+            cfg = json.load(handle)
+        if isinstance(cfg, dict) and cfg.get("sector_ev_sales_bands"):
+            return cfg
+    except Exception:
+        pass
+    return _DEFAULT_RELMULT_CONFIG
+
+
+RELMULT_CONFIG = _load_relmult_config()
+
+# Valuation reliability guardrails. Non-investable nano / sub-penny names and implausible
+# gaps are not actionable signals (a fair value over a near-zero price produces an absurd
+# percentage). Such rows are kept but their state is set to 'unrated' so they cannot
+# pollute the undervalued / overvalued screens and the fade composite.
+VALUATION_RELIABLE_MIN_PRICE = 1.0
+VALUATION_RELIABLE_MIN_MARKET_CAP = 25_000_000.0
+VALUATION_RELIABLE_MAX_ABS_GAP_PCT = 300.0
+
 VALUATION_FACT_KEYS = tuple(
     list(study.DCF_FACT_KEYS)
     + [
@@ -482,6 +525,247 @@ def _build_financial_company_valuation(
         "quality_grade": quality_grade,
         "quality_score": quality_score,
         "coverage_mode": "pit_statement_backed_financial_company",
+    }
+
+
+def _should_use_relative_multiples(snapshot: Dict[str, Any]) -> bool:
+    """Runtime routing: small/micro-cap or non-normalizable operating companies should be
+    valued with relative multiples + asset floor instead of a multi-stage DCF. Mirrors
+    `shouldUseRelativeMultiplesEngine` in ledgerEngines.ts."""
+    market_cap = study._safe_float(snapshot.get("marketCap"))
+    ceiling = RELMULT_CONFIG.get("small_cap_market_cap_ceiling", 300000000)
+    if market_cap is not None and market_cap > 0 and market_cap < ceiling:
+        return True
+    # The cash-flow-instability leg is gated to smaller names. A large-cap with one
+    # negative-FCF (growth-capex) year is still a DCF candidate; generic sector multiples
+    # would misvalue a premium compounder. Above the unstable ceiling we leave it on DCF.
+    unstable_ceiling = RELMULT_CONFIG.get("unstable_market_cap_ceiling", 2000000000)
+    if market_cap is not None and market_cap >= unstable_ceiling:
+        return False
+    fcf = study._safe_float(snapshot.get("freeCashFlowTTM"))
+    ocf = study._safe_float(snapshot.get("operatingCashFlowTTM"))
+    # Only treat the base as non-normalizable when there is ACTUAL evidence of non-positive
+    # cash flow and no evidence of positive cash flow. Missing data must not misroute an
+    # otherwise-healthy name (e.g. a name whose snapshot lacks cash-flow fields).
+    any_present_non_positive = (fcf is not None and fcf <= 0) or (ocf is not None and ocf <= 0)
+    any_positive = (fcf is not None and fcf > 0) or (ocf is not None and ocf > 0)
+    return any_present_non_positive and not any_positive
+
+
+def _build_relative_multiples_valuation(
+    snapshot: Dict[str, Any],
+    latest_annual: Dict[str, Any],
+    current_price: float,
+) -> Optional[Dict[str, Any]]:
+    """Relative-multiple (EV/Sales + Price/Book) valuation with an asset floor and a risk
+    haircut, for small/micro-cap or non-normalizable operating companies. Python mirror of
+    `runRelativeMultiplesValuationEngine` in ledgerEngines.ts."""
+    cfg = RELMULT_CONFIG
+    metrics = latest_annual.get("metrics") or {}
+    if current_price is None or current_price <= 0:
+        return None
+
+    market_cap = study._safe_float(snapshot.get("marketCap"))
+    shares = _first_finite([
+        snapshot.get("sharesOutstanding"),
+        (market_cap / current_price) if market_cap is not None and current_price > 0 else None,
+    ])
+    annual_revenue = _prefer_consistent_statement_value(metrics.get("revenue"), snapshot.get("annualRevenue"))
+    if annual_revenue is None:
+        annual_revenue = _first_finite([metrics.get("revenue"), snapshot.get("annualRevenue")])
+
+    total_debt = _first_finite([snapshot.get("totalDebt"), snapshot.get("debt")])
+    enterprise_value = study._safe_float(snapshot.get("enterpriseValue"))
+    if enterprise_value is not None and market_cap is not None:
+        net_debt = enterprise_value - market_cap
+    elif total_debt is not None:
+        net_debt = total_debt
+    else:
+        net_debt = 0.0
+
+    debt_to_equity = study._safe_float(snapshot.get("debtToEquity"))
+    price_to_book = study._safe_float(snapshot.get("priceToBook"))
+    total_equity = _first_finite([
+        snapshot.get("equity"),
+        metrics.get("total_equity"),
+        metrics.get("stockholders_equity"),
+        metrics.get("shareholders_equity"),
+    ])
+    book_value_per_share = _first_finite([
+        snapshot.get("bookValuePerShare"),
+        (current_price / price_to_book) if price_to_book not in (None, 0) else None,
+        (total_equity / shares) if total_equity is not None and shares not in (None, 0) else None,
+    ])
+    free_cash_flow = _prefer_consistent_statement_value(metrics.get("free_cash_flow"), snapshot.get("freeCashFlowTTM"))
+    net_income = study._safe_float(metrics.get("net_income"))
+    operating_cash_flow = _first_finite([metrics.get("operating_cash_flow"), snapshot.get("operatingCashFlowTTM")])
+    capex = study._safe_float(metrics.get("capital_expenditures"))
+    quality_grade, quality_score, _, _, _ = study._build_quality_grade(
+        net_income=net_income,
+        operating_cash_flow=operating_cash_flow,
+        free_cash_flow=free_cash_flow,
+        capital_expenditures=capex,
+        revenue=annual_revenue,
+    )
+
+    can_ev = annual_revenue is not None and annual_revenue > 0 and shares is not None and shares > 0
+    can_pb = book_value_per_share is not None and book_value_per_share > 0
+    if not (can_ev or can_pb):
+        return None
+
+    sector_key = str(snapshot.get("sector") or "").strip().lower()
+    ev_band = cfg["sector_ev_sales_bands"].get(sector_key) or cfg["sector_ev_sales_bands"]["diversified"]
+    pb_band = cfg["sector_price_book_bands"].get(sector_key) or cfg["sector_price_book_bands"]["diversified"]
+
+    hc = cfg["risk_haircut"]
+    haircut = float(hc["base_pct"])
+    if quality_grade == "weak":
+        haircut += hc["weak_quality_extra_pct"]
+    elif quality_grade == "mixed":
+        haircut += hc["mixed_quality_extra_pct"]
+    if debt_to_equity is not None and debt_to_equity > hc["debt_to_equity_threshold"]:
+        haircut += hc["high_leverage_extra_pct"]
+    if free_cash_flow is not None and free_cash_flow < 0:
+        haircut += hc["negative_fcf_extra_pct"]
+    haircut = study._clamp(haircut, 0.0, float(hc["max_pct"]))
+    factor = 1.0 - haircut / 100.0
+    w_ev = cfg["blend_weights"]["ev_sales"]
+    w_pb = cfg["blend_weights"]["price_book"]
+    liq_floor = book_value_per_share * (pb_band["low"] * 0.5) if can_pb else None
+
+    def value_at(ev_mult: float, pb_mult: float, apply_floor: bool) -> float:
+        ev_ps = (annual_revenue * ev_mult - net_debt) / shares if can_ev else None
+        pb_ps = book_value_per_share * pb_mult if can_pb else None
+        if ev_ps is not None and pb_ps is not None:
+            blended = w_ev * ev_ps + w_pb * pb_ps
+        else:
+            blended = ev_ps if ev_ps is not None else pb_ps
+        value = (blended or 0.0) * factor
+        if apply_floor and liq_floor is not None and value < liq_floor:
+            value = liq_floor
+        return max(value, 0.0)
+
+    fv_low = value_at(ev_band["low"], pb_band["low"], True)
+    fv_mid = value_at(ev_band["mid"], pb_band["mid"], False)
+    fv_high = value_at(ev_band["high"], pb_band["high"], False)
+    if not fv_mid or fv_mid <= 0:
+        return None
+
+    valuation_gap_pct = ((fv_mid - current_price) / current_price) * 100.0
+    return {
+        "fair_value_low": fv_low,
+        "fair_value_mid": fv_mid,
+        "fair_value_high": fv_high,
+        "valuation_gap_pct": valuation_gap_pct,
+        "revenue": annual_revenue,
+        "free_cash_flow": free_cash_flow,
+        "shares_outstanding": shares,
+        "revenue_growth_pct": _first_finite([snapshot.get("revenueGrowthPct"), snapshot.get("revenueYoYGrowthPct")]),
+        "operating_margin_pct": None,
+        "free_cash_flow_margin_pct": None,
+        "current_ratio": study._safe_float(snapshot.get("currentRatio")),
+        "quality_grade": quality_grade,
+        "quality_score": quality_score,
+        "coverage_mode": "relative_multiple_asset_floor",
+        "relmult_ev_sales_multiple": ev_band["mid"],
+        "relmult_price_book_multiple": pb_band["mid"],
+        "relmult_risk_haircut_pct": haircut,
+        "relmult_primary_leg": "ev_sales_and_price_book" if (can_ev and can_pb) else ("ev_sales" if can_ev else "price_book"),
+    }
+
+
+def _build_sales_scenario_valuation(
+    snapshot: Dict[str, Any],
+    latest_annual: Dict[str, Any],
+    current_price: float,
+) -> Optional[Dict[str, Any]]:
+    """Pre-profit revenue scenario valuation. Python mirror of the Ledger
+    `runSalesScenarioValuationEngine` fast-path so clean-universe growth names do
+    not disappear from valuation coverage when DCF is structurally inappropriate.
+    """
+    metrics = latest_annual.get("metrics") or {}
+    if current_price is None or current_price <= 0:
+        return None
+
+    market_cap = study._safe_float(snapshot.get("marketCap"))
+    enterprise_value = _first_finite([snapshot.get("enterpriseValue"), market_cap])
+    shares = _first_finite([
+        snapshot.get("sharesOutstanding"),
+        (market_cap / current_price) if market_cap is not None and current_price > 0 else None,
+    ])
+    annual_revenue = _prefer_consistent_statement_value(metrics.get("revenue"), snapshot.get("annualRevenue"))
+    if annual_revenue is None:
+        annual_revenue = _first_finite([metrics.get("revenue"), snapshot.get("annualRevenue")])
+    if annual_revenue is None or annual_revenue <= 0 or shares is None or shares <= 0:
+        return None
+
+    revenue_growth_observed_pct = _first_finite([snapshot.get("revenueGrowthPct"), snapshot.get("revenueYoYGrowthPct")])
+    gross_margin_pct = study._safe_float(snapshot.get("grossMarginPct"))
+    cash = _first_finite([snapshot.get("totalCash"), snapshot.get("cash")]) or 0.0
+    debt = _first_finite([snapshot.get("totalDebt"), snapshot.get("debt")]) or 0.0
+    free_cash_flow = _prefer_consistent_statement_value(metrics.get("free_cash_flow"), snapshot.get("freeCashFlowTTM"))
+    operating_cash_flow = _first_finite([metrics.get("operating_cash_flow"), snapshot.get("operatingCashFlowTTM")])
+    capex = study._safe_float(metrics.get("capital_expenditures"))
+    net_income = study._safe_float(metrics.get("net_income"))
+    cash_runway_quarters = study._safe_float(snapshot.get("cashRunwayQuarters"))
+
+    quality_grade, quality_score, _, _, _ = study._build_quality_grade(
+        net_income=net_income,
+        operating_cash_flow=operating_cash_flow,
+        free_cash_flow=free_cash_flow,
+        capital_expenditures=capex,
+        revenue=annual_revenue,
+    )
+
+    growth_anchor_pct = revenue_growth_observed_pct if revenue_growth_observed_pct is not None else 15.0
+    default_base_multiple = study._clamp(
+        2.5
+        + study._clamp(growth_anchor_pct / 20.0, -1.0, 3.0)
+        + (1.0 if gross_margin_pct is not None and gross_margin_pct >= 60.0 else 0.0)
+        - (1.0 if cash_runway_quarters is not None and cash_runway_quarters < 4.0 else 0.0),
+        0.8,
+        10.0,
+    )
+    scenarios = [
+        {"name": "bear", "revenue_growth_pct": study._clamp(growth_anchor_pct - 10.0, -20.0, 35.0), "ev_sales_multiple": study._clamp(default_base_multiple - 1.2, 0.4, 8.0)},
+        {"name": "base", "revenue_growth_pct": study._clamp(growth_anchor_pct, -10.0, 60.0), "ev_sales_multiple": default_base_multiple},
+        {"name": "bull", "revenue_growth_pct": study._clamp(growth_anchor_pct + 12.0, 0.0, 85.0), "ev_sales_multiple": study._clamp(default_base_multiple + 1.8, 1.0, 14.0)},
+    ]
+
+    fair_values: Dict[str, float] = {}
+    for scenario in scenarios:
+        forward_revenue = annual_revenue * (1.0 + scenario["revenue_growth_pct"] / 100.0)
+        implied_enterprise_value = forward_revenue * scenario["ev_sales_multiple"]
+        implied_equity_value = implied_enterprise_value + cash - debt
+        fair_values[scenario["name"]] = implied_equity_value / shares
+
+    fair_value_mid = fair_values["base"]
+    if not fair_value_mid or fair_value_mid <= 0:
+        return None
+    valuation_gap_pct = ((fair_value_mid - current_price) / current_price) * 100.0
+    current_ev_sales = (
+        (enterprise_value / annual_revenue)
+        if enterprise_value is not None and annual_revenue > 0
+        else study._safe_float(snapshot.get("enterpriseToSales"))
+    )
+
+    return {
+        "fair_value_low": fair_values["bear"],
+        "fair_value_mid": fair_value_mid,
+        "fair_value_high": fair_values["bull"],
+        "valuation_gap_pct": valuation_gap_pct,
+        "revenue": annual_revenue,
+        "free_cash_flow": free_cash_flow,
+        "shares_outstanding": shares,
+        "revenue_growth_pct": revenue_growth_observed_pct,
+        "operating_margin_pct": None,
+        "free_cash_flow_margin_pct": None,
+        "current_ratio": study._safe_float(snapshot.get("currentRatio")),
+        "quality_grade": quality_grade,
+        "quality_score": quality_score,
+        "coverage_mode": "preprofit_revenue_scenario",
+        "sales_scenario_ev_sales_multiple": default_base_multiple,
+        "sales_scenario_current_ev_sales": current_ev_sales,
     }
 
 
@@ -1119,6 +1403,11 @@ def _build_row(
         company_type = "financial_company"
         valuation_engine_class = "roe_book_value"
 
+    # Runtime routing override (not persisted): small/micro-cap or non-normalizable
+    # operating companies are valued with relative multiples + asset floor, never a DCF.
+    if valuation_engine_class == "dcf_operating" and _should_use_relative_multiples(snapshot):
+        valuation_engine_class = "relative_multiples"
+
     if valuation_engine_class == "roe_book_value":
         valuation = _build_financial_company_valuation(snapshot, latest_annual, float(price))
         if not valuation:
@@ -1146,13 +1435,25 @@ def _build_row(
                 valuation_engine_class=valuation_engine_class,
             )
     elif valuation_engine_class == "sales_scenario":
-        return None, _failure(
-            symbol,
-            "preprofit_sales_scenario_not_in_snapshot_builder",
-            asof_date=asof_date,
-            company_type=company_type,
-            valuation_engine_class=valuation_engine_class,
-        )
+        valuation = _build_sales_scenario_valuation(snapshot, latest_annual, float(price))
+        if not valuation:
+            return None, _failure(
+                symbol,
+                "sales_scenario_insufficient_inputs",
+                asof_date=asof_date,
+                company_type=company_type,
+                valuation_engine_class=valuation_engine_class,
+            )
+    elif valuation_engine_class == "relative_multiples":
+        valuation = _build_relative_multiples_valuation(snapshot, latest_annual, float(price))
+        if not valuation:
+            return None, _failure(
+                symbol,
+                "relative_multiples_insufficient_inputs",
+                asof_date=asof_date,
+                company_type=company_type,
+                valuation_engine_class=valuation_engine_class,
+            )
     else:
         annual_revenue = _first_finite([metrics.get("revenue"), snapshot.get("annualRevenue")])
         operating_cash_flow = _first_finite([metrics.get("operating_cash_flow"), snapshot.get("operatingCashFlowTTM")])
@@ -1178,16 +1479,31 @@ def _build_row(
             )
         valuation = _build_current_standardized_dcf(snapshot, latest_annual, prior_annual, float(price))
         if not valuation:
-            return None, _failure(
-                symbol,
-                "nonpositive_fair_value_mid",
-                asof_date=asof_date,
-                company_type=company_type,
-                valuation_engine_class=valuation_engine_class,
-            )
+            sales_valuation = _build_sales_scenario_valuation(snapshot, latest_annual, float(price))
+            if sales_valuation:
+                valuation = sales_valuation
+                company_type = "preprofit_growth"
+                valuation_engine_class = "sales_scenario"
+            else:
+                return None, _failure(
+                    symbol,
+                    "nonpositive_fair_value_mid",
+                    asof_date=asof_date,
+                    company_type=company_type,
+                    valuation_engine_class=valuation_engine_class,
+                )
 
     market_cap = study._safe_float(snapshot.get("marketCap"))
-    valuation_state = study._valuation_state(float(valuation["valuation_gap_pct"]), gap_threshold_pct)
+    gap_pct = float(valuation["valuation_gap_pct"])
+    valuation_state = study._valuation_state(gap_pct, gap_threshold_pct)
+    # Reliability guardrail: neutralize non-investable / implausible valuations so they do
+    # not surface as undervalued or overvalued signals.
+    if (
+        float(price) < VALUATION_RELIABLE_MIN_PRICE
+        or (market_cap is not None and market_cap < VALUATION_RELIABLE_MIN_MARKET_CAP)
+        or abs(gap_pct) > VALUATION_RELIABLE_MAX_ABS_GAP_PCT
+    ):
+        valuation_state = "unrated"
 
     return ValuationSnapshotRow(
         symbol=symbol,
@@ -1378,7 +1694,7 @@ def _log_dcf_predictions(rows: List[ValuationSnapshotRow]) -> int:
     return logged
 
 
-def build_snapshot(args: argparse.Namespace) -> Tuple[Dict[str, Any], List[ValuationSnapshotRow]]:
+def build_snapshot(args: argparse.Namespace) -> Tuple[Dict[str, Any], List[ValuationSnapshotRow], List[Dict[str, Any]]]:
     symbols = _load_symbols(args)
     conn = connect_pit(str(args.db))
     ensure_schema(conn)
@@ -1401,19 +1717,28 @@ def build_snapshot(args: argparse.Namespace) -> Tuple[Dict[str, Any], List[Valua
         conn.close()
 
     failure_counts = Counter(str(item.get("reason") or "unknown") for item in failures)
+    attempted_count = len(symbols)
+    success_count = len(rows)
+    failure_count = len(failures)
+    coverage_pct = (success_count / attempted_count * 100.0) if attempted_count else 0.0
     payload = {
         "meta": {
             "universe": str(args.universe or "clean_stocks"),
             "gap_threshold_pct": float(args.gap_threshold_pct),
             "db_path": str(args.db),
+            "attempted_symbol_count": attempted_count,
+            "success_count": success_count,
+            "coverage_pct": round(coverage_pct, 4),
+            "min_coverage_pct": float(args.min_coverage_pct),
             **_summarize_rows(rows),
-            "failures": failures[:200],
-            "failure_count": len(failures),
+            "failure_detail_path": str(Path(args.output).with_suffix(".failures.json")) if getattr(args, "output", None) else None,
+            "failure_sample": failures[:50],
+            "failure_count": failure_count,
             "failure_reason_counts": dict(failure_counts),
         },
         "rows": [asdict(row) for row in rows],
     }
-    return payload, rows
+    return payload, rows, failures
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
@@ -1424,6 +1749,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--symbols", default="", help="Optional comma-separated symbol override")
     parser.add_argument("--limit", type=int, default=0, help="Optional symbol limit for smoke tests")
     parser.add_argument("--gap-threshold-pct", type=float, default=20.0, help="Threshold for overvalued/undervalued labeling")
+    parser.add_argument("--min-coverage-pct", type=float, default=80.0, help="Fail the rebuild when valuation coverage falls below this percentage")
+    parser.add_argument("--allow-low-coverage", action="store_true", help="Do not fail when coverage is below --min-coverage-pct")
     parser.add_argument("--no-sync", action="store_true", help="Write the snapshot file without replacing symbol-catalog valuation rows")
     parser.add_argument("--no-log-predictions", action="store_true", help="Skip app-state valuation prediction logging")
     return parser.parse_args(argv)
@@ -1435,10 +1762,25 @@ def main(argv: Optional[List[str]] = None) -> int:
     args.output = Path(args.output).resolve()
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
-    payload, snapshot_rows = build_snapshot(args)
+    payload, snapshot_rows, failures = build_snapshot(args)
     args.output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    failure_path = args.output.with_suffix(".failures.json")
+    failure_payload = {
+        "meta": {
+            "universe": payload["meta"].get("universe"),
+            "generated_at": payload["meta"].get("generated_at"),
+            "attempted_symbol_count": payload["meta"].get("attempted_symbol_count"),
+            "success_count": payload["meta"].get("success_count"),
+            "failure_count": payload["meta"].get("failure_count"),
+            "coverage_pct": payload["meta"].get("coverage_pct"),
+            "failure_reason_counts": payload["meta"].get("failure_reason_counts"),
+        },
+        "failures": failures,
+    }
+    failure_path.write_text(json.dumps(failure_payload, indent=2), encoding="utf-8")
 
     print(f"[ValuationSnapshot] wrote {len(payload['rows'])} rows to {args.output}", flush=True)
+    print(f"[ValuationSnapshot] wrote failure detail to {failure_path}", flush=True)
     if args.no_sync:
         print("[ValuationSnapshot] skipped symbol catalog sync (--no-sync)", flush=True)
     else:
@@ -1459,6 +1801,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"[ValuationSnapshot] WARNING: DCF prediction logging failed: {exc}", flush=True)
 
     print(json.dumps(payload["meta"], indent=2), flush=True)
+    coverage_pct = float(payload["meta"].get("coverage_pct") or 0.0)
+    min_coverage_pct = float(args.min_coverage_pct)
+    if not args.allow_low_coverage and coverage_pct < min_coverage_pct:
+        print(
+            f"[ValuationSnapshot] ERROR: coverage {coverage_pct:.2f}% is below required {min_coverage_pct:.2f}%",
+            flush=True,
+        )
+        return 2
     return 0
 
 

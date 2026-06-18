@@ -446,9 +446,9 @@ def run_valuation_state_validation(
         return {"enabled": False, "status": "disabled"}
 
     try:
-        from plugins.valuation_state_primitive import _valuation_signal_for_bar
+        from valuation_feature_store import get_valuation_features
     except Exception as exc:
-        return {"enabled": True, "status": "error", "reason": f"Could not load valuation primitive: {exc}"}
+        return {"enabled": True, "status": "error", "reason": f"Could not load valuation feature store: {exc}"}
 
     fundamental_cfg = (spec.get("fundamental_config") or {}) if isinstance(spec, dict) else {}
     target_state = str(setup.get("target_state") or "undervalued").strip().lower()
@@ -501,7 +501,7 @@ def run_valuation_state_validation(
             if current_price is None or forward_return is None:
                 continue
 
-            valuation = _valuation_signal_for_bar(symbol, asof_date, float(current_price), gap_threshold_pct)
+            valuation = get_valuation_features(symbol, asof_date, float(current_price), gap_threshold_pct=gap_threshold_pct)
             if not valuation:
                 no_valuation_observations += 1
                 date_no_valuation += 1

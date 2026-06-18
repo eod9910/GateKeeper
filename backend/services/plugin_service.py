@@ -67,7 +67,7 @@ class DataCache:
             "bars": len(data),
         }
 
-    def fetch_or_cache(self, symbol: str, interval: str, period: str) -> tuple[List[OHLCV], bool]:
+    def fetch_or_cache(self, symbol: str, interval: str, period: str, force_refresh: bool = False) -> tuple[List[OHLCV], bool]:
         # For long-history requests, avoid serving stale in-memory slices that
         # may have been cached from an older shorter fetch.
         p = str(period).strip().lower()
@@ -79,10 +79,15 @@ class DataCache:
                 long_history_request = False
         bypass_memory_cache = long_history_request and interval in ("1d", "1wk", "1mo")
 
+        # When force_refresh is set we MUST bypass both the in-memory cache and
+        # the persistent cache freshness check (handled by fetch_data_yfinance).
+        if force_refresh:
+            bypass_memory_cache = True
+
         cached = None if bypass_memory_cache else self.get(symbol, interval, period)
         if cached is not None:
             return cached, True
-        fetched = fetch_data_yfinance(symbol, period=period, interval=interval) or []
+        fetched = fetch_data_yfinance(symbol, period=period, interval=interval, force_refresh=force_refresh) or []
         self.put(symbol, interval, period, fetched)
         return fetched, False
 
@@ -186,12 +191,15 @@ class ValidatorRunRequest(BaseModel):
     universe: Optional[List[str]] = Field(default=None)
     tier: Optional[str] = Field(default="tier3")
     force_refresh: bool = Field(default=False)
+    evidence_mode: Optional[str] = Field(default=None)
+    evidence_target_trades: Optional[int] = Field(default=None)
 
 
 class ChartOHLCVRequest(BaseModel):
     symbol: str = Field(..., description="Ticker symbol")
     interval: Optional[str] = Field(default="1d")
     period: Optional[str] = Field(default="2y")
+    force_refresh: Optional[bool] = Field(default=False, description="Bypass caches and re-fetch from Yahoo")
 
 
 class CopilotAnalyzeRequest(BaseModel):
@@ -293,7 +301,7 @@ def chart_ohlcv(req: ChartOHLCVRequest) -> Dict[str, Any]:
             if period == "max":
                 period = "730d"
 
-        bars, cache_hit = DATA_CACHE.fetch_or_cache(symbol, fetch_interval, period)
+        bars, cache_hit = DATA_CACHE.fetch_or_cache(symbol, fetch_interval, period, force_refresh=bool(req.force_refresh))
         if not bars:
             raise ValueError(f"No data returned for {symbol}")
 
@@ -452,6 +460,8 @@ def validator_run(req: ValidatorRunRequest) -> StreamingResponse:
                 req.tier or "tier3",
                 job_id=job_id or None,
                 force_refresh=bool(req.force_refresh),
+                evidence_mode=req.evidence_mode,
+                evidence_target_trades=req.evidence_target_trades,
             )
             result_holder[0] = result
         except Exception as exc:

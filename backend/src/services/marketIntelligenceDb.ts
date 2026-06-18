@@ -879,6 +879,13 @@ export function getScenarioDetail(idOrSlug: string): ApiScenarioDetail | null {
     first_order_effects: situation.first_order_effects_json ?? [],
     second_order_effects: situation.second_order_effects_json ?? [],
     confidence_reasons: situation.confidence_reasons_json ?? [],
+    consequence_analysis: (
+      situation.metadata_json &&
+      typeof situation.metadata_json.consequence_analysis === 'object' &&
+      situation.metadata_json.consequence_analysis !== null
+    )
+      ? situation.metadata_json.consequence_analysis as Record<string, unknown>
+      : null,
     conviction_layer: situation.conviction_layer_json,
     affected_sectors: affectedSectors,
     affected_assets: affectedAssets,
