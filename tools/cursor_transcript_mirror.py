@@ -17,12 +17,18 @@ import sqlite3
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
 
 DEFAULT_INTERVAL_SECONDS = 5.0
+
+# Durable dated-snapshot cadence (mirrors tools/codex_transcript_mirror.py).
+SNAPSHOT_MANIFEST_NAME = ".snapshot-manifest.json"
+SNAPSHOT_MIN_SECONDS = 6 * 60 * 60
+SNAPSHOT_MIN_CHAR_DELTA = 100_000
 
 QUESTION_PREFIXES = (
     "what",
@@ -262,8 +268,9 @@ def read_itemtable_value(db_path: Path, key: str) -> Any:
     if not db_path.exists():
         return None
     uri = f"file:{db_path.as_posix()}?mode=ro"
-    conn = sqlite3.connect(uri, uri=True)
+    conn = None
     try:
+        conn = sqlite3.connect(uri, uri=True)
         cur = conn.cursor()
         row = cur.execute(
             "SELECT value FROM ItemTable WHERE key = ?",
@@ -283,8 +290,21 @@ def read_itemtable_value(db_path: Path, key: str) -> Any:
             except json.JSONDecodeError:
                 return value
         return value
+    except Exception as exc:
+        # A copied state.vscdb can be malformed/locked (WAL mid-write in the
+        # OneDrive sync tree). Never let that crash the mirror; skip this read.
+        print(
+            f"[cursor-mirror] skipping unreadable DB {db_path} key {key}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
     finally:
-        conn.close()
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -303,6 +323,85 @@ def load_json_file(path: Path) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def write_text_if_changed(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            if path.read_text(encoding="utf-8") == text:
+                return
+        except Exception:
+            pass
+    path.write_text(text, encoding="utf-8")
+
+
+def sanitize_filename(value: str, fallback: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-")
+    return text[:120] or fallback
+
+
+def epoch_ms_to_datetime(value: Any) -> datetime | None:
+    try:
+        epoch_ms = int(value)
+    except (TypeError, ValueError):
+        return None
+    if epoch_ms <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(epoch_ms / 1000.0)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def cursor_snapshot_identity(
+    active_composers: list[dict[str, Any]],
+    fallback_key: str,
+) -> tuple[str, str]:
+    """Return (filename_slug, manifest_key_base) for the dated snapshot."""
+    for composer in active_composers:
+        if not isinstance(composer, dict):
+            continue
+        name = str(composer.get("name") or composer.get("composerId") or "").strip()
+        key = str(composer.get("composerId") or name).strip()
+        if name or key:
+            return sanitize_filename(name or key, "cursor-session"), key or name
+    return "cursor-session", fallback_key
+
+
+def should_write_dated_snapshot(
+    manifest: dict[str, Any],
+    key: str,
+    transcript_chars: int,
+    now_epoch: int,
+) -> bool:
+    entry = manifest.get(key)
+    if not isinstance(entry, dict):
+        return True
+
+    try:
+        last_epoch = int(entry.get("written_at_epoch") or 0)
+        last_chars = int(entry.get("transcript_chars") or 0)
+    except (TypeError, ValueError):
+        return True
+
+    if now_epoch - last_epoch >= SNAPSHOT_MIN_SECONDS:
+        return True
+    return transcript_chars - last_chars >= SNAPSHOT_MIN_CHAR_DELTA
+
+
+def update_snapshot_manifest(
+    manifest: dict[str, Any],
+    key: str,
+    snapshot_name: str,
+    transcript_chars: int,
+    now_epoch: int,
+) -> None:
+    manifest[key] = {
+        "latest_snapshot": snapshot_name,
+        "transcript_chars": transcript_chars,
+        "written_at_epoch": now_epoch,
+    }
 
 
 def dedupe_strings(items: list[str]) -> list[str]:
@@ -619,9 +718,38 @@ def write_memory_bank_views(output_dir: Path, workspace_path: Path) -> None:
 
     continuity_path = memory_bank_dir / "CURSOR_CONTINUITY.md"
     transcript_path = memory_bank_dir / "transcripts" / "cursor-session-live.md"
+    snapshot_text = "\n".join(transcript_lines)
     continuity_path.write_text("\n".join(continuity_lines), encoding="utf-8")
     transcript_path.parent.mkdir(parents=True, exist_ok=True)
-    transcript_path.write_text("\n".join(transcript_lines), encoding="utf-8")
+    transcript_path.write_text(snapshot_text, encoding="utf-8")
+
+    # Durable, source-tagged dated snapshots in the same tracked layout Codex uses
+    # (memory-bank/transcripts/cursor/YYYY-MM-DD/), mirroring codex_transcript_mirror.py.
+    thread_slug, snapshot_key_base = cursor_snapshot_identity(
+        active_composers, str(workspace_path)
+    )
+    snapshot_dt = epoch_ms_to_datetime(metadata.get("mirrored_at_epoch_ms")) or datetime.now()
+    date_part = snapshot_dt.strftime("%Y-%m-%d")
+    stamp = snapshot_dt.strftime("%Y-%m-%d-%H%M%S")
+    snapshot_name = f"{stamp}-{thread_slug}.md"
+    dated_dir = memory_bank_dir / "transcripts" / "cursor" / date_part
+    write_text_if_changed(dated_dir / "latest.md", snapshot_text)
+
+    manifest_path = dated_dir / SNAPSHOT_MANIFEST_NAME
+    manifest_payload = load_json_file(manifest_path)
+    manifest = manifest_payload if isinstance(manifest_payload, dict) else {}
+    snapshot_key = f"{date_part}:{snapshot_key_base}"
+    now_epoch = int(time.time())
+    if should_write_dated_snapshot(manifest, snapshot_key, len(snapshot_text), now_epoch):
+        write_text_if_changed(dated_dir / snapshot_name, snapshot_text)
+        update_snapshot_manifest(
+            manifest,
+            snapshot_key,
+            snapshot_name,
+            len(snapshot_text),
+            now_epoch,
+        )
+        write_json(manifest_path, manifest)
 
 
 def build_storage_files(cursor_root: Path, workspace_dir: Path | None) -> list[StorageFile]:
@@ -657,24 +785,42 @@ def build_storage_files(cursor_root: Path, workspace_dir: Path | None) -> list[S
 
 
 def export_decoded_views(output_dir: Path, workspace_dir: Path | None) -> None:
-    global_db = output_dir / "raw" / "global" / "state.vscdb"
-    global_payload = {
-        "openai.chatgpt": read_itemtable_value(global_db, "openai.chatgpt"),
-        "chat.workspaceTransfer": read_itemtable_value(global_db, "chat.workspaceTransfer"),
-    }
-    write_json(output_dir / "decoded" / "global-chat-state.json", global_payload)
+    # Each block is isolated so an unreadable/malformed global DB cannot stop the
+    # workspace export (and vice versa). read_itemtable_value already returns
+    # None for unreadable keys, so the JSON is written with null values for the
+    # keys that failed.
+    try:
+        global_db = output_dir / "raw" / "global" / "state.vscdb"
+        global_payload = {
+            "openai.chatgpt": read_itemtable_value(global_db, "openai.chatgpt"),
+            "chat.workspaceTransfer": read_itemtable_value(global_db, "chat.workspaceTransfer"),
+        }
+        write_json(output_dir / "decoded" / "global-chat-state.json", global_payload)
+    except Exception as exc:
+        print(
+            f"[cursor-mirror] failed exporting global decoded view: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     if workspace_dir:
-        workspace_db = output_dir / "raw" / "workspace" / "state.vscdb"
-        workspace_payload = {
-            "composer.composerData": read_itemtable_value(workspace_db, "composer.composerData"),
-            "aiService.prompts": read_itemtable_value(workspace_db, "aiService.prompts"),
-            "aiService.generations": read_itemtable_value(workspace_db, "aiService.generations"),
-            "workbench.backgroundComposer.workspacePersistentData": read_itemtable_value(
-                workspace_db, "workbench.backgroundComposer.workspacePersistentData"
-            ),
-        }
-        write_json(output_dir / "decoded" / "workspace-chat-state.json", workspace_payload)
+        try:
+            workspace_db = output_dir / "raw" / "workspace" / "state.vscdb"
+            workspace_payload = {
+                "composer.composerData": read_itemtable_value(workspace_db, "composer.composerData"),
+                "aiService.prompts": read_itemtable_value(workspace_db, "aiService.prompts"),
+                "aiService.generations": read_itemtable_value(workspace_db, "aiService.generations"),
+                "workbench.backgroundComposer.workspacePersistentData": read_itemtable_value(
+                    workspace_db, "workbench.backgroundComposer.workspacePersistentData"
+                ),
+            }
+            write_json(output_dir / "decoded" / "workspace-chat-state.json", workspace_payload)
+        except Exception as exc:
+            print(
+                f"[cursor-mirror] failed exporting workspace decoded view: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
 
 
 def mirror_once(output_dir: Path, cursor_root: Path, workspace_path: Path) -> dict[str, Any]:
@@ -687,7 +833,16 @@ def mirror_once(output_dir: Path, cursor_root: Path, workspace_path: Path) -> di
             copy_once=file.copy_once,
         )
 
-    export_decoded_views(output_dir, workspace_dir)
+    # A failure decoding the copied DBs must not prevent the memory-bank views
+    # and dated snapshots from being (re)written from whatever is on disk.
+    try:
+        export_decoded_views(output_dir, workspace_dir)
+    except Exception as exc:
+        print(
+            f"[cursor-mirror] export_decoded_views failed, continuing: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
     write_memory_bank_views(output_dir, workspace_path)
 
     metadata = {
@@ -737,7 +892,16 @@ def main() -> int:
     if args.watch:
         try:
             while True:
-                run()
+                try:
+                    run()
+                except Exception as exc:
+                    # Never let a single bad cycle kill the watcher; log and retry
+                    # on the next interval.
+                    print(
+                        f"[cursor-mirror] mirror cycle failed, continuing: {exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 time.sleep(args.interval)
         except KeyboardInterrupt:
             print("[cursor_transcript_mirror] stopped", flush=True)

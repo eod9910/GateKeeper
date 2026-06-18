@@ -2,8 +2,28 @@
 
 > Keep this small. Goals, decisions, preferences, open threads only.
 > Use transcripts/ for full detail. Use Grep to search them.
+> **📂 All research reports/studies live in `.planning/Research Studies/` (indexed in its README). Look there first.**
 
 ## Active Project: Pattern Detector / Trading Co-Pilot
+
+### Recent Working State (2026-06-01) — Micro-cap valuation fix + valuation strategy decisively benchmarked vs SPY
+
+- **Micro-cap DCF garbage fixed.** New `relative_multiples` Ledger engine (EV/Sales + P/B vs sector bands, asset floor, risk haircut) for sub-$300M or non-normalizable operating companies, wired across all 4 layers (refs/`MODEL_MAP.md`/`SKILL.md` → `ledgerEngines.ts` + `build_universe_valuation_snapshot.py` → `visionService.ts`). Routing: cap < $300M, OR genuine non-positive cash flow **only below a $2B `unstable_market_cap_ceiling`** (so a large compounder with one negative-FCF year like AAON stays on DCF; missing data never misroutes). **Reliability guardrail:** price < $1 / mcap < $25M / |gap| > 300% → `valuation_state='unrated'` (live snapshot + opt-in `reliability_guard` in the backtest PIT path). Snapshot rebuilt: max rated |gap| 299.5% (was 290-billion-%), 576 names unrated.
+- **DCF valuation gap is NOT a standalone edge (now proven every which way):**
+  - Guardrail re-run defused the short-sleeve tail (model-portfolio worst formation −141.7% → −20.7%; win rate 82%→88%) but only made the record honest, not better.
+  - **Benchmarked vs buy-and-hold** (`run_benchmark_buyhold_compare.py`, same 50 monthly 1-yr windows): model portfolio +12.9% ≈ **SPY +12.91%** (median worse, drawdown deeper); beat only equal-weight RSP (+7.6%). It's SPY beta + small-cap tilt, no alpha.
+  - **Risk-managed equity-curve sim** ($100k, long-only undervalued, **3% fixed sizing**, stops; `run_valuation_portfolio_sim.py`): stops are self-defeating on a value signal — tighter = worse, monotonic. 20% stop +9.1% CAGR & −31% DD; no-stop +18.4% & −27%; **SPY +22.1% & −25%**. Even unstopped it trails SPY by ~3.7%/yr. Gap = ~9.3% stop-drag + ~3.7% value-tilt drag.
+- **Decisions locked:** valuation = confirming leg, never a primary trigger. **Never put a hard stop on a mean-reverting value signal** (stops belong on momentum/trend). Beating SPY needs a better entry signal or momentum overlay.
+- **Full convergence stack was benchmarked vs SPY** (`run_full_convergence_stack_study.py`, paper `2026-06-01-full-convergence-stack.md`): **not certified**. 6mo fails vs SPY; short/fade side fails badly; 1yr bullish mean beats SPY only through right-tail skew while median top baskets lose to SPY. Use stack as watchlist/ranking / right-tail discovery, not autonomous portfolio. Next improvement is better ranking/risk controls for bullish tails and a separate strict fade-timing trigger.
+
+### Recent Working State (2026-05-30) — Signal edge-testing + self-modifying-app north-star
+
+- **Eigenvalue verdict (tested across 4 backtests):** NOT a leading/directional predictor. Its only real edge is **cross-sectional relative momentum** — harvest as a diversified market-neutral basket (long confirmed up-shocks / short confirmed down-shocks; strong up-shock ez≥2 ≈ +4.1% excess/26w, down-shock ≈ −1.9%, monotonic). As a single-name long/short trigger it has no edge and can hurt (selects mean-reverting spikes). Coincident confirmer, never a leader. Caveats: overlap-inflated t-stats, negative median (mean-driven fat tail), modest size.
+- **Base vs Top detector (weekly, pure price geometry, no eigen):** base = tight/flat consolidation after a FALL, near lows (`pos_in_history` ≤0.40, old peak); top/H&S = same shape after a RUN-UP, near highs (`pos_in_history` ≥0.55, `wks_since_peak` ≤~90). Validated on user charts (TAL=base; RPM/TMUS/SKWD=tops; caught ATAT's 2024 base). Eigen adds nothing to *finding* bases.
+- **Signal scorecard (honest):** eigen = modest relative-momentum only; thesis extractor = believed-but-NEVER-backtested (don't crown on vibes); options = not historically testable; **insider (Form 4) = now testable, highest-value next experiment.**
+- **Thesis backtest plan:** can't backtest the LLM narrative (look-ahead + no dated history) → forward-log only. CAN backtest the quantitative gap underneath it (buzz_zscore rising while price/dcf_gap lags → forward EXCESS return vs universe), no look-ahead. `mi_narrative_theses` carries symbol/direction/timestamp/specificity. Gating: shallow social-buzz history = small sample.
+- **EDGAR backfill:** top-40 DONE (14,207 insider txns); universe Form4/13D IN PROGRESS (4,314 symbols, idempotent); 13F done + wired into scheduler/settings.
+- **DESIGN NORTH-STAR (capture-only, not building now):** make the use-and-modify loop a first-class in-app capability — an internal coding AI that exposes the code and evolves the app's own capabilities. **Key principle: the evaluation/validation harness IS the product, not the codegen** (codegen is the easy 10%; honest self-kill is the 90% — we nearly crowned eigen and the thesis on vibes). Safe 3-layer architecture: human-reviewed core engine / sandboxed AI-authored capability layer (each carries backtest evidence + kill-switch) / adversarial harness gating every promotion. Scaffolding already exists: `create-primitive`/`create-strategy` skills + promotion path, parameter sweep, research studio, GitNexus, MCP.
 
 ### Recent Working State (2026-05-05) — Market Intelligence Asymmetric Narrative Layer
 
@@ -837,3 +857,88 @@
   - `npx gitnexus analyze --force .`
 - GitNexus impact analysis is now usable again.
 - `gitnexus detect_changes` CLI command is still unavailable in this environment, so direct `git diff/status` remains the fallback scope check before commits.
+
+## 2026-06-01 - Full convergence stack / DCF / quality-gate research
+
+- Ran the full convergence stack study from PIT monthly observations.
+- Core stack is not certified as a standalone portfolio rule:
+  - six-month bullish stack trails SPY
+  - one-year mean is skewed by a few huge winners
+  - bearish/short side remains bad
+- Winner attribution showed the strongest raw Rule A was:
+  - eigen_z >= 2
+  - range_pos_252d <= 0.10
+  - revenue_ttm_growth_pct >= 17.7
+- Rule A found big spike names, including DBGI and CMCT, but those were not durable investments.
+- PIT DCF-undervalued added zero trades; DCF would have blocked the large spike names.
+- Added Rule C PIT quality gate:
+  - current ratio >= 0.75
+  - shareholders' equity / market cap >= 0.10
+  - net margin >= -50%
+  - FCF margin >= -100%
+- Rule C collapsed the six-month sample from 15 to 3 and the one-year sample from 11 to 1.
+- Quality-gated six-month result: -16.7% average, -17.5% median, -28.2% average vs SPY.
+- Quality-gated one-year result: ATRC 2024-04-30 only, +24.5% vs SPY +14.3%.
+- Current interpretation:
+  - convergence + re-acceleration is useful for squeeze/rebound discovery
+  - DCF/risk flags are useful for rejecting fragile fundamental longs
+  - a real implementation should split this into two workflows: speculative spike trade with hard exits, and separate fundamental long strategy with distress gates.
+
+### Speculative spike exit follow-up
+- Added `backend/scripts/run_speculative_spike_backtest.py`.
+- Tested Rule A as a pure trade:
+  - next-open entry
+  - 21/63/126 trading-day max holds
+  - +50/+100/+200 take-profit ladder
+  - trailing stop after +50% runup
+  - default -50% hard stop
+  - liquidity and split-proxy buckets
+- Canonical `ladder_trail_126d` on all 15 Rule A names:
+  - avg +23.4%, median +21.3%, win 80.0%, avg vs SPY +18.5%.
+- But after executable filters:
+  - liquid >= $250k and no split proxy: avg +8.3%, median +11.7%, avg vs SPY -2.0%.
+  - liquid >= $1M and no split proxy: avg +7.1%, median +1.7%, avg vs SPY -4.3%.
+  - liquid >= $5M and no split proxy: avg -7.6%, median -18.0%, avg vs SPY -18.2%.
+- Current decision:
+  - not a core strategy
+  - maybe a tiny event/squeeze sleeve
+  - needs explicit corporate-actions data and a larger sample before deployment
+
+### Revenue to earnings follow-through
+- Added `backend/scripts/run_revenue_to_earnings_followthrough.py`.
+- Tested whether depressed + revenue re-acceleration winners were being bid up because investors expected future earnings recovery.
+- Result: partial support.
+- Entry positive earnings/margins were not the edge:
+  - entry net margin positive: 6M avg +12.9%, 1Y avg +7.2%.
+- Entry negative/missing net margin did better:
+  - 6M avg +55.2%, 1Y avg +777.3% skewed by outliers.
+- Future net margin improvement >=10pp:
+  - 6M avg +29.7%, median +55.8%, beat SPY 71.4%.
+- But DBGI had no earnings follow-through and still spiked, while TXG/SG/VELO had some future improvement and still lost.
+- Current interpretation:
+  - revenue re-acceleration is the trigger
+  - earnings/margin follow-through can confirm operating leverage rebounds
+  - some big winners are still anticipation/squeeze events, not confirmed earnings conversion
+  - next needed feature is an operating-leverage runway score plus balance-sheet/dilution guardrails
+
+### Eigen ablation
+- Tested removing `eigen_z >= 2` from the depressed + revenue re-acceleration rule.
+- No-eigen screen:
+  - `range_pos_252d <= 0.10`
+  - `revenue_ttm_growth_pct >= 17.7`
+- Six-month no-eigen:
+  - 38 rows / 29 symbols
+  - avg +19.2%, median +9.8%, avg vs SPY +9.6%, beat SPY 50.0%
+- Six-month with eigen:
+  - 15 rows / 14 symbols
+  - avg +46.8%, median +21.5%, avg vs SPY +38.5%, beat SPY 66.7%
+- One-year no-eigen:
+  - 19 rows / 16 symbols
+  - avg +335.7%, median +18.0%, avg vs SPY +316.3%, beat SPY 52.6%
+- One-year with eigen:
+  - 11 rows / 10 symbols
+  - avg +567.3%, median +18.0%, avg vs SPY +550.5%, beat SPY 54.5%
+- Conclusion:
+  - eigen is not required
+  - core screen should be depressed + revenue re-acceleration
+  - eigen should become a ranking/urgency amplifier rather than a hard gate
