@@ -34,11 +34,30 @@ const FIELD_MAP = {
   // AI
   's-ai-provider':                'aiProvider',
   's-ai-model':                   'aiModel',
+  's-structure-model':            'structureModel',
+  's-ledger-model':               'ledgerModel',
+  's-thesis-extractor-model':     'thesisExtractorModel',
+  's-vision-model':               'visionModel',
   's-plugin-engineer-model':      'pluginEngineerModel',
   's-research-strategist-model':  'researchStrategistModel',
   's-research-analyst-model':     'researchAnalystModel',
   's-validator-analyst-model':    'validatorAnalystModel',
   's-ai-temperature':             'aiTemperature',
+};
+
+// Per-AI model dropdowns also persist server-side as `role_models` so the
+// backend-only paths (thesis extractor, scheduler board scan) and the scanner
+// all read the same source of truth.
+const BACKEND_MODEL_FIELD_MAP = {
+  's-ai-model':                   'copilot',
+  's-structure-model':            'structure',
+  's-ledger-model':               'ledger',
+  's-thesis-extractor-model':     'thesis_extractor',
+  's-vision-model':               'vision',
+  's-plugin-engineer-model':      'plugin_engineer',
+  's-research-strategist-model':  'research_strategist',
+  's-research-analyst-model':     'research_analyst',
+  's-validator-analyst-model':    'validator_analyst',
 };
 
 const BACKEND_PROMPT_FIELD_MAP = {
@@ -241,6 +260,21 @@ async function loadBackendAISettings() {
       field.value = typeof rolePrompts[roleKey] === 'string' ? rolePrompts[roleKey] : '';
     });
 
+    // Server-side role_models are the source of truth — hydrate the dropdowns
+    // and mirror into localStorage so the scanner's per-request path agrees.
+    const roleModels = data.data?.role_models || {};
+    let mirrored = {};
+    try { mirrored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); } catch (e) {}
+    Object.entries(BACKEND_MODEL_FIELD_MAP).forEach(([elementId, roleKey]) => {
+      const field = document.getElementById(elementId);
+      const value = roleModels[roleKey];
+      if (!field || typeof value !== 'string' || !value) return;
+      field.value = value;
+      const localKey = FIELD_MAP[elementId];
+      if (localKey) mirrored[localKey] = value;
+    });
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(mirrored));
+
     const source = data.data?.source || 'none';
     const configured = !!data.data?.configured;
     setBackendAIStatus(
@@ -275,6 +309,42 @@ function saveSetting(showFeedback) {
   }
 }
 
+function collectRoleModels() {
+  const role_models = {};
+  Object.entries(BACKEND_MODEL_FIELD_MAP).forEach(([elementId, roleKey]) => {
+    const field = document.getElementById(elementId);
+    const value = String(field?.value || '').trim();
+    if (value) role_models[roleKey] = value;
+  });
+  return role_models;
+}
+
+// Called on every model dropdown change: saves to localStorage immediately
+// (instant UI + scanner per-request mirror) and syncs the model map to the
+// backend so the thesis extractor and scheduler use the chosen models too.
+let _modelSyncTimer = null;
+function saveModelSetting() {
+  saveSetting();
+  if (_modelSyncTimer) clearTimeout(_modelSyncTimer);
+  _modelSyncTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/ai/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_models: collectRoleModels() }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setBackendAIStatus('Model selections saved', 'success');
+      } else {
+        setBackendAIStatus(`Failed to save model selections: ${data?.error || res.status}`, 'error');
+      }
+    } catch (err) {
+      setBackendAIStatus(`Failed to save model selections: ${err.message}`, 'error');
+    }
+  }, 400);
+}
+
 async function saveBackendAISettings() {
   const input = document.getElementById('s-openai-api-key');
   const openai_api_key = String(input?.value || '').trim();
@@ -284,10 +354,11 @@ async function saveBackendAISettings() {
     const value = String(field?.value || '').trim();
     if (value) role_prompts[roleKey] = value;
   });
+  const role_models = collectRoleModels();
 
   setBackendAIStatus('Saving backend AI settings...', 'muted');
   try {
-    const payload = { role_prompts };
+    const payload = { role_prompts, role_models };
     if (openai_api_key) payload.openai_api_key = openai_api_key;
 
     const res = await fetch(`${API_URL}/api/ai/settings`, {
@@ -1261,12 +1332,14 @@ async function loadEdgarSettings() {
     const lookbackEl = document.getElementById('s-edgar-lookback');
     const timeEl = document.getElementById('s-edgar-time');
     const tzEl = document.getElementById('s-edgar-timezone');
+    const inc13fEl = document.getElementById('s-edgar-include-13f');
 
     if (enabledEl) enabledEl.checked = cfg.enabled || false;
     if (freqEl) freqEl.value = cfg.frequency || 'manual';
     if (lookbackEl) lookbackEl.value = cfg.lookback_hours || 48;
     if (timeEl) timeEl.value = cfg.time_of_day || '18:00';
     if (tzEl) tzEl.value = cfg.timezone || 'America/New_York';
+    if (inc13fEl) inc13fEl.checked = cfg.include_13f !== false;
 
     toggleEdgarFields();
 
@@ -1304,6 +1377,7 @@ async function saveEdgarSettings() {
       lookback_hours: parseInt(document.getElementById('s-edgar-lookback')?.value) || 48,
       time_of_day: document.getElementById('s-edgar-time')?.value || '18:00',
       timezone: document.getElementById('s-edgar-timezone')?.value || 'America/New_York',
+      include_13f: document.getElementById('s-edgar-include-13f')?.checked !== false,
     };
     const res = await fetch(API_URL + '/api/edgar-filings/settings', {
       method: 'POST',

@@ -9,6 +9,11 @@ let patternMarkersPrimitive = null; // v5 markers primitive
 let baseBoxSeries = null;  // Track base box for updates in correction mode
 let overlaySeriesList = []; // Track overlay series for cleanup
 let subPanelSeriesList = []; // Track sub-panel (indicator) series for cleanup
+let chartDisplayMode = localStorage.getItem('scanner-chart-display-mode') === 'equivol' ? 'equivol' : 'time';
+let equivolumeCanvas = null;
+let equivolumeDisplayData = [];
+let equivolumeRedrawQueued = false;
+let equivolumeInteractionRedrawWired = false;
 
 // Clear the chart completely (no data, no annotations)
 function clearChart() {
@@ -51,9 +56,201 @@ function sanitizeChartData(data) {
   return Array.isArray(data) ? data : [];
 }
 
+function buildChartDisplayData(data) {
+  const safeData = sanitizeChartData(data);
+  return safeData;
+}
+
+function hasUsableEquivolume(data) {
+  return Array.isArray(data) && data.some(bar => Number(bar?.volume) > 0 || Number(bar?.tick_volume) > 0);
+}
+
+function ensureEquivolumeCanvas() {
+  const container = document.getElementById('chart-container');
+  if (!container) return null;
+  let canvas = document.getElementById('equivolume-canvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'equivolume-canvas';
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0';
+    canvas.style.top = '0';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '6';
+    canvas.style.display = 'none';
+    const drawingCanvas = document.getElementById('drawing-canvas');
+    container.insertBefore(canvas, drawingCanvas || null);
+  }
+  equivolumeCanvas = canvas;
+  return canvas;
+}
+
+function clearEquivolumeCanvas() {
+  const canvas = equivolumeCanvas || document.getElementById('equivolume-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  canvas.style.display = 'none';
+}
+
+function resizeEquivolumeCanvas(canvas, container) {
+  const dpr = window.devicePixelRatio || 1;
+  const timeScaleWidth = patternChart && patternChart.timeScale && typeof patternChart.timeScale().width === 'function'
+    ? patternChart.timeScale().width()
+    : 0;
+  const width = Math.max(1, Math.floor(timeScaleWidth || (container.clientWidth || 0) - 72));
+  const height = Math.max(1, Math.floor(container.clientHeight || 0));
+  if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+  const ctx = canvas.getContext('2d');
+  if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { width, height, ctx };
+}
+
+function medianPositive(values) {
+  const vals = values
+    .filter(value => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+  if (!vals.length) return 0;
+  const mid = Math.floor(vals.length / 2);
+  return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+}
+
+function medianSpacingForData(data) {
+  if (!patternChart || !Array.isArray(data) || data.length < 2) return 8;
+  const coords = data
+    .map(bar => patternChart.timeScale().timeToCoordinate(bar.time))
+    .filter(value => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  const gaps = [];
+  for (let i = 1; i < coords.length; i += 1) {
+    const gap = coords[i] - coords[i - 1];
+    if (gap > 0.5) gaps.push(gap);
+  }
+  return medianPositive(gaps) || 8;
+}
+
+function drawEquivolumeCandles(data) {
+  const canvas = ensureEquivolumeCanvas();
+  const container = document.getElementById('chart-container');
+  if (!canvas || !container || !patternChart || !patternSeries || chartDisplayMode !== 'equivol') {
+    clearEquivolumeCanvas();
+    return;
+  }
+
+  const bars = Array.isArray(data) ? data : [];
+  if (!bars.length) {
+    clearEquivolumeCanvas();
+    return;
+  }
+
+  const metrics = resizeEquivolumeCanvas(canvas, container);
+  const ctx = metrics.ctx;
+  if (!ctx) return;
+  ctx.clearRect(0, 0, metrics.width, metrics.height);
+  canvas.style.display = 'block';
+
+  const positiveVolumes = bars
+    .map(bar => Number(bar.volume) || Number(bar.tick_volume) || 0)
+    .filter(volume => Number.isFinite(volume) && volume > 0);
+  const averageVolume = positiveVolumes.length
+    ? positiveVolumes.reduce((sum, volume) => sum + volume, 0) / positiveVolumes.length
+    : 0;
+  if (!averageVolume) {
+    canvas.style.display = 'none';
+    return;
+  }
+
+  const baseSpacing = medianSpacingForData(bars);
+  const minWidth = Math.max(1, baseSpacing * 0.08);
+  const maxWidth = Math.max(minWidth + 1, baseSpacing * 4);
+  const barCoords = bars.map((bar, index) => ({
+    bar,
+    index,
+    x: patternChart.timeScale().timeToCoordinate(bar.time),
+  }));
+  const visibleCoords = barCoords
+    .filter(item => Number.isFinite(item.x))
+    .sort((a, b) => a.x - b.x);
+  const neighborGapByIndex = new Map();
+  visibleCoords.forEach((item, visibleIndex) => {
+    const prev = visibleCoords[visibleIndex - 1];
+    const next = visibleCoords[visibleIndex + 1];
+    const prevGap = prev ? item.x - prev.x : baseSpacing;
+    const nextGap = next ? next.x - item.x : baseSpacing;
+    const availableGap = Math.max(1, Math.min(prevGap || baseSpacing, nextGap || baseSpacing));
+    neighborGapByIndex.set(item.index, availableGap);
+  });
+
+  bars.forEach((bar, index) => {
+    const x = patternChart.timeScale().timeToCoordinate(bar.time);
+    if (!Number.isFinite(x) || x < -maxWidth || x > metrics.width + maxWidth) return;
+
+    const openY = patternSeries.priceToCoordinate(Number(bar.open));
+    const highY = patternSeries.priceToCoordinate(Number(bar.high));
+    const lowY = patternSeries.priceToCoordinate(Number(bar.low));
+    const closeY = patternSeries.priceToCoordinate(Number(bar.close));
+    if (![openY, highY, lowY, closeY].every(Number.isFinite)) return;
+
+    const volume = Math.max(0, Number(bar.volume) || Number(bar.tick_volume) || 0);
+    const volumeRatio = volume > 0 ? volume / averageVolume : 0;
+    const rawWidth = baseSpacing * volumeRatio;
+    const slotWidth = Math.max(minWidth, (neighborGapByIndex.get(index) || baseSpacing) * 0.86);
+    const width = Math.max(minWidth, Math.min(maxWidth, slotWidth, rawWidth));
+    const half = width / 2;
+    const up = Number(bar.close) >= Number(bar.open);
+    const stroke = up ? 'rgba(34, 197, 94, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+    const fill = up ? 'rgba(34, 197, 94, 0.22)' : 'rgba(239, 68, 68, 0.24)';
+    const bodyTop = Math.min(openY, closeY);
+    const bodyBottom = Math.max(openY, closeY);
+    const bodyHeight = Math.max(1, bodyBottom - bodyTop);
+
+    ctx.strokeStyle = stroke;
+    ctx.fillStyle = fill;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, highY);
+    ctx.lineTo(x, lowY);
+    ctx.stroke();
+    ctx.fillRect(x - half, bodyTop, width, bodyHeight);
+    ctx.strokeRect(x - half, bodyTop, width, bodyHeight);
+  });
+}
+
+function scheduleEquivolumeRedraw() {
+  if (chartDisplayMode !== 'equivol') return;
+  if (equivolumeRedrawQueued) return;
+  equivolumeRedrawQueued = true;
+  requestAnimationFrame(() => {
+    equivolumeRedrawQueued = false;
+    drawEquivolumeCandles(equivolumeDisplayData);
+  });
+}
+
+function wireEquivolumeInteractionRedraw(container) {
+  if (equivolumeInteractionRedrawWired) return;
+  equivolumeInteractionRedrawWired = true;
+  const redraw = () => scheduleEquivolumeRedraw();
+  if (container) {
+    container.addEventListener('wheel', redraw, { passive: true });
+    container.addEventListener('mousemove', redraw);
+    container.addEventListener('touchmove', redraw, { passive: true });
+  }
+  window.addEventListener('mousemove', redraw);
+  window.addEventListener('mouseup', redraw);
+  window.addEventListener('touchmove', redraw, { passive: true });
+  window.addEventListener('touchend', redraw);
+}
+
 function initPatternChart() {
   const container = document.getElementById('pattern-chart');
   container.innerHTML = '';
+  ensureEquivolumeCanvas();
+  wireEquivolumeInteractionRedraw(document.getElementById('chart-container'));
   baseBoxSeries = null;
   patternMarkersPrimitive = null;
 
@@ -98,6 +295,16 @@ function initPatternChart() {
         wickDownColor: '#ef4444',
         wickUpColor: '#22c55e',
       };
+  if (chartDisplayMode === 'equivol' && hasUsableEquivolume(equivolumeDisplayData)) {
+    Object.assign(seriesOptions, {
+      upColor: 'rgba(34, 197, 94, 0)',
+      downColor: 'rgba(239, 68, 68, 0)',
+      borderUpColor: 'rgba(34, 197, 94, 0)',
+      borderDownColor: 'rgba(239, 68, 68, 0)',
+      wickUpColor: 'rgba(34, 197, 94, 0)',
+      wickDownColor: 'rgba(239, 68, 68, 0)',
+    });
+  }
   patternSeries = patternChart.addSeries(LightweightCharts.CandlestickSeries, seriesOptions);
 
   if (typeof ciBindToChart === 'function') {
@@ -115,6 +322,7 @@ function initPatternChart() {
         width: container.clientWidth,
         height: container.clientHeight
       });
+      scheduleEquivolumeRedraw();
     }
   });
 
@@ -130,6 +338,7 @@ function initPatternChart() {
 
   patternChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
     redrawAllDrawings();
+    scheduleEquivolumeRedraw();
   });
 
   startDrawingUpdateLoop();
@@ -564,9 +773,10 @@ async function drawPatternChart(candidate) {
       return;
     }
     // Marker-only or browse-stub candidate: fetch OHLCV then re-render.
-    const tfMap = { W: '1wk', D: '1d', '4h': '4h', '1h': '1h', M: '1mo' };
+    const tfMap = { W: '1wk', D: '1d', '1m': '1m', '5m': '5m', '15m': '15m', '4h': '4h', '1h': '1h', M: '1mo' };
     const interval = tfMap[candidate.timeframe] || '1wk';
-    const period = (interval === '1h' || interval === '4h') ? '730d' : 'max';
+    const periodMap = { '1m': '7d', '5m': '60d', '15m': '60d', '1h': '730d', '4h': '730d' };
+    const period = periodMap[interval] || 'max';
     const chartEl = document.getElementById('pattern-chart');
     if (chartEl) chartEl.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500 text-sm">Loading chart…</div>';
     try {
@@ -610,6 +820,32 @@ async function drawPatternChart(candidate) {
 
   const safeData = sanitizeChartData(candidate.chart_data);
   if (safeData.length === 0) return;
+  const displayData = buildChartDisplayData(safeData);
+  if (displayData.length === 0) return;
+  equivolumeDisplayData = safeData;
+  if (chartDisplayMode === 'equivol' && !hasUsableEquivolume(safeData) && patternSeries) {
+    patternSeries.applyOptions(
+      window.SharedChartUtils && typeof window.SharedChartUtils.getCandlestickSeriesOptions === 'function'
+        ? window.SharedChartUtils.getCandlestickSeriesOptions()
+        : {
+            upColor: '#22c55e',
+            downColor: '#ef4444',
+            borderUpColor: '#22c55e',
+            borderDownColor: '#ef4444',
+            wickUpColor: '#22c55e',
+            wickDownColor: '#ef4444',
+          }
+    );
+  } else if (chartDisplayMode === 'equivol' && hasUsableEquivolume(safeData) && patternSeries) {
+    patternSeries.applyOptions({
+      upColor: 'rgba(34, 197, 94, 0)',
+      downColor: 'rgba(239, 68, 68, 0)',
+      borderUpColor: 'rgba(34, 197, 94, 0)',
+      borderDownColor: 'rgba(239, 68, 68, 0)',
+      wickUpColor: 'rgba(34, 197, 94, 0)',
+      wickDownColor: 'rgba(239, 68, 68, 0)',
+    });
+  }
   currentDisplayData = {
     ...(currentDisplayData && typeof currentDisplayData === 'object' ? currentDisplayData : {}),
     ...candidate,
@@ -617,10 +853,12 @@ async function drawPatternChart(candidate) {
     timeframe: candidate.timeframe || currentDisplayData?.timeframe || 'D',
     pattern_type: candidate.pattern_type || currentDisplayData?.pattern_type || 'candidate',
     chart_data: safeData,
+    display_chart_data: displayData,
+    chart_display_mode: chartDisplayMode,
   };
-  try { patternSeries.setData(safeData); } catch (e) { console.warn('Chart setData error:', e.message); return; }
+  try { patternSeries.setData(displayData); } catch (e) { console.warn('Chart setData error:', e.message); return; }
 
-  const markers = buildCandidateMarkers(candidate, safeData);
+  const markers = buildCandidateMarkers(candidate, chartDisplayMode === 'equivol' ? displayData : safeData);
   try { setPatternMarkers(markers); } catch (e) { console.warn('setMarkers error:', e.message); }
 
   // Base box
@@ -665,6 +903,11 @@ async function drawPatternChart(candidate) {
   }
 
   patternChart.timeScale().fitContent();
+  if (chartDisplayMode === 'equivol') {
+    scheduleEquivolumeRedraw();
+  } else {
+    clearEquivolumeCanvas();
+  }
   resizeDrawingCanvas();
 }
 
@@ -855,6 +1098,50 @@ let _chartCurrentSymbol = '';
 let _chartCurrentInterval = '';
 let _chartCurrentPluginId = '';
 
+function _updateChartDisplayModeButtonStyles() {
+  document.querySelectorAll('.chart-display-mode-btn').forEach(btn => {
+    const mode = btn.getAttribute('data-chart-display-mode');
+    if (mode === chartDisplayMode) {
+      btn.style.background = '#42596d';
+      btn.style.color = '#e8e8e4';
+      btn.style.borderColor = '#7f9bb8';
+    } else {
+      btn.style.background = '#222224';
+      btn.style.color = '#a8a8a4';
+      btn.style.borderColor = '#333335';
+    }
+  });
+}
+
+async function setChartDisplayMode(mode) {
+  const nextMode = mode === 'equivol' ? 'equivol' : 'time';
+  if (nextMode === chartDisplayMode) return;
+  chartDisplayMode = nextMode;
+  localStorage.setItem('scanner-chart-display-mode', chartDisplayMode);
+  _updateChartDisplayModeButtonStyles();
+  if (currentDisplayData && Array.isArray(currentDisplayData.chart_data) && currentDisplayData.chart_data.length) {
+    const candidate = {
+      ...currentDisplayData,
+      chart_data: currentDisplayData.chart_data,
+    };
+    await drawPatternChart(candidate);
+  }
+}
+
+function wireChartDisplayModeButtons() {
+  const wrap = document.getElementById('chart-display-mode-btns');
+  if (!wrap || wrap.dataset.displayModeWired === '1') return;
+  wrap.dataset.displayModeWired = '1';
+  _updateChartDisplayModeButtonStyles();
+  wrap.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('.chart-display-mode-btn');
+    if (!btn || !wrap.contains(btn)) return;
+    e.preventDefault();
+    const mode = btn.getAttribute('data-chart-display-mode');
+    void setChartDisplayMode(mode).catch((err) => console.error('setChartDisplayMode:', err));
+  });
+}
+
 function _updateTfButtonStyles(activeInterval) {
   document.querySelectorAll('.chart-tf-btn').forEach(btn => {
     const tf = btn.getAttribute('data-tf');
@@ -885,7 +1172,7 @@ function resolveScannerChartInterval(candidate) {
   if (!candidate || typeof candidate !== 'object') return '1d';
   const rawTf = String(candidate.timeframe || '').trim();
   const rawIv = String(candidate.interval || '').trim();
-  const yahoo = ['1h', '4h', '1d', '1wk', '1mo'];
+  const yahoo = ['1m', '5m', '15m', '1h', '4h', '1d', '1wk', '1mo'];
   if (yahoo.includes(rawTf)) return rawTf;
   if (yahoo.includes(rawIv)) return rawIv;
   const letter = (rawTf || rawIv || '').toUpperCase();
@@ -893,11 +1180,17 @@ function resolveScannerChartInterval(candidate) {
     W: '1wk',
     D: '1d',
     M: '1mo',
+    '1M': '1m',
+    '5M': '5m',
+    '15M': '15m',
     '1H': '1h',
     '4H': '4h',
   };
   if (letterMap[letter]) return letterMap[letter];
   const lower = (rawTf || rawIv || '').toLowerCase();
+  if (lower === '1m' || lower === 'minute' || lower === '1min') return '1m';
+  if (lower === '5m' || lower === '5min') return '5m';
+  if (lower === '15m' || lower === '15min') return '15m';
   if (lower === '1h' || lower === 'h') return '1h';
   if (lower === '4h') return '4h';
   if (lower === '1d' || lower === 'd' || lower === 'day' || lower === 'daily') return '1d';
@@ -947,7 +1240,7 @@ async function switchChartTimeframe(newInterval) {
   if (newInterval === _chartCurrentInterval) return;
 
   const prevInterval = _chartCurrentInterval;
-  const timeframeMap = { '1h': '1h', '4h': '4h', '1d': 'D', '1wk': 'W', '1mo': 'M' };
+  const timeframeMap = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': 'D', '1wk': 'W', '1mo': 'M' };
   const timeframe = timeframeMap[newInterval] || 'D';
   const pluginId = String(document.getElementById('scan-indicator-select')?.value || '').trim()
     || (document.getElementById('scan-indicator-select') ? '' : _chartCurrentPluginId);
@@ -973,7 +1266,7 @@ async function switchChartTimeframe(newInterval) {
 
   try {
     const API_URL = window.API_URL || '';
-    const periodMap = { '1h': '730d', '4h': '730d', '1d': 'max', '1wk': 'max', '1mo': 'max' };
+    const periodMap = { '1m': '7d', '5m': '60d', '15m': '60d', '1h': '730d', '4h': '730d', '1d': 'max', '1wk': 'max', '1mo': 'max' };
     const chartPeriod = periodMap[newInterval] || '2y';
     let fullChartBars = [];
     const preserveSwingDisplay = typeof swingDisplayActive !== 'undefined' ? swingDisplayActive : false;
@@ -1080,6 +1373,7 @@ function wireChartTimeframeButtons() {
 
 function initChartTimeframeButtons() {
   wireChartTimeframeButtons();
+  wireChartDisplayModeButtons();
 }
 
 if (document.readyState === 'loading') {
@@ -1090,3 +1384,4 @@ if (document.readyState === 'loading') {
 
 window.switchChartTimeframe = switchChartTimeframe;
 window.wireChartTimeframeButtons = wireChartTimeframeButtons;
+window.setChartDisplayMode = setChartDisplayMode;

@@ -23,17 +23,23 @@ let activeRunContext = null;
 let runPollTimer = null;
 let strategyEditorMode = 'new';
 let validatorChatMessages = [];
-const DEFAULT_VALIDATION_TIER = 'tier1';
+const DEFAULT_VALIDATION_TIER = 'evidence_100';
 const VALIDATOR_BUCKET_COLLAPSE_STORAGE_KEY = 'validator_page_bucket_collapsed';
 let activeTierConfig = null;
 let collapsedStrategyBuckets = loadCollapsedStrategyBuckets();
 const VALIDATION_TIER_LABELS = {
+  evidence_50: 'Evidence 50 trades - early signal',
+  evidence_100: 'Evidence 100 trades - useful sample',
+  evidence_200: 'Evidence 200 trades - statistical read',
+  evidence_500: 'Evidence 500 trades - strong sample',
+  full_clean: 'Full clean universe - confirmation',
   tier1: 'Tier 1 - Kill Test',
   tier1s: 'Tier 1S - Kill Test + Sensitivity',
   tier1b: 'Tier 1B - Evidence Expansion',
   tier1bs: 'Tier 1BS - Evidence Expansion + Sensitivity',
   tier2: 'Tier 2 - Core Validation',
   tier3: 'Tier 3 - Robustness',
+  clean: 'Clean Universe',
   large_cap_known: 'Large Cap (Known)',
   sp500: 'S&P 500',
   sp400: 'S&P 400',
@@ -50,12 +56,18 @@ const VALIDATION_TIER_LABELS = {
   regime_markdown: 'Regime: Markdown',
 };
 const VALIDATION_TIER_DESCRIPTIONS = {
+  evidence_50: 'Use the clean universe source pool and expand evidence until roughly 50 qualifying trades are available. Current backend runs the clean universe path.',
+  evidence_100: 'Use the clean universe source pool and target roughly 100 qualifying trades for a useful sample. Current backend runs the clean universe path.',
+  evidence_200: 'Use the clean universe source pool and target roughly 200 qualifying trades for a stronger statistical read. Current backend runs the clean universe path.',
+  evidence_500: 'Use the clean universe source pool and target roughly 500 qualifying trades if the setup is common enough. Current backend runs the clean universe path.',
+  full_clean: 'Run the full eligible clean universe for confirmation after settings are chosen.',
   tier1: 'Fast mixed-cap kill test on 52 stocks: 13 large + 13 mid + 13 small + 13 micro.',
   tier1s: 'Same 52-stock mixed-cap Tier 1 kill test, but with parameter sensitivity analysis.',
   tier1b: 'Mixed-cap evidence expansion on 100 stocks: 25 large + 25 mid + 25 small + 25 micro.',
   tier1bs: 'Same 100-stock mixed-cap Tier 1B universe, but with parameter sensitivity analysis.',
   tier2: 'Core mixed-cap validation on 200 stocks: 50 large + 50 mid + 50 small + 50 micro. Requires Tier 1 or Tier 1B PASS.',
   tier3: 'Non-overlapping mixed-cap holdout robustness test on 180 stocks: 45 large + 45 mid + 45 small + 45 micro. Requires Tier 2 PASS.',
+  clean: 'Broad rule-filtered clean-stock evidence expansion for rare signals.',
   large_cap_known: 'Quick large-cap spot check.',
   sp500: 'Large-cap benchmark universe.',
   sp400: 'Mid-cap benchmark universe.',
@@ -72,12 +84,18 @@ const VALIDATION_TIER_DESCRIPTIONS = {
   regime_markdown: 'Declining markdown regime.',
 };
 const RUN_TIER_BADGE_LABELS = {
+  evidence_50: 'Evidence 50',
+  evidence_100: 'Evidence 100',
+  evidence_200: 'Evidence 200',
+  evidence_500: 'Evidence 500',
+  full_clean: 'Full Clean',
   tier1: 'Tier 1 Mixed Cap',
   tier1s: 'Tier 1S Mixed Cap',
   tier1b: 'Tier 1B Mixed Cap',
   tier1bs: 'Tier 1BS Mixed Cap',
   tier2: 'Tier 2 Mixed Cap',
   tier3: 'Tier 3 Mixed Cap',
+  clean: 'Clean Universe',
   large_cap_known: 'Known Large Caps',
   sp500: 'S&P 500 Large Caps',
   sp400: 'S&P 400 Mid Caps',
@@ -95,29 +113,17 @@ const RUN_TIER_BADGE_LABELS = {
 };
 const VALIDATION_TIER_GROUPS = [
   {
-    label: 'Validation Ladder',
-    keys: ['tier1', 'tier1s', 'tier1b', 'tier1bs', 'tier2', 'tier3'],
-  },
-  {
-    label: 'Benchmark Universes',
-    keys: ['large_cap_known', 'sp500', 'sp400', 'sp600'],
-  },
-  {
-    label: 'Regime Universes',
-    keys: [
-      'valuation_regime_undervalued_sample100',
-      'valuation_regime_undervalued',
-      'valuation_regime_fair_sample100',
-      'valuation_regime_fair',
-      'valuation_regime_overvalued_sample100',
-      'valuation_regime_overvalued',
-      'regime_expansion',
-      'regime_distribution',
-      'regime_accumulation',
-      'regime_markdown',
-    ],
+    label: 'Trade Evidence Targets',
+    keys: ['evidence_50', 'evidence_100', 'evidence_200', 'evidence_500', 'full_clean'],
   },
 ];
+const EVIDENCE_TARGET_TRADE_COUNTS = {
+  evidence_50: 50,
+  evidence_100: 100,
+  evidence_200: 200,
+  evidence_500: 500,
+};
+const EVIDENCE_MODE_KEYS = new Set([...Object.keys(EVIDENCE_TARGET_TRADE_COUNTS), 'full_clean']);
 const FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS = {
   futures: {
     tier1: ['ES=F', 'NQ=F', 'CL=F'],
@@ -383,6 +389,8 @@ function isTooFewTradesOnlyFail(report) {
 
 function getDisplayVerdict(report) {
   const verdict = String(report?.pass_fail || '').toUpperCase();
+  if (verdict === 'PROMISING_BUT_NOT_VALIDATED') return 'PROMISING_BUT_NOT_VALIDATED';
+  if (verdict === 'INSUFFICIENT_DATA') return 'INSUFFICIENT_DATA';
   if (verdict !== 'FAIL') return verdict || 'N/A';
   return isTooFewTradesOnlyFail(report) ? 'FAIL' : 'HARD_FAIL';
 }
@@ -429,6 +437,20 @@ function getStrategyValidationBadge(strategy) {
       key: 'fail',
       label: 'Fail',
       title: `Latest validation failed${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  if (displayVerdict === 'PROMISING_BUT_NOT_VALIDATED') {
+    return {
+      key: 'review',
+      label: 'Promising',
+      title: `Positive edge but insufficient validation sample${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
+    };
+  }
+  if (displayVerdict === 'INSUFFICIENT_DATA') {
+    return {
+      key: 'review',
+      label: 'Insufficient Data',
+      title: `Sample too small for statistical validation${summary.validation_tier ? ` (${summary.validation_tier})` : ''}`,
     };
   }
   return {
@@ -663,7 +685,19 @@ function buildFallbackTierConfig(assetClass) {
   const key = normalizeAssetClassKey(assetClass);
   const byClass = FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS[key] || FALLBACK_TIER_UNIVERSES_BY_ASSET_CLASS.stocks;
   const tiers = {};
+  const cleanSymbols = Array.isArray(byClass.clean) ? byClass.clean.slice() : [];
+  for (const evidenceKey of EVIDENCE_MODE_KEYS) {
+    tiers[evidenceKey] = {
+      key: evidenceKey,
+      label: VALIDATION_TIER_LABELS[evidenceKey] || evidenceKey,
+      description: VALIDATION_TIER_DESCRIPTIONS[evidenceKey] || '',
+      symbols: cleanSymbols,
+      backend_tier: 'clean',
+      evidence_target_trades: EVIDENCE_TARGET_TRADE_COUNTS[evidenceKey] || null,
+    };
+  }
   for (const tierKey of Object.keys(VALIDATION_TIER_LABELS)) {
+    if (tiers[tierKey]) continue;
     tiers[tierKey] = {
       key: tierKey,
       label: VALIDATION_TIER_LABELS[tierKey] || tierKey,
@@ -691,10 +725,30 @@ function getRunTierOptionLabel(key, tier) {
   return `${label} — ${symbols.length} symbols`;
 }
 
+function withEvidenceTierOptions(config) {
+  const next = {
+    ...(config || {}),
+    tiers: { ...((config && config.tiers) || {}) },
+  };
+  const cleanTier = next.tiers.clean || {};
+  const cleanSymbols = Array.isArray(cleanTier.symbols) ? cleanTier.symbols.slice() : [];
+  for (const evidenceKey of EVIDENCE_MODE_KEYS) {
+    next.tiers[evidenceKey] = {
+      key: evidenceKey,
+      label: VALIDATION_TIER_LABELS[evidenceKey] || evidenceKey,
+      description: VALIDATION_TIER_DESCRIPTIONS[evidenceKey] || '',
+      symbols: cleanSymbols,
+      backend_tier: 'clean',
+      evidence_target_trades: EVIDENCE_TARGET_TRADE_COUNTS[evidenceKey] || null,
+    };
+  }
+  return next;
+}
+
 function refreshRunTierSelectOptions(preferredValue = null) {
   const select = document.getElementById('run-validation-tier');
   if (!select) return;
-  const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
+  const config = withEvidenceTierOptions(activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class));
   const tiers = config?.tiers || {};
   const requested = String(preferredValue || select.value || DEFAULT_VALIDATION_TIER).trim().toLowerCase();
   const seen = new Set();
@@ -715,20 +769,7 @@ function refreshRunTierSelectOptions(preferredValue = null) {
     select.appendChild(optgroup);
   }
 
-  const extraKeys = Object.keys(tiers).filter((key) => !seen.has(key));
-  if (extraKeys.length) {
-    const optgroup = document.createElement('optgroup');
-    optgroup.label = 'Other Universes';
-    for (const key of extraKeys) {
-      const option = document.createElement('option');
-      option.value = key;
-      option.textContent = getRunTierOptionLabel(key, tiers[key]);
-      optgroup.appendChild(option);
-    }
-    select.appendChild(optgroup);
-  }
-
-  select.value = tiers[requested] ? requested : DEFAULT_VALIDATION_TIER;
+  select.value = seen.has(requested) ? requested : DEFAULT_VALIDATION_TIER;
   updateTierOptionLocks();
 }
 
@@ -777,13 +818,17 @@ function onRunAssetClassChange() {
 
 function getRunTierKey() {
   const key = getRunTierRawValue();
-  const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
+  const config = withEvidenceTierOptions(activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class));
   return (config?.tiers?.[key] || VALIDATION_TIER_LABELS[key]) ? key : DEFAULT_VALIDATION_TIER;
+}
+
+function getBackendValidationTier(tierKey) {
+  return EVIDENCE_MODE_KEYS.has(String(tierKey || '').trim().toLowerCase()) ? 'clean' : tierKey;
 }
 
 function getTierContext(tierKey) {
   const key = String(tierKey || '').trim().toLowerCase();
-  const config = activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class);
+  const config = withEvidenceTierOptions(activeTierConfig || buildFallbackTierConfig(selectedStrategy?.asset_class));
   const tier = config?.tiers?.[key];
   if (!tier) return null;
   return {
@@ -836,7 +881,7 @@ function getLatestTierReport(tierKey) {
 
 function isTier1BEligibleReport(report) {
   if (!report) return false;
-  if (report.pass_fail === 'NEEDS_REVIEW') return true;
+  if (report.pass_fail === 'NEEDS_REVIEW' || report.pass_fail === 'PROMISING_BUT_NOT_VALIDATED') return true;
   if (report.pass_fail !== 'FAIL') return false;
   const reasons = Array.isArray(report.pass_fail_reasons) ? report.pass_fail_reasons : [];
   return reasons.length > 0 && reasons.every((reason) => /too few trades/i.test(String(reason || '')));
@@ -957,7 +1002,7 @@ function renderReportContent() {
             </span>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-8);">
-            <span class="verdict-badge ${displayVerdict}">${displayVerdict.replace('_', ' ')}</span>
+            <span class="verdict-badge ${displayVerdict}">${displayVerdict.replace(/_/g, ' ')}</span>
             ${decision !== 'pending' ? 
               `<span class="status-badge ${decision}">${decision}</span>` : ''}
           </div>
@@ -1047,6 +1092,7 @@ function renderReportDetail(report) {
   const wf = rob.walk_forward || {};
   const mc = rob.monte_carlo || {};
   const ps = rob.parameter_sensitivity || {};
+  const fundamental = r.fundamental_validation || {};
   const valuation = r.valuation_validation || {};
   const valuationCfg = valuation.config || {};
   const universe = Array.isArray(cfg.universe) ? cfg.universe : [];
@@ -1065,6 +1111,20 @@ function renderReportDetail(report) {
   const maxMcP95 = num(thr.max_mc_p95_dd_pct || 30);
   const maxMcP99 = num(thr.max_mc_p99_dd_pct || 50);
   const maxSens = num(thr.max_sensitivity_score || 40);
+  const rConversion = fundamental.r_conversion || {};
+  const rToPct = num(rConversion.r_to_pct || thr.r_to_pct);
+  const rConversionMode = String(rConversion.mode || thr.r_conversion_mode || '');
+  const rConversionLabel = rToPct > 0
+    ? `R conversion: 1R = ${formatPct(rToPct / 100)}${rConversionMode === 'stop_loss_pct' ? ' stop loss' : ' return'}`
+    : '';
+  const evidenceTarget = num(cfg.evidence_target_trades);
+  const evidenceMode = String(cfg.evidence_mode || '').trim();
+  const evidenceSourceSize = num(cfg.evidence_source_universe_size || universe.length);
+  const evidenceSymbolsProcessed = num(cfg.evidence_symbols_processed || cfg.tier1_symbols_processed || universe.length);
+  const evidenceSymbolsWithTrades = num(cfg.evidence_symbols_with_trades);
+  const evidenceCandidateRows = num(cfg.evidence_candidate_rows_examined);
+  const evidenceTradesPerProcessedSymbol = num(cfg.evidence_trades_per_processed_symbol);
+  const showEvidenceDiagnostics = Boolean(evidenceMode || evidenceTarget || cfg.evidence_symbols_processed != null || cfg.evidence_symbols_with_trades != null);
   const displayVerdict = getDisplayVerdict(r);
   
   let html = '';
@@ -1073,7 +1133,7 @@ function renderReportDetail(report) {
   const totalTrades = num(ts.total_trades);
   html += `
     <div style="display:flex;align-items:center;gap:var(--space-16);margin-bottom:var(--space-16);flex-wrap:wrap;">
-      <span class="verdict-badge ${displayVerdict}" style="font-size:var(--text-h3);padding:var(--space-8) var(--space-24);">${displayVerdict.replace('_', ' ')}</span>
+      <span class="verdict-badge ${displayVerdict}" style="font-size:var(--text-h3);padding:var(--space-8) var(--space-24);">${displayVerdict.replace(/_/g, ' ')}</span>
       <div>
         <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">
           ${escHtml(cfg.date_start || 'N/A')} &rarr; ${escHtml(cfg.date_end || 'N/A')} &middot;
@@ -1087,6 +1147,11 @@ function renderReportDetail(report) {
         <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;">
           Costs: $${num(costs.commission_per_trade).toFixed(2)}/trade + ${num(costs.slippage_pct).toFixed(3)}% slippage
         </div>
+        ${rConversionLabel ? `
+          <div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin-top:2px;">
+            ${escHtml(rConversionLabel)}
+          </div>
+        ` : ''}
       </div>
       <div style="margin-left:auto;display:flex;gap:var(--space-8);align-items:center;flex-shrink:0;">
         <button
@@ -1137,6 +1202,32 @@ function renderReportDetail(report) {
   html += metricCard('Best Trade', formatR(ts.largest_win_R), true);
   html += metricCard('Worst Trade', formatR(ts.largest_loss_R), false);
   html += `</div>`;
+
+  if (showEvidenceDiagnostics) {
+    html += `<div class="section-title">Evidence Efficiency</div>`;
+    html += `<div class="metrics-grid cols-5" style="margin-bottom:var(--space-12);">`;
+    html += metricCard('Target Trades', evidenceTarget ? intNum(evidenceTarget) : 'Full');
+    html += metricCard('Collected Trades', intNum(ts.total_trades), evidenceTarget ? num(ts.total_trades) >= evidenceTarget : true);
+    html += metricCard('Symbols Processed', `${intNum(evidenceSymbolsProcessed)} / ${intNum(evidenceSourceSize)}`);
+    html += metricCard('Symbols With Trades', intNum(evidenceSymbolsWithTrades));
+    html += metricCard('Trades / Symbol', evidenceTradesPerProcessedSymbol.toFixed(3), evidenceTradesPerProcessedSymbol > 0);
+    html += `</div>`;
+    if (evidenceCandidateRows > 0) {
+      html += `<div style="font-size:var(--text-caption);color:var(--color-text-subtle);margin:-6px 0 var(--space-12);">Candidate rows examined before stop: ${escHtml(intNum(evidenceCandidateRows))}</div>`;
+    }
+  }
+
+  if (fundamental.enabled && fundamental.status === 'completed' && fundamental.summary?.summary) {
+    const fsum = fundamental.summary.summary || {};
+    html += `<div class="section-title">Fundamental Backtest</div>`;
+    html += `<div class="metrics-grid cols-5" style="margin-bottom:var(--space-12);">`;
+    html += metricCard('Candidates', intNum(fundamental.summary.candidate_count));
+    html += metricCard('Avg Return', num(fsum.avg_return_pct).toFixed(1) + '%', num(fsum.avg_return_pct) > 0);
+    html += metricCard('Median Return', num(fsum.median_return_pct).toFixed(1) + '%', num(fsum.median_return_pct) > 0);
+    html += metricCard('Beat Benchmark', formatPct(fsum.beat_benchmark_rate), num(fsum.beat_benchmark_rate) >= 0.5);
+    html += metricCard('Outlier Dep.', formatPct(fsum.outlier_dependency), num(fsum.outlier_dependency) < 0.2);
+    html += `</div>`;
+  }
 
   if (valuation.enabled && valuation.status === 'completed') {
     const selected = valuation.selected || {};
@@ -1368,15 +1459,18 @@ function renderValidationCriteria(report) {
   const maxMcP95 = num(thr.max_mc_p95_dd_pct || 30);
   const maxMcP99 = num(thr.max_mc_p99_dd_pct || 50);
   const maxSens = num(thr.max_sensitivity_score || 40);
+  const oosReliable = oos.reliable !== false;
+  const wfReliable = wf.reliable !== false;
+  const mcReliable = mc.reliable !== false;
 
   const checks = [
-    { label: 'Expectancy R', threshold: '> 0', actual: num(ts.expectancy_R), ok: num(ts.expectancy_R) > 0 },
-    { label: 'Total Trades', threshold: `>= ${minTradesPass}`, actual: intNum(ts.total_trades), ok: intNum(ts.total_trades) >= minTradesPass },
-    { label: 'OOS Expectancy', threshold: '> 0', actual: num(oos.oos_expectancy), ok: num(oos.oos_expectancy) > 0 },
-    { label: 'OOS Degradation %', threshold: `< ${maxOosDeg}%`, actual: pctNum(oos.oos_degradation_pct), ok: num(oos.oos_degradation_pct) < maxOosDeg },
-    { label: 'WF Profitable Windows %', threshold: `>= ${(minWfProf * 100).toFixed(1)}%`, actual: ratioPct(wf.pct_profitable_windows), ok: num(wf.pct_profitable_windows) >= minWfProf },
-    { label: 'Monte Carlo p95 DD %', threshold: `< ${maxMcP95}%`, actual: pctNum(mc.p95_dd_pct), ok: num(mc.p95_dd_pct) < maxMcP95 },
-    { label: 'Monte Carlo p99 DD %', threshold: `<= ${maxMcP99}% (hard fail if >${maxMcP99}%)`, actual: pctNum(mc.p99_dd_pct), ok: num(mc.p99_dd_pct) <= maxMcP99 },
+    { label: 'Expectancy R', threshold: '> 0', actual: num(ts.expectancy_R), ok: num(ts.expectancy_R) > 0, explanation: 'Average R gained or lost per trade.' },
+    { label: 'Total Trades', threshold: `>= ${minTradesPass}`, actual: intNum(ts.total_trades), ok: intNum(ts.total_trades) >= minTradesPass, explanation: intNum(ts.total_trades) < 30 ? 'Trade sample is too small for reliable expectancy, OOS, walk-forward, or Monte Carlo analysis.' : 'Trade sample is large enough for basic statistical review.' },
+    { label: 'OOS Expectancy', threshold: '> 0', actual: oosReliable ? num(oos.oos_expectancy) : 'unreliable', ok: oosReliable && num(oos.oos_expectancy) > 0, unreliable: !oosReliable, explanation: oos.reliability_note || 'Out-of-sample expectancy on unseen time period.' },
+    { label: 'OOS Degradation %', threshold: `< ${maxOosDeg}%`, actual: oosReliable ? pctNum(oos.oos_degradation_pct) : 'unreliable', ok: oosReliable && num(oos.oos_degradation_pct) < maxOosDeg, unreliable: !oosReliable, explanation: oos.reliability_note || 'Performance decay from in-sample to out-of-sample.' },
+    { label: 'WF Profitable Windows %', threshold: `>= ${(minWfProf * 100).toFixed(1)}%`, actual: wfReliable ? ratioPct(wf.pct_profitable_windows) : 'unreliable', ok: wfReliable && num(wf.pct_profitable_windows) >= minWfProf, unreliable: !wfReliable, explanation: wf.reliability_note || 'Share of valid walk-forward windows with positive expectancy.' },
+    { label: 'Monte Carlo p95 DD %', threshold: `< ${maxMcP95}%`, actual: mcReliable ? pctNum(mc.p95_dd_pct) : 'unreliable', ok: mcReliable && num(mc.p95_dd_pct) < maxMcP95, unreliable: !mcReliable, explanation: mc.reliability_note || '95th percentile simulated drawdown.' },
+    { label: 'Monte Carlo p99 DD %', threshold: `<= ${maxMcP99}% (hard fail if >${maxMcP99}%)`, actual: mcReliable ? pctNum(mc.p99_dd_pct) : 'unreliable', ok: mcReliable && num(mc.p99_dd_pct) <= maxMcP99, unreliable: !mcReliable, explanation: mc.reliability_note || '99th percentile simulated drawdown.' },
     { label: 'Sensitivity Score', threshold: `< ${maxSens}`, actual: num(ps.sensitivity_score), ok: num(ps.sensitivity_score) < maxSens },
   ];
 
@@ -1391,22 +1485,25 @@ function renderValidationCriteria(report) {
   `;
 
   for (const c of checks) {
+    const status = c.unreliable ? 'unreliable' : c.ok ? 'pass' : 'fail';
+    const badgeClass = c.unreliable ? 'needs-review' : c.ok ? 'approved' : 'rejected';
     html += `
       <div style="display:grid;grid-template-columns:2fr 1.2fr 1fr .8fr;gap:var(--space-8);font-size:var(--text-small);padding:var(--space-8) 0;border-bottom:1px solid var(--color-border-subtle);">
         <div>${escHtml(c.label)}</div>
         <div class="text-mono">${escHtml(String(c.threshold))}</div>
         <div class="text-mono">${escHtml(String(c.actual))}</div>
-        <div><span class="status-badge ${c.ok ? 'approved' : 'rejected'}">${c.ok ? 'pass' : 'fail'}</span></div>
+        <div><span class="status-badge ${badgeClass}">${status}</span></div>
+        ${c.explanation ? `<div style="grid-column:1 / -1;color:var(--color-text-subtle);font-size:var(--text-caption);">${escHtml(c.explanation)}</div>` : ''}
       </div>
     `;
   }
 
-  window.__validationCopyText = checks.map(c => `${c.label}\t${c.threshold}\t${c.actual}\t${c.ok ? 'pass' : 'fail'}`).join('\n') + `\nFinal verdict: ${displayVerdict.replace('_', ' ')}`;
+  window.__validationCopyText = checks.map(c => `${c.label}\t${c.threshold}\t${c.actual}\t${c.unreliable ? 'unreliable' : c.ok ? 'pass' : 'fail'}\t${c.explanation || ''}`).join('\n') + `\nFinal verdict: ${displayVerdict.replace(/_/g, ' ')}`;
 
   html += `
     <div style="margin-top:var(--space-10);display:flex;align-items:center;gap:var(--space-12);">
       <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">
-        Final verdict: <span class="verdict-badge ${displayVerdict}" style="margin-left:var(--space-6);">${displayVerdict.replace('_', ' ')}</span>
+        Final verdict: <span class="verdict-badge ${displayVerdict}" style="margin-left:var(--space-6);">${displayVerdict.replace(/_/g, ' ')}</span>
       </div>
       <button id="copy-validation-btn" style="font-size:var(--text-caption);padding:var(--space-4) var(--space-10);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);color:var(--color-text-subtle);cursor:pointer;">Copy Report</button>
     </div>
@@ -1606,19 +1703,20 @@ async function submitRunValidation() {
   const dateStart = document.getElementById('run-date-start').value;
   const dateEnd = document.getElementById('run-date-end').value;
   const tierKey = getRunTierKey();
+  const backendTierKey = getBackendValidationTier(tierKey);
   const context = getTierContext(tierKey);
   if (!context) return;
   const valuationForwardBars = Math.max(1, Math.round(Number(document.getElementById('run-valuation-forward-bars')?.value || 13)));
   const valuationRebalanceFrequency = String(document.getElementById('run-valuation-rebalance')?.value || 'monthly').trim().toLowerCase();
-  if (tierKey === 'tier1b' && !isTier1BEligibleReport(getLatestTierReport('tier1'))) {
+  if (!EVIDENCE_MODE_KEYS.has(tierKey) && tierKey === 'tier1b' && !isTier1BEligibleReport(getLatestTierReport('tier1'))) {
     alert('Tier 1B requires a Tier 1 result that looks viable but lacks enough trades.');
     return;
   }
-  if (tierKey === 'tier2' && !(strategyHasTierPass('tier1') || strategyHasTierPass('tier1b'))) {
+  if (!EVIDENCE_MODE_KEYS.has(tierKey) && tierKey === 'tier2' && !(strategyHasTierPass('tier1') || strategyHasTierPass('tier1b'))) {
     alert('Tier 2 requires a PASS on Tier 1 or Tier 1B first.');
     return;
   }
-  if (tierKey === 'tier3' && !strategyHasTierPass('tier2')) {
+  if (!EVIDENCE_MODE_KEYS.has(tierKey) && tierKey === 'tier3' && !strategyHasTierPass('tier2')) {
     alert('Tier 3 requires a PASS on Tier 2 first.');
     return;
   }
@@ -1630,9 +1728,11 @@ async function submitRunValidation() {
       strategy_version_id: selectedStrategy.strategy_version_id,
       date_start: dateStart,
       date_end: dateEnd,
-      tier: tierKey,
+      tier: backendTierKey,
       interval: document.getElementById('run-validation-interval')?.value || undefined,
       asset_class: document.getElementById('run-validation-asset-class')?.value || undefined,
+      evidence_target_trades: EVIDENCE_TARGET_TRADE_COUNTS[tierKey] || undefined,
+      evidence_mode: EVIDENCE_MODE_KEYS.has(tierKey) ? tierKey : undefined,
       valuation_forward_bars: valuationForwardBars,
       valuation_rebalance_frequency: valuationRebalanceFrequency === 'quarterly' ? 'quarterly' : 'monthly',
     });
@@ -1643,6 +1743,7 @@ async function submitRunValidation() {
     activeRunContext = {
       strategy_version_id: selectedStrategy.strategy_version_id,
       tier: tierKey,
+      backend_tier: backendTierKey,
       tier_label: context.tierLabel,
       symbol_count: runSymbolCount,
     };

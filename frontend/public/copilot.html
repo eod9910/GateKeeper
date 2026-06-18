@@ -506,7 +506,6 @@
 
       <!-- Account & Risk settings moved to global Settings page -->
       <div style="display:none;">
-        <input type="number" id="account-size" value="50000">
         <input type="number" id="available-balance" value="50000">
         <input type="number" id="daily-loss-limit" value="5">
         <input type="number" id="max-open-positions" value="5">
@@ -530,7 +529,6 @@
         </select>
         <input type="range" id="ai-temperature" value="0.7">
         <span id="temp-value">0.7</span>
-        <input type="number" id="risk-percent" value="2">
         <input type="number" id="min-rr" value="1.5">
         <input type="number" id="max-position" value="25">
         <input type="number" id="max-daily-trades" value="3">
@@ -564,7 +562,7 @@
 
         <div style="display:flex;gap:var(--space-8);flex-shrink:0;align-items:center;">
           <select id="td-browse-asset-class" class="select select-sm" style="width:140px;" title="Pick an asset class to browse symbols without running analysis">
-            <option value="all" selected>Stocks</option>
+            <option value="stocks" selected>Stocks</option>
             <option value="indices">Indices</option>
             <option value="sectors">Sectors</option>
             <option value="smallcaps">Small Caps</option>
@@ -615,6 +613,20 @@
                     <option value="1m">1 Min</option>
                   </select>
                   <span id="chart-interval-display" class="hidden" aria-hidden="true">W</span>
+                  <span
+                    id="chart-freshness-badge"
+                    class="text-mono text-caption"
+                    title="Most recent bar from the data feed. Yellow = stale (older than expected), red = very stale. Click Refresh to force re-pull."
+                    style="display:none;padding:2px 8px;border-radius:999px;border:1px solid var(--color-border);background:var(--color-void);color:var(--color-text-muted);font-size:10px;letter-spacing:0.04em;"
+                  >--</span>
+                  <button
+                    id="btn-chart-refresh"
+                    type="button"
+                    onclick="forceRefreshChart()"
+                    title="Force-refresh the chart from Yahoo (bypass cache). Use this when the chart looks stale vs your other data sources."
+                    class="toolbar-btn"
+                    style="padding:3px 8px;font-size:0.75rem;"
+                  >&#x21bb; Refresh</button>
                 </div>
                 <span id="chart-pattern" style="display:none;"></span>
                 <div class="toolbar chart-header-toolbar">
@@ -630,8 +642,9 @@
                   <button id="btn-take-profit" onclick="setMarkerMode('takeProfit')" class="toolbar-btn" title="Place TP1 on chart (auto-advances to TP2, TP3)">TP1</button>
                   <button id="btn-take-profit-2" onclick="setMarkerMode('takeProfit2')" class="toolbar-btn" title="Place TP2 on chart" style="font-size:0.85em;padding:2px 6px;">TP2</button>
                   <button id="btn-take-profit-3" onclick="setMarkerMode('takeProfit3')" class="toolbar-btn" title="Place TP3 on chart" style="font-size:0.85em;padding:2px 6px;">TP3</button>
+                  <button id="btn-manage-fib" onclick="manageTradeFibFromDesk()" class="toolbar-btn" title="Switch the latest Trade Fib into management mode using the current Long/Short side">Manage Fib</button>
                   <button id="btn-fit-chart" onclick="fitChartToContent()" title="Fit chart to content" class="toolbar-btn">Fit</button>
-                  <button onclick="clearChart()" class="toolbar-btn" title="Clear chart levels and drawings">Clear</button>
+                  <button onclick="clearChartMarkup()" class="toolbar-btn" title="Clear chart levels and drawings">Clear</button>
                   <div style="border-left:1px solid var(--color-border);height:14px;margin:0 2px;"></div>
                   <button id="btn-wl-save" onclick="tdSaveCurrentToWatchList()" class="toolbar-btn" title="Save current markup to Watch List" style="color:#f59e0b;">&#9733; Save</button>
                   <span id="drawing-status" class="text-muted text-caption" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;"></span>
@@ -801,6 +814,20 @@
                   <section class="trade-actions-card trade-actions-card--instrument">
                     <div class="trade-actions-card-title">Instrument</div>
                     <div class="trade-actions-stack">
+                      <div>
+                        <div class="sidebar-sub-title">Account Risk</div>
+                        <div class="sidebar-field-row">
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="account-size">Account Size ($)</label>
+                            <input type="number" id="account-size" value="50000" min="0" step="100" class="input input-sm" oninput="saveSettings();if(typeof syncKeyLevelsPanel==='function')syncKeyLevelsPanel();" onchange="saveSettings();if(typeof syncKeyLevelsPanel==='function')syncKeyLevelsPanel();">
+                          </div>
+                          <div class="sidebar-field">
+                            <label class="sidebar-field-label" for="risk-percent">Risk / Trade (%)</label>
+                            <input type="number" id="risk-percent" value="2" min="0" step="0.1" class="input input-sm" oninput="saveSettings();if(typeof syncKeyLevelsPanel==='function')syncKeyLevelsPanel();" onchange="saveSettings();if(typeof syncKeyLevelsPanel==='function')syncKeyLevelsPanel();">
+                          </div>
+                        </div>
+                        <div class="sidebar-field-hint">Used for auto position sizing and max-loss checks.</div>
+                      </div>
                       <div class="sidebar-field">
                         <label class="sidebar-field-label" for="instrument-type">Type</label>
                         <select id="instrument-type" class="select select-sm" onchange="toggleInstrumentSettings(); saveSettings()">
@@ -1256,7 +1283,7 @@
   <script src="trade-intent.js"></script>
   <script src="watch-list.js"></script>
   <script src="copilot-core.js"></script>
-  <script src="copilot-chart.js"></script>
+  <script src="copilot-chart.js?v=20260608a"></script>
   <script src="copilot-trading.js"></script>
   <script src="copilot-trade-plan-sync.js"></script>
   <script src="copilot-risk-plan.js"></script>

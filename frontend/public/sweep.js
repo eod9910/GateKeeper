@@ -11,18 +11,29 @@ let pollTimer = null;
 const strategyCatalog = new Map();
 const sweepReportCache = new Map();
 let sweepSummaryCache = [];
+let activeValidatorJobIds = null;
 // Maps sweep_id → session version number (V1, V2, ...) — populated by _loadRecentSweepsImpl
 const sweepVersionMap = new Map();
 const ACTIVE_SWEEP_STORAGE_KEY = 'activeSweepId';
 const ACTIVE_STRATEGY_STORAGE_KEY = 'activeSweepStrategyId';
+const ACTIVE_FUNDAMENTAL_SWEEP_STORAGE_KEY = 'activeFundamentalSweepId';
+const ACTIVE_SWEEP_SESSION_ID_STORAGE_KEY = 'activeSweepSessionId';
+const ACTIVE_SWEEP_SESSION_NOTE_STORAGE_KEY = 'activeSweepSessionNote';
 const SESSION_START_STORAGE_KEY = 'sweepSessionStartedAt';
 let sessionStartedAt = null;
+let activeSweepSessionId = null;
+let activeSweepSessionNote = '';
 let selectedSweepReportId = null;
 let selectedSweepVariantId = null;
 const selectedComparisonVariantIds = new Set();
 let activeSweepReferenceKey = null;
 let activeSweepReferenceReportId = null;
 let activeConfiguredStrategyVersionId = null;
+let activeFundamentalSweepSessionId = null;
+let activeFundamentalSweepSession = null;
+const RETIRED_SWEEP_PARAM_PATHS = new Set([
+  'fundamental_config.forward_bars',
+]);
 
 // ─── Universal Dimensions state ───────────────────────────────────────────────
 // Maps dim.key → Set of selected values
@@ -32,6 +43,8 @@ const UNIVERSAL_SWEEP_FALLBACK_PATHS = [
   'validation_tier',
   'setup_config.market_cap_tier',
   'interval',
+  'risk_config.stop_type',
+  'risk_config.stop_value',
   'risk_config.take_profit_R',
   'risk_config.atr_multiplier',
   'risk_config.max_hold_bars',
@@ -93,57 +106,186 @@ function renderUniversalDimCards(groupDims = []) {
   return groupDims.map(dim => {
     const sel = universalDimSelections.get(dim.key) || new Set();
     const hasAny = sel.size > 0;
+    const canAddCustom = canAddUniversalDimCustomValue(dim);
+    const singleChoice = isUniversalDimSingleChoice(dim);
     const allSelected = Array.isArray(dim.suggested_values)
       && dim.suggested_values.length > 0
       && dim.suggested_values.every(sv => [...sel].some(v => String(v) === String(sv.value)));
     return `
       <div class="udim-card${hasAny ? ' active' : ''}" id="udim-card-${dim.key}">
-        <div class="udim-header">
-          <div
-            class="udim-toggle${allSelected ? ' checked' : ''}"
+        <div class="udim-field-header">
+          <label class="form-label">${dim.label}</label>
+          ${singleChoice ? '' : `<button
+            type="button"
+            class="udim-select-all${allSelected ? ' active' : ''}"
             id="udim-toggle-${dim.key}"
             onclick="toggleUniversalDimAll('${dim.key}')"
             title="${allSelected ? 'Clear all values' : 'Select all values'}"
-          ></div>
-          <div class="udim-name">${dim.label}</div>
-          <div class="udim-count" id="udim-count-${dim.key}">${hasAny ? sel.size + ' selected' : ''}</div>
+            aria-label="${allSelected ? 'Clear all values for ' + dim.label : 'Select all values for ' + dim.label}"
+          ></button>`}
         </div>
-        <div class="udim-values" id="udim-pills-${dim.key}">
-          ${dim.suggested_values.map(sv => {
-            const isSelected = [...sel].some(v => String(v) === String(sv.value));
-            const encodedVal = encodeURIComponent(String(sv.value));
-            return `<span class="udim-pill${isSelected ? ' selected' : ''}"
-              onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
-              title="${sv.label}">${sv.label}</span>`;
-          }).join('')}
-        </div>
+        <details class="udim-value-dropdown">
+          <summary id="udim-summary-${dim.key}">
+            <span>${getUniversalDimSelectionSummary(dim, sel)}</span>
+          </summary>
+          <div class="udim-values-card">
+            <div class="parameter-values-header">
+              <div class="parameter-values-title">Values to Test</div>
+              <div class="parameter-values-meta" id="udim-count-${dim.key}">${getUniversalDimSelectionMeta(dim, sel)}</div>
+            </div>
+            <div class="udim-values" id="udim-pills-${dim.key}">
+              ${renderUniversalDimValueGroups(dim, sel)}
+            </div>
+            ${canAddCustom ? `<div class="add-value-row udim-add-value-row">
+              <input
+                id="udim-add-${dim.key}"
+                type="text"
+                placeholder="${getUniversalDimAddPlaceholder(dim)}"
+                onkeydown="if (event.key === 'Enter') addUniversalDimCustomValue('${dim.key}')"
+              />
+              <button type="button" onclick="addUniversalDimCustomValue('${dim.key}')">+ Add</button>
+            </div>` : ''}
+          </div>
+        </details>
       </div>`;
   }).join('');
 }
 
+function getUniversalDimSelectionSummary(dim, sel) {
+  if (!sel || sel.size === 0) {
+    return isUniversalDimSingleChoice(dim) ? `Choose ${String(dim?.label || 'value').toLowerCase()}...` : 'Choose values...';
+  }
+  const labelsByValue = new Map((dim?.suggested_values || []).map(sv => [String(sv.value), sv.label]));
+  const labels = Array.from(sel).map(value => labelsByValue.get(String(value)) || String(value));
+  if (labels.length <= 3) return labels.map(reportEscHtml).join(', ');
+  return `${labels.length} selected`;
+}
+
+function isUniversalDimSingleChoice(dim) {
+  return String(dim?.key || '') === 'stop_type';
+}
+
+function getUniversalDimSelectionMeta(dim, sel) {
+  if (isUniversalDimSingleChoice(dim)) return sel?.size ? 'single choice' : 'choose one';
+  return sel?.size ? `${sel.size} selected` : 'none selected';
+}
+
+function canAddUniversalDimCustomValue(dim) {
+  return typeof dim?.suggested_values?.[0]?.value === 'number';
+}
+
+function getUniversalDimAddPlaceholder(dim) {
+  const firstSuggested = dim?.suggested_values?.[0]?.value;
+  return typeof firstSuggested === 'number' ? 'e.g. 0' : 'e.g. custom';
+}
+
+function groupUniversalDimValues(dim) {
+  const values = Array.isArray(dim?.suggested_values) ? dim.suggested_values : [];
+  return [{ label: '', values }];
+}
+
+function renderUniversalDimValueGroups(dim, sel) {
+  const knownValues = new Set((dim?.suggested_values || []).map(sv => String(sv.value)));
+  return groupUniversalDimValues(dim).map(group => {
+    const pills = group.values.map(sv => {
+      const isSelected = [...sel].some(v => String(v) === String(sv.value));
+      const encodedVal = encodeURIComponent(String(sv.value));
+      return `<span class="udim-pill${isSelected ? ' selected' : ''}"
+        onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
+        title="${reportEscHtml(sv.label)}">${reportEscHtml(sv.label)}</span>`;
+    }).join('');
+    const customPills = [...sel]
+      .filter(value => !knownValues.has(String(value)))
+      .map(value => {
+        const encodedVal = encodeURIComponent(String(value));
+        const label = reportEscHtml(String(value));
+        return `<span class="udim-pill selected custom"
+          onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
+          title="Remove custom value">${label}<button type="button" aria-label="Remove ${label}">×</button></span>`;
+      })
+      .join('');
+    const renderedPills = [pills, customPills].filter(Boolean).join('');
+
+    if (!group.label) return renderedPills;
+    return `
+      <div class="udim-value-group">
+        <div class="udim-value-group-label">${group.label}</div>
+        <div class="udim-value-group-pills">${renderedPills}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderUniversalDimCluster(title, help, dims) {
+  if (!dims.length) return '';
+  return `
+    <div class="udim-cluster">
+      <div class="udim-cluster-header">
+        <div class="udim-cluster-title">${title}</div>
+        <div class="udim-cluster-help">${help}</div>
+      </div>
+      ${renderUniversalDimCards(dims)}
+    </div>`;
+}
+
 function renderUniversalDims() {
-  const section = document.getElementById('universal-dims-section');
-  const researchBody = document.getElementById('universal-dims-research-body');
-  const riskBody = document.getElementById('universal-dims-risk-body');
-  const researchSection = document.getElementById('universal-dims-research-section');
-  const riskSection = document.getElementById('universal-dims-risk-section');
-  if (!section || !researchBody || !riskBody || !researchSection || !riskSection || !universalDimsSpec) return;
-  section.style.display = 'block';
+  const section = document.getElementById('sweep-dims-stack');
+  const legacySection = document.getElementById('universal-dims-section');
+  const panelDefs = [
+    {
+      id: 'market-cap',
+      dims: dim => dim.key === 'market_cap_tier',
+    },
+    {
+      id: 'timeframe',
+      dims: dim => dim.key === 'timeframe',
+    },
+    {
+      id: 'exit-rules',
+      dims: dim => isExitRuleControlVisible(dim),
+    },
+    {
+      id: 'max-hold',
+      dims: dim => dim.key === 'max_hold_bars',
+    },
+    {
+      id: 'max-concurrent',
+      dims: dim => dim.key === 'max_concurrent_positions',
+    },
+  ];
+  if (!section || !universalDimsSpec) return;
+  if (legacySection) legacySection.style.display = 'none';
+  section.style.display = 'flex';
 
   const dims = universalDimsSpec.dims;
-  const researchDims = dims.filter(d => String(d.group || '').toLowerCase() === 'environment');
-  const riskDims = dims.filter(d => String(d.group || '').toLowerCase() === 'risk');
-
-  researchBody.innerHTML = researchDims.length
-    ? `<div class="udim-group-label">${researchDims[0].group_label || 'Research'}</div>${renderUniversalDimCards(researchDims)}`
-    : '<div class="udim-subsection-help">No research dimensions available.</div>';
-  riskBody.innerHTML = riskDims.length
-    ? `<div class="udim-group-label">${riskDims[0].group_label || 'Risk / Execution'}</div>${renderUniversalDimCards(riskDims)}`
-    : '<div class="udim-subsection-help">No risk or execution dimensions available.</div>';
-
-  researchSection.style.display = researchDims.length ? 'block' : 'none';
-  riskSection.style.display = riskDims.length ? 'block' : 'none';
+  panelDefs.forEach(panel => {
+    const panelSection = document.getElementById(`sweep-dims-${panel.id}-section`);
+    const panelBody = document.getElementById(`sweep-dims-${panel.id}-body`);
+    if (!panelSection || !panelBody) return;
+    const panelDims = dims.filter(panel.dims);
+    panelSection.style.display = panelDims.length ? 'flex' : 'none';
+    panelBody.innerHTML = panelDims.length
+      ? renderUniversalDimCards(panelDims)
+      : '<div class="udim-subsection-help">No dimensions available.</div>';
+  });
   updateUniversalDimsBadge();
+}
+
+function getSelectedUniversalDimValues(dimKey) {
+  return Array.from(universalDimSelections.get(dimKey) || []);
+}
+
+function getSelectedStopType() {
+  const values = getSelectedUniversalDimValues('stop_type');
+  return String(values[0] || '').trim();
+}
+
+function isExitRuleControlVisible(dim) {
+  if (!dim) return false;
+  if (['stop_type', 'take_profit_r', 'auto_breakeven_r'].includes(dim.key)) return true;
+  const stopType = getSelectedStopType();
+  if (dim.key === 'stop_pct') return stopType === 'percentage';
+  if (dim.key === 'atr_multiplier') return stopType === 'atr_multiple';
+  return false;
 }
 
 function renderUniversalDimSelection(dim, sel) {
@@ -152,23 +294,23 @@ function renderUniversalDimSelection(dim, sel) {
   const toggle = document.getElementById(`udim-toggle-${dim.key}`);
   const count = document.getElementById(`udim-count-${dim.key}`);
   const pillsEl = document.getElementById(`udim-pills-${dim.key}`);
-  if (!card || !toggle || !count || !pillsEl) return;
+  const summary = document.getElementById(`udim-summary-${dim.key}`);
+  if (!card || !count || !pillsEl) return;
 
   const hasAny = sel.size > 0;
   const allSelected = Array.isArray(dim.suggested_values)
     && dim.suggested_values.length > 0
     && dim.suggested_values.every(sv => [...sel].some(v => String(v) === String(sv.value)));
   card.className = 'udim-card' + (hasAny ? ' active' : '');
-  toggle.className = 'udim-toggle' + (allSelected ? ' checked' : '');
-  toggle.title = allSelected ? 'Clear all values' : 'Select all values';
-  count.textContent = hasAny ? sel.size + ' selected' : '';
-  pillsEl.innerHTML = dim.suggested_values.map(sv => {
-    const isSelected = [...sel].some(v => String(v) === String(sv.value));
-    const encodedVal = encodeURIComponent(String(sv.value));
-    return `<span class="udim-pill${isSelected ? ' selected' : ''}"
-      onclick="toggleUniversalDimValue('${dim.key}', decodeURIComponent('${encodedVal}'))"
-      title="${sv.label}">${sv.label}</span>`;
-  }).join('');
+  if (toggle) {
+    toggle.className = 'udim-select-all' + (allSelected ? ' active' : '');
+    toggle.textContent = '';
+    toggle.title = allSelected ? 'Clear all values' : 'Select all values';
+    toggle.setAttribute('aria-label', `${allSelected ? 'Clear all values for' : 'Select all values for'} ${dim.label}`);
+  }
+  count.textContent = getUniversalDimSelectionMeta(dim, sel);
+  if (summary) summary.innerHTML = `<span>${getUniversalDimSelectionSummary(dim, sel)}</span>`;
+  pillsEl.innerHTML = renderUniversalDimValueGroups(dim, sel);
 }
 
 function coerceUniversalDimValue(dim, value) {
@@ -178,21 +320,63 @@ function coerceUniversalDimValue(dim, value) {
     : value;
 }
 
-function toggleUniversalDimValue(dimKey, value) {
-  // Coerce to number if the dim's suggested values are numeric
+function addUniversalDimCustomValue(dimKey) {
+  if (getConfiguredStrategyVersionId()) clearActiveFundamentalSweepSession();
   const dim = universalDimsSpec?.dims.find(d => d.key === dimKey);
-  const coerced = coerceUniversalDimValue(dim, value);
+  if (!dim || !canAddUniversalDimCustomValue(dim)) return;
+  const input = document.getElementById(`udim-add-${dimKey}`);
+  const raw = String(input?.value || '').trim();
+  if (!raw) return;
+
+  const coerced = coerceUniversalDimValue(dim, raw);
   let sel = universalDimSelections.get(dimKey);
   if (!sel) { sel = new Set(); universalDimSelections.set(dimKey, sel); }
-  if (sel.has(coerced)) sel.delete(coerced); else sel.add(coerced);
-  // Re-render just this dim's pills and toggle
-  if (!dim) return;
+  sel.add(coerced);
+
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
   renderUniversalDimSelection(dim, sel);
   updateUniversalDimsBadge();
   updateRunButton();
 }
 
+function toggleUniversalDimValue(dimKey, value) {
+  if (getConfiguredStrategyVersionId()) clearActiveFundamentalSweepSession();
+  // Coerce to number if the dim's suggested values are numeric
+  const dim = universalDimsSpec?.dims.find(d => d.key === dimKey);
+  const coerced = coerceUniversalDimValue(dim, value);
+  let sel = universalDimSelections.get(dimKey);
+  if (!sel) { sel = new Set(); universalDimSelections.set(dimKey, sel); }
+  if (dimKey === 'stop_type') {
+    const wasSelected = sel.has(coerced);
+    sel.clear();
+    if (!wasSelected) sel.add(coerced);
+    reconcileStopTypeDependentSelections(String(wasSelected ? '' : coerced));
+  } else if (sel.has(coerced)) {
+    sel.delete(coerced);
+  } else {
+    sel.add(coerced);
+  }
+  // Re-render just this dim's pills and toggle
+  if (!dim) return;
+  if (dimKey === 'stop_type') {
+    renderUniversalDims();
+  } else {
+    renderUniversalDimSelection(dim, sel);
+  }
+  updateUniversalDimsBadge();
+  updateRunButton();
+}
+
+function reconcileStopTypeDependentSelections(stopType) {
+  if (stopType !== 'percentage') universalDimSelections.delete('stop_pct');
+  if (stopType !== 'atr_multiple') universalDimSelections.delete('atr_multiplier');
+}
+
 function toggleUniversalDimAll(dimKey) {
+  if (getConfiguredStrategyVersionId()) clearActiveFundamentalSweepSession();
   const dim = universalDimsSpec?.dims.find(d => d.key === dimKey);
   if (!dim || !Array.isArray(dim.suggested_values)) return;
   let sel = universalDimSelections.get(dimKey);
@@ -201,15 +385,30 @@ function toggleUniversalDimAll(dimKey) {
   const values = dim.suggested_values.map(sv => coerceUniversalDimValue(dim, sv.value));
   const allSelected = values.length > 0 && values.every(value => sel.has(value));
   sel.clear();
-  if (!allSelected) values.forEach(value => sel.add(value));
+  if (!allSelected) {
+    if (dimKey === 'stop_type') {
+      const first = values[0];
+      if (first != null) sel.add(first);
+      reconcileStopTypeDependentSelections(String(first || ''));
+    } else {
+      values.forEach(value => sel.add(value));
+    }
+  } else if (dimKey === 'stop_type') {
+    reconcileStopTypeDependentSelections('');
+  }
 
-  renderUniversalDimSelection(dim, sel);
+  if (dimKey === 'stop_type') {
+    renderUniversalDims();
+  } else {
+    renderUniversalDimSelection(dim, sel);
+  }
   updateUniversalDimsBadge();
   updateRunButton();
 }
 
 function updateUniversalDimsBadge() {
-  const badge = document.getElementById('universal-dims-active-badge');
+  const badge = document.getElementById('sweep-dims-active-badge')
+    || document.getElementById('universal-dims-active-badge');
   if (!badge) return;
   const active = getActiveDimParams();
   if (active.length > 0) {
@@ -223,7 +422,8 @@ function updateUniversalDimsBadge() {
 
 function renderUniversalDimsVariantCount() {
   // Show a count indicator below the universal dims section
-  const section = document.getElementById('universal-dims-section');
+  const section = document.getElementById('sweep-dims-stack')
+    || document.getElementById('universal-dims-section');
   if (!section) return;
   const existing = document.getElementById('udim-variant-count');
   const active = getActiveDimParams();
@@ -252,7 +452,7 @@ function renderUniversalDimsVariantCount() {
   el.style.color = overCap ? 'var(--color-negative)' : 'var(--color-accent)';
   el.textContent = overCap
     ? `⚠ ${total} total variants — max is 20. Reduce selections.`
-    : `${primaryCount} strategy × ${dimsProduct} universal dims = ${total} total variants`;
+    : `${primaryCount} entry × ${dimsProduct} universal dims = ${total} total variants`;
 }
 
 const ANATOMY_GROUPS = [
@@ -271,7 +471,7 @@ const PRESET_DEFS = {
     label: 'Stop Type',
     anatomy: 'stop_loss',
     param_path: 'risk_config.stop_type',
-    values: ['percentage', 'atr_multiple', 'atr', 'swing_low'],
+    values: ['percentage', 'atr_multiple'],
     isAvailable: strategy => hasNestedValue(strategy, 'risk_config.stop_type'),
   },
   atr_multiplier: {
@@ -301,16 +501,6 @@ const PRESET_DEFS = {
     param_path: 'risk_config.max_hold_bars',
     values: [13, 26, 39, 52, 60, 75, 90],
     isAvailable: strategy => hasNestedValue(strategy, 'risk_config.max_hold_bars'),
-  },
-  dcf_valuation_hold_bars: {
-    label: 'DCF Valuation Hold Bars',
-    anatomy: 'valuation',
-    param_path: 'fundamental_config.forward_bars',
-    values: [13, 20, 26, 40, 52, 60, 75, 90, 104],
-    isAvailable: strategy => (
-      String(strategy?.setup_config?.pattern_type || '').trim() === 'valuation_state_primitive' ||
-      hasNestedValue(strategy, 'fundamental_config.forward_bars')
-    ),
   },
   entry_confirmation_bars: {
     label: 'Confirmation Bars',
@@ -464,9 +654,33 @@ function getConfiguredStrategyVersionId() {
   return String(activeConfiguredStrategyVersionId || document.getElementById('sweep-strategy-select')?.value || '').trim();
 }
 
+function clearActiveFundamentalSweepSession() {
+  activeFundamentalSweepSessionId = null;
+  activeFundamentalSweepSession = null;
+  persistActiveFundamentalSweepId('');
+}
+
+function setRunSweepDisabledReason(reason = '') {
+  const btn = document.getElementById('btn-run-sweep');
+  if (!btn) return;
+  let reasonEl = document.getElementById('run-sweep-disabled-reason');
+  if (!reasonEl) {
+    reasonEl = document.createElement('div');
+    reasonEl.id = 'run-sweep-disabled-reason';
+    reasonEl.style.marginTop = 'var(--space-6)';
+    reasonEl.style.fontSize = 'var(--text-caption)';
+    reasonEl.style.lineHeight = '1.5';
+    reasonEl.style.color = 'var(--color-text-subtle)';
+    btn.insertAdjacentElement('afterend', reasonEl);
+  }
+  reasonEl.textContent = reason;
+  reasonEl.style.display = reason ? 'block' : 'none';
+}
+
 async function switchToStrategy(strategyVersionId, options = {}) {
   const strategySelect = document.getElementById('sweep-strategy-select');
   if (!strategySelect) return;
+  clearActiveFundamentalSweepSession();
 
   // Fetch full spec first so parameter_manifest is available for the picker
   await ensureStrategySpec(strategyVersionId);
@@ -739,6 +953,9 @@ function applyAllSmartPlanParams() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   sessionStartedAt = window.localStorage.getItem(SESSION_START_STORAGE_KEY) || null;
+  activeSweepSessionId = window.localStorage.getItem(ACTIVE_SWEEP_SESSION_ID_STORAGE_KEY) || null;
+  activeSweepSessionNote = window.localStorage.getItem(ACTIVE_SWEEP_SESSION_NOTE_STORAGE_KEY) || '';
+  updateSessionNoteInput();
   restoreSweepConfigPanelState();
   initSweepResizeHandle();
   configureSweepTierSelector();
@@ -753,8 +970,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupCustomParameterPicker();
   });
 
+  let restoredFundamentalSweep = false;
   const requestedStrategy = getRequestedStrategyId();
-  if (requestedStrategy) {
+  const requestedFundamentalSweep = getRequestedFundamentalSweepId({ ignorePersisted: Boolean(requestedStrategy) });
+  if (requestedFundamentalSweep) {
+    await loadFundamentalSweepSession(requestedFundamentalSweep);
+    restoredFundamentalSweep = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('fundamental_sweep_id');
+    window.history.replaceState({}, '', url.toString());
+  } else if (requestedStrategy) {
     const urlStrategy = new URLSearchParams(window.location.search).get('strategy_version_id');
     const persistedStrategy = String(window.localStorage.getItem(ACTIVE_STRATEGY_STORAGE_KEY) || '').trim();
     // Only start a fresh session on an explicit cross-page handoff. If we are
@@ -762,7 +987,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // active sweep instead of clearing the winner cards.
     if (urlStrategy && String(urlStrategy).trim() !== persistedStrategy) {
       sessionStartedAt = new Date().toISOString();
+      activeSweepSessionId = makeSweepSessionId(sessionStartedAt);
+      activeSweepSessionNote = '';
       window.localStorage.setItem(SESSION_START_STORAGE_KEY, sessionStartedAt);
+      window.localStorage.setItem(ACTIVE_SWEEP_SESSION_ID_STORAGE_KEY, activeSweepSessionId);
+      window.localStorage.setItem(ACTIVE_SWEEP_SESSION_NOTE_STORAGE_KEY, activeSweepSessionNote);
+      updateSessionNoteInput();
       persistActiveSweepId('');
     }
     await switchToStrategy(requestedStrategy.trim());
@@ -775,7 +1005,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadRecentSweeps();
   }
 
-  await restoreActiveSweepFromState();
+  if (!restoredFundamentalSweep) {
+    await restoreActiveSweepFromState();
+  }
 });
 
 function initSweepResizeHandle() {
@@ -893,8 +1125,18 @@ function persistActiveSweepId(sweepId = '') {
   const value = String(sweepId || '').trim();
   if (value) {
     window.localStorage.setItem(ACTIVE_SWEEP_STORAGE_KEY, value);
+    window.localStorage.removeItem(ACTIVE_FUNDAMENTAL_SWEEP_STORAGE_KEY);
   } else {
     window.localStorage.removeItem(ACTIVE_SWEEP_STORAGE_KEY);
+  }
+}
+
+function persistActiveFundamentalSweepId(sessionId = '') {
+  const value = String(sessionId || '').trim();
+  if (value) {
+    window.localStorage.setItem(ACTIVE_FUNDAMENTAL_SWEEP_STORAGE_KEY, value);
+  } else {
+    window.localStorage.removeItem(ACTIVE_FUNDAMENTAL_SWEEP_STORAGE_KEY);
   }
 }
 
@@ -902,6 +1144,7 @@ function persistActiveStrategyId(strategyVersionId = '') {
   const value = String(strategyVersionId || '').trim();
   if (value) {
     window.localStorage.setItem(ACTIVE_STRATEGY_STORAGE_KEY, value);
+    window.localStorage.removeItem(ACTIVE_FUNDAMENTAL_SWEEP_STORAGE_KEY);
   } else {
     window.localStorage.removeItem(ACTIVE_STRATEGY_STORAGE_KEY);
   }
@@ -925,6 +1168,14 @@ async function restoreActiveSweepFromState() {
 function configureSweepTierSelector() {
   const tierSelect = document.getElementById('sweep-tier-select');
   if (tierSelect) {
+    tierSelect.innerHTML = `
+      <option value="evidence_50">Evidence 50 trades - early signal</option>
+      <option value="evidence_100" selected>Evidence 100 trades - useful sample</option>
+      <option value="evidence_200">Evidence 200 trades - statistical read</option>
+      <option value="evidence_500">Evidence 500 trades - strong sample</option>
+      <option value="full_clean">Full clean universe - confirmation</option>
+    `;
+    return;
     const strategy = getSelectedStrategySpec();
     const stage = String(strategy?.sweep_stage || '').toLowerCase();
     const tier1Stages = new Set(['tier1', 'tier1s', 'tier1b', 'tier1bs']);
@@ -942,6 +1193,7 @@ function configureSweepTierSelector() {
       <option value="tier1s"${defaultTier === 'tier1s' ? ' selected' : ''}>Tier 1S — Tier 1 + Sensitivity</option>
       <option value="tier2"${defaultTier === 'tier2' ? ' selected' : ''}>Tier 2 — Core mixed-cap (200 stocks)</option>
       <option value="tier3"${defaultTier === 'tier3' ? ' selected' : ''}>Tier 3 — Mixed-cap holdout (180 stocks)</option>
+      <option value="clean"${defaultTier === 'clean' ? ' selected' : ''}>Clean Universe - rule-filtered broad evidence expansion</option>
       <option value="large_cap_known"${defaultTier === 'large_cap_known' ? ' selected' : ''}>Large Cap (Known) — 76 confirmed large caps</option>
       <option value="sp500"${defaultTier === 'sp500' ? ' selected' : ''}>S&P 500 — ~406 large cap stocks</option>
       <option value="sp400"${defaultTier === 'sp400' ? ' selected' : ''}>S&P 400 — ~341 mid cap stocks</option>
@@ -976,15 +1228,22 @@ function configureSweepTierSelector() {
 }
 
 function setupAddValueOnEnter() {
-  document.getElementById('add-value-input').addEventListener('keydown', e => {
+  document.getElementById('add-value-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') addCustomValue();
   });
-  document.getElementById('custom-param-path').addEventListener('input', e => {
+  document.getElementById('custom-param-path')?.addEventListener('input', e => {
+    if (isRetiredSweepParamPath(e.target.value)) {
+      e.target.value = '';
+      const labelInput = document.getElementById('custom-param-label');
+      if (labelInput) labelInput.value = '';
+      customValues = [];
+      renderValuePills();
+    }
     setCustomParameterPickerValue(findPresetKeyByPath(e.target.value));
     updateSelectedSummary();
     updateRunButton();
   });
-  document.getElementById('custom-param-label').addEventListener('input', () => {
+  document.getElementById('custom-param-label')?.addEventListener('input', () => {
     updateSelectedSummary();
     updateRunButton();
   });
@@ -1000,6 +1259,16 @@ function getStrategyDisplayName(strategyVersionId, rawNameOverride = '') {
     strategyId: spec?.strategy_id || strategyVersionId,
     version: spec?.version,
   }) || rawName;
+}
+
+function getRequestedFundamentalSweepId(options = {}) {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = String(params.get('fundamental_sweep_id') || '').trim();
+    if (fromQuery) return fromQuery;
+  } catch {}
+  if (options.ignorePersisted) return '';
+  return String(window.localStorage.getItem(ACTIVE_FUNDAMENTAL_SWEEP_STORAGE_KEY) || '').trim();
 }
 
 function stripStrategyNameSuffixes(name) {
@@ -1132,6 +1401,10 @@ function findPresetKeyByPath(paramPath) {
   return getPresetEntries().find(([, preset]) => preset.param_path === path)?.[0] || '';
 }
 
+function isRetiredSweepParamPath(paramPath) {
+  return RETIRED_SWEEP_PARAM_PATHS.has(String(paramPath || '').trim());
+}
+
 function setCustomParameterPickerValue(presetKey = '') {
   const select = getCustomParameterSelect();
   if (!select) return;
@@ -1144,6 +1417,10 @@ function setupCustomParameterPicker() {
   if (!select) return;
 
   const entries = getPresetEntries();
+  const strategyParametersCard = document.getElementById('strategy-parameters-card');
+  if (strategyParametersCard) {
+    strategyParametersCard.style.display = entries.length ? 'flex' : 'none';
+  }
   const groupsHtml = ANATOMY_GROUPS.map(group => {
     const options = entries
       .filter(([, preset]) => preset.anatomy === group.key)
@@ -1153,7 +1430,7 @@ function setupCustomParameterPicker() {
   }).join('');
 
   select.innerHTML = [
-    '<option value="">Choose a parameter...</option>',
+    '<option value="">Choose an entry criterion...</option>',
     groupsHtml,
   ].join('');
 
@@ -1204,10 +1481,9 @@ function renderSuggestedValueButtons(presetKey = '') {
     return;
   }
 
-  // Show path hint in the help element, but only as a small mono hint
   if (help) {
-    help.textContent = preset.param_path;
-    help.style.display = 'block';
+    help.textContent = preset.description || '';
+    help.style.display = preset.description ? 'block' : 'none';
   }
 
   if (group) group.style.display = preset.values.length > 0 ? 'flex' : 'none';
@@ -1262,6 +1538,31 @@ function removeCustomValue(idx) {
   updateRunButton();
 }
 
+function clearPrimaryParameter() {
+  selectedPreset = null;
+  customValues = [];
+  const select = document.getElementById('custom-param-select');
+  const pathInput = document.getElementById('custom-param-path');
+  const labelInput = document.getElementById('custom-param-label');
+  const help = document.getElementById('custom-param-help');
+  const suggestedGroup = document.getElementById('suggested-values-group');
+  const suggested = document.getElementById('suggested-values');
+  if (select) select.value = '';
+  if (pathInput) pathInput.value = '';
+  if (labelInput) labelInput.value = '';
+  if (help) help.style.display = 'none';
+  if (suggestedGroup) suggestedGroup.style.display = 'none';
+  if (suggested) suggested.innerHTML = '';
+  secondSlot = { active: false, paramPath: '', label: '', values: [] };
+  const slot = document.getElementById('sweep-param-slot-2');
+  if (slot) { slot.style.display = 'none'; slot.innerHTML = ''; }
+  clearPresetSelection();
+  renderValuePills();
+  renderGridControls();
+  updateSelectedSummary();
+  updateRunButton();
+}
+
 function renderValuePills() {
   const container = document.getElementById('values-pills');
   container.innerHTML = '';
@@ -1301,8 +1602,35 @@ function updateSelectedSummary() {
 }
 
 function updateRunButton() {
+  const btn = document.getElementById('btn-run-sweep');
   const strategy = getConfiguredStrategyVersionId();
   const activeDims = getActiveDimParams();
+  if (activeFundamentalSweepSessionId && activeFundamentalSweepSession && strategy) {
+    clearActiveFundamentalSweepSession();
+  }
+  if (activeFundamentalSweepSessionId && activeFundamentalSweepSession) {
+    const selectedParams = getSelectedFundamentalSweepParams();
+    const gridSize = getFundamentalGridSize();
+    const isRunning = String(activeFundamentalSweepSession.status || '').toLowerCase() === 'running';
+    const reason = isRunning
+      ? 'Fundamental sweep is already running.'
+      : selectedParams.length === 0
+        ? 'Highlight at least one fundamental entry or exclusion value to run this research sweep.'
+        : gridSize > 20
+          ? `Grid is ${gridSize} variants — max is 20. Deselect some values.`
+          : '';
+    if (btn) {
+      btn.disabled = Boolean(reason);
+      btn.textContent = isRunning
+        ? 'Sweep Running...'
+        : selectedParams.length ? `Run Sweep · ${gridSize} variant${gridSize === 1 ? '' : 's'}` : 'Run Sweep';
+      btn.title = reason || `Run ${gridSize} variant${gridSize === 1 ? '' : 's'} across ${selectedParams.length} dimension${selectedParams.length === 1 ? '' : 's'}`;
+    }
+    setRunSweepDisabledReason(reason);
+    renderUniversalDimsVariantCount();
+    return;
+  }
+
   const primary = getPrimarySweepParamConfig();
 
   // A sweep is valid if:
@@ -1311,11 +1639,23 @@ function updateRunButton() {
   const hasStrategyParam = primary.values.length > 0 && primary.path;
   const hasUniversalDim = activeDims.length > 0;
   let disabled = !strategy || (!hasStrategyParam && !hasUniversalDim);
+  let reason = '';
+
+  if (!strategy) {
+    reason = 'No strategy package is loaded. Open or save a strategy package first.';
+  } else if (!hasStrategyParam && !hasUniversalDim) {
+    reason = 'Select or add at least one sweep value.';
+  }
 
   if (secondSlot.active && hasStrategyParam) {
     const hasSecond = secondSlot.values.length > 0 && secondSlot.paramPath;
     const gridSize = primary.values.length * secondSlot.values.length;
     disabled = disabled || !hasSecond || gridSize > 20 || gridSize === 0;
+    if (!reason && !hasSecond) {
+      reason = 'Finish or remove the second grid axis.';
+    } else if (!reason && (gridSize > 20 || gridSize === 0)) {
+      reason = `${gridSize} grid variants selected; max is 20.`;
+    }
   }
 
   // Check total variant count across all axes
@@ -1329,15 +1669,20 @@ function updateRunButton() {
     : 1;
   const totalVariants = primaryCount * dimsProduct;
 
-  if (totalVariants > 20) disabled = true;
+  if (totalVariants > 20) {
+    disabled = true;
+    if (!reason) reason = `${totalVariants} variants selected; max is 20.`;
+  }
 
-  const btn = document.getElementById('btn-run-sweep');
   if (btn) {
     btn.disabled = disabled;
+    btn.textContent = 'Run Sweep';
     btn.title = totalVariants > 20
       ? `${totalVariants} variants (max 20) — reduce selections`
       : totalVariants > 1 ? `${totalVariants} total variants` : '';
   }
+  if (btn) btn.title = reason || (totalVariants > 1 ? `${totalVariants} total variants` : '');
+  setRunSweepDisabledReason(disabled ? reason : '');
   renderGridControls();
   renderUniversalDimsVariantCount();
 }
@@ -1362,10 +1707,16 @@ function getPrimarySweepParamConfig() {
   const labelInput = document.getElementById('custom-param-label');
   const manualPath = pathInput?.value?.trim() || '';
   const manualLabel = labelInput?.value?.trim() || manualPath;
+  if (isRetiredSweepParamPath(manualPath)) {
+    return { path: '', label: '', values: [] };
+  }
 
   if (selectedPreset) {
     const preset = resolvePresetDef(selectedPreset);
     if (preset) {
+      if (isRetiredSweepParamPath(preset.param_path || manualPath)) {
+        return { path: '', label: '', values: [] };
+      }
       return {
         path: preset.param_path || manualPath,
         label: preset.label || manualLabel,
@@ -1387,15 +1738,22 @@ function renderGridControls() {
   const container = document.getElementById('sweep-grid-controls');
   if (!container) return;
   const primary = getPrimarySweepParamConfig();
+  const addBtn = document.getElementById('strategy-param-add-btn');
+  const hasFirstParam = primary.values.length > 0 && primary.path;
+  document.querySelectorAll('.strategy-param-subsection > summary .strategy-param-subsection-remove').forEach(btn => {
+    if (btn.dataset.stopToggleBound === '1') return;
+    btn.dataset.stopToggleBound = '1';
+    btn.addEventListener('click', (event) => event.stopPropagation());
+  });
+  if (addBtn) {
+    addBtn.disabled = secondSlot.active || !hasFirstParam;
+    addBtn.title = secondSlot.active
+      ? 'Entry criterion 2 already added'
+      : hasFirstParam ? 'Add entry criterion' : 'Choose entry criterion 1 and values first';
+  }
 
   if (!secondSlot.active) {
-    const hasFirstParam = primary.values.length > 0 && primary.path;
-    container.innerHTML = hasFirstParam
-      ? `<button type="button" onclick="addSecondParamSlot()" class="strategy-grid-add-btn">
-          <strong>Grid Sweep</strong>
-          + Add 2nd Parameter
-        </button>`
-      : '';
+    container.innerHTML = '';
     return;
   }
 
@@ -1407,6 +1765,48 @@ function renderGridControls() {
         Grid: ${primary.values.length} × ${secondSlot.values.length} = <strong>${gridSize}</strong> variants${overCap ? ' (max 20)' : ''}
       </span>
     </div>`;
+}
+
+function renderSecondParameterSlotMarkup(groupsHtml) {
+  return `
+    <details class="strategy-param-subsection" open>
+      <summary>
+        <div>
+          <div class="strategy-param-subsection-title">Entry Criterion 2</div>
+          <div class="strategy-param-subsection-help">Optional grid axis across both entry criteria.</div>
+        </div>
+        <button type="button" onclick="removeSecondParamSlot()" class="strategy-param-subsection-remove" title="Remove entry criterion 2">×</button>
+      </summary>
+      <div class="strategy-param-subsection-body">
+        <div class="parameter-control-card">
+          <div class="form-group">
+            <label class="form-label">Entry Criterion</label>
+            <select id="custom-param-select-2" class="form-select">
+              <option value="">Choose an entry criterion...</option>
+              ${groupsHtml}
+            </select>
+            <div id="custom-param-help-2" class="custom-param-help" style="display:none;"></div>
+          </div>
+          <div class="form-group" id="suggested-values-group-2" style="display:none;">
+            <label class="form-label">Suggested Values</label>
+            <div id="suggested-values-2" class="suggested-values"></div>
+          </div>
+          <input id="custom-param-path-2" type="hidden" />
+          <input id="custom-param-label-2" type="hidden" />
+        </div>
+        <div class="parameter-values-card">
+          <div class="parameter-values-header">
+            <div class="parameter-values-title">Values to Test</div>
+            <div class="parameter-values-meta">axis 2</div>
+          </div>
+          <div class="values-pills" id="values-pills-2"></div>
+          <div class="add-value-row">
+            <input id="add-value-input-2" type="text" placeholder="e.g. 0.79" />
+            <button onclick="addSecondSlotValue()">+ Add</button>
+          </div>
+        </div>
+      </div>
+    </details>`;
 }
 
 function addSecondParamSlot() {
@@ -1427,12 +1827,12 @@ function addSecondParamSlot() {
   slot.innerHTML = `
     <div class="sweep-section" style="border-top:1px solid var(--color-border);padding-top:var(--space-12);">
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="sweep-section-label" style="border:none;padding:0;">2nd Parameter</div>
-        <button type="button" onclick="removeSecondParamSlot()" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:14px;padding:0 4px;" title="Remove 2nd parameter">×</button>
+        <div class="sweep-section-label" style="border:none;padding:0;">Entry Criterion 2</div>
+        <button type="button" onclick="removeSecondParamSlot()" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:14px;padding:0 4px;" title="Remove entry criterion 2">×</button>
       </div>
       <div class="form-group">
         <select id="custom-param-select-2" class="form-select">
-          <option value="">Choose a parameter...</option>
+              <option value="">Choose an entry criterion...</option>
           ${groupsHtml}
         </select>
         <div id="custom-param-help-2" class="custom-param-help" style="display:none;"></div>
@@ -1441,19 +1841,8 @@ function addSecondParamSlot() {
         <label class="form-label">Suggested Values</label>
         <div id="suggested-values-2" class="suggested-values"></div>
       </div>
-      <details class="advanced-custom-details">
-        <summary>Advanced Path</summary>
-        <div class="advanced-custom-body">
-          <div class="form-group">
-            <label class="form-label">Parameter Path</label>
-            <input id="custom-param-path-2" class="form-input" type="text" placeholder="e.g. setup_config.ote_zone_max" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Label</label>
-            <input id="custom-param-label-2" class="form-input" type="text" placeholder="e.g. OTE Zone Max" />
-          </div>
-        </div>
-      </details>
+      <input id="custom-param-path-2" type="hidden" />
+      <input id="custom-param-label-2" type="hidden" />
       <div class="form-group">
         <label class="form-label">Values to Test</label>
         <div class="values-pills" id="values-pills-2"></div>
@@ -1477,7 +1866,7 @@ function addSecondParamSlot() {
     cardHeader.classList.add('strategy-param-card-header');
     const helper = document.createElement('div');
     helper.className = 'strategy-param-subsection-help';
-    helper.textContent = 'Add a second knob to run a grid sweep across both parameter sets.';
+    helper.textContent = 'Add a second entry criterion to run a grid sweep across both axes.';
     if (title) {
       title.classList.add('strategy-param-subsection-title');
       title.after(helper);
@@ -1486,6 +1875,12 @@ function addSecondParamSlot() {
   if (removeBtn) {
     removeBtn.className = 'strategy-param-subsection-remove';
     removeBtn.textContent = '×';
+  }
+
+  slot.innerHTML = renderSecondParameterSlotMarkup(groupsHtml);
+  const secondRemoveBtn = slot.querySelector('.strategy-param-subsection-remove');
+  if (secondRemoveBtn) {
+    secondRemoveBtn.addEventListener('click', (event) => event.stopPropagation());
   }
 
   const select2 = document.getElementById('custom-param-select-2');
@@ -1546,7 +1941,10 @@ function renderSecondSlotSuggestedValues(presetKey = '') {
     if (help) help.style.display = 'none';
     return;
   }
-  if (help) { help.textContent = preset.param_path; help.style.display = 'block'; }
+  if (help) {
+    help.textContent = preset.description || '';
+    help.style.display = preset.description ? 'block' : 'none';
+  }
   if (group) group.style.display = preset.values.length > 0 ? 'flex' : 'none';
   container.innerHTML = preset.values.map(value => {
     const normalized = String(value);
@@ -1620,6 +2018,8 @@ function isTooFewTradesOnlyFail(report) {
 
 function getDisplayVerdict(report) {
   const verdict = String(report?.pass_fail || '').toUpperCase();
+  if (verdict === 'PROMISING_BUT_NOT_VALIDATED') return 'PROMISING_BUT_NOT_VALIDATED';
+  if (verdict === 'INSUFFICIENT_DATA') return 'INSUFFICIENT_DATA';
   if (verdict !== 'FAIL') return verdict || 'N/A';
   return isTooFewTradesOnlyFail(report) ? 'FAIL' : 'HARD_FAIL';
 }
@@ -1641,13 +2041,31 @@ function formatSweepValueSummary(values = []) {
 
 function tierLabel(tier) {
   const normalized = String(tier || '').toLowerCase();
+  if (normalized === 'candidate') return 'Sweep Candidate';
   if (normalized === 'tier2') return 'Tier 2';
   if (normalized === 'tier2r') return 'T2R';
   if (normalized === 'tier3') return 'Tier 3';
+  if (normalized === 'clean') return 'Clean Universe';
   if (normalized === 'tier1s') return 'Tier 1S';
+  if (normalized === 'tier1bs') return 'Tier 1BS';
   if (normalized === 'tier1b') return 'Tier 1B';
   if (normalized === 'tier1') return 'Tier 1';
   return normalized ? normalized.toUpperCase() : 'Tier ?';
+}
+
+function evidenceModeLabel(mode, targetTrades = null) {
+  const normalized = String(mode || '').toLowerCase();
+  if (normalized === 'evidence_50') return 'Evidence 50 trades';
+  if (normalized === 'evidence_100') return 'Evidence 100 trades';
+  if (normalized === 'evidence_200') return 'Evidence 200 trades';
+  if (normalized === 'evidence_500') return 'Evidence 500 trades';
+  if (normalized === 'full_clean') return 'Full clean universe';
+  if (targetTrades) return `Evidence ${targetTrades} trades`;
+  return '';
+}
+
+function sweepScopeLabel(sweep) {
+  return evidenceModeLabel(sweep?.evidence_mode, sweep?.evidence_target_trades) || tierLabel(sweep?.tier || '');
 }
 
 function getStrategyName(strategyVersionId) {
@@ -1657,10 +2075,12 @@ function getStrategyName(strategyVersionId) {
 function getStrategyStageLabel(strategyVersionId, fallbackTier) {
   const strategy = strategyCatalog.get(strategyVersionId);
   const stage = String(strategy?.sweep_stage || '').toLowerCase();
+  if (stage === 'candidate') return 'Sweep Candidate';
   if (stage === 'tier2r') return 'T2R';
   if (stage === 'tier2') return 'Tier 2';
   if (stage === 'tier3') return 'Tier 3';
   if (stage === 'tier1s') return 'T1S';
+  if (stage === 'tier1bs') return 'T1BS';
   if (stage === 'tier1b') return 'T1B';
   if (stage === 'tier1') return 'T1';
   return tierLabel(fallbackTier);
@@ -1691,11 +2111,12 @@ function renderLoadedSweepBanner(sweep = null) {
     ? `Loaded: ${baseName}${versionTag}`
     : '';
   resultsSweepId.textContent = sweep.sweep_id
-    ? `${sweep.sweep_id} · ${tierLabel(sweep.tier)}`
+    ? `${sweep.sweep_id} · ${sweepScopeLabel(sweep)}`
     : '';
 }
 
 function restoreSweepConfig(sweep) {
+  clearActiveFundamentalSweepSession();
   const strategySelect = document.getElementById('sweep-strategy-select');
   const tierSelect = document.getElementById('sweep-tier-select');
   const pathInput = document.getElementById('custom-param-path');
@@ -1732,11 +2153,12 @@ function restoreSweepConfig(sweep) {
 
   // Always restore as explicit sweep_params (path + values) — never as a named
   // backend preset, since dropdown picker keys are frontend-only and unknown to the backend.
-  const pickerKey = findPresetKeyForParam(param) || findPresetKeyByPath(param.param_path);
+  const isRetiredPrimaryParam = isRetiredSweepParamPath(param.param_path);
+  const pickerKey = isRetiredPrimaryParam ? '' : (findPresetKeyForParam(param) || findPresetKeyByPath(param.param_path));
   clearPresetSelection();
-  customValues = Array.isArray(param.values) ? [...param.values] : [];
-  if (pathInput) pathInput.value = param.param_path || '';
-  if (labelInput) labelInput.value = param.label || '';
+  customValues = isRetiredPrimaryParam ? [] : (Array.isArray(param.values) ? [...param.values] : []);
+  if (pathInput) pathInput.value = isRetiredPrimaryParam ? '' : (param.param_path || '');
+  if (labelInput) labelInput.value = isRetiredPrimaryParam ? '' : (param.label || '');
   setCustomParameterPickerValue(pickerKey);
 
   if (valueInput) valueInput.value = '';
@@ -1744,7 +2166,7 @@ function restoreSweepConfig(sweep) {
 
   // Restore second param slot if this was a grid sweep
   const param2 = sweep?.sweep_params?.[1];
-  if (param2) {
+  if (param2 && !isRetiredSweepParamPath(param2.param_path)) {
     addSecondParamSlot();
     secondSlot.paramPath = param2.param_path || '';
     secondSlot.label = param2.label || '';
@@ -1864,7 +2286,7 @@ function renderSweepValidationCriteria(report) {
   html += `
     <div style="margin-top:var(--space-10);display:flex;align-items:center;gap:var(--space-12);">
       <div style="font-size:var(--text-caption);color:var(--color-text-subtle);">
-        Final verdict: <span class="verdict-badge ${getDisplayVerdict(report)}" style="margin-left:var(--space-6);">${displayVerdict}</span>
+        Final verdict: <span class="verdict-badge ${getDisplayVerdict(report)}" style="margin-left:var(--space-6);">${displayVerdict.replace(/_/g, ' ')}</span>
       </div>
       <button id="${copyId}" style="font-size:var(--text-caption);padding:var(--space-4) var(--space-10);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);color:var(--color-text-subtle);cursor:pointer;">Copy</button>
     </div>
@@ -1909,7 +2331,7 @@ function renderSweepReportDetail(report, context = {}) {
           <div class="section-title" style="margin:0;">Validation Report</div>
           <span class="text-mono" style="font-size:var(--text-caption);color:var(--color-text-subtle);">${reportEscHtml(r.report_id || 'N/A')}</span>
           ${selectedValue != null ? `<span class="tier-badge">Value ${reportEscHtml(String(selectedValue))}</span>` : ''}
-          <span class="verdict-badge ${verdict}">${verdict.replace('_', ' ')}</span>
+          <span class="verdict-badge ${verdict}">${verdict.replace(/_/g, ' ')}</span>
         </div>
         <div class="sweep-report-actions">
           <button class="sweep-inline-btn" onclick="openSweepReportInValidator('${reportEscHtml(r.report_id || '')}')" ${r.report_id ? '' : 'disabled'}>Open In Validator</button>
@@ -2050,6 +2472,14 @@ async function fetchSweepReport(reportId) {
   if (!data.success) throw new Error(data.error || 'Failed to load report');
   sweepReportCache.set(reportId, data.data);
   return data.data;
+}
+
+async function ensureSweepVariantReports(sweep) {
+  const reportIds = Array.from(new Set((sweep?.variants || [])
+    .filter(variant => variant?.status === 'completed' && variant?.report_id)
+    .map(variant => String(variant.report_id))));
+  if (!reportIds.length) return;
+  await Promise.all(reportIds.map(reportId => fetchSweepReport(reportId).catch(() => null)));
 }
 
 async function fetchStrategyValidationReports(strategyVersionId) {
@@ -2376,7 +2806,7 @@ function renderSweepComparisonPanel(sweep, variants) {
       <div class="sweep-compare-header">
         <div>
           <div class="section-title" style="margin:0 0 var(--space-8) 0;">Variant Comparison</div>
-          <div class="sweep-compare-subtitle">Reference is the original validator report for ${reportEscHtml(getStrategyName(sweep.base_strategy_version_id))} at ${reportEscHtml(tierLabel(sweep.tier))}. Each selected sweep value appears as a row underneath. Hover the short headers for the full validation-criteria meaning.</div>
+          <div class="sweep-compare-subtitle">Reference is the original validator report for ${reportEscHtml(getStrategyName(sweep.base_strategy_version_id))} at ${reportEscHtml(sweepScopeLabel(sweep))}. Each selected sweep value appears as a row underneath. Hover the short headers for the full validation-criteria meaning.</div>
         </div>
         <div style="display:flex;gap:var(--space-8);">
           <button class="sweep-inline-btn" id="copy-compare-table-btn">Copy Table</button>
@@ -2451,7 +2881,519 @@ function renderSweepComparisonPanel(sweep, variants) {
 
 // ─── Run sweep ─────────────────────────────────────────────────────────────────
 
+function fmtFundamentalMetric(value, suffix = '') {
+  if (value === null || value === undefined || value === '') return '-';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return n.toFixed(1) + suffix;
+}
+
+function fundamentalValueLabel(value) {
+  if (Array.isArray(value)) return value.join(', ');
+  if (value === null || value === undefined) return 'none';
+  return String(value);
+}
+
+function parseFundamentalSweepValue(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  if (text.toLowerCase() === 'none' || text.toLowerCase() === 'null') return null;
+  if (text.includes(',')) {
+    return text.split(',').map(part => Number(part.trim())).filter(value => Number.isFinite(value));
+  }
+  const num = Number(text);
+  return Number.isFinite(num) ? num : text;
+}
+
+function getFundamentalSelectedValuesForIdx(idx) {
+  const selected = [];
+  document.querySelectorAll(`.fundamental-sweep-pill.selected[data-param-idx="${idx}"]`).forEach((pill) => {
+    selected.push(parseFundamentalSweepValue(pill.dataset.value || ''));
+  });
+  const seen = new Set();
+  return selected.filter((value) => {
+    const key = JSON.stringify(value);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// Returns the sweep_params (with selected values) for every dimension that has
+// at least one highlighted value.
+function getSelectedFundamentalSweepParams() {
+  const params = activeFundamentalSweepSession?.sweep_params || [];
+  const out = [];
+  params.forEach((param, idx) => {
+    if (!isFundamentalEntrySweepParam(param)) return;
+    const values = getFundamentalSelectedValuesForIdx(idx);
+    if (values.length) out.push({ ...param, values });
+  });
+  return out;
+}
+
+function isFundamentalEntrySweepParam(param) {
+  const path = String(param?.param_path || '');
+  return path.startsWith('entry.metric:') || path.startsWith('exclusion.metric:');
+}
+
+function getFundamentalGridSize() {
+  const selected = getSelectedFundamentalSweepParams();
+  if (!selected.length) return 0;
+  return selected.reduce((acc, param) => acc * param.values.length, 1);
+}
+
+function fundamentalSweepValueEncoded(value) {
+  return encodeURIComponent(Array.isArray(value) ? value.join(',') : String(value === null || value === undefined ? 'none' : value));
+}
+
+function fundamentalSweepValuesEqual(a, b) {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((value, idx) => fundamentalSweepValuesEqual(value, b[idx]));
+  }
+  if (a === null || a === undefined || b === null || b === undefined) {
+    return a === b;
+  }
+  const an = Number(a);
+  const bn = Number(b);
+  if (Number.isFinite(an) && Number.isFinite(bn)) {
+    return Math.abs(an - bn) < 0.000001;
+  }
+  return String(a) === String(b);
+}
+
+function getFundamentalBaseConfigValue(session, paramValue) {
+  const path = String(paramValue?.param_path || '');
+  const base = session?.base_config || {};
+  if (path.startsWith('entry.metric:')) {
+    const metric = path.slice('entry.metric:'.length);
+    const rules = Array.isArray(base.entry?.all) ? base.entry.all : [];
+    return rules.find(rule => rule?.metric === metric)?.value;
+  }
+  if (path.startsWith('exclusion.metric:')) {
+    const metric = path.slice('exclusion.metric:'.length);
+    const rules = Array.isArray(base.exclusions) ? base.exclusions : [];
+    return rules.find(rule => rule?.metric === metric)?.value;
+  }
+  if (path.startsWith('exit.')) {
+    return path.slice('exit.'.length).split('.').reduce((value, key) => value?.[key], base.exit || {});
+  }
+  return path.split('.').reduce((value, key) => value?.[key], base);
+}
+
+function isFundamentalCurrentBaselineVariant(session, variant) {
+  const values = Array.isArray(variant?.param_values) ? variant.param_values : [];
+  if (!values.length) return false;
+  return values.every(paramValue => fundamentalSweepValuesEqual(paramValue.value, getFundamentalBaseConfigValue(session, paramValue)));
+}
+
+function updateFundamentalSweepSelectedMeta() {
+  document.querySelectorAll('.fundamental-dim-count').forEach((el) => {
+    const idx = el.getAttribute('data-param-idx');
+    const n = document.querySelectorAll(`.fundamental-sweep-pill.selected[data-param-idx="${idx}"]`).length;
+    el.textContent = n ? `${n} selected` : 'none selected';
+  });
+  updateRunButton();
+}
+
+function toggleFundamentalSweepValue(el) {
+  if (!el) return;
+  el.classList.toggle('selected');
+  updateFundamentalSweepSelectedMeta();
+}
+
+function addFundamentalSweepValue(idx = 0) {
+  const input = document.querySelector(`.fundamental-dim-add[data-param-idx="${idx}"]`);
+  const raw = String(input?.value || '').trim();
+  if (!raw) return;
+  const value = parseFundamentalSweepValue(raw);
+  const encoded = fundamentalSweepValueEncoded(value);
+  const existing = Array.from(document.querySelectorAll(`.fundamental-sweep-pill[data-param-idx="${idx}"]`))
+    .find(pill => String(pill.dataset.value || '') === encoded);
+  if (existing) {
+    existing.classList.add('selected');
+  } else {
+    const wrap = document.querySelector(`.fundamental-dim-card[data-param-idx="${idx}"] .udim-values`);
+    if (wrap) {
+      const label = reportEscHtml(fundamentalValueLabel(value));
+      wrap.insertAdjacentHTML('beforeend', `<span class="udim-pill selected custom fundamental-sweep-pill" data-param-idx="${idx}" data-value="${encoded}" onclick="toggleFundamentalSweepValue(this)">${label}<button type="button" aria-label="Remove ${label}">×</button></span>`);
+    }
+  }
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  updateFundamentalSweepSelectedMeta();
+}
+
+function renderFundamentalSweepSession(session) {
+  activeFundamentalSweepSession = session;
+  activeFundamentalSweepSessionId = String(session?.session_id || '');
+  const promotedStrategyId = String(session?.promoted_strategy_version_id || '').trim();
+  if (promotedStrategyId) {
+    const strategySelect = document.getElementById('sweep-strategy-select');
+    if (strategySelect && !strategySelect.querySelector(`option[value="${CSS.escape(promotedStrategyId)}"]`)) {
+      const opt = document.createElement('option');
+      opt.value = promotedStrategyId;
+      strategySelect.appendChild(opt);
+    }
+    if (strategySelect) strategySelect.value = promotedStrategyId;
+    activeConfiguredStrategyVersionId = promotedStrategyId;
+    persistActiveStrategyId(promotedStrategyId);
+    ensureStrategySpec(promotedStrategyId).then(() => {
+      renderStrategyAnatomy();
+      configureSweepTierSelector();
+      setupCustomParameterPicker();
+    });
+  } else {
+    activeConfiguredStrategyVersionId = null;
+    persistActiveStrategyId('');
+  }
+  persistActiveSweepId('');
+  if (!promotedStrategyId) persistActiveFundamentalSweepId(activeFundamentalSweepSessionId);
+
+  const display = document.getElementById('sweep-strategy-display');
+  if (display) {
+    const source = session.source || {};
+    const metrics = source.metrics || {};
+    display.innerHTML = `
+      <div class="sweep-name">${reportEscHtml(source.rule_name || 'Fundamental Research Candidate')}</div>
+      <div class="sweep-meta">Fundamental Backtester · ${reportEscHtml(session.candidate_state || 'research_candidate')} · ${reportEscHtml(session.source_run_id || '')}</div>
+      <div style="margin-top:var(--space-8);font-size:var(--text-caption);line-height:1.6;color:var(--color-text-subtle);">
+        Score <strong style="color:var(--color-text);">${reportEscHtml(fmtFundamentalMetric(source.research_score))}</strong>
+        · Trades <strong style="color:var(--color-text);">${reportEscHtml(String(metrics.trade_count ?? '-'))}</strong>
+        · Win <strong style="color:var(--color-text);">${reportEscHtml(fmtFundamentalMetric(metrics.win_rate_pct, '%'))}</strong>
+        · Avg <strong style="color:var(--color-text);">${reportEscHtml(fmtFundamentalMetric(metrics.average_return_pct, '%'))}</strong>
+      </div>
+    `;
+  }
+
+  const grid = document.getElementById('sweep-grid-controls');
+  if (grid) {
+    const params = Array.isArray(session.sweep_params)
+      ? session.sweep_params.filter(isFundamentalEntrySweepParam)
+      : [];
+    grid.innerHTML = `
+      <div class="sweep-section-label">Fundamental Entry Dimensions</div>
+      <div style="font-size:var(--text-caption);color:var(--color-text-subtle);line-height:1.6;margin-bottom:var(--space-8);">
+        Highlight the entry or exclusion thresholds you want to test. Leave a dimension empty to keep its baseline. Selecting values in more than one dimension builds a grid (max 20 variants).
+      </div>
+      <div id="fundamental-sweep-dims">
+        ${params.map((param, idx) => {
+          const values = Array.isArray(param.values) ? param.values : [];
+          const label = reportEscHtml(param.label || param.param_path || `Dimension ${idx + 1}`);
+          return `
+            <div class="udim-values-card fundamental-dim-card" data-param-idx="${idx}" style="margin-bottom:var(--space-8);">
+              <div class="parameter-values-header">
+                <div class="parameter-values-title">${label}</div>
+                <div class="parameter-values-meta fundamental-dim-count" data-param-idx="${idx}">none selected</div>
+              </div>
+              <div class="udim-values">
+                ${values.map(value => {
+                  const encoded = fundamentalSweepValueEncoded(value);
+                  const vlabel = reportEscHtml(fundamentalValueLabel(value));
+                  return `<span class="udim-pill fundamental-sweep-pill" data-param-idx="${idx}" data-value="${encoded}" onclick="toggleFundamentalSweepValue(this)">${vlabel}</span>`;
+                }).join('')}
+              </div>
+              <div class="add-value-row udim-add-value-row">
+                <input class="fundamental-dim-add" data-param-idx="${idx}" type="text" placeholder="e.g. 15" onkeydown="if (event.key === 'Enter') addFundamentalSweepValue(${idx})" />
+                <button type="button" onclick="addFundamentalSweepValue(${idx})">+ Add</button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    updateFundamentalSweepSelectedMeta();
+  }
+
+  updateRunButton();
+
+  renderFundamentalSweepResults(session);
+  if (String(session?.status || '').toLowerCase() === 'running' && !pollTimer) {
+    startFundamentalSweepPolling(activeFundamentalSweepSessionId);
+  }
+}
+
+function renderFundamentalSweepResults(session) {
+  const panel = document.getElementById('results-body');
+  const title = document.getElementById('results-sweep-id');
+  if (title) title.textContent = session?.session_id ? ` · ${session.session_id}` : '';
+  if (!panel) return;
+
+  const source = session.source || {};
+  const params = Array.isArray(session.sweep_params) ? session.sweep_params : [];
+  const variants = Array.isArray(session.variants) ? session.variants : [];
+  const rules = (source.tested_rules || []).map(rule => `<div>${reportEscHtml(rule)}</div>`).join('') || '<div>-</div>';
+  const winnerId = session.winner?.variant_id || '';
+  const canPromoteWinner = String(session.status || '').toLowerCase() === 'completed' && winnerId;
+  const promotedStrategyId = String(session.promoted_strategy_version_id || '').trim();
+  const canSaveStrategyPackage = !promotedStrategyId && (canPromoteWinner || session.source_run_id);
+
+  const rows = variants.length ? variants.map((variant) => {
+    const isCurrentBaseline = isFundamentalCurrentBaselineVariant(session, variant);
+    const valueText = (variant.param_values || []).map(pv => `${pv.label}: ${fundamentalValueLabel(pv.value)}`).join('<br>');
+    const values = `${isCurrentBaseline ? 'Current baseline: ' : ''}${valueText}`;
+    const metrics = variant.metrics || {};
+    const isWinner = winnerId && winnerId === variant.variant_id;
+    const statusLabel = `${variant.status || '-'}${isCurrentBaseline ? ' / apples-to-apples' : ''}`;
+    return `
+      <tr class="${isWinner ? 'winner' : isCurrentBaseline ? 'baseline' : ''}">
+        <td>${isWinner ? '★ ' : ''}${reportEscHtml(values || variant.variant_id)}</td>
+        <td>${reportEscHtml(statusLabel)}</td>
+        <td>${reportEscHtml(fmtFundamentalMetric(variant.research_score))}</td>
+        <td>${reportEscHtml(String(metrics.trade_count ?? '-'))}</td>
+        <td>${reportEscHtml(fmtFundamentalMetric(metrics.median_return_pct, '%'))}</td>
+        <td>${reportEscHtml(fmtFundamentalMetric(metrics.average_return_pct, '%'))}</td>
+        <td>${reportEscHtml(fmtFundamentalMetric(metrics.win_rate_pct, '%'))}</td>
+        <td>${reportEscHtml(fmtFundamentalMetric(metrics.benchmark_beat_rate_pct, '%'))}</td>
+      </tr>
+    `;
+  }).join('') : '';
+  const baselineMetrics = source.metrics || {};
+  const baselineRow = `
+    <tr class="baseline">
+      <td>Original saved run</td>
+      <td>historical reference</td>
+      <td>${reportEscHtml(fmtFundamentalMetric(source.research_score))}</td>
+      <td>${reportEscHtml(String(baselineMetrics.trade_count ?? '-'))}</td>
+      <td>${reportEscHtml(fmtFundamentalMetric(baselineMetrics.median_return_pct, '%'))}</td>
+      <td>${reportEscHtml(fmtFundamentalMetric(baselineMetrics.average_return_pct, '%'))}</td>
+      <td>${reportEscHtml(fmtFundamentalMetric(baselineMetrics.win_rate_pct, '%'))}</td>
+      <td>${reportEscHtml(fmtFundamentalMetric(baselineMetrics.benchmark_beat_rate_pct, '%'))}</td>
+    </tr>
+  `;
+
+  panel.innerHTML = `
+    <div class="sweep-report-shell">
+      <div class="sweep-report-header">
+        <div class="sweep-report-header-main">
+          <h2>Fundamental Research Candidate</h2>
+          <div class="sweep-report-subtitle">${reportEscHtml(source.rule_name || '-')} · ${reportEscHtml(session.candidate_state || 'research_candidate')} · not validated</div>
+        </div>
+        <div class="sweep-report-header-actions">
+          <button class="sweep-inline-btn" type="button" id="copy-fundamental-sweep-report-btn" onclick="copyFundamentalSweepReport()">Copy Report</button>
+          ${promotedStrategyId ? `
+            <a class="sweep-inline-btn" href="/validator.html?strategy_version_id=${encodeURIComponent(promotedStrategyId)}" target="_blank">Open In Validator</a>
+          ` : canSaveStrategyPackage ? `
+            <button class="sweep-inline-btn" type="button" onclick="promoteFundamentalSweepWinner()">Save Strategy Package</button>
+          ` : ''}
+        </div>
+      </div>
+      <div class="sweep-compare-grid">
+        <div class="sweep-compare-card baseline">
+          <div class="sweep-compare-card-title">Source Run</div>
+          <div class="sweep-compare-row"><span class="sweep-compare-metric-label">Saved run</span><span>${reportEscHtml(session.source_run_id || '-')}</span></div>
+          <div class="sweep-compare-row"><span class="sweep-compare-metric-label">Universe</span><span>${reportEscHtml(source.universe || '-')}</span></div>
+          <div class="sweep-compare-row"><span class="sweep-compare-metric-label">Range</span><span>${reportEscHtml(source.date_range || '-')}</span></div>
+          <div class="sweep-compare-row"><span class="sweep-compare-metric-label">Score</span><span>${reportEscHtml(fmtFundamentalMetric(source.research_score))}</span></div>
+        </div>
+        <div class="sweep-compare-card">
+          <div class="sweep-compare-card-title">Original Rules</div>
+          <div style="font-family:var(--font-mono);font-size:var(--text-caption);line-height:1.7;">${rules}</div>
+        </div>
+      </div>
+      <div style="margin-top:var(--space-12);font-size:var(--text-caption);color:var(--color-text-subtle);">
+        Generated dimensions: ${reportEscHtml(params.map(p => p.label).join(', ') || '-')}
+        <br>
+        Original saved run is historical. The variant marked apples-to-apples is rerun inside this sweep, so compare other variants to that row.
+      </div>
+      ${variants.length ? `
+        <div class="sweep-compare-table-wrap" style="margin-top:var(--space-12);">
+          <table class="sweep-compare-table">
+            <thead><tr><th>Variant</th><th>Status</th><th>Score</th><th>Trades</th><th>Median</th><th>Avg</th><th>Win</th><th>Beat</th></tr></thead>
+            <tbody>${baselineRow}${rows}</tbody>
+          </table>
+        </div>
+      ` : `
+        <div class="empty-state" style="margin-top:var(--space-16);">
+          <div class="empty-state-title">Ready to sweep</div>
+          <div class="empty-state-subtitle">Choose a generated fundamental dimension on the left, then run the first variant set.</div>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function buildFundamentalSweepReportText(session = activeFundamentalSweepSession) {
+  const source = session?.source || {};
+  const metrics = source.metrics || {};
+  const params = Array.isArray(session?.sweep_params) ? session.sweep_params : [];
+  const variants = Array.isArray(session?.variants) ? session.variants : [];
+  const rules = Array.isArray(source.tested_rules) ? source.tested_rules : [];
+  const exclusions = Array.isArray(source.exclusion_rules) ? source.exclusion_rules : [];
+  const lines = [
+    'Fundamental Sweep Report',
+    `Session id: ${session?.session_id || '-'}`,
+    `Status: ${session?.status || '-'}`,
+    `Source run: ${session?.source_run_id || '-'}`,
+    `Rule: ${source.rule_name || '-'}`,
+    `Universe: ${source.universe || '-'}`,
+    `Range: ${source.date_range || '-'}`,
+    `Source score: ${fmtFundamentalMetric(source.research_score)}`,
+    `Source trades: ${metrics.trade_count ?? '-'}`,
+    `Source win: ${fmtFundamentalMetric(metrics.win_rate_pct, '%')}`,
+    `Source avg: ${fmtFundamentalMetric(metrics.average_return_pct, '%')}`,
+    '',
+    'Original rules:',
+    ...(rules.length ? rules.map(rule => `- ${rule}`) : ['-']),
+  ];
+  if (exclusions.length) {
+    lines.push('', 'Exclusions:', ...exclusions.map(rule => `- ${rule}`));
+  }
+  lines.push(
+    '',
+    `Generated dimensions: ${params.map(param => param.label || param.param_path).join(', ') || '-'}`,
+    'Baseline note: original saved run is historical; variants marked apples-to-apples were rerun inside this sweep.',
+    '',
+    'Variants:',
+    ['Variant', 'Status', 'Score', 'Trades', 'Median', 'Avg', 'Win', 'Beat'].join('\t'),
+  );
+  lines.push([
+    'Original saved run',
+    'historical reference',
+    fmtFundamentalMetric(source.research_score),
+    metrics.trade_count ?? '-',
+    fmtFundamentalMetric(metrics.median_return_pct, '%'),
+    fmtFundamentalMetric(metrics.average_return_pct, '%'),
+    fmtFundamentalMetric(metrics.win_rate_pct, '%'),
+    fmtFundamentalMetric(metrics.benchmark_beat_rate_pct, '%'),
+  ].join('\t'));
+  if (!variants.length) {
+    return lines.join('\n');
+  }
+  for (const variant of variants) {
+    const isCurrentBaseline = isFundamentalCurrentBaselineVariant(session, variant);
+    const values = (variant.param_values || [])
+      .map(pv => `${pv.label}: ${fundamentalValueLabel(pv.value)}`)
+      .join(', ') || variant.variant_id || '-';
+    const m = variant.metrics || {};
+    lines.push([
+      `${isCurrentBaseline ? 'Current baseline: ' : ''}${values}`,
+      `${variant.status || '-'}${isCurrentBaseline ? ' / apples-to-apples' : ''}`,
+      fmtFundamentalMetric(variant.research_score),
+      m.trade_count ?? '-',
+      fmtFundamentalMetric(m.median_return_pct, '%'),
+      fmtFundamentalMetric(m.average_return_pct, '%'),
+      fmtFundamentalMetric(m.win_rate_pct, '%'),
+      fmtFundamentalMetric(m.benchmark_beat_rate_pct, '%'),
+    ].join('\t'));
+  }
+  return lines.join('\n');
+}
+
+function copyFundamentalSweepReport() {
+  const text = buildFundamentalSweepReportText();
+  const btn = document.getElementById('copy-fundamental-sweep-report-btn');
+  navigator.clipboard.writeText(text).then(() => {
+    if (!btn) return;
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = 'Copy Report'; }, 1500);
+  }).catch(() => {
+    window.prompt('Copy report text:', text);
+  });
+}
+
+async function loadFundamentalSweepSession(sessionId) {
+  const res = await fetch(`${API}/research/fundamental-backtest/sweep-sessions/${encodeURIComponent(sessionId)}`);
+  const payload = await res.json();
+  if (!payload.success) throw new Error(payload.error || 'Failed to load fundamental sweep session');
+  const session = payload.data;
+  let strategyVersionId = String(session?.promoted_strategy_version_id || '').trim();
+  if (!strategyVersionId) {
+    const promoteRes = await fetch(`${API}/research/fundamental-backtest/sweep-sessions/${encodeURIComponent(sessionId)}/promote-strategy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const promotedPayload = await promoteRes.json();
+    if (!promotedPayload.success) throw new Error(promotedPayload.error || 'Failed to save fundamental strategy package');
+    strategyVersionId = String(promotedPayload.data?.strategy_version_id || '').trim();
+  }
+  if (strategyVersionId) {
+    await loadStrategyCatalog();
+    await loadStrategies();
+    await switchToStrategy(strategyVersionId);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('fundamental_sweep_id');
+    url.searchParams.set('strategy_version_id', strategyVersionId);
+    window.history.replaceState({}, '', url.toString());
+    return;
+  }
+  renderFundamentalSweepSession(session);
+}
+
+async function runFundamentalSweep() {
+  if (!activeFundamentalSweepSessionId || !activeFundamentalSweepSession) return;
+  const btn = document.getElementById('btn-run-sweep');
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting...'; }
+  try {
+    const sweepParams = getSelectedFundamentalSweepParams();
+    if (!sweepParams.length) {
+      throw new Error('Highlight at least one fundamental entry or exclusion value before running.');
+    }
+    const gridSize = sweepParams.reduce((acc, p) => acc * p.values.length, 1);
+    if (gridSize > 20) {
+      throw new Error(`Grid produces ${gridSize} variants — maximum is 20. Deselect some values.`);
+    }
+    const res = await fetch(`${API}/research/fundamental-backtest/sweep-sessions/${encodeURIComponent(activeFundamentalSweepSessionId)}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sweep_params: sweepParams }),
+    });
+    const payload = await res.json();
+    if (!payload.success) throw new Error(payload.error || 'Failed to start fundamental sweep');
+    renderFundamentalSweepSession(payload.data);
+    startFundamentalSweepPolling(activeFundamentalSweepSessionId);
+  } catch (err) {
+    alert(`Failed to start fundamental sweep: ${err.message || err}`);
+    if (btn) { btn.disabled = false; btn.textContent = 'Run Sweep'; }
+  }
+}
+
+async function promoteFundamentalSweepWinner(variantId = '') {
+  if (!activeFundamentalSweepSessionId) return;
+  try {
+    const res = await fetch(`${API}/research/fundamental-backtest/sweep-sessions/${encodeURIComponent(activeFundamentalSweepSessionId)}/promote-strategy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variant_id: variantId || undefined }),
+    });
+    const payload = await res.json();
+    if (!payload.success) throw new Error(payload.error || 'Failed to save strategy package');
+    renderFundamentalSweepSession(payload.data.session);
+    if (payload.data.strategy_version_id) {
+      await loadStrategyCatalog();
+      await loadStrategies();
+      await switchToStrategy(payload.data.strategy_version_id, { skipLoadSweeps: true });
+      updateRunButton();
+    }
+    if (payload.data.url) {
+      window.open(payload.data.url, '_blank');
+    }
+  } catch (err) {
+    alert(`Failed to save strategy package: ${err.message || err}`);
+  }
+}
+
+function startFundamentalSweepPolling(sessionId) {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    await loadFundamentalSweepSession(sessionId);
+    const status = String(activeFundamentalSweepSession?.status || '').toLowerCase();
+    if (status !== 'running') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }, 5000);
+}
+
 async function runSweep() {
+  if (activeFundamentalSweepSessionId && activeFundamentalSweepSession && !getConfiguredStrategyVersionId()) {
+    return runFundamentalSweep();
+  }
+
   const strategyVersionId = getConfiguredStrategyVersionId();
   if (!strategyVersionId) return;
 
@@ -2460,8 +3402,20 @@ async function runSweep() {
   btn.textContent = 'Starting...';
 
   try {
-    const tier = document.getElementById('sweep-tier-select')?.value || 'tier1';
-    const body = { strategy_version_id: strategyVersionId, tier };
+    const evidenceSelection = String(document.getElementById('sweep-tier-select')?.value || 'evidence_100').trim().toLowerCase();
+    const evidenceTargets = { evidence_50: 50, evidence_100: 100, evidence_200: 200, evidence_500: 500 };
+    const tier = ['evidence_50', 'evidence_100', 'evidence_200', 'evidence_500', 'full_clean'].includes(evidenceSelection)
+      ? 'clean'
+      : evidenceSelection;
+    const body = {
+      strategy_version_id: strategyVersionId,
+      tier,
+      evidence_mode: evidenceSelection,
+      evidence_target_trades: evidenceTargets[evidenceSelection] || null,
+      session_id: ensureActiveSweepSession(),
+      session_started_at: sessionStartedAt,
+      session_note: activeSweepSessionNote,
+    };
     const primary = getPrimarySweepParamConfig();
     const path = primary.path;
     const label = primary.label;
@@ -2548,6 +3502,50 @@ function startPolling(sweepId) {
   fetchAndRenderSweep(sweepId);
 }
 
+function makeSweepSessionId(startedAt = new Date().toISOString()) {
+  const stamp = String(startedAt || new Date().toISOString())
+    .replace(/[^0-9]/g, '')
+    .slice(0, 14) || String(Date.now());
+  return `sws_${stamp}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function ensureActiveSweepSession() {
+  if (!sessionStartedAt) {
+    sessionStartedAt = new Date().toISOString();
+    window.localStorage.setItem(SESSION_START_STORAGE_KEY, sessionStartedAt);
+  }
+  if (!activeSweepSessionId) {
+    activeSweepSessionId = makeSweepSessionId(sessionStartedAt);
+    window.localStorage.setItem(ACTIVE_SWEEP_SESSION_ID_STORAGE_KEY, activeSweepSessionId);
+  }
+  return activeSweepSessionId;
+}
+
+function updateSessionNoteInput() {
+  const input = document.getElementById('sweep-session-note');
+  if (input && input.value !== activeSweepSessionNote) input.value = activeSweepSessionNote;
+}
+
+function updateCurrentSweepSessionNote(value) {
+  activeSweepSessionNote = String(value || '').slice(0, 240);
+  window.localStorage.setItem(ACTIVE_SWEEP_SESSION_NOTE_STORAGE_KEY, activeSweepSessionNote);
+}
+
+async function refreshActiveValidatorJobIds() {
+  try {
+    const res = await fetch(`${API}/validator/runs/active`);
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.data)) return;
+    activeValidatorJobIds = new Set(
+      data.data
+        .map(job => String(job?.job_id || '').trim())
+        .filter(Boolean),
+    );
+  } catch {
+    activeValidatorJobIds = null;
+  }
+}
+
 async function fetchAndRenderSweep(sweepId) {
   try {
     const res = await fetch(`${API}/sweep/${sweepId}`);
@@ -2560,7 +3558,11 @@ async function fetchAndRenderSweep(sweepId) {
     }
     persistActiveSweepId(sweepId);
     renderLoadedSweepBanner(data.data);
+    if (String(data.data?.status || '').toLowerCase() === 'running') {
+      await refreshActiveValidatorJobIds();
+    }
     await ensureSweepReferenceReport(data.data);
+    await ensureSweepVariantReports(data.data);
     renderSweepResults(data.data);
     if (data.data.status === 'completed' || data.data.status === 'failed' || data.data.status === 'cancelled') {
       clearInterval(pollTimer);
@@ -2579,12 +3581,304 @@ function renderLoadingState(sweepId) {
     resultsLoadedStrategy.textContent = strategyName ? `Loaded Strategy: ${strategyName}` : '';
   }
   document.getElementById('results-sweep-id').textContent = sweepId;
+  setSweepActivityIndicator({
+    status: 'running',
+    variants: [{ status: 'running', param_label: 'Starting', param_value: 'initializing' }],
+    sweep_params: [],
+  });
   document.getElementById('results-body').innerHTML = `
     <div class="sweep-progress">
       <div class="sweep-progress-bar-track"><div class="sweep-progress-bar-fill" style="width:5%"></div></div>
       <span class="sweep-progress-label">Starting sweep...</span>
     </div>
   `;
+}
+
+function sweepVariantLabel(sweep, variant) {
+  if (!variant) return 'N/A';
+  const isGrid = (sweep?.sweep_params?.length || 0) > 1;
+  if (isGrid && Array.isArray(variant.param_values) && variant.param_values.length > 0) {
+    return variant.param_values.map(pv => `${pv.label || pv.param_path || 'Param'}=${pv.value}`).join(', ');
+  }
+  const label = sweep?.sweep_params?.[0]?.label || variant.param_label || variant.param_path || 'Parameter';
+  return `${label}=${variant.param_value}`;
+}
+
+function sweepReportDiagnostics(report) {
+  const r = report || {};
+  const ts = r.trades_summary || {};
+  const rs = r.risk_summary || {};
+  const rob = r.robustness || {};
+  const oos = rob.out_of_sample || {};
+  const wf = rob.walk_forward || {};
+  const mc = rob.monte_carlo || {};
+  const ps = rob.parameter_sensitivity || {};
+  const cfg = r.config || {};
+  const thr = cfg.validation_thresholds || {};
+  return {
+    report_id: r.report_id || '',
+    verdict: getDisplayVerdict(r).replace(/_/g, ' '),
+    trades: reportInt(ts.total_trades),
+    winners: reportInt(ts.winners),
+    losers: reportInt(ts.losers),
+    win_rate_pct: reportNum(ts.win_rate) * 100,
+    expectancy_R: reportNum(ts.expectancy_R),
+    profit_factor: reportNum(ts.profit_factor),
+    avg_win_R: reportNum(ts.avg_win_R),
+    avg_loss_R: reportNum(ts.avg_loss_R),
+    largest_win_R: reportNum(ts.largest_win_R),
+    largest_loss_R: reportNum(ts.largest_loss_R),
+    max_dd_pct: reportNum(rs.max_drawdown_pct),
+    max_dd_R: reportNum(rs.max_drawdown_R),
+    sharpe: reportNum(rs.sharpe_ratio),
+    calmar: reportNum(rs.calmar_ratio),
+    is_expectancy_R: reportNum(oos.is_expectancy),
+    is_n: reportInt(oos.is_n),
+    oos_expectancy_R: reportNum(oos.oos_expectancy),
+    oos_n: reportInt(oos.oos_n),
+    oos_degradation_pct: reportNum(oos.oos_degradation_pct),
+    split_date: oos.split_date || '',
+    wf_windows: Array.isArray(wf.windows) ? wf.windows.length : reportInt(wf.window_count || wf.windows),
+    wf_avg_test_expectancy_R: reportNum(wf.avg_test_expectancy),
+    wf_profitable_windows_pct: reportNum(wf.pct_profitable_windows) * 100,
+    mc_simulations: reportInt(mc.simulations),
+    mc_median_dd_pct: reportNum(mc.median_dd_pct),
+    mc_p95_dd_pct: reportNum(mc.p95_dd_pct),
+    mc_p99_dd_pct: reportNum(mc.p99_dd_pct),
+    mc_median_final_R: reportNum(mc.median_final_R),
+    sensitivity_score: reportNum(ps.sensitivity_score),
+    base_expectancy_R: reportNum(ps.base_expectancy),
+    min_trades_pass: reportInt(thr.min_trades_pass || 30),
+    max_mc_p95_dd_pct: reportNum(thr.max_mc_p95_dd_pct || 30),
+    max_mc_p99_dd_pct: reportNum(thr.max_mc_p99_dd_pct || 50),
+    max_oos_degradation_pct: reportNum(thr.max_oos_degradation_pct || 50),
+    min_wf_profitable_windows_pct: reportNum(thr.min_wf_profitable_windows || 0.6) * 100,
+    pass_fail_reasons: Array.isArray(r.pass_fail_reasons) ? r.pass_fail_reasons : [],
+    universe_count: Array.isArray(cfg.universe) ? cfg.universe.length : 0,
+    universe: Array.isArray(cfg.universe) ? cfg.universe : [],
+  };
+}
+
+function buildSweepFullCopyText(sweep, sortedVariants) {
+  const lines = [];
+  const strategyName = getStrategyName(sweep?.base_strategy_version_id) || sweep?.base_strategy_version_id || 'N/A';
+  lines.push('Parameter Sweep Full Report');
+  lines.push(`Sweep id: ${sweep?.sweep_id || 'N/A'}`);
+  lines.push(`Session id: ${sweep?.session_id || 'legacy / ungrouped'}`);
+  lines.push(`Session started: ${sweep?.session_started_at || 'N/A'}`);
+  lines.push(`Session note: ${sweep?.session_note || 'No session note'}`);
+  lines.push(`Status: ${sweep?.status || 'N/A'}`);
+  lines.push(`Strategy: ${strategyName}`);
+  lines.push(`Base strategy version: ${sweep?.base_strategy_version_id || 'N/A'}`);
+  lines.push(`Evidence scope: ${sweepScopeLabel(sweep)}`);
+  lines.push(`Backend universe: ${tierLabel(sweep?.tier || '')}`);
+  lines.push(`Interval: ${sweep?.interval || 'N/A'}`);
+  lines.push(`Created: ${sweep?.created_at || 'N/A'}`);
+  lines.push(`Completed: ${sweep?.completed_at || 'N/A'}`);
+  if (sweep?.winner) {
+    lines.push(`Winner: ${sweepVariantLabel(sweep, sweep.winner)}`);
+  }
+  lines.push('');
+  lines.push('Sweep axes:');
+  for (const param of (sweep?.sweep_params || [])) {
+    lines.push(`- ${param.label || param.param_path}: ${Array.isArray(param.values) ? param.values.join(', ') : ''} (${param.param_path || 'no path'})`);
+  }
+
+  const header = [
+    'Variant',
+    'Status',
+    'Verdict',
+    'Report ID',
+    'Trades',
+    'Winners',
+    'Losers',
+    'Win Rate %',
+    'Expectancy R',
+    'Profit Factor',
+    'Avg Win R',
+    'Avg Loss R',
+    'Largest Win R',
+    'Largest Loss R',
+    'Max DD %',
+    'Max DD R',
+    'Sharpe',
+    'Calmar',
+    'IS Expectancy R',
+    'IS n',
+    'OOS Expectancy R',
+    'OOS n',
+    'OOS Degradation %',
+    'Split Date',
+    'WF Windows',
+    'WF Avg Test Exp R',
+    'WF Profitable Windows %',
+    'MC Simulations',
+    'MC Median DD %',
+    'MC p95 DD %',
+    'MC p99 DD %',
+    'MC Median Final R',
+    'Sensitivity Score',
+    'Base Expectancy R',
+    'Min Trades Pass',
+    'MC p95 Threshold %',
+    'MC p99 Threshold %',
+    'OOS Degradation Threshold %',
+    'WF Profitable Threshold %',
+    'Universe Count',
+    'Fail / Review Reasons',
+  ];
+
+  lines.push('');
+  lines.push('Variant diagnostics:');
+  lines.push(header.join('\t'));
+  for (const variant of sortedVariants) {
+    const report = variant?.report_id ? sweepReportCache.get(variant.report_id) : null;
+    const d = report ? sweepReportDiagnostics(report) : null;
+    const m = variant.metrics || {};
+    const isWinner = sweep?.winner?.variant_id === variant.variant_id;
+    if (!d) {
+      const partial = Array(header.length).fill('');
+      partial[0] = `${isWinner ? 'Winner: ' : ''}${sweepVariantLabel(sweep, variant)}`;
+      partial[1] = variant.status || 'N/A';
+      partial[2] = getDisplayVerdict(m || {}).replace(/_/g, ' ');
+      partial[3] = variant.report_id || '';
+      partial[4] = m.total_trades ?? '';
+      partial[7] = m.win_rate != null ? (Number(m.win_rate) * 100).toFixed(1) : '';
+      partial[8] = m.expectancy_R != null ? Number(m.expectancy_R).toFixed(3) : '';
+      partial[9] = m.profit_factor != null ? Number(m.profit_factor).toFixed(2) : '';
+      partial[14] = m.max_drawdown_pct != null ? Number(m.max_drawdown_pct).toFixed(1) : '';
+      partial[16] = m.sharpe_ratio != null ? Number(m.sharpe_ratio).toFixed(2) : '';
+      lines.push(partial.join('\t'));
+      continue;
+    }
+    lines.push([
+      `${isWinner ? 'Winner: ' : ''}${sweepVariantLabel(sweep, variant)}`,
+      variant.status || 'N/A',
+      d.verdict,
+      d.report_id,
+      d.trades,
+      d.winners,
+      d.losers,
+      d.win_rate_pct.toFixed(1),
+      d.expectancy_R.toFixed(3),
+      d.profit_factor.toFixed(2),
+      d.avg_win_R.toFixed(3),
+      d.avg_loss_R.toFixed(3),
+      d.largest_win_R.toFixed(3),
+      d.largest_loss_R.toFixed(3),
+      d.max_dd_pct.toFixed(1),
+      d.max_dd_R.toFixed(2),
+      d.sharpe.toFixed(2),
+      d.calmar.toFixed(2),
+      d.is_expectancy_R.toFixed(3),
+      d.is_n,
+      d.oos_expectancy_R.toFixed(3),
+      d.oos_n,
+      d.oos_degradation_pct.toFixed(1),
+      d.split_date,
+      d.wf_windows,
+      d.wf_avg_test_expectancy_R.toFixed(3),
+      d.wf_profitable_windows_pct.toFixed(1),
+      d.mc_simulations,
+      d.mc_median_dd_pct.toFixed(1),
+      d.mc_p95_dd_pct.toFixed(1),
+      d.mc_p99_dd_pct.toFixed(1),
+      d.mc_median_final_R.toFixed(3),
+      d.sensitivity_score.toFixed(1),
+      d.base_expectancy_R.toFixed(3),
+      d.min_trades_pass,
+      d.max_mc_p95_dd_pct.toFixed(1),
+      d.max_mc_p99_dd_pct.toFixed(1),
+      d.max_oos_degradation_pct.toFixed(1),
+      d.min_wf_profitable_windows_pct.toFixed(1),
+      d.universe_count,
+      d.pass_fail_reasons.join(' | '),
+    ].join('\t'));
+  }
+
+  lines.push('');
+  lines.push('Validation criteria by variant:');
+  for (const variant of sortedVariants) {
+    const report = variant?.report_id ? sweepReportCache.get(variant.report_id) : null;
+    if (!report) continue;
+    const d = sweepReportDiagnostics(report);
+    lines.push(`${sweepVariantLabel(sweep, variant)}:`);
+    lines.push(`- Expectancy R > 0: ${d.expectancy_R.toFixed(3)} (${d.expectancy_R > 0 ? 'pass' : 'fail'})`);
+    lines.push(`- Total Trades >= ${d.min_trades_pass}: ${d.trades} (${d.trades >= d.min_trades_pass ? 'pass' : 'fail'})`);
+    lines.push(`- OOS Expectancy > 0: ${d.oos_expectancy_R.toFixed(3)} (${d.oos_expectancy_R > 0 ? 'pass' : 'fail'})`);
+    lines.push(`- OOS Degradation < ${d.max_oos_degradation_pct.toFixed(1)}%: ${d.oos_degradation_pct.toFixed(1)}% (${d.oos_degradation_pct < d.max_oos_degradation_pct ? 'pass' : 'fail'})`);
+    lines.push(`- WF Profitable Windows >= ${d.min_wf_profitable_windows_pct.toFixed(1)}%: ${d.wf_profitable_windows_pct.toFixed(1)}% (${d.wf_profitable_windows_pct >= d.min_wf_profitable_windows_pct ? 'pass' : 'fail'})`);
+    lines.push(`- Monte Carlo p95 DD < ${d.max_mc_p95_dd_pct.toFixed(1)}%: ${d.mc_p95_dd_pct.toFixed(1)}% (${d.mc_p95_dd_pct < d.max_mc_p95_dd_pct ? 'pass' : 'fail'})`);
+    lines.push(`- Monte Carlo p99 DD <= ${d.max_mc_p99_dd_pct.toFixed(1)}%: ${d.mc_p99_dd_pct.toFixed(1)}% (${d.mc_p99_dd_pct <= d.max_mc_p99_dd_pct ? 'pass' : 'fail'})`);
+    lines.push(`- Sensitivity Score < 40: ${d.sensitivity_score.toFixed(1)} (${d.sensitivity_score < 40 ? 'pass' : 'fail'})`);
+    if (d.pass_fail_reasons.length) lines.push(`- Reasons: ${d.pass_fail_reasons.join(' | ')}`);
+  }
+
+  const firstReport = sortedVariants.map(v => v?.report_id ? sweepReportCache.get(v.report_id) : null).find(Boolean);
+  const firstDiagnostics = firstReport ? sweepReportDiagnostics(firstReport) : null;
+  if (firstDiagnostics?.universe?.length) {
+    lines.push('');
+    lines.push(`Symbols tested (${firstDiagnostics.universe_count}):`);
+    lines.push(firstDiagnostics.universe.join(', '));
+  }
+
+  return lines.join('\n');
+}
+
+function setSweepActivityIndicator(sweep) {
+  const chip = document.getElementById('sweep-activity-chip');
+  const label = document.getElementById('sweep-activity-label');
+  if (!chip || !label) return;
+
+  chip.classList.remove('active', 'running', 'complete', 'stalled', 'cancelled');
+
+  if (!sweep || !Array.isArray(sweep.variants) || sweep.variants.length === 0) {
+    label.textContent = 'Idle';
+    return;
+  }
+
+  const status = String(sweep.status || '').toLowerCase();
+  const variants = sweep.variants || [];
+  const total = variants.length;
+  const completed = variants.filter(v => String(v?.status || '').toLowerCase() === 'completed').length;
+  const failed = variants.filter(v => String(v?.status || '').toLowerCase() === 'failed').length;
+  const running = variants.find(v => String(v?.status || '').toLowerCase() === 'running');
+  const pending = variants.filter(v => String(v?.status || '').toLowerCase() === 'pending').length;
+
+  chip.classList.add('active');
+
+  if (status === 'running' && running) {
+    const runningJobId = String(running?.job_id || '').trim();
+    if (runningJobId && activeValidatorJobIds instanceof Set && !activeValidatorJobIds.has(runningJobId)) {
+      chip.classList.add('stalled');
+      label.textContent = `No active worker · ${completed}/${total} complete · ${failed} failed · ${pending} pending`;
+      return;
+    }
+    const variantLabel = sweepVariantLabel(sweep, running);
+    chip.classList.add('running');
+    label.textContent = `Searching entries: ${variantLabel} · ${completed}/${total} complete`;
+    return;
+  }
+
+  if (status === 'running') {
+    chip.classList.add('stalled');
+    label.textContent = `No active worker · ${completed}/${total} complete · ${failed} failed · ${pending} pending`;
+    return;
+  }
+
+  if (status === 'completed') {
+    chip.classList.add('complete');
+    label.textContent = `Complete · ${completed}/${total} variants`;
+    return;
+  }
+
+  if (status === 'cancelled') {
+    chip.classList.add('cancelled');
+    label.textContent = `Cancelled · ${completed}/${total} complete`;
+    return;
+  }
+
+  label.textContent = `${status || 'Idle'} · ${completed}/${total} complete`;
 }
 
 function renderSweepResults(sweep) {
@@ -2596,6 +3890,7 @@ function renderSweepResults(sweep) {
   }
 
   document.getElementById('results-sweep-id').textContent = sweep.sweep_id;
+  setSweepActivityIndicator(sweep);
 
   const completed = sweep.variants.filter(v => v.status === 'completed').length;
   const total = sweep.variants.length;
@@ -2606,6 +3901,12 @@ function renderSweepResults(sweep) {
     : `${completed} / ${total} variants complete`;
 
   let html = '';
+  window.__sweepCopyText = buildSweepFullCopyText(sweep, [...sweep.variants]);
+  const copySweepButtonHtml = `
+    <button id="copy-sweep-btn" style="font-size:var(--text-caption);padding:var(--space-6) var(--space-14);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);color:var(--color-text-subtle);cursor:pointer;font-weight:600;white-space:nowrap;">
+      Copy Full Report
+    </button>
+  `;
 
   // Progress bar + cancel button (while running)
   if (sweep.status === 'running') {
@@ -2617,15 +3918,27 @@ function renderSweepResults(sweep) {
           </div>
           <span class="sweep-progress-label">${progressLabel}</span>
         </div>
-        <button id="cancel-sweep-btn" onclick="cancelSweep('${sweep.sweep_id}')"
-          style="padding:var(--space-6) var(--space-14);border:1px solid var(--color-negative);border-radius:var(--radius-sm);background:transparent;color:var(--color-negative);cursor:pointer;font-size:var(--text-caption);font-weight:600;white-space:nowrap;">
-          Cancel Sweep
-        </button>
+        <div style="display:flex;align-items:center;gap:var(--space-8);">
+          ${copySweepButtonHtml}
+          <button id="cancel-sweep-btn" onclick="cancelSweep('${sweep.sweep_id}')"
+            style="padding:var(--space-6) var(--space-14);border:1px solid var(--color-negative);border-radius:var(--radius-sm);background:transparent;color:var(--color-negative);cursor:pointer;font-size:var(--text-caption);font-weight:600;white-space:nowrap;">
+            Cancel Sweep
+          </button>
+        </div>
       </div>
     `;
   } else if (sweep.status === 'cancelled') {
     html += `
-      <div style="padding:var(--space-8);font-size:var(--text-caption);color:var(--color-text-subtle);">${progressLabel} — Cancelled</div>
+      <div style="padding:var(--space-8);display:flex;align-items:center;justify-content:space-between;gap:var(--space-12);">
+        <span style="font-size:var(--text-caption);color:var(--color-text-subtle);">${progressLabel} — Cancelled</span>
+        ${copySweepButtonHtml}
+      </div>
+    `;
+  } else {
+    html += `
+      <div style="padding:var(--space-8);display:flex;align-items:center;justify-content:flex-end;">
+        ${copySweepButtonHtml}
+      </div>
     `;
   }
 
@@ -2692,6 +4005,10 @@ function renderSweepResults(sweep) {
             <th>Win Rate</th>
             <th>Profit Factor</th>
             <th>Max DD</th>
+            <th>OOS Exp</th>
+            <th>WF %</th>
+            <th>MC p95</th>
+            <th>MC p99</th>
             <th>Sharpe</th>
             <th>Fitness</th>
             ${valuationHeaders}
@@ -2729,12 +4046,14 @@ function renderSweepResults(sweep) {
       : `<span class="badge-status badge-${v.status}">${v.status}</span>`;
 
     const m = v.metrics;
+    const report = v.report_id ? sweepReportCache.get(v.report_id) : null;
+    const reportDiag = report ? sweepReportDiagnostics(report) : null;
     const val = m?.valuation || null;
     const verdict = getDisplayVerdict(m || {});
     const actionHtml = v.status === 'completed'
       ? `<div class="sweep-action-group">
           <button class="sweep-inline-btn" onclick="viewSweepReport('${v.report_id || ''}','${v.variant_id}')">Report</button>
-          <button class="sweep-inline-btn" onclick="promoteWinner('${sweep.sweep_id}','${v.variant_id}')">Promote</button>
+          <button class="sweep-inline-btn" onclick="promoteWinner('${sweep.sweep_id}','${v.variant_id}')">Promote Candidate</button>
           <button class="sweep-inline-btn" onclick="deleteSweepVariant('${sweep.sweep_id}','${v.variant_id}')">Delete</button>
         </div>`
       : (v.status === 'failed' || v.status === 'pending')
@@ -2768,12 +4087,16 @@ function renderSweepResults(sweep) {
         <td>${compareHtml}</td>
         ${paramCells}
         <td>${statusBadge}</td>
-        <td><span class="verdict-badge ${verdict}">${verdict.replace('_', ' ')}</span></td>
+        <td><span class="verdict-badge ${verdict}">${verdict.replace(/_/g, ' ')}</span></td>
         <td>${m ? m.total_trades : '—'}</td>
         <td style="color:${m && m.expectancy_R > 0 ? 'var(--color-positive)' : m && m.expectancy_R < 0 ? 'var(--color-negative)' : 'inherit'}">${m ? fmt(m.expectancy_R) + 'R' : '—'}</td>
         <td>${m ? fmtPct(m.win_rate * 100) : '—'}</td>
         <td>${m ? fmt(m.profit_factor) : '—'}</td>
         <td style="color:${m && m.max_drawdown_pct > 30 ? 'var(--color-negative)' : 'inherit'}">${m ? fmtPct(m.max_drawdown_pct) : '—'}</td>
+        <td style="color:${reportDiag && reportDiag.oos_expectancy_R > 0 ? 'var(--color-positive)' : reportDiag ? 'var(--color-negative)' : 'inherit'}">${reportDiag ? fmt(reportDiag.oos_expectancy_R) + 'R' : '—'}</td>
+        <td style="color:${reportDiag && reportDiag.wf_profitable_windows_pct >= reportDiag.min_wf_profitable_windows_pct ? 'var(--color-positive)' : reportDiag ? 'var(--color-negative)' : 'inherit'}">${reportDiag ? fmtPct(reportDiag.wf_profitable_windows_pct) : '—'}</td>
+        <td style="color:${reportDiag && reportDiag.mc_p95_dd_pct < reportDiag.max_mc_p95_dd_pct ? 'var(--color-positive)' : reportDiag ? 'var(--color-negative)' : 'inherit'}">${reportDiag ? fmtPct(reportDiag.mc_p95_dd_pct) : '—'}</td>
+        <td style="color:${reportDiag && reportDiag.mc_p99_dd_pct <= reportDiag.max_mc_p99_dd_pct ? 'var(--color-positive)' : reportDiag ? 'var(--color-negative)' : 'inherit'}">${reportDiag ? fmtPct(reportDiag.mc_p99_dd_pct) : '—'}</td>
         <td>${m ? fmt(m.sharpe_ratio) : '—'}</td>
         <td style="font-weight:600; color:${m && m.fitness_score > 0.5 ? 'var(--color-positive)' : 'inherit'}">${m ? fmt(m.fitness_score, 3) : '—'}</td>
         ${valuationCells}
@@ -2784,35 +4107,7 @@ function renderSweepResults(sweep) {
 
   html += '</tbody></table></div>';
 
-  // Build copy text
-  const copyParamHeaders = isGrid
-    ? sweep.sweep_params.map(sp => sp.label || sp.param_path || 'Param').join('\t')
-    : (sweep.sweep_params?.[0]?.label || 'Parameter');
-  const copyValuationHeader = showValuationCols ? '\tSelected Avg\tExcluded Avg\tSpread\tHit Rate\tT-Stat\tVal Obs.' : '';
-  const copyHeader = `${copyParamHeaders}\tStatus\tTier Result\tTrades\tExpectancy\tWin Rate\tProfit Factor\tMax DD\tSharpe\tFitness${copyValuationHeader}`;
-  const copyRows = sorted.map(v => {
-    const m = v.metrics;
-    const val = m?.valuation || null;
-    const isWinner = sweep.winner?.variant_id === v.variant_id;
-    const status = isWinner ? 'Winner' : v.status;
-    const paramValStr = isGrid && Array.isArray(v.param_values)
-      ? v.param_values.map(pv => String(pv.value)).join('\t')
-      : String(v.param_value);
-    const valCopy = showValuationCols
-      ? `\t${val?.selected_avg_pct != null ? val.selected_avg_pct.toFixed(2) + '%' : 'n/a'}\t${val?.excluded_avg_pct != null ? val.excluded_avg_pct.toFixed(2) + '%' : 'n/a'}\t${val?.spread_pct != null ? val.spread_pct.toFixed(2) + '%' : 'n/a'}\t${val?.hit_rate_pct != null ? val.hit_rate_pct.toFixed(1) + '%' : 'n/a'}\t${val?.t_stat != null ? val.t_stat.toFixed(2) : 'n/a'}\t${val ? `${val.selected_obs ?? 'n/a'} / ${val.excluded_obs ?? 'n/a'}` : 'n/a'}`
-      : '';
-    if (!m) return `${paramValStr}\t${status}\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A${valCopy}`;
-    return `${paramValStr}\t${status}\t${m.total_trades}\t${m.expectancy_R.toFixed(2)}R\t${(m.win_rate * 100).toFixed(1)}%\t${m.profit_factor.toFixed(2)}\t${m.max_drawdown_pct.toFixed(1)}%\t${m.sharpe_ratio.toFixed(2)}\t${m.fitness_score.toFixed(3)}${valCopy}`;
-  }).join('\n');
-  window.__sweepCopyText = `${copyHeader}\n${copyRows}`;
-
-  html += `
-    <div style="margin-top:var(--space-8);display:flex;justify-content:flex-end;">
-      <button id="copy-sweep-btn" style="font-size:var(--text-caption);padding:var(--space-4) var(--space-10);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg-subtle);color:var(--color-text-subtle);cursor:pointer;">
-        Copy Results
-      </button>
-    </div>
-  `;
+  window.__sweepCopyText = buildSweepFullCopyText(sweep, sorted);
 
   // Winner banner
   if (sweep.status === 'completed' && sweep.winner?.metrics) {
@@ -2873,7 +4168,7 @@ function renderSweepResults(sweep) {
     if (btn) btn.addEventListener('click', () => {
       navigator.clipboard.writeText(window.__sweepCopyText).then(() => {
         btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = 'Copy Results', 1500);
+        setTimeout(() => btn.textContent = 'Copy Full Report', 1500);
       });
     });
   }, 0);
@@ -2896,7 +4191,7 @@ async function promoteWinner(sweepId, variantId = '') {
       await fetchAndRenderSweep(sweepId);
     }
     const newId = data.data.strategy_version_id;
-    showToast(`Promoted: ${newId}`, 'success');
+    showToast(`Candidate promoted: ${newId}`, 'success');
 
     // Switch dropdown to promoted strategy but keep session cards from the previous strategy visible
     const previousStrategyId = getConfiguredStrategyVersionId();
@@ -2907,8 +4202,8 @@ async function promoteWinner(sweepId, variantId = '') {
     // Show banner with link to open in validator (no forced redirect)
     const bannerEl = document.getElementById('sweep-promote-banner');
     if (bannerEl) {
-      bannerEl.innerHTML = `<span>Winner promoted as <strong>${reportEscHtml(newId)}</strong> — now selected as base strategy.</span>
-        <a class="sweep-inline-btn" href="/validator.html?strategy_version_id=${encodeURIComponent(newId)}" target="_blank" style="margin-left:12px;">Open in Validator</a>`;
+      bannerEl.innerHTML = `<span>Winner promoted as <strong>${reportEscHtml(newId)}</strong> - optimized candidate, not validated yet.</span>
+        <a class="sweep-inline-btn" href="/validator.html?strategy_version_id=${encodeURIComponent(newId)}" target="_blank" style="margin-left:12px;">Validate Candidate</a>`;
       bannerEl.style.display = 'flex';
     }
   } catch (e) {
@@ -2973,13 +4268,12 @@ async function _loadRecentSweepsImpl(strategyId) {
 
     let sweeps = (sweepsData || [])
       .filter(s => {
-        if (!currentStrategyId) return false;
-        if (sessionCutoff && new Date(s.created_at || 0).getTime() < sessionCutoff) return false;
+        if (!currentStrategyId) return true;
         const baseMatch = String(s?.base_strategy_version_id || '').trim() === currentStrategyId;
         const promotedMatch = String(s?.promoted_strategy_version_id || '').trim() === currentStrategyId;
         return baseMatch || promotedMatch;
       })
-      .slice(0, 20);
+      .slice(0, 50);
 
     // If the session cutoff hides everything, fall back to this strategy's
     // recent sweeps so a refresh does not leave the UI looking empty.
@@ -3033,13 +4327,15 @@ async function _loadRecentSweepsImpl(strategyId) {
       const displayStrategyId = getSweepDisplayStrategyId(sweep) || currentStrategyId || String(sweep?.base_strategy_version_id || '').trim();
       const rawGroupName = getStrategyName(displayStrategyId) || getStrategyName(sweep?.base_strategy_version_id) || displayStrategyId;
       const displayGroupName = getStrategyDisplayName(displayStrategyId, rawGroupName) || rawGroupName;
-      const groupKey = window.SweepNameUtils?.getStrategyFamilyKey({
-        strategyVersionId: displayStrategyId,
-        strategyId: strategyCatalog.get(displayStrategyId)?.strategy_id || displayStrategyId,
-      }) || displayGroupName;
+      const sessionKey = String(sweep?.session_id || '').trim()
+        || `${displayStrategyId || 'legacy'}:${String(sweep?.created_at || '').slice(0, 10)}`;
+      const groupKey = sessionKey;
       if (!groupedSweepMap.has(groupKey)) {
         const group = {
           key: groupKey,
+          sessionId: String(sweep?.session_id || '').trim(),
+          startedAt: sweep?.session_started_at || sweep?.created_at || '',
+          note: String(sweep?.session_note || '').trim(),
           strategyId: displayStrategyId,
           name: displayGroupName,
           rawName: rawGroupName,
@@ -3047,6 +4343,9 @@ async function _loadRecentSweepsImpl(strategyId) {
         };
         groupedSweepMap.set(groupKey, group);
         groupedSweeps.push(group);
+      }
+      if (!groupedSweepMap.get(groupKey).note && sweep?.session_note) {
+        groupedSweepMap.get(groupKey).note = String(sweep.session_note || '').trim();
       }
       groupedSweepMap.get(groupKey).sweeps.push(sweep);
     }
@@ -3100,7 +4399,7 @@ async function _loadRecentSweepsImpl(strategyId) {
       const statusColor = sweep.status === 'completed' ? 'var(--color-positive)' : sweep.status === 'running' ? 'var(--color-accent)' : 'var(--color-text-muted)';
       const vNum = versionMap.get(sweep.sweep_id) || '?';
       const sweepDate = sweep.created_at ? new Date(sweep.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      const tierLabel_ = sweep.tier ? tierLabel(sweep.tier) : '—';
+      const tierLabel_ = sweepScopeLabel(sweep) || '—';
       const winnerDisplay = buildWinnerDisplay(sweep);
       const stepTitle = buildSweepStepTitle(sweep);
       const active = activeSweepId === sweep.sweep_id;
@@ -3153,6 +4452,8 @@ async function _loadRecentSweepsImpl(strategyId) {
         new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
       );
       const hasActiveStep = orderedSteps.some(sweep => activeSweepId === sweep.sweep_id);
+      const sessionDate = group.startedAt ? new Date(group.startedAt).toLocaleString() : '';
+      const firstSweepId = orderedSteps[0]?.sweep_id || '';
       return `
         <div
           style="padding:12px;border:1px solid ${hasActiveStep ? 'var(--color-accent)' : 'var(--color-border)'};border-radius:var(--radius-md);background:var(--color-bg-subtle);margin-bottom:12px;"
@@ -3161,7 +4462,10 @@ async function _loadRecentSweepsImpl(strategyId) {
             <div class="sweep-name" style="flex:1;" title="${reportEscHtml(group.rawName)}">${reportEscHtml(group.name)}</div>
             <div class="sweep-meta" style="font-size:11px;font-family:var(--font-mono);">${orderedSteps.length} ${orderedSteps.length === 1 ? 'sweep' : 'sweeps'}</div>
           </div>
-          <div class="sweep-meta" style="color:var(--color-text-subtle);margin-bottom:8px;">Optimization trail</div>
+          <div class="sweep-meta" style="color:var(--color-text-subtle);margin-bottom:6px;">
+            ${reportEscHtml(group.note || 'No session note')}${sessionDate ? ` · ${reportEscHtml(sessionDate)}` : ''}
+          </div>
+          ${firstSweepId ? `<button class="sweep-inline-btn" type="button" onclick="loadSweepSession('${firstSweepId}')" style="margin-bottom:8px;">Reload Session</button>` : ''}
           ${orderedSteps.map(buildSweepStepCard).join('')}
         </div>
       `;
@@ -3171,6 +4475,23 @@ async function _loadRecentSweepsImpl(strategyId) {
 
 async function loadSweep(sweepId) {
   return loadSweepInternal(sweepId, { persist: true });
+}
+
+async function loadSweepSession(firstSweepId) {
+  const ok = await loadSweepInternal(firstSweepId, { persist: true });
+  if (!ok) return false;
+  const sweep = activeSweepId ? (await fetch(`${API}/sweep/${encodeURIComponent(activeSweepId)}`).then(r => r.json()).catch(() => null)) : null;
+  const data = sweep?.success ? sweep.data : null;
+  if (data?.session_id) {
+    activeSweepSessionId = String(data.session_id || '').trim();
+    sessionStartedAt = data.session_started_at || data.created_at || sessionStartedAt || new Date().toISOString();
+    activeSweepSessionNote = String(data.session_note || '').trim();
+    window.localStorage.setItem(ACTIVE_SWEEP_SESSION_ID_STORAGE_KEY, activeSweepSessionId);
+    window.localStorage.setItem(SESSION_START_STORAGE_KEY, sessionStartedAt);
+    window.localStorage.setItem(ACTIVE_SWEEP_SESSION_NOTE_STORAGE_KEY, activeSweepSessionNote);
+    updateSessionNoteInput();
+  }
+  return true;
 }
 
 async function loadSweepInternal(sweepId, options = {}) {
@@ -3189,6 +4510,15 @@ async function loadSweepInternal(sweepId, options = {}) {
     const res = await fetch(`${API}/sweep/${requestedId}`);
     const data = await res.json();
     if (data.success) {
+      if (data.data?.session_id) {
+        activeSweepSessionId = String(data.data.session_id || '').trim();
+        sessionStartedAt = data.data.session_started_at || data.data.created_at || sessionStartedAt || new Date().toISOString();
+        activeSweepSessionNote = String(data.data.session_note || '').trim();
+        window.localStorage.setItem(ACTIVE_SWEEP_SESSION_ID_STORAGE_KEY, activeSweepSessionId);
+        window.localStorage.setItem(SESSION_START_STORAGE_KEY, sessionStartedAt);
+        window.localStorage.setItem(ACTIVE_SWEEP_SESSION_NOTE_STORAGE_KEY, activeSweepSessionNote);
+        updateSessionNoteInput();
+      }
       await ensureStrategySpec(data.data.promoted_strategy_version_id);
       await ensureStrategySpec(data.data.base_strategy_version_id);
       restoreSweepConfig(data.data);
@@ -3246,7 +4576,12 @@ function startNewSession() {
 function _doStartNewSession() {
   // Set session boundary — only sweeps created after this point will appear
   sessionStartedAt = new Date().toISOString();
+  activeSweepSessionId = makeSweepSessionId(sessionStartedAt);
+  activeSweepSessionNote = (window.prompt('Brief description for this sweep session:', '') || '').trim().slice(0, 240);
   window.localStorage.setItem(SESSION_START_STORAGE_KEY, sessionStartedAt);
+  window.localStorage.setItem(ACTIVE_SWEEP_SESSION_ID_STORAGE_KEY, activeSweepSessionId);
+  window.localStorage.setItem(ACTIVE_SWEEP_SESSION_NOTE_STORAGE_KEY, activeSweepSessionNote);
+  updateSessionNoteInput();
 
   // Clear active sweep state
   activeSweepId = null;
@@ -3291,6 +4626,9 @@ function _doStartNewSession() {
   const historyList = document.getElementById('sweep-history-list');
   if (historyList) historyList.innerHTML = '<div style="font-size:var(--text-caption);color:var(--color-text-muted);font-family:var(--font-mono);">Session cleared — select a strategy to begin.</div>';
   sweepVersionMap.clear();
+  fetchSweepSummaries(true)
+    .then(() => loadRecentSweepsForStrategy(''))
+    .catch(() => {});
 
   // Clear the results panel back to the empty state
   const resultsBody = document.getElementById('results-body');
@@ -3306,6 +4644,7 @@ function _doStartNewSession() {
 
   document.getElementById('results-loaded-strategy').textContent = '';
   document.getElementById('results-sweep-id').textContent = '';
+  setSweepActivityIndicator(null);
 
   // Remove strategy_version_id from URL without reloading
   const url = new URL(window.location.href);

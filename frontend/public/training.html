@@ -31,6 +31,12 @@
       gap: var(--space-12);
       min-height: 0;
     }
+    .training-left > .panel {
+      width: 100%;
+    }
+    .training-left > .panel + .panel {
+      margin-top: 0;
+    }
     .training-right {
       display: flex;
       flex-direction: column;
@@ -43,6 +49,27 @@
       gap: var(--space-12);
       margin-top: var(--space-12);
       width: 100%;
+    }
+    .training-scoreboards-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .training-scoreboard-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      min-width: 0;
+      overflow: hidden;
+    }
+    .training-scoreboard-card > .panel-header {
+      border-bottom: 1px solid var(--color-border);
+      min-height: 59px;
+      box-sizing: border-box;
+    }
+    #training-scoreboards-panel,
+    #coach-panel {
+      grid-column: 1 / -1;
     }
     .mono { font-family: var(--font-mono); }
     .kpi-grid {
@@ -130,6 +157,66 @@
       padding: 6px 10px;
       font-size: var(--text-caption);
     }
+    .training-chart-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+    }
+    .training-chart-primary-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: nowrap;
+      gap: var(--space-8);
+      min-width: 0;
+    }
+    .training-chart-control-stack {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: var(--space-8);
+      min-width: 0;
+    }
+    .training-chart-secondary-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      width: 100%;
+    }
+    .training-chart-controls .direction-toggle {
+      gap: var(--space-8);
+      border: 0;
+      border-radius: 0;
+      overflow: visible;
+      flex-shrink: 0;
+    }
+    .training-chart-controls .direction-toggle-btn,
+    .training-chart-controls .toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      min-width: 40px;
+      height: 36px;
+      padding: 0 6px;
+      font-size: var(--text-caption);
+      line-height: 1;
+    }
+    .training-chart-controls .direction-toggle-btn {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+    }
+    .training-chart-controls .direction-toggle-btn:first-child {
+      border-left: 1px solid var(--color-border);
+    }
+    .training-chart-controls .toolbar-divider {
+      margin: 0;
+      height: 18px;
+    }
     .chart-replay-progress {
       flex: 1;
       min-width: 220px;
@@ -216,6 +303,29 @@
       font-size: var(--text-caption);
       color: var(--color-text-muted);
     }
+    /* Live "session running" indicator next to the Start/End session buttons */
+    .session-live-dot {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #22c55e;
+      margin-right: 7px;
+      vertical-align: middle;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+      animation: session-live-pulse 1.6s ease-out infinite;
+    }
+    @keyframes session-live-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+      70%  { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+    #btn-start-session.is-session-running {
+      background: #16a34a;
+      border-color: #16a34a;
+      color: #fff;
+      cursor: default;
+    }
     .declaration-chip-row {
       display: flex;
       flex-wrap: wrap;
@@ -245,6 +355,9 @@
         grid-template-columns: 1fr;
       }
       .training-bottom-grid {
+        grid-template-columns: 1fr;
+      }
+      .training-scoreboards-grid {
         grid-template-columns: 1fr;
       }
       .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -296,21 +409,8 @@
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-8);flex-wrap:nowrap;">
-            <input id="training-symbol" class="input input-sm text-mono" style="width:140px;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;" value="AAPL" placeholder="Symbol">
-            <select id="training-timeframe" class="select select-sm" style="width:80px;">
-              <option value="1wk">1wk</option>
-              <option value="1d" selected>1d</option>
-              <option value="4h">4h</option>
-              <option value="1h">1h</option>
-            </select>
-            <div class="direction-toggle" style="flex-shrink:0;">
-              <button id="btn-training-long" class="direction-toggle-btn direction-toggle-btn--active">LONG</button>
-              <button id="btn-training-short" class="direction-toggle-btn">SHORT</button>
-            </div>
-            <button id="btn-load-bars" class="btn btn-primary btn-sm" title="Load chart data for this symbol">Load</button>
             <button id="btn-randomize" class="btn btn-sm" style="background:var(--color-accent-alt,#6366f1);color:#fff;" title="Random symbol &amp; random date">&#x1f3b2; Random</button>
-            <span style="width:1px;height:22px;background:var(--color-border);margin:0 var(--space-4);" aria-hidden="true"></span>
-            <select id="tm-browse-asset-class" class="select select-sm" style="width:140px;" title="Pick an asset class — Random and Browse will be filtered to it">
+            <select id="tm-random-asset-class" class="select select-sm" style="width:140px;" title="Pick an asset class for Random">
               <option value="all" selected>Stocks</option>
               <option value="indices">Indices</option>
               <option value="sectors">Sectors</option>
@@ -323,39 +423,66 @@
               <option value="international">International</option>
               <option value="bonds">Bonds</option>
             </select>
-            <button id="tm-browse-button" class="btn btn-sm" title="Load every symbol in the selected class — pan with ←/→. No new session is started.">Browse</button>
+            <span id="global-page-help-slot" class="global-help-slot"></span>
           </div>
         </div>
         <div class="status-line" id="training-status" style="text-align:right;">Loading training module...</div>
+        <div id="training-context-tags" class="training-context-tags" style="display:none;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);font-family:var(--font-mono);font-size:var(--text-caption);">
+          <span style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Fundamental Context</span>
+          <span id="training-context-tag-pills" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;"></span>
+          <span id="training-context-tag-detail" class="text-muted" style="margin-left:auto;font-size:11px;color:var(--color-text-muted);"></span>
+        </div>
       </div>
 
       <div class="content" style="padding:var(--space-12) var(--space-24) var(--space-24);">
         <div class="training-layout">
           <div class="training-left">
             <section class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;">
-              <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);flex-shrink:0;">
-                <div style="display:flex;align-items:center;gap:var(--space-8);flex-shrink:0;">
-                  <span id="chart-symbol" class="text-mono" style="font-size:var(--text-body);font-weight:700;white-space:nowrap;">AAPL</span>
-                  <span id="chart-interval-display" class="badge" style="font-size:var(--text-caption);padding:2px 6px;">D</span>
-                </div>
-                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-                  <div class="direction-toggle" style="flex-shrink:0;margin-right:2px;">
-                    <button id="btn-chart-long" class="direction-toggle-btn direction-toggle-btn--active" style="padding:3px 8px;font-size:0.75rem;">LONG</button>
-                    <button id="btn-chart-short" class="direction-toggle-btn" style="padding:3px 8px;font-size:0.75rem;">SHORT</button>
+              <div class="panel-header" style="display:flex;flex-direction:column;align-items:stretch;gap:var(--space-8);padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);flex-shrink:0;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-8);">
+                  <div style="display:flex;align-items:center;gap:var(--space-8);flex-shrink:0;">
+                    <input id="training-symbol" class="input input-sm text-mono" style="width:140px;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;" value="AAPL" placeholder="Symbol">
+                    <select id="training-timeframe" class="select select-sm" style="width:80px;">
+                      <option value="1wk">1wk</option>
+                      <option value="1d" selected>1d</option>
+                      <option value="4h">4h</option>
+                      <option value="1h">1h</option>
+                    </select>
                   </div>
-                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 2px;"></div>
+                  <div class="training-chart-control-stack">
+                    <div class="training-chart-controls training-chart-primary-row">
+                  <div class="direction-toggle">
+                    <button id="btn-chart-long" class="direction-toggle-btn direction-toggle-btn--active">LONG</button>
+                    <button id="btn-chart-short" class="direction-toggle-btn">SHORT</button>
+                  </div>
+                  <button id="btn-trade-fib-management" class="toolbar-btn" title="Switch the latest Trade Fib from structure mode into management mode">Manage Fib</button>
+                  <button id="btn-validate" class="toolbar-btn" title="Validate the setup against the contract gate list">Check Setup</button>
+                  <button id="btn-run-attempt" class="toolbar-btn btn-primary" title="Walk forward bar-by-bar until stop or take profit is hit">Run Trade</button>
                   <button id="btn-marker-entry" class="toolbar-btn">Entry</button>
                   <button id="btn-marker-stop" class="toolbar-btn">Stop</button>
                   <button id="btn-marker-tp" class="toolbar-btn" title="Click chart to set TP1 (auto-advances to TP2, TP3)">TP1</button>
-                  <button id="btn-marker-tp2" class="toolbar-btn" title="Click chart to set TP2" style="font-size:0.85em;padding:2px 6px;">TP2</button>
-                  <button id="btn-marker-tp3" class="toolbar-btn" title="Click chart to set TP3" style="font-size:0.85em;padding:2px 6px;">TP3</button>
+                  <button id="btn-marker-tp2" class="toolbar-btn" title="Click chart to set TP2">TP2</button>
+                  <button id="btn-marker-tp3" class="toolbar-btn" title="Click chart to set TP3">TP3</button>
                   <button id="btn-fit-chart" class="toolbar-btn">Fit</button>
-                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 4px;"></div>
                   <label class="sidebar-field-label" for="chart-indicator-select" style="margin:0;">Indicators</label>
                   <select id="chart-indicator-select" class="select select-sm" style="width:160px;" onchange="if(this.value){_ciToggleIndicator(this.value);this.value='';_ciPopulateIndicatorSelect();}">
                     <option value="">-- Add / Remove --</option>
                   </select>
-                  <div style="border-left:1px solid var(--color-border);height:14px;margin:0 4px;"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="training-chart-controls training-chart-secondary-row">
+                  <button id="btn-play-backward" class="btn btn-ghost" title="Play backward (rewind) at the selected speed" style="font-size:14px;width:34px;padding:4px 8px;">◀</button>
+                  <button id="btn-step-back" class="btn btn-ghost">Back 1 Bar</button>
+                  <button id="btn-step-forward" class="btn btn-ghost">Forward 1 Bar</button>
+                  <button id="btn-step-forward-5" class="btn btn-ghost">Forward 5 Bars</button>
+                  <button id="btn-play-forward" class="btn btn-ghost" title="Play forward at the selected speed" style="font-size:14px;width:34px;padding:4px 8px;">▶</button>
+                  <select id="replay-speed" class="select select-sm" title="Auto-play speed (bars per second)" style="width:64px;">
+                    <option value="1" selected>1×</option>
+                    <option value="5">5×</option>
+                    <option value="10">10×</option>
+                  </select>
+                  <span style="width:1px;height:20px;background:var(--color-border);margin:0 4px;" aria-hidden="true"></span>
                   <button id="btn-clear-training" class="toolbar-btn">Clear</button>
                   <span id="drawing-status" class="text-muted text-caption" style="margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;"></span>
                 </div>
@@ -368,6 +495,7 @@
                   </aside>
                   <div class="dt-chart-stage" style="background:#1e1e1e;">
                     <div id="training-chart"></div>
+                    <div id="ci-pane-labels-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:50;"></div>
                   </div>
                 </div>
                 <div id="outcome-banner" style="display:none;padding:10px 16px;margin:0 12px;border-radius:6px;font-weight:700;font-size:1.1rem;text-align:center;cursor:pointer;transition:opacity 0.3s;" onclick="this.style.display='none'">
@@ -376,17 +504,6 @@
                 </div>
                 <div class="chart-replay-dock" style="padding:0 12px 12px;">
                   <div class="chart-replay-actions" aria-label="Replay controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
-                    <button id="btn-play-backward" class="btn btn-ghost" title="Play backward (rewind) at the selected speed" style="font-size:14px;width:34px;padding:4px 8px;">◀</button>
-                    <button id="btn-step-back" class="btn btn-ghost">Back 1 Bar</button>
-                    <button id="btn-step-forward" class="btn btn-ghost">Forward 1 Bar</button>
-                    <button id="btn-step-forward-5" class="btn btn-ghost">Forward 5 Bars</button>
-                    <button id="btn-play-forward" class="btn btn-ghost" title="Play forward at the selected speed" style="font-size:14px;width:34px;padding:4px 8px;">▶</button>
-                    <select id="replay-speed" class="select select-sm" title="Auto-play speed (bars per second)" style="width:64px;">
-                      <option value="1" selected>1×</option>
-                      <option value="5">5×</option>
-                      <option value="10">10×</option>
-                    </select>
-                    <span style="width:1px;height:20px;background:var(--color-border);margin:0 4px;" aria-hidden="true"></span>
                     <button id="btn-step-to-trigger" class="btn btn-ghost" title="Skip forward to the first bar that touches your entry price">Walk To Entry</button>
                     <button id="btn-step-to-end" class="btn btn-ghost" title="Reveal all remaining bars (does not resolve the trade)">Jump To End</button>
                   </div>
@@ -420,7 +537,16 @@
               <div class="panel-body">
                 <div class="row">
                   <div class="field" style="grid-column: span 2;">
-                    <label for="training-contract">Contract</label>
+                    <label for="training-contract" style="display:flex;align-items:center;gap:var(--space-8);justify-content:space-between;">
+                      <span>Contract</span>
+                      <button
+                        type="button"
+                        id="manage-contracts-btn"
+                        class="btn btn-ghost"
+                        title="Manage training contracts — list, create, clone, edit, archive."
+                        style="font-size:11px;padding:1px 8px;"
+                      >Manage&hellip;</button>
+                    </label>
                     <select id="training-contract"></select>
                   </div>
                   <div class="field">
@@ -530,17 +656,8 @@
                   </div>
                 </div>
                 <div class="status-line" id="session-status" style="margin-bottom:var(--space-8);">No active session.</div>
-                <details id="recent-sessions-toggle" open style="margin-bottom:var(--space-8);border:1px solid var(--color-border);border-radius:6px;padding:0 var(--space-8);">
-                  <summary style="cursor:pointer;font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);padding:var(--space-8) 0;user-select:none;">All Sessions <span id="session-count-badge" style="font-weight:400;opacity:0.7;"></span></summary>
-                  <div id="recent-sessions" style="max-height:400px;overflow:auto;padding-bottom:var(--space-8);"></div>
-                </details>
                 <div id="training-flow-note" class="contract-note" style="margin-bottom:var(--space-12);">
-                  Lock the session template, draw the anchor proof on the chart, click <code>Derive Trade</code>, then hit <code>Run Trade</code>. The chart walks forward bar-by-bar until stop loss or take profit is hit.
-                </div>
-                <div style="display:flex;gap:var(--space-8);flex-wrap:wrap;">
-                  <button id="btn-seed-levels" class="btn btn-ghost">Derive Trade From Anchors</button>
-                  <button id="btn-validate" class="btn btn-ghost">Check Setup</button>
-                  <button id="btn-run-attempt" class="btn btn-primary" title="Walk forward bar-by-bar until stop or take profit is hit">Run Trade</button>
+                  Lock the session template, draw the anchor proof on the chart, then use the replay toolbar under the chart: <code>Derive Trade</code> &rarr; <code>Check Setup</code> &rarr; <code>Run Trade</code>. The chart walks forward bar-by-bar until stop loss or take profit is hit.
                 </div>
                 <div style="display:none;">
                   <input id="box-start" type="date">
@@ -629,10 +746,14 @@
         <div style="margin-top:var(--space-12);">
           <section class="panel">
             <div class="panel-header">
-              <span class="panel-header-title">Current Session Attempts</span>
-              <span id="aggregate-stats" class="mono text-muted">No aggregate stats yet.</span>
+              <span class="panel-header-title">Loaded Session Attempts</span>
+              <span id="aggregate-stats" class="mono text-muted">No session loaded.</span>
             </div>
             <div class="panel-body" style="padding:0;">
+              <details id="recent-sessions-toggle" open style="border-bottom:1px solid var(--color-border);padding:0 var(--space-8);">
+                <summary style="cursor:pointer;font-size:var(--text-caption);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);padding:var(--space-8) 0;user-select:none;">All Sessions <span id="session-count-badge" style="font-weight:400;opacity:0.7;"></span></summary>
+                <div id="recent-sessions" style="max-height:400px;overflow:auto;padding-bottom:var(--space-8);"></div>
+              </details>
               <div class="list-box" style="max-height:340px;border:none;border-radius:0;">
                 <table class="attempt-table">
                   <thead>
@@ -646,12 +767,13 @@
                       <th>R</th>
                       <th>TP2</th>
                       <th>TP3</th>
+                      <th>Manage Exc.</th>
                       <th>Process</th>
                       <th>Composite</th>
                     </tr>
                   </thead>
                   <tbody id="attempts-table-body">
-                    <tr><td colspan="9" class="contract-note">No attempts yet.</td></tr>
+                    <tr><td colspan="12" class="contract-note">No attempts yet.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -663,11 +785,11 @@
           <section class="panel">
             <div class="panel-header">
               <span class="panel-header-title">Discretionary Backtest Report</span>
-              <span id="backtest-report-summary" class="mono text-muted">Select a contract to load the report.</span>
             </div>
             <div class="panel-body">
+              <div id="backtest-report-summary" class="mono text-muted" style="margin-bottom:var(--space-8);">Select a contract to load the report.</div>
               <div class="contract-note" id="backtest-report-note" style="margin-bottom:var(--space-8);">
-                Recorded contract-qualified attempts are rolled up here into validator-style edge metrics.
+                Selected-contract attempts across every session are rolled up here into validator-style edge metrics.
               </div>
               <div class="result-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
                 <div class="kpi"><div class="label">Scope</div><div id="report-scope" class="value">--</div></div>
@@ -692,69 +814,358 @@
         </div>
 
         <div class="training-bottom-grid">
-          <section class="panel">
+          <section class="panel" id="training-scoreboards-panel">
             <div class="panel-header">
-              <span class="panel-header-title" id="session-scoreboard-title">Session Scoreboard</span>
-              <span id="cooldown-badge" class="tag">Idle</span>
+              <span class="panel-header-title">Scoreboards</span>
+              <span class="text-muted">Session and selected contract</span>
             </div>
             <div class="panel-body">
-              <div class="contract-note" id="session-scoreboard-subtitle" style="margin-bottom:var(--space-8);">No session loaded.</div>
-              <div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
-                <div class="kpi"><div class="label">Trades</div><div id="kpi-resolved" class="value">0</div></div>
-                <div class="kpi"><div class="label">Win Rate</div><div id="kpi-win-rate" class="value">0%</div></div>
-                <div class="kpi"><div class="label">Expectancy</div><div id="kpi-expectancy" class="value">0.00</div></div>
-                <div class="kpi"><div class="label">Total R</div><div id="kpi-total-r" class="value">0.00</div></div>
+              <div class="training-scoreboards-grid">
+                <div class="training-scoreboard-card">
+                  <div class="panel-header">
+                    <span class="panel-header-title" id="session-scoreboard-title">Session Scoreboard</span>
+                    <span id="cooldown-badge" class="tag">Idle</span>
+                  </div>
+                  <div class="panel-body">
+                    <div class="contract-note" id="session-scoreboard-subtitle" style="margin-bottom:var(--space-8);min-height:36px;">No session loaded.</div>
+                    <div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+                      <div class="kpi"><div class="label">Resolved</div><div id="kpi-resolved" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Win Rate</div><div id="kpi-win-rate" class="value">0%</div></div>
+                      <div class="kpi"><div class="label">Expectancy</div><div id="kpi-expectancy" class="value">0.00</div></div>
+                      <div class="kpi"><div class="label">Total R</div><div id="kpi-total-r" class="value">0.00</div></div>
 
-                <div class="kpi"><div class="label">Wins</div><div id="kpi-wins" class="value">0</div></div>
-                <div class="kpi"><div class="label">Losses</div><div id="kpi-losses" class="value">0</div></div>
-                <div class="kpi"><div class="label">Best Trade</div><div id="kpi-best-r" class="value">--</div></div>
-                <div class="kpi"><div class="label">Worst Trade</div><div id="kpi-worst-r" class="value">--</div></div>
+                      <div class="kpi"><div class="label">Wins</div><div id="kpi-wins" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Losses</div><div id="kpi-losses" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Best Trade</div><div id="kpi-best-r" class="value">--</div></div>
+                      <div class="kpi"><div class="label">Worst Trade</div><div id="kpi-worst-r" class="value">--</div></div>
 
-                <div class="kpi"><div class="label">Avg Bars to Win</div><div id="kpi-avg-bars-win" class="value">--</div></div>
-                <div class="kpi"><div class="label">Avg Bars to Lose</div><div id="kpi-avg-bars-lose" class="value">--</div></div>
-                <div class="kpi"><div class="label">Win Streak</div><div id="kpi-win-streak" class="value">--</div></div>
-                <div class="kpi"><div class="label">Loss Streak</div><div id="kpi-loss-streak" class="value">--</div></div>
+                      <div class="kpi"><div class="label">Avg Bars to Win</div><div id="kpi-avg-bars-win" class="value">--</div></div>
+                      <div class="kpi"><div class="label">Avg Bars to Lose</div><div id="kpi-avg-bars-lose" class="value">--</div></div>
+                      <div class="kpi"><div class="label">Win Streak</div><div id="kpi-win-streak" class="value">--</div></div>
+                      <div class="kpi"><div class="label">Loss Streak</div><div id="kpi-loss-streak" class="value">--</div></div>
 
-                <div class="kpi"><div class="label">Process</div><div id="kpi-process" class="value">0</div></div>
-                <div class="kpi"><div class="label">Attempts</div><div id="kpi-attempts" class="value">0</div></div>
-                <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="kpi-confidence" class="value" style="font-size:0.85rem;">LOW — not yet meaningful</div></div>
+                      <div class="kpi"><div class="label">Process</div><div id="kpi-process" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Attempts</div><div id="kpi-attempts" class="value">0</div></div>
+                      <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="kpi-confidence" class="value" style="font-size:0.85rem;">LOW — not yet meaningful</div></div>
 
-                <div class="kpi"><div class="label">TP1 Hit %</div><div id="kpi-tp1-rate" class="value" style="color:#a855f7;">--</div></div>
-                <div class="kpi"><div class="label">TP2 Hit %</div><div id="kpi-tp2-rate" class="value" style="color:#c084fc;">--</div></div>
-                <div class="kpi"><div class="label">TP3 Hit %</div><div id="kpi-tp3-rate" class="value" style="color:#d8b4fe;">--</div></div>
-                <div class="kpi"><div class="label"></div><div class="value"></div></div>
-              </div>
-              <div style="margin-top:var(--space-12);border-top:1px solid var(--color-border);padding-top:var(--space-8);">
-                <div class="contract-note" style="margin-bottom:var(--space-4);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Latest Trade</div>
-                <div class="kpi-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));">
-                  <div class="kpi"><div class="label">Exit Reason</div><div id="result-exit" class="value">--</div></div>
-                  <div class="kpi"><div class="label">R Multiple</div><div id="result-r" class="value">--</div></div>
-                  <div class="kpi"><div class="label">Bars Held</div><div id="result-bars-held" class="value">--</div></div>
+                      <div class="kpi"><div class="label">TP1 Hit %</div><div id="kpi-tp1-rate" class="value" style="color:#a855f7;">--</div></div>
+                      <div class="kpi"><div class="label">TP2 Hit %</div><div id="kpi-tp2-rate" class="value" style="color:#c084fc;">--</div></div>
+                      <div class="kpi"><div class="label">TP3 Hit %</div><div id="kpi-tp3-rate" class="value" style="color:#d8b4fe;">--</div></div>
+                      <div class="kpi"><div class="label"></div><div class="value"></div></div>
+                    </div>
+                    <div style="margin-top:var(--space-12);border-top:1px solid var(--color-border);padding-top:var(--space-8);">
+                      <div class="contract-note" style="margin-bottom:var(--space-4);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Latest Trade</div>
+                      <div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+                        <div class="kpi"><div class="label">Exit Reason</div><div id="result-exit" class="value">--</div></div>
+                        <div class="kpi"><div class="label">R Multiple</div><div id="result-r" class="value">--</div></div>
+                        <div class="kpi"><div class="label">Bars Held</div><div id="result-bars-held" class="value">--</div></div>
+                        <div class="kpi"><div class="label">Manage Excursion</div><div id="result-fib-drawdown" class="value">--</div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="training-scoreboard-card">
+                  <div class="panel-header">
+                    <span class="panel-header-title">Selected Contract Scoreboard</span>
+                    <span id="contract-stats-badge" class="tag">All Sessions</span>
+                  </div>
+                  <div class="panel-body">
+                    <div class="contract-note" style="margin-bottom:var(--space-8);min-height:36px;">All recorded attempts for the selected contract across every session.</div>
+                    <div class="kpi-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+                      <div class="kpi"><div class="label">Attempts</div><div id="contract-kpi-attempts" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Resolved</div><div id="contract-kpi-resolved" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Wins</div><div id="contract-kpi-wins" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Losses</div><div id="contract-kpi-losses" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Win Rate</div><div id="contract-kpi-win-rate" class="value">0%</div></div>
+                      <div class="kpi"><div class="label">Avg R</div><div id="contract-kpi-avg-r" class="value">0.00</div></div>
+                      <div class="kpi"><div class="label">Expectancy</div><div id="contract-kpi-expectancy" class="value">0.00</div></div>
+                      <div class="kpi"><div class="label">Process</div><div id="contract-kpi-process" class="value">0.0</div></div>
+                      <div class="kpi"><div class="label">Sessions</div><div id="contract-kpi-sessions" class="value">0</div></div>
+                      <div class="kpi"><div class="label">Composite Avg</div><div id="contract-kpi-composite" class="value">0.0</div></div>
+                      <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="contract-kpi-confidence" class="value" style="font-size:0.85rem;">LOW - no resolved trades yet</div></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
-          <section class="panel">
-            <div class="panel-header">
-              <span class="panel-header-title">Selected Contract Scoreboard</span>
-              <span id="contract-stats-badge" class="tag">All Sessions</span>
+          <section class="panel" id="coach-panel">
+            <div class="panel-header" style="display:flex;align-items:center;gap:var(--space-8);">
+              <span class="panel-header-title">Coach</span>
+              <span id="coach-status-badge" class="tag" style="background:var(--color-void);">Idle</span>
+              <button
+                type="button"
+                id="coach-refresh-btn"
+                class="btn btn-ghost"
+                title="Recompute coach observations against the current attempt history."
+                style="margin-left:auto;font-size:11px;padding:2px 10px;"
+              >&#x21bb; Refresh</button>
             </div>
             <div class="panel-body">
-              <div class="contract-note" style="margin-bottom:var(--space-8);">All recorded attempts for the selected contract across every session.</div>
-              <div class="kpi-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
-                <div class="kpi"><div class="label">Attempts</div><div id="contract-kpi-attempts" class="value">0</div></div>
-                <div class="kpi"><div class="label">Resolved</div><div id="contract-kpi-resolved" class="value">0</div></div>
-                <div class="kpi"><div class="label">Wins</div><div id="contract-kpi-wins" class="value">0</div></div>
-                <div class="kpi"><div class="label">Losses</div><div id="contract-kpi-losses" class="value">0</div></div>
-                <div class="kpi"><div class="label">Win Rate</div><div id="contract-kpi-win-rate" class="value">0%</div></div>
-                <div class="kpi"><div class="label">Avg R</div><div id="contract-kpi-avg-r" class="value">0.00</div></div>
-                <div class="kpi"><div class="label">Expectancy</div><div id="contract-kpi-expectancy" class="value">0.00</div></div>
-                <div class="kpi"><div class="label">Process</div><div id="contract-kpi-process" class="value">0.0</div></div>
-                <div class="kpi"><div class="label">Sessions</div><div id="contract-kpi-sessions" class="value">0</div></div>
-                <div class="kpi"><div class="label">Composite Avg</div><div id="contract-kpi-composite" class="value">0.0</div></div>
-                <div class="kpi" style="grid-column: span 2;"><div class="label">Confidence</div><div id="contract-kpi-confidence" class="value" style="font-size:0.85rem;">LOW - no resolved trades yet</div></div>
+              <div
+                class="contract-note"
+                id="coach-empty-state"
+                style="margin-bottom:var(--space-8);"
+              >Resolve a few attempts and the coach will start surfacing actionable observations here.</div>
+
+              <!-- True expectancy / payoff strip — computed from recorded rMultiples,
+                   never approximated from assumed +1R/+2R/+3R levels. -->
+              <div
+                id="coach-baseline-grid"
+                class="kpi-grid"
+                style="display:none;grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:var(--space-12);"
+              >
+                <div class="kpi"><div class="label">E[R] / trade</div><div id="coach-kpi-expectancy" class="value">--</div></div>
+                <div class="kpi"><div class="label">Win Rate</div><div id="coach-kpi-winrate" class="value">--</div></div>
+                <div class="kpi"><div class="label">Payoff</div><div id="coach-kpi-payoff" class="value">--</div></div>
+                <div class="kpi"><div class="label">Total R</div><div id="coach-kpi-totalr" class="value">--</div></div>
+                <div class="kpi"><div class="label">Avg Win</div><div id="coach-kpi-avgwin" class="value">--</div></div>
+                <div class="kpi"><div class="label">Avg Loss</div><div id="coach-kpi-avgloss" class="value">--</div></div>
+                <div class="kpi"><div class="label">P(TP2|TP1)</div><div id="coach-kpi-cond21" class="value">--</div></div>
+                <div class="kpi"><div class="label">P(TP3|TP2)</div><div id="coach-kpi-cond32" class="value">--</div></div>
               </div>
+
+              <!-- MAE / MFE diagnostics — these answer "are my stops too tight?"
+                   and "is my TP1 too far?" with actual numbers, not vibes. -->
+              <div
+                id="coach-diagnostics"
+                style="display:none;border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:var(--space-8) var(--space-12);margin-bottom:var(--space-12);background:var(--color-void);"
+              >
+                <div style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:var(--space-8);">Drawdown / Excursion Diagnostics</div>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-8) var(--space-16);font-family:var(--font-mono);font-size:12px;">
+                  <div>Avg MAE on losers: <strong id="coach-diag-mae-losers">--</strong></div>
+                  <div>Avg MFE on losers: <strong id="coach-diag-mfe-losers">--</strong></div>
+                  <div>Avg MAE on winners: <strong id="coach-diag-mae-winners">--</strong></div>
+                  <div>Max MAE on winners: <strong id="coach-diag-mae-winners-max">--</strong></div>
+                  <div>Median manage MAE: <strong id="coach-diag-fib-median">--</strong></div>
+                  <div>75th pct manage MAE: <strong id="coach-diag-fib-p75">--</strong></div>
+                  <div>Reached +75%: <strong id="coach-diag-fib-88">--</strong></div>
+                  <div>Reached +100%: <strong id="coach-diag-fib-100">--</strong></div>
+                  <div style="grid-column:1 / -1;">Winners MAE / MFE: <strong id="coach-diag-fib-split">--</strong></div>
+                </div>
+              </div>
+
+              <!-- Top observations — the "free coach" output. Rendered as a small,
+                   scannable card list, sorted by impact (highest leverage first). -->
+              <div id="coach-observations" style="display:none;display:flex;flex-direction:column;gap:var(--space-8);"></div>
+
+              <div
+                id="coach-tp-reach-study"
+                style="display:none;margin-top:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);padding:var(--space-12);"
+              >
+                <div style="display:flex;align-items:center;gap:var(--space-8);margin-bottom:var(--space-8);">
+                  <span style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">TP Path Reach Distribution</span>
+                  <span class="tag" style="background:var(--color-surface);color:var(--color-text-muted);">Cumulative</span>
+                </div>
+                <div
+                  id="coach-tp-reach-summary"
+                  style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:var(--space-8);font-family:var(--font-mono);font-size:11px;margin-bottom:var(--space-10);"
+                ></div>
+                <div style="overflow:auto;">
+                  <table class="attempt-table">
+                    <thead>
+                      <tr>
+                        <th>Reached</th>
+                        <th>Trades</th>
+                        <th>Rate</th>
+                        <th>Distribution</th>
+                      </tr>
+                    </thead>
+                    <tbody id="coach-tp-reach-body"></tbody>
+                  </table>
+                </div>
+                <div id="coach-tp-reach-note" class="contract-note" style="margin-top:var(--space-8);"></div>
+              </div>
+
+              <div
+                id="coach-equity-simulation"
+                style="display:none;margin-top:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);padding:var(--space-12);"
+              >
+                <div style="display:flex;align-items:center;gap:var(--space-8);margin-bottom:var(--space-8);">
+                  <span style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">$5,000 Account Simulation @ 3% Risk</span>
+                  <span class="tag" style="background:var(--color-surface);color:var(--color-text-muted);">Compounded</span>
+                </div>
+                <div
+                  id="coach-equity-sim-summary"
+                  style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:var(--space-8);font-family:var(--font-mono);font-size:11px;margin-bottom:var(--space-10);"
+                ></div>
+                <div id="coach-equity-sim-curve" style="height:90px;border:1px solid var(--color-border);background:var(--color-surface);margin-bottom:var(--space-10);position:relative;overflow:hidden;"></div>
+                <div style="overflow:auto;">
+                  <table class="attempt-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Symbol</th>
+                        <th>Start Eq</th>
+                        <th>Risk $</th>
+                        <th>R</th>
+                        <th>P&L</th>
+                        <th>End Eq</th>
+                        <th>DD</th>
+                        <th>Shares</th>
+                        <th>Risk/Sh</th>
+                      </tr>
+                    </thead>
+                    <tbody id="coach-equity-sim-body"></tbody>
+                  </table>
+                </div>
+                <div id="coach-equity-sim-note" class="contract-note" style="margin-top:var(--space-8);"></div>
+              </div>
+
+              <div
+                id="coach-readable-report"
+                style="display:none;margin-top:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);padding:var(--space-12);"
+              >
+                <div style="display:flex;align-items:center;gap:var(--space-8);margin-bottom:var(--space-8);">
+                  <span style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Coach Read</span>
+                  <span class="tag" style="background:var(--color-surface);color:var(--color-text-muted);">Plain language</span>
+                </div>
+                <div
+                  id="coach-readable-body"
+                  style="display:flex;flex-direction:column;gap:var(--space-8);font-size:13px;line-height:1.6;color:var(--color-text);"
+                ></div>
+              </div>
+
+              <div
+                id="coach-stop-study"
+                style="display:none;margin-top:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-void);padding:var(--space-12);"
+              >
+                <div style="display:flex;align-items:center;gap:var(--space-8);margin-bottom:var(--space-8);">
+                  <span style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Stop Threshold Study</span>
+                  <span class="tag" style="background:var(--color-surface);color:var(--color-text-muted);">Supplemental</span>
+                </div>
+                <div id="coach-stop-study-read" style="display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.45;margin-bottom:var(--space-10);"></div>
+                <div id="coach-entry-stop-matrix-wrap" style="display:none;">
+                  <div style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:var(--space-6);">Entry Fib x Stop Depth</div>
+                  <div style="overflow:auto;margin-bottom:var(--space-12);">
+                    <table class="attempt-table">
+                      <thead>
+                        <tr>
+                          <th>Entry Fib</th>
+                          <th>Stop</th>
+                          <th>Trades</th>
+                          <th>Bucket %</th>
+                          <th>Stop Hits</th>
+                          <th>Stop Hit %</th>
+                          <th>Wins</th>
+                          <th>Losses</th>
+                          <th>Win Rate</th>
+                          <th>Expectancy</th>
+                          <th>Avg Win</th>
+                          <th>Avg Loss</th>
+                          <th>TP1</th>
+                          <th>TP2</th>
+                          <th>TP3</th>
+                          <th>Avg MAE</th>
+                          <th>Avg MFE</th>
+                        </tr>
+                      </thead>
+                      <tbody id="coach-entry-stop-matrix-body"></tbody>
+                    </table>
+                  </div>
+                </div>
+                <div style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:var(--space-6);">Actual Stop Placement Performance</div>
+                <div style="overflow:auto;margin-bottom:var(--space-12);">
+                  <table class="attempt-table">
+                    <thead>
+                      <tr>
+                        <th>Actual Stop</th>
+                        <th>Trades</th>
+                        <th>Wins</th>
+                        <th>Losses</th>
+                        <th>Win Rate</th>
+                        <th>Expectancy</th>
+                        <th>Avg Win</th>
+                        <th>Avg Loss</th>
+                        <th>Total R</th>
+                        <th>TP1</th>
+                        <th>TP2</th>
+                        <th>TP3</th>
+                      </tr>
+                    </thead>
+                    <tbody id="coach-actual-stop-body"></tbody>
+                  </table>
+                </div>
+                <div style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:var(--space-6);">What-If Hard Stop Thresholds</div>
+                <div style="overflow:auto;margin-bottom:var(--space-12);">
+                  <table class="attempt-table">
+                    <thead>
+                      <tr>
+                        <th>Stop</th>
+                        <th>N</th>
+                        <th>Touched</th>
+                        <th>Failed After Touch</th>
+                        <th>Recovered Winners</th>
+                        <th>Winners Cut</th>
+                        <th>Sim Win</th>
+                        <th>Sim Exp</th>
+                        <th>Avg Win</th>
+                        <th>Avg Loss</th>
+                        <th>Total R</th>
+                      </tr>
+                    </thead>
+                    <tbody id="coach-stop-threshold-body"></tbody>
+                  </table>
+                </div>
+                <div style="overflow:auto;">
+                  <table class="attempt-table">
+                    <thead>
+                      <tr>
+                        <th>MAE Bucket</th>
+                        <th>Trades</th>
+                        <th>Wins</th>
+                        <th>Losses</th>
+                        <th>Win Rate</th>
+                        <th>Avg Final R</th>
+                        <th>TP1</th>
+                        <th>TP2</th>
+                        <th>TP3</th>
+                      </tr>
+                    </thead>
+                    <tbody id="coach-stop-bucket-body"></tbody>
+                  </table>
+                </div>
+                <div id="coach-stop-study-note" class="contract-note" style="margin-top:var(--space-8);"></div>
+              </div>
+
+              <div
+                id="coach-chat-panel"
+                style="display:none;margin-top:var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);overflow:hidden;"
+              >
+                <div style="display:flex;align-items:center;gap:var(--space-8);padding:var(--space-8) var(--space-12);border-bottom:1px solid var(--color-border);">
+                  <span style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Ask Coach</span>
+                  <span id="coach-chat-status" class="text-muted" style="font-size:11px;margin-left:auto;">Ready</span>
+                </div>
+                <div
+                  id="coach-chat-messages"
+                  style="min-height:72px;max-height:260px;overflow-y:auto;padding:var(--space-10) var(--space-12);display:flex;flex-direction:column;gap:var(--space-8);font-size:12px;line-height:1.45;"
+                ></div>
+                <div style="display:flex;gap:var(--space-8);padding:var(--space-8) var(--space-12);border-top:1px solid var(--color-border);align-items:flex-end;">
+                  <textarea
+                    id="coach-chat-input"
+                    rows="2"
+                    placeholder="Ask the coach what these numbers mean..."
+                    style="flex:1;resize:vertical;min-height:44px;max-height:140px;background:var(--color-void);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);font-size:12px;padding:8px;line-height:1.4;"
+                    onkeydown="handleCoachChatKeydown(event)"
+                  ></textarea>
+                  <button
+                    type="button"
+                    id="coach-chat-send"
+                    class="btn btn-primary"
+                    style="font-size:11px;padding:8px 12px;"
+                    onclick="sendCoachChat()"
+                  >Send</button>
+                </div>
+              </div>
+
+              <!-- Slice breakdown — the receipts behind the observations. Collapsible
+                   so it doesn't dominate the panel for casual reads. -->
+              <details id="coach-slices-wrap" style="display:none;margin-top:var(--space-12);">
+                <summary style="cursor:pointer;font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Slice Breakdown</summary>
+                <div id="coach-slices" style="margin-top:var(--space-8);font-family:var(--font-mono);font-size:11px;display:flex;flex-direction:column;gap:4px;"></div>
+              </details>
             </div>
           </section>
         </div>
@@ -762,44 +1173,124 @@
     </main>
   </div>
 
+  <!-- Manage Contracts modal — full CRUD over training contracts. The list view
+       hits GET /api/training/contracts; the editor saves via POST /contracts.
+       Edits are intentionally scoped to the fields a trader will reasonably
+       want to tweak (scope, notes, R-target, max risk, max-hold). The deeper
+       schema fields (entryRules / riskRules / requiredDrawings / semantic*)
+       are surfaced as read-only summaries — those should be cloned-then-edited
+       in source for now, since getting them wrong silently breaks attempts. -->
+  <div
+    id="manage-contracts-modal"
+    style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="manage-contracts-title"
+  >
+    <div style="width:min(960px,100%);max-height:calc(100vh - 48px);background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);display:flex;flex-direction:column;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:var(--space-12);padding:var(--space-12) var(--space-16);border-bottom:1px solid var(--color-border);">
+        <span id="manage-contracts-title" style="font-weight:700;font-size:14px;letter-spacing:0.04em;text-transform:uppercase;">Manage Contracts</span>
+        <span id="manage-contracts-count" class="tag" style="background:var(--color-void);">--</span>
+        <button type="button" id="manage-contracts-new-btn" class="btn btn-primary" style="margin-left:auto;font-size:11px;padding:4px 12px;">New contract</button>
+        <button type="button" id="manage-contracts-close-btn" class="btn btn-ghost" style="font-size:11px;padding:4px 12px;">Close</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:minmax(280px, 35%) 1fr;flex:1;min-height:0;">
+        <!-- LIST -->
+        <div id="manage-contracts-list" style="overflow-y:auto;border-right:1px solid var(--color-border);padding:var(--space-8);display:flex;flex-direction:column;gap:6px;">
+          <div class="text-muted" style="padding:var(--space-12);font-size:12px;">Loading…</div>
+        </div>
+
+        <!-- EDITOR -->
+        <div id="manage-contracts-editor" style="overflow-y:auto;padding:var(--space-16);">
+          <div id="manage-contracts-empty" class="text-muted" style="text-align:center;padding:var(--space-24);font-size:13px;">
+            Select a contract from the list, click <strong>New contract</strong> to start fresh, or <strong>Clone</strong> an existing one as a starting point.
+          </div>
+
+          <form id="manage-contracts-form" style="display:none;flex-direction:column;gap:var(--space-12);">
+            <div class="row" style="display:grid;grid-template-columns:2fr 1fr 80px;gap:var(--space-12);">
+              <div class="field"><label>Name</label><input type="text" id="mc-name" required maxlength="80" placeholder="e.g. Pullback v2 — daily" /></div>
+              <div class="field"><label>Contract ID</label><input type="text" id="mc-id" required maxlength="60" pattern="[a-z0-9_]+" placeholder="lower_snake_case" /></div>
+              <div class="field"><label>Version</label><input type="text" id="mc-version" required value="1.0.0" maxlength="12" /></div>
+            </div>
+
+            <div class="row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-12);">
+              <div class="field">
+                <label>Sides</label>
+                <div style="display:flex;gap:var(--space-8);align-items:center;font-family:var(--font-mono);font-size:11px;">
+                  <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="mc-side-long" /> long</label>
+                  <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="mc-side-short" /> short</label>
+                </div>
+              </div>
+              <div class="field">
+                <label>Status</label>
+                <select id="mc-active"><option value="true">Active</option><option value="false">Archived</option></select>
+              </div>
+              <div class="field">
+                <label>Score Weights (process / outcome)</label>
+                <div style="display:flex;gap:6px;font-family:var(--font-mono);font-size:11px;align-items:center;">
+                  <input type="number" id="mc-weight-process" min="0" max="1" step="0.05" style="width:70px;" />
+                  <span class="text-muted">/</span>
+                  <input type="number" id="mc-weight-outcome" min="0" max="1" step="0.05" style="width:70px;" />
+                </div>
+              </div>
+            </div>
+
+            <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-12);">
+              <div class="field">
+                <label>Symbol Scope <span class="text-muted" style="font-size:10px;">(comma-separated, blank = any)</span></label>
+                <input type="text" id="mc-symbol-scope" placeholder="e.g. SPY, QQQ, IWM" />
+              </div>
+              <div class="field">
+                <label>Timeframe Scope <span class="text-muted" style="font-size:10px;">(comma-separated)</span></label>
+                <input type="text" id="mc-timeframe-scope" placeholder="e.g. 1D, 1WK, 4H, 1H" />
+              </div>
+            </div>
+
+            <div class="row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-12);">
+              <div class="field">
+                <label>Min R/R</label>
+                <input type="number" id="mc-min-rr" min="0" max="20" step="0.5" placeholder="e.g. 2" />
+              </div>
+              <div class="field">
+                <label>Max Risk %</label>
+                <input type="number" id="mc-max-risk-pct" min="0" max="100" step="0.5" placeholder="e.g. 8" />
+              </div>
+              <div class="field">
+                <label>Max Hold (bars)</label>
+                <input type="number" id="mc-max-hold" min="1" max="500" step="1" placeholder="e.g. 20" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Notes <span class="text-muted" style="font-size:10px;">(shown to the trader as the contract description)</span></label>
+              <textarea id="mc-notes" rows="3" placeholder="What's the setup? When is this contract appropriate?"></textarea>
+            </div>
+
+            <!-- Read-only summaries of the deeper schema. We surface them so
+                 traders can see the full shape of the contract without being
+                 able to silently corrupt it — these need code-level edits. -->
+            <details>
+              <summary style="cursor:pointer;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-text-muted);font-weight:600;">Advanced schema (read-only summary)</summary>
+              <div id="mc-advanced-summary" style="margin-top:var(--space-8);font-family:var(--font-mono);font-size:11px;color:var(--color-text-muted);white-space:pre-wrap;line-height:1.5;border:1px solid var(--color-border);padding:var(--space-8);border-radius:var(--radius-sm);background:var(--color-void);"></div>
+            </details>
+
+            <div style="display:flex;gap:var(--space-8);align-items:center;border-top:1px solid var(--color-border);padding-top:var(--space-12);">
+              <button type="submit" id="mc-save-btn" class="btn btn-primary" style="font-size:12px;padding:6px 16px;">Save changes</button>
+              <button type="button" id="mc-clone-btn" class="btn btn-ghost" style="font-size:12px;padding:6px 16px;">Clone&hellip;</button>
+              <button type="button" id="mc-archive-btn" class="btn btn-ghost" style="font-size:12px;padding:6px 16px;color:#f59e0b;">Archive</button>
+              <span id="mc-form-status" class="text-muted" style="margin-left:auto;font-size:11px;"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js?v=20260420f"></script>
-  <script src="chart-indicators.js?v=20260420f"></script>
-  <script src="drawing-tools.js?v=20260420f"></script>
+  <script src="chart-indicators.js?v=20260607f"></script>
+  <script src="drawing-tools.js?v=20260606b"></script>
   <script src="shared-chart-utils.js?v=20260420f"></script>
-  <script src="training-module.js?v=20260420f"></script>
-  <script src="browse-asset-class.js?v=20260420f"></script>
-  <script>
-    // Browse-without-session: load every symbol in the chosen class and let
-    // the user pan with ←/→. Each pan calls the existing training loadBars()
-    // path through window.tmLoadSymbol so indicators and the replay state
-    // stay consistent with the manual "Go" workflow.
-    (function () {
-      function init() {
-        if (typeof window.installBrowseAssetClass !== 'function') return;
-        window.installBrowseAssetClass({
-          selectId: 'tm-browse-asset-class',
-          buttonId: 'tm-browse-button',
-          // No dedicated status element — reuse the existing #training-status
-          // line via the onStatus callback so the header stays compact.
-          onStatus: (msg) => {
-            const el = document.getElementById('training-status');
-            if (el && msg) el.textContent = msg;
-          },
-          getInterval: () => document.getElementById('training-timeframe')?.value || '1d',
-          loadSymbol: async (symbol, ctx) => {
-            if (typeof window.tmLoadSymbol !== 'function') {
-              throw new Error('training module not ready');
-            }
-            await window.tmLoadSymbol(symbol, { interval: ctx?.interval });
-          },
-        });
-      }
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-      } else {
-        init();
-      }
-    })();
-  </script>
+  <script src="training-module.js?v=20260607g"></script>
 </body>
 </html>

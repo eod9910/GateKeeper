@@ -379,8 +379,8 @@
 
                   <div class="settings-field">
                     <label class="settings-label" for="s-ai-model">Co-Pilot Chat</label>
-                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Trading Desk &amp; Scanner chat</div>
-                    <select id="s-ai-model" class="select select-sm" onchange="saveSetting()">
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Trading Desk general chat (Structure &amp; Ledger have their own below)</div>
+                    <select id="s-ai-model" class="select select-sm" onchange="saveModelSetting()">
                       <optgroup label="OpenAI - Current">
                         <option value="gpt-5.4" selected>GPT-5.4 (Recommended)</option>
                         <option value="gpt-5">GPT-5</option>
@@ -408,9 +408,80 @@
                   </div>
 
                   <div class="settings-field">
+                    <label class="settings-label" for="s-structure-model">Structure (Scanner)</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Scanner technical / chart-structure analyst</div>
+                    <select id="s-structure-model" class="select select-sm" onchange="saveModelSetting()">
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5.4">GPT-5.4</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o" selected>GPT-4o (Recommended)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Latest">
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-ledger-model">Ledger (Scanner)</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Scanner fundamentals / financial analyst &amp; auto-overview</div>
+                    <select id="s-ledger-model" class="select select-sm" onchange="saveModelSetting()">
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5.4">GPT-5.4</option>
+                        <option value="gpt-5">GPT-5</option>
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o" selected>GPT-4o (Recommended)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (Cheapest)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Latest">
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-thesis-extractor-model">Thesis Extractor</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Social-buzz needle-in-haystack thesis (cheap by design)</div>
+                    <select id="s-thesis-extractor-model" class="select select-sm" onchange="saveModelSetting()">
+                      <optgroup label="OpenAI - Standard">
+                        <option value="gpt-4o-mini" selected>GPT-4o Mini (Recommended)</option>
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      </optgroup>
+                      <optgroup label="OpenAI - Current">
+                        <option value="gpt-5-mini">GPT-5 Mini</option>
+                        <option value="gpt-5.4">GPT-5.4</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
+                    <label class="settings-label" for="s-vision-model">Vision (Chart Image)</label>
+                    <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Chart-image reading (must be vision-capable)</div>
+                    <select id="s-vision-model" class="select select-sm" onchange="saveModelSetting()">
+                      <optgroup label="OpenAI - Vision-capable">
+                        <option value="gpt-4o" selected>GPT-4o (Recommended)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (Faster)</option>
+                        <option value="gpt-4.5-preview">GPT-4.5 Preview</option>
+                      </optgroup>
+                      <optgroup label="Local (Ollama)">
+                        <option value="minicpm-v">MiniCPM-V (Vision/OCR)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div class="settings-field">
                     <label class="settings-label" for="s-plugin-engineer-model">Plugin Engineer</label>
                     <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Indicator Studio code generation</div>
-                    <select id="s-plugin-engineer-model" class="select select-sm" onchange="saveSetting()">
+                    <select id="s-plugin-engineer-model" class="select select-sm" onchange="saveModelSetting()">
                       <optgroup label="OpenAI - Current">
                         <option value="gpt-5.4">GPT-5.4</option>
                         <option value="gpt-5">GPT-5</option>
@@ -435,7 +506,7 @@
                   <div class="settings-field">
                     <label class="settings-label" for="s-research-strategist-model">Research Strategist</label>
                     <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Hypothesis generation &amp; strategy design</div>
-                    <select id="s-research-strategist-model" class="select select-sm" onchange="saveSetting()">
+                    <select id="s-research-strategist-model" class="select select-sm" onchange="saveModelSetting()">
                       <optgroup label="OpenAI - Current">
                         <option value="gpt-5.4">GPT-5.4</option>
                         <option value="gpt-5">GPT-5</option>
@@ -460,7 +531,7 @@
                   <div class="settings-field">
                     <label class="settings-label" for="s-research-analyst-model">Research Analyst</label>
                     <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Backtest reflection &amp; forensic trade analysis</div>
-                    <select id="s-research-analyst-model" class="select select-sm" onchange="saveSetting()">
+                    <select id="s-research-analyst-model" class="select select-sm" onchange="saveModelSetting()">
                       <optgroup label="OpenAI - Current">
                         <option value="gpt-5.4">GPT-5.4</option>
                         <option value="gpt-5">GPT-5</option>
@@ -485,7 +556,7 @@
                   <div class="settings-field">
                     <label class="settings-label" for="s-validator-analyst-model">Validator Analyst</label>
                     <div style="font-size:11px;color:var(--color-text-subtle);margin-bottom:4px;">Backtest report interpretation &amp; failure analysis</div>
-                    <select id="s-validator-analyst-model" class="select select-sm" onchange="saveSetting()">
+                    <select id="s-validator-analyst-model" class="select select-sm" onchange="saveModelSetting()">
                       <optgroup label="OpenAI - Current">
                         <option value="gpt-5.4">GPT-5.4</option>
                         <option value="gpt-5">GPT-5</option>
@@ -772,6 +843,10 @@
                     <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
                       <input type="checkbox" id="s-edgar-enabled" onchange="toggleEdgarFields()">
                       <label class="settings-label" for="s-edgar-enabled" style="cursor:pointer;">Enable scheduled EDGAR collection</label>
+                    </div>
+                    <div class="settings-field full" style="flex-direction:row;align-items:center;gap:var(--space-8);">
+                      <input type="checkbox" id="s-edgar-include-13f" checked>
+                      <label class="settings-label" for="s-edgar-include-13f" style="cursor:pointer;">Also refresh 13F institutional holdings each run</label>
                     </div>
                     <div class="settings-field">
                       <label class="settings-label" for="s-edgar-frequency">Collection Frequency</label>

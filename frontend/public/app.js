@@ -304,6 +304,45 @@
   document.addEventListener('DOMContentLoaded', ensureConsumerCycleNav);
 })();
 
+// Inject the Fundamental Backtester nav link into every shared sidebar.
+(function () {
+  function ensureFundamentalBacktesterNav() {
+    var nav = document.querySelector('.sidebar-nav');
+    if (!nav) return;
+    if (nav.querySelector('a[href="fundamental-backtester.html"], a[href="/fundamental-backtester"], a[href="/fundamental-backtester.html"]')) return;
+
+    var anchorLink =
+      nav.querySelector('a[href="market-intelligence.html"], a[href="/market-intelligence"]') ||
+      nav.querySelector('a[href="consumer-cycle.html"], a[href="/consumer-cycle"]') ||
+      nav.querySelector('a[href="settings.html"], a[href="/settings"]');
+    var link = document.createElement('a');
+    link.href = 'fundamental-backtester.html';
+    link.className = 'sidebar-nav-item';
+    link.innerHTML = '<span class="nav-dot"></span><span class="sidebar-label-text">Fundamental Backtester</span>';
+
+    var pathname = (window.location.pathname || '').toLowerCase();
+    if (
+      pathname.endsWith('/fundamental-backtester.html') ||
+      pathname.endsWith('\\fundamental-backtester.html') ||
+      pathname === '/fundamental-backtester.html' ||
+      pathname === '/fundamental-backtester'
+    ) {
+      link.classList.add('active');
+      link.setAttribute('aria-current', 'page');
+    }
+
+    if (anchorLink && anchorLink.parentNode === nav && anchorLink.nextSibling) {
+      nav.insertBefore(link, anchorLink.nextSibling);
+    } else if (anchorLink && anchorLink.parentNode === nav) {
+      nav.appendChild(link);
+    } else {
+      nav.appendChild(link);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', ensureFundamentalBacktesterNav);
+})();
+
 // Inject the Tombstones nav link into every shared sidebar.
 (function () {
   function ensureTrainingNav() {
@@ -937,6 +976,8 @@ window.toggleChat = toggleChat;
     style.id = 'global-page-help-styles';
     style.textContent = [
       '.global-help-btn{position:fixed;right:20px;bottom:20px;z-index:1200;padding:10px 14px;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text);font-family:var(--font-mono);font-size:var(--text-caption);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.28);}',
+      '.global-help-slot{display:inline-flex;align-items:center;}',
+      '.global-help-slot .global-help-btn{position:static;right:auto;bottom:auto;z-index:auto;box-shadow:none;min-height:36px;padding:6px 10px;}',
       '.global-help-btn:hover{border-color:var(--color-accent);color:var(--color-accent);}',
       '.global-help-overlay{position:fixed;inset:0;z-index:1250;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:24px;}',
       '.global-help-overlay.open{display:flex;}',
@@ -998,7 +1039,9 @@ window.toggleChat = toggleChat;
       if (event.target === overlay) closePageHelp();
     });
 
-    document.body.appendChild(button);
+    var buttonSlot = document.getElementById('global-page-help-slot');
+    if (buttonSlot) buttonSlot.appendChild(button);
+    else document.body.appendChild(button);
     document.body.appendChild(overlay);
     document.getElementById('global-help-close').addEventListener('click', closePageHelp);
     document.addEventListener('keydown', function (event) {

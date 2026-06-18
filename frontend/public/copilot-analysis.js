@@ -325,6 +325,11 @@
       if (!analysis.chart_data || analysis.chart_data.length === 0) return;
       const chartData = sanitizeChartData(analysis.chart_data);
       if (chartData.length === 0) return;
+
+      // Update the freshness badge in the chart header. Trading desk users
+      // hit this when their chart looked stale vs TradingView; the badge
+      // makes it visually obvious when our last bar is older than expected.
+      try { updateChartFreshnessBadge(chartData, document.getElementById('copilot-interval').value); } catch (_) {}
       
       // Update time scale for intraday intervals (show HH:MM on x-axis)
       const currentInterval = document.getElementById('copilot-interval').value;
@@ -1331,4 +1336,129 @@
     if (intervalEl) intervalEl.addEventListener('change', updateBreadcrumb);
 
     window.runCopilotAnalysis = runCopilotAnalysis;
+
+    // ────────────────────────────────────────────────────────────────────
+    // Chart freshness badge + force-refresh
+    //
+    // Background: trading desk users were seeing stale charts vs TradingView
+    // because intraday cache refresh was silently failing (Yahoo rejects '1y'
+    // for 5m/15m/30m). Two affordances surface that now:
+    //   • a freshness pill that color-codes "how old is the latest bar"
+    //   • a Refresh button that force-busts the server cache and re-pulls
+    // ────────────────────────────────────────────────────────────────────
+
+    function _expectedBarSeconds(interval) {
+      const map = {
+        '1m': 60, '2m': 120, '5m': 300, '15m': 900, '30m': 1800,
+        '1h': 3600, '4h': 14400,
+        '1d': 86400, '1wk': 604800, '1mo': 2629800,
+      };
+      return map[interval] || 86400;
+    }
+
+    function _barTimeToMs(t) {
+      if (t == null) return NaN;
+      if (typeof t === 'number') {
+        // LightweightCharts gives intraday bars as Unix-seconds.
+        return t > 1e12 ? t : t * 1000;
+      }
+      const s = String(t);
+      const ms = Date.parse(s.length === 10 ? s + 'T00:00:00Z' : s);
+      return Number.isFinite(ms) ? ms : NaN;
+    }
+
+    function _formatRelativeAge(seconds) {
+      const s = Math.max(0, Math.floor(seconds));
+      if (s < 90) return s + 's';
+      const m = Math.floor(s / 60);
+      if (m < 90) return m + 'm';
+      const h = Math.floor(m / 60);
+      if (h < 48) return h + 'h';
+      const d = Math.floor(h / 24);
+      return d + 'd';
+    }
+
+    function updateChartFreshnessBadge(bars, interval) {
+      const badge = document.getElementById('chart-freshness-badge');
+      if (!badge) return;
+      if (!Array.isArray(bars) || !bars.length) {
+        badge.style.display = 'none';
+        return;
+      }
+      const lastBar = bars[bars.length - 1];
+      const lastMs = _barTimeToMs(lastBar && lastBar.time);
+      if (!Number.isFinite(lastMs)) {
+        badge.style.display = 'none';
+        return;
+      }
+      const ageS = (Date.now() - lastMs) / 1000;
+      const expected = _expectedBarSeconds(interval);
+
+      // Yellow when the latest bar is older than ~3 expected bar periods,
+      // red when older than ~10. Daily charts on a Sunday are naturally 2-3
+      // days "stale" and that's fine; the warn threshold scales with timeframe.
+      let tone = 'fresh';
+      if (ageS > expected * 10) tone = 'critical';
+      else if (ageS > expected * 3) tone = 'stale';
+
+      const colors = {
+        fresh:    { bg: 'color-mix(in srgb, var(--color-positive) 18%, var(--color-void))', border: 'color-mix(in srgb, var(--color-positive) 50%, var(--color-border))', text: 'var(--color-positive)' },
+        stale:    { bg: 'color-mix(in srgb, var(--color-warning, #d6a44d) 18%, var(--color-void))', border: 'color-mix(in srgb, var(--color-warning, #d6a44d) 50%, var(--color-border))', text: 'var(--color-warning, #d6a44d)' },
+        critical: { bg: 'color-mix(in srgb, var(--color-negative) 18%, var(--color-void))', border: 'color-mix(in srgb, var(--color-negative) 50%, var(--color-border))', text: 'var(--color-negative)' },
+      }[tone];
+      badge.style.background = colors.bg;
+      badge.style.borderColor = colors.border;
+      badge.style.color = colors.text;
+      badge.style.display = 'inline-flex';
+      badge.textContent = 'Last bar ' + _formatRelativeAge(ageS) + ' ago';
+      badge.title = 'Latest bar timestamp: ' + new Date(lastMs).toLocaleString()
+        + ' (interval ' + interval + '; ' + tone + ').'
+        + ' Click Refresh to force a re-pull from Yahoo.';
+    }
+
+    async function forceRefreshChart() {
+      const symbolEl = document.getElementById('copilot-symbol');
+      const intervalEl = document.getElementById('copilot-interval');
+      const symbol = (symbolEl && symbolEl.value || '').trim().toUpperCase();
+      const interval = (intervalEl && intervalEl.value) || '1d';
+      if (!symbol) {
+        try { addChatMessage('Enter a symbol first, then press Refresh.', 'ai'); } catch (_) {}
+        return;
+      }
+
+      const btn = document.getElementById('btn-chart-refresh');
+      if (btn) { btn.disabled = true; btn.dataset.originalText = btn.textContent; btn.textContent = 'Refreshing...'; }
+
+      // Period mirrors what runCopilotAnalysis sends — see the period map in
+      // candidates/scan. Picking 'max' / '5y' for daily/weekly and '60d' for
+      // intraday gives the server everything it needs for a full incremental
+      // refresh while still respecting Yahoo's intraday retention caps.
+      const period = ({ '1m': '7d', '5m': '60d', '15m': '60d', '30m': '60d', '1h': '60d', '4h': '60d', '1d': '5y', '1wk': 'max', '1mo': 'max' })[interval] || '2y';
+
+      try {
+        const url = '/api/chart/ohlcv?symbol=' + encodeURIComponent(symbol)
+          + '&interval=' + encodeURIComponent(interval)
+          + '&period=' + encodeURIComponent(period)
+          + '&force_refresh=true';
+        // Step 1: bust the cache (this updates both the in-memory cache in
+        // the python service AND writes a fresh file). We don't actually
+        // need the response — we just need the side effect.
+        await fetch(url, { method: 'GET' });
+      } catch (err) {
+        console.warn('[chart-refresh] cache-bust call failed (will still re-run analysis):', err);
+      }
+
+      // Step 2: re-run the full analysis pipeline so the chart redraws and
+      // the trade levels recompute against the now-fresh bars.
+      try {
+        if (typeof runCopilotAnalysis === 'function') {
+          await runCopilotAnalysis();
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = btn.dataset.originalText || '↻ Refresh'; }
+      }
+    }
+
+    window.forceRefreshChart = forceRefreshChart;
+    window.updateChartFreshnessBadge = updateChartFreshnessBadge;
     window.displayCopilotChart = displayCopilotChart;

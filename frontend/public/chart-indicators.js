@@ -18,6 +18,7 @@ function _ciEnsureContext(id) {
       indicators: [], data: [], cachedSwing: null,
       basePaneIndex: 0,
       containerEl: null,
+      paneHeights: {},
     });
   }
   return _ciContexts.get(id);
@@ -94,6 +95,142 @@ function _ciGetData() { return _ciCtx().data; }
 function _ciSetData(d) { _ciCtx().data = d; }
 function _ciGetCachedSwing() { return _ciCtx().cachedSwing; }
 function _ciSetCachedSwing(d) { _ciCtx().cachedSwing = d; }
+
+function _ciPaneHeightKey(ind) {
+  return ind && ind.id ? ind.id : (ind && ind.type ? ind.type : '');
+}
+
+const _CI_MINIMIZED_PANE_HEIGHT = 44;
+
+function _ciGetPaneHeight(paneIndex) {
+  const chart = _ciGetChart();
+  if (!chart || !paneIndex) return null;
+  try {
+    if (typeof chart.panes === 'function') {
+      const pane = chart.panes()[paneIndex];
+      if (pane) {
+        if (typeof pane.getHeight === 'function') {
+          const h = Number(pane.getHeight());
+          if (Number.isFinite(h) && h > 0) return h;
+        }
+        if (typeof pane.height === 'function') {
+          const h = Number(pane.height());
+          if (Number.isFinite(h) && h > 0) return h;
+        }
+      }
+    }
+  } catch (e) {}
+
+  try {
+    const positions = _ciGetPanePositions();
+    const pos = positions[paneIndex];
+    if (pos && Number.isFinite(pos.height) && pos.height > 0) return pos.height;
+  } catch (e) {}
+  return null;
+}
+
+function _ciSetPaneHeight(ind, height) {
+  const paneIndex = ind && ind.paneIndex;
+  const chart = _ciGetChart();
+  if (!paneIndex || !chart || typeof chart.panes !== 'function') return false;
+  const nextHeight = Math.max(_CI_MINIMIZED_PANE_HEIGHT, Math.round(Number(height)));
+  if (!Number.isFinite(nextHeight)) return false;
+  try {
+    const panes = chart.panes();
+    if (!panes[paneIndex] || typeof panes[paneIndex].setHeight !== 'function') return false;
+    panes[paneIndex].setHeight(nextHeight);
+    const ctx = _ciCtx();
+    ctx.paneHeights = ctx.paneHeights || {};
+    ctx.paneHeights[_ciPaneHeightKey(ind)] = nextHeight;
+    ctx.paneHeights[ind.type] = nextHeight;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function _ciRememberPaneHeight(ind, options) {
+  const def = ind ? _ciGetDef(ind.type) : null;
+  if (!ind || !def || def.panel !== 'sub' || !ind.paneIndex) return;
+  const opts = options || {};
+  const ctx = _ciCtx();
+  const existing = ctx.paneHeights && (ctx.paneHeights[_ciPaneHeightKey(ind)] || ctx.paneHeights[ind.type]);
+  if (opts.ifUnset && Number.isFinite(Number(existing)) && Number(existing) > 0) return;
+  const h = _ciGetPaneHeight(ind.paneIndex);
+  if (!Number.isFinite(h) || h <= 0) return;
+  ctx.paneHeights = ctx.paneHeights || {};
+  const rounded = Math.round(h);
+  ctx.paneHeights[_ciPaneHeightKey(ind)] = rounded;
+  ctx.paneHeights[ind.type] = rounded;
+}
+
+function _ciRememberAllPaneHeights(options) {
+  const ctx = _ciCtx();
+  for (const ind of ctx.indicators || []) {
+    _ciRememberPaneHeight(ind, options);
+  }
+}
+
+function _ciApplyPaneHeight(ind, def) {
+  const paneIndex = ind && ind.paneIndex;
+  if (!paneIndex || !_ciGetChart() || !_ciGetChart().panes) return;
+  const ctx = _ciCtx();
+  const remembered = ctx.paneHeights && (ctx.paneHeights[_ciPaneHeightKey(ind)] || ctx.paneHeights[ind.type]);
+  const hasRemembered = Number.isFinite(Number(remembered)) && Number(remembered) > 0;
+  if (!hasRemembered && ind._defaultPaneHeightApplied) return;
+  const height = hasRemembered ? Number(remembered) : Number(def && def.paneHeight);
+  if (!Number.isFinite(height) || height <= 0) return;
+  if (_ciSetPaneHeight(ind, height) && !hasRemembered) ind._defaultPaneHeightApplied = true;
+}
+
+function _ciRestorePaneHeights() {
+  const ctx = _ciCtx();
+  for (const ind of ctx.indicators || []) {
+    const def = _ciGetDef(ind.type);
+    if (!def || def.panel !== 'sub') continue;
+    const remembered = ctx.paneHeights && (ctx.paneHeights[_ciPaneHeightKey(ind)] || ctx.paneHeights[ind.type]);
+    if (Number.isFinite(Number(remembered)) && Number(remembered) > 0) {
+      _ciSetPaneHeight(ind, Number(remembered));
+    }
+  }
+  _ciRepositionLabels();
+}
+
+function _ciSchedulePaneHeightRestore() {
+  requestAnimationFrame(() => _ciRestorePaneHeights());
+  setTimeout(() => _ciRestorePaneHeights(), 50);
+  setTimeout(() => _ciRestorePaneHeights(), 150);
+}
+
+function _ciTogglePaneMinimized(indId) {
+  const ctx = _ciCtx();
+  const ind = ctx.indicators.find(i => i.id === indId);
+  const def = ind ? _ciGetDef(ind.type) : null;
+  if (!ind || !def || def.panel !== 'sub') return;
+
+  const currentHeight = _ciGetPaneHeight(ind.paneIndex);
+  const rememberedHeight = ctx.paneHeights && (ctx.paneHeights[_ciPaneHeightKey(ind)] || ctx.paneHeights[ind.type]);
+  const fallbackHeight = Number.isFinite(Number(ind._preMinimizePaneHeight))
+    ? Number(ind._preMinimizePaneHeight)
+    : (Number.isFinite(Number(rememberedHeight)) && Number(rememberedHeight) > _CI_MINIMIZED_PANE_HEIGHT + 4
+      ? Number(rememberedHeight)
+      : Number(def.paneHeight || 150));
+  const isMinimized = Number.isFinite(Number(currentHeight)) && Number(currentHeight) <= _CI_MINIMIZED_PANE_HEIGHT + 4;
+
+  if (isMinimized) {
+    const restored = Math.max(_CI_MINIMIZED_PANE_HEIGHT + 20, Math.round(fallbackHeight));
+    ind._paneMinimized = false;
+    _ciSetPaneHeight(ind, restored);
+  } else {
+    const prior = Number.isFinite(Number(currentHeight)) && Number(currentHeight) > _CI_MINIMIZED_PANE_HEIGHT + 4
+      ? Number(currentHeight)
+      : fallbackHeight;
+    ind._preMinimizePaneHeight = Math.round(prior);
+    ind._paneMinimized = true;
+    _ciSetPaneHeight(ind, _CI_MINIMIZED_PANE_HEIGHT);
+  }
+  setTimeout(() => _ciUpdatePaneLabels(), 60);
+}
 
 // Legacy aliases for backward compat with scanner page
 let _activeIndicators = [];
@@ -471,6 +608,16 @@ const CHART_INDICATORS = {
     params: [],
     colors: ['#f59e0b'],
   },
+  smart_std_channel_primitive: {
+    name: 'Smart Standard Deviation Channel',
+    category: 'structure',
+    panel: 'markers',
+    backend: true,
+    pluginId: 'smart_std_channel_primitive',
+    defaults: {},
+    params: [],
+    colors: ['#ef4444', '#f59e0b', '#22c55e'],
+  },
   energy: {
     name: 'Energy State',
     category: 'structure',
@@ -714,12 +861,7 @@ function _ciRenderTechnicalIndicator(ind, chartData) {
     }
   }
 
-  if (paneIndex > 0 && def.paneHeight && _ciGetChart().panes) {
-    try {
-      const panes = _ciGetChart().panes();
-      if (panes[paneIndex]) panes[paneIndex].setHeight(def.paneHeight);
-    } catch (e) {}
-  }
+  if (paneIndex > 0) _ciApplyPaneHeight(ind, def);
 
   ind.seriesRefs = seriesRefs;
 }
@@ -1101,7 +1243,9 @@ async function _ciRenderIndicator(ind, chartData) {
 
 // ── Remove indicator series from chart ──────────────────────────────────
 
-function _ciRemoveIndicatorSeries(ind) {
+function _ciRemoveIndicatorSeries(ind, options) {
+  const opts = options || {};
+  if (!opts.skipPaneHeightRemember) _ciRememberPaneHeight(ind);
   const chart = _ciGetChart();
   const series = _ciGetSeries();
   if (ind.seriesRefs && ind.seriesRefs.length > 0) {
@@ -1130,7 +1274,9 @@ const _ciTimeframeEpsilon = {
   '1m':  0.008,
 };
 
-function addChartIndicator(type, params) {
+const _CI_DEFAULT_CHART_INDICATORS = ['smart_std_channel_primitive'];
+
+function _ciBuildChartIndicator(type, params) {
   const def = _ciGetDef(type);
   if (!def) { console.warn('Unknown indicator type:', type); return null; }
 
@@ -1143,8 +1289,28 @@ function addChartIndicator(type, params) {
   const id = `${type}_${Date.now()}`;
   const paneIndex = def.panel === 'sub' ? _ciNextPaneIndex() : 0;
 
+  return { id, type, params: merged, seriesRefs: [], markersPrimitive: null, paneIndex, backendData: null, _removed: false, _renderToken: 0 };
+}
+
+function _ciEnsureDefaultChartIndicators(ctx) {
+  const targetCtx = ctx || _ciCtx();
+  let changed = false;
+  for (const type of _CI_DEFAULT_CHART_INDICATORS) {
+    if (targetCtx.indicators.some(ind => ind.type === type)) continue;
+    const ind = _ciBuildChartIndicator(type);
+    if (ind) {
+      targetCtx.indicators.push(ind);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function addChartIndicator(type, params) {
+  const ind = _ciBuildChartIndicator(type, params);
+  if (!ind) return null;
+
   const ctx = _ciCtx();
-  const ind = { id, type, params: merged, seriesRefs: [], markersPrimitive: null, paneIndex, backendData: null, _removed: false, _renderToken: 0 };
   ctx.indicators.push(ind);
 
   _ciUpdateBadges();
@@ -1218,8 +1384,14 @@ function getActiveIndicators() {
 async function recomputeAllIndicators(chartData) {
   if (!chartData || chartData.length === 0) return;
   const ctx = _ciCtx();
+  _ciRememberAllPaneHeights({ ifUnset: true });
   ctx.data = chartData;
   ctx.cachedSwing = null;
+  if (_ciEnsureDefaultChartIndicators(ctx)) {
+    _ciUpdateBadges();
+    _ciPopulateIndicatorSelect();
+    _ciEmitIndicatorChange();
+  }
 
   const interval = _ciGetInterval();
   const autoEps = _ciTimeframeEpsilon[interval];
@@ -1227,7 +1399,7 @@ async function recomputeAllIndicators(chartData) {
     if (autoEps != null && ind.params?.epsilon_pct != null) {
       ind.params.epsilon_pct = autoEps;
     }
-    _ciRemoveIndicatorSeries(ind);
+    _ciRemoveIndicatorSeries(ind, { skipPaneHeightRemember: true });
   }
 
   let nextPane = 1;
@@ -1241,6 +1413,7 @@ async function recomputeAllIndicators(chartData) {
   for (const ind of ctx.indicators) {
     await _ciRenderIndicator(ind, chartData);
   }
+  _ciSchedulePaneHeightRestore();
 }
 
 // ── Indicator badges (active indicator labels on chart) ─────────────────
@@ -1377,8 +1550,7 @@ function _ciGetPanePositions() {
   const chartEl = _ciFindChartDomEl();
   if (!chartEl) return [];
   const overlay = document.getElementById('ci-pane-labels-overlay');
-  if (!overlay) return [];
-  const overlayRect = overlay.getBoundingClientRect();
+  const referenceRect = overlay ? overlay.getBoundingClientRect() : chartEl.getBoundingClientRect();
 
   // Scan ALL canvases regardless of height so collapsed panes keep their index
   const canvases = Array.from(chartEl.querySelectorAll('canvas'));
@@ -1387,9 +1559,15 @@ function _ciGetPanePositions() {
   const measured = canvases
     .map(c => {
       const r = c.getBoundingClientRect();
-      return { top: r.top - overlayRect.top, height: r.height };
+      const parentStyle = c.parentElement ? String(c.parentElement.getAttribute('style') || '') : '';
+      return {
+        top: r.top - referenceRect.top,
+        height: r.height,
+        width: r.width,
+        isPlotCanvas: parentStyle.includes('overflow: hidden'),
+      };
     })
-    .filter(c => c.height > 10);
+    .filter(c => c.isPlotCanvas && c.width > 0 && c.height > 40);
   measured.sort((a, b) => a.top - b.top);
 
   // Group canvases at the same Y position (each pane has multiple canvases)
@@ -1434,15 +1612,23 @@ function _ciUpdatePaneLabels() {
 
     const label = document.createElement('div');
     label.className = 'ci-pane-label';
+    label.dataset.indicatorId = ind.id;
+    label.title = 'Double-click to minimize / restore this pane';
     label.style.cssText = `
       position:absolute; top:${panePos.top + 2}px; left:8px; z-index:100;
       display:flex; align-items:center; gap:6px; pointer-events:auto;
+      cursor:default; user-select:none;
     `;
 
     label.innerHTML = `
       <span style="color:${def.colors?.[0] || '#fff'}; font-size:12px; font-weight:600;
-        text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9);">${def.name}</span>
+        text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9);">${def.name}${ind._paneMinimized ? ' \u25be' : ''}</span>
     `;
+    label.addEventListener('dblclick', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      _ciTogglePaneMinimized(ind.id);
+    });
 
     overlay.appendChild(label);
   }
@@ -1491,6 +1677,22 @@ function _ciStartLabelTracking() {
     });
   };
   chartEl.addEventListener('pointermove', chartEl._ciPointerMove);
+
+  chartEl._ciPanePointerDown = () => {
+    chartEl._ciPanePointerActive = true;
+  };
+  chartEl._ciPaneHeightCapture = () => {
+    if (!chartEl._ciPanePointerActive) return;
+    chartEl._ciPanePointerActive = false;
+    setTimeout(() => _ciRememberAllPaneHeights(), 60);
+  };
+  chartEl.addEventListener('pointerdown', chartEl._ciPanePointerDown);
+  chartEl.addEventListener('pointerup', chartEl._ciPaneHeightCapture);
+  chartEl.addEventListener('mouseup', chartEl._ciPaneHeightCapture);
+  chartEl.addEventListener('touchend', chartEl._ciPaneHeightCapture);
+  window.addEventListener('pointerup', chartEl._ciPaneHeightCapture);
+  window.addEventListener('mouseup', chartEl._ciPaneHeightCapture);
+  window.addEventListener('touchend', chartEl._ciPaneHeightCapture);
 }
 
 function _ciStopLabelTracking() {
@@ -1502,6 +1704,20 @@ function _ciStopLabelTracking() {
   if (chartEl && chartEl._ciPointerMove) {
     chartEl.removeEventListener('pointermove', chartEl._ciPointerMove);
     delete chartEl._ciPointerMove;
+  }
+  if (chartEl && chartEl._ciPaneHeightCapture) {
+    if (chartEl._ciPanePointerDown) {
+      chartEl.removeEventListener('pointerdown', chartEl._ciPanePointerDown);
+      delete chartEl._ciPanePointerDown;
+      delete chartEl._ciPanePointerActive;
+    }
+    chartEl.removeEventListener('pointerup', chartEl._ciPaneHeightCapture);
+    chartEl.removeEventListener('mouseup', chartEl._ciPaneHeightCapture);
+    chartEl.removeEventListener('touchend', chartEl._ciPaneHeightCapture);
+    window.removeEventListener('pointerup', chartEl._ciPaneHeightCapture);
+    window.removeEventListener('mouseup', chartEl._ciPaneHeightCapture);
+    window.removeEventListener('touchend', chartEl._ciPaneHeightCapture);
+    delete chartEl._ciPaneHeightCapture;
   }
 }
 

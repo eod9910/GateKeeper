@@ -303,11 +303,10 @@
   };
 
   // ----------------------------------------------------------
-  // Live-data cache (Phase 1.4: rendered in place of SAMPLE_SCENARIOS
-  // once /api/market-intelligence/scenarios responds). On API failure
-  // we fall back to the mock so the page is never blank.
+  // Live-data cache. The page stays in an explicit loading/empty state until
+  // /api/market-intelligence/scenarios responds, so sample fixtures never look live.
   // ----------------------------------------------------------
-  var SCENARIOS = SAMPLE_SCENARIOS.slice();
+  var SCENARIOS = [];
   var LIVE_DETAILS = {};
   var LIVE_REPORTS = {};
   var KNOWN_TICKER_SET = new Set();
@@ -338,9 +337,10 @@
       minStrength: _saved.minStrength || 0,
       minConfidence: _saved.minConfidence || 0,
       includeInvalidated: !!_saved.includeInvalidated,
-      includeSuppressed: !!_saved.includeSuppressed
+      includeSuppressed: !!_saved.includeSuppressed,
+      sortMode: _saved.sortMode || 'priority'
     },
-    dataSource: 'mock',
+    dataSource: 'loading',
     apiError: null,
     liveTotal: 0
   };
@@ -361,7 +361,8 @@
         minStrength: STATE.global.minStrength,
         minConfidence: STATE.global.minConfidence,
         includeInvalidated: STATE.global.includeInvalidated,
-        includeSuppressed: STATE.global.includeSuppressed
+        includeSuppressed: STATE.global.includeSuppressed,
+        sortMode: STATE.global.sortMode
       }));
     } catch (e) { /* quota etc */ }
   }
@@ -846,7 +847,140 @@
       });
       wrap.appendChild(bestBar);
     }
+    var reportActions = el('div', 'mi-report-actions');
+    var reportBtn = el('button', 'mi-operator-btn go', 'Generate report');
+    reportBtn.type = 'button';
+    reportBtn.title = 'Open a copyable Markdown report with evidence, ramifications, valuation checks, and exposure map';
+    reportBtn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      openShareableReport(s, report);
+    });
+    reportActions.appendChild(reportBtn);
+    wrap.appendChild(reportActions);
     body.appendChild(wrap);
+  }
+
+  function markdownTableRow(c) {
+    return [
+      c.symbol || 'N/A',
+      c.exposure_direction || 'n/a',
+      c.valuation_engine || 'n/a',
+      c.current_price == null ? 'N/A' : c.current_price,
+      c.fair_value == null ? 'N/A' : c.fair_value,
+      c.valuation_gap_pct == null ? 'N/A' : Number(c.valuation_gap_pct).toFixed(1) + '%',
+      c.valuation_state || 'N/A',
+      c.composite_rank == null ? 'N/A' : Number(c.composite_rank).toFixed(1)
+    ].join(' | ');
+  }
+
+  function buildShareableReportFallback(s, report) {
+    var v = report.verdict || {};
+    var scenario = report.scenario || {};
+    var ca = report.consequence_analysis || {};
+    var fundamentals = Array.isArray(report.valuation_fragility) && report.valuation_fragility.length
+      ? report.valuation_fragility
+      : (Array.isArray(report.candidate_fundamentals) ? report.candidate_fundamentals.filter(function (c) { return !c.unavailable; }) : []);
+    var branches = []
+      .concat(Array.isArray(ca.scenario_branches) ? ca.scenario_branches : [])
+      .concat(Array.isArray(ca.dependency_chains) ? ca.dependency_chains : [])
+      .concat(Array.isArray(ca.workflow_constraints) ? ca.workflow_constraints : [])
+      .concat(Array.isArray(ca.second_order_effects) ? ca.second_order_effects : []);
+    var evidence = Array.isArray(report.evidence_timeline) ? report.evidence_timeline.slice(0, 6) : [];
+    var lines = [];
+    lines.push('# ' + (scenario.title || s.display_name || 'Market Intelligence Report'));
+    lines.push('');
+    lines.push('## Bottom Line');
+    lines.push((v.risk_level || 'WATCH') + ' - ' + (v.summary || 'Scenario requires review.'));
+    lines.push('');
+    lines.push('## Story Synopsis');
+    lines.push((report.story_synopsis && report.story_synopsis.claim) || scenario.summary || s.summary || 'No synopsis available.');
+    lines.push('');
+    lines.push('## Signal And Evidence Quality');
+    lines.push('Signal strength ' + (scenario.signal_strength || s.signal_strength || 'N/A') + '/100, confidence ' + Number(scenario.confidence_score || s.confidence_score || 0).toFixed(2) + ', evidence count ' + (scenario.evidence_count || s.source_count || 'N/A') + ', flags ' + ((scenario.validity_flags || s.validity_flags || []).join(', ') || 'none') + '.');
+    if (evidence.length) {
+      lines.push('');
+      evidence.forEach(function (ev) {
+        lines.push('- ' + (ev.source_name || ev.source || 'source') + ': ' + (ev.headline_or_label || ev.text || ev.summary || 'evidence'));
+      });
+    }
+    lines.push('');
+    lines.push('## Analyst Ramifications');
+    lines.push(ca.core_thesis || (Array.isArray(s.confidence_reasons) ? s.confidence_reasons[0] : '') || 'No analyst consequence thesis was available.');
+    branches.slice(0, 12).forEach(function (b) { lines.push('- ' + b); });
+    lines.push('');
+    lines.push('## Exposure And Valuation Fragility');
+    lines.push('| Symbol | Direction | Valuation Engine | Price | Fair Value | Gap | State | Rank |');
+    lines.push('|---|---|---|---:|---:|---:|---|---:|');
+    if (fundamentals.length) {
+      fundamentals.slice(0, 16).forEach(function (c) { lines.push('| ' + markdownTableRow(c) + ' |'); });
+    } else {
+      lines.push('| none | n/a | n/a | N/A | N/A | N/A | N/A | N/A |');
+    }
+    lines.push('');
+    lines.push('## Market, Economic, And Geopolitical Ramifications');
+    lines.push('Focus on whether the shock changes AI demand assumptions, index-heavy constituents, capital spending plans, workforce access, compliance burden, foreign retaliation risk, and valuation multiples for crowded beneficiaries.');
+    lines.push('');
+    lines.push('## What Confirms Or Invalidates It');
+    (Array.isArray(ca.confirming_evidence) ? ca.confirming_evidence : []).slice(0, 4).forEach(function (x) { lines.push('- Confirming: ' + x); });
+    (Array.isArray(ca.invalidating_evidence) ? ca.invalidating_evidence : []).slice(0, 4).forEach(function (x) { lines.push('- Invalidating: ' + x); });
+    return lines.join('\n');
+  }
+
+  function openShareableReport(s, report) {
+    var modal = document.getElementById('mi-report-modal');
+    var backdrop = document.getElementById('mi-report-modal-backdrop');
+    var textarea = document.getElementById('mi-report-textarea');
+    var title = document.getElementById('mi-report-modal-title');
+    var subtitle = document.getElementById('mi-report-modal-subtitle');
+    if (!modal || !backdrop || !textarea) return;
+    var text = report.shareable_report || report.narrative || buildShareableReportFallback(s, report);
+    textarea.value = text;
+    if (title) title.textContent = 'Shareable Report';
+    if (subtitle) {
+      subtitle.textContent = report.report_author === 'ai'
+        ? 'AI-authored from deterministic scenario data, evidence, consequence analysis, valuation checks, and exposure map.'
+        : 'Fallback report generated from deterministic scenario data because the AI report was unavailable.';
+    }
+    modal.setAttribute('data-report-slug', s.slug || String(s.id || 'scenario'));
+    backdrop.classList.add('open');
+    modal.classList.add('open');
+    textarea.focus();
+    textarea.setSelectionRange(0, 0);
+  }
+
+  function closeShareableReport() {
+    var modal = document.getElementById('mi-report-modal');
+    var backdrop = document.getElementById('mi-report-modal-backdrop');
+    if (modal) modal.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function copyShareableReport() {
+    var textarea = document.getElementById('mi-report-textarea');
+    if (!textarea) return;
+    var text = textarea.value || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {
+        textarea.select();
+        document.execCommand('copy');
+      });
+    } else {
+      textarea.select();
+      document.execCommand('copy');
+    }
+  }
+
+  function downloadShareableReport() {
+    var modal = document.getElementById('mi-report-modal');
+    var textarea = document.getElementById('mi-report-textarea');
+    if (!textarea) return;
+    var slug = (modal && modal.getAttribute('data-report-slug')) || 'scenario-report';
+    var blob = new Blob([textarea.value || ''], { type: 'text/markdown' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = slug + '-market-intelligence-report.md';
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   function openDrawer(s) {
@@ -903,6 +1037,19 @@
     appendScenarioReport(body, s);
 
     var detail = DRAWER_DETAIL[s.id] || LIVE_DETAILS[s.id];
+
+    if (detail && detail.confidence_reasons && detail.confidence_reasons.length > 0) {
+      body.appendChild(el('div', 'mi-drawer-section-title', 'Analyst ramifications'));
+      var reasons = el('div', 'mi-conviction-block');
+      detail.confidence_reasons.slice(0, 6).forEach(function (reason) {
+        var row = el('div', 'mi-conviction-row');
+        var value = el('div', 'mi-conviction-value');
+        appendLinkedTickerText(value, reason);
+        row.appendChild(value);
+        reasons.appendChild(row);
+      });
+      body.appendChild(reasons);
+    }
 
     if (detail && detail.first_order_effects) {
       body.appendChild(el('div', 'mi-drawer-section-title', 'Consequence chain'));
@@ -1162,9 +1309,13 @@
   }
 
   function buildConsequenceChip(parentRow, effect) {
-    var chip = el('span', 'mi-consequence-chip dir-' + effect.direction);
+    var direction = effect.direction || effect.exposure_direction || 'neutral';
+    var labelType = effect.asset_type || effect.type || 'sector';
+    var labelKey = effect.asset_key || effect.key || effect.asset_or_sector || effect.label || 'unknown';
+    var magnitude = effect.magnitude || effect.magnitude_hint || 'moderate';
+    var chip = el('span', 'mi-consequence-chip dir-' + direction);
     if (effect.source_method === 'llm_assist') chip.classList.add('llm-assist');
-    chip.textContent = effect.asset_type + ':' + effect.asset_key + ' (' + effect.magnitude + ')';
+    chip.textContent = labelType + ':' + labelKey + ' (' + magnitude + ')';
     parentRow.appendChild(chip);
     return parentRow;
   }
@@ -1238,20 +1389,20 @@
   function apiToDetail(detail) {
     var firstOrder = Array.isArray(detail.first_order_effects) ? detail.first_order_effects.map(function (e) {
       return {
-        asset_type: e.asset_type,
-        asset_key: e.asset_key,
-        direction: e.exposure_direction,
-        magnitude: 'moderate',
-        source_method: 'derived'
+        asset_type: e.asset_type || e.type || (e.asset_or_sector ? 'sector' : undefined),
+        asset_key: e.asset_key || e.key || e.asset_or_sector || e.label,
+        direction: e.exposure_direction || e.direction || 'neutral',
+        magnitude: e.magnitude || e.magnitude_hint || 'moderate',
+        source_method: e.source_method || 'derived'
       };
     }) : [];
     var secondOrder = Array.isArray(detail.second_order_effects) ? detail.second_order_effects.map(function (e) {
       return {
-        asset_type: e.asset_type,
-        asset_key: e.asset_key,
-        direction: e.exposure_direction,
-        magnitude: 'moderate',
-        source_method: 'derived'
+        asset_type: e.asset_type || e.type || (e.asset_or_sector ? 'sector' : undefined),
+        asset_key: e.asset_key || e.key || e.asset_or_sector || e.label,
+        direction: e.exposure_direction || e.direction || 'neutral',
+        magnitude: e.magnitude || e.magnitude_hint || 'moderate',
+        source_method: e.source_method || 'derived'
       };
     }) : [];
     var evidenceTimeline = Array.isArray(detail.evidence_timeline) ? detail.evidence_timeline.map(function (ev) {
@@ -1266,6 +1417,7 @@
       first_order_effects: firstOrder,
       second_order_effects: secondOrder,
       authenticity_signals: null,
+      confidence_reasons: Array.isArray(detail.confidence_reasons) ? detail.confidence_reasons : [],
       evidence_timeline: evidenceTimeline,
       exposure_list: exposureList,
       candidates: Array.isArray(detail.top_universe_candidates) ? detail.top_universe_candidates : []
@@ -1277,7 +1429,7 @@
     'loading':       { label: 'loading',       title: 'Fetching scenarios from the API…' },
     'live':          { label: 'live',          title: 'Connected to /api/market-intelligence — showing real DB rows.' },
     'live-empty':    { label: 'live · empty',  title: 'API healthy but the DB has no scenarios. Run scripts/seed_dev_scenarios.py or wait for collectors.' },
-    'mock-fallback': { label: 'MOCK',          title: 'API unavailable; falling back to in-memory sample fixtures.' }
+    'error':         { label: 'error',         title: 'API unavailable; no sample scenarios are shown.' }
   };
 
   // setDataSource updates the data-source pill + the timestamp. Detail is
@@ -1336,15 +1488,15 @@
       })
       .catch(function (err) {
         STATE.apiError = err && err.message ? err.message : String(err);
-        STATE.dataSource = 'mock-fallback';
-        SCENARIOS = SAMPLE_SCENARIOS.slice();
+        STATE.dataSource = 'error';
+        SCENARIOS = [];
         render();
-        setDataSource('mock-fallback', STATE.apiError);
+        setDataSource('error', STATE.apiError);
         // Surface to the console so devs notice during local work.
         if (typeof console !== 'undefined' && console.warn) {
-          console.warn('[market-intelligence] API load failed; using mock data:', err);
+          console.warn('[market-intelligence] API load failed; sample data is disabled:', err);
         }
-        return { source: 'mock-fallback', total: SCENARIOS.length, error: STATE.apiError };
+        return { source: 'error', total: SCENARIOS.length, error: STATE.apiError };
       });
   }
 
@@ -1435,8 +1587,8 @@
     macroToShow.sort(scenarioSort).forEach(function (s, i) { macroBody.appendChild(renderCard(s, i + 1)); });
     socialToShow.sort(scenarioSort).forEach(function (s, i) { socialBody.appendChild(renderCard(s, i + 1)); });
 
-    if (macroToShow.length === 0)  macroBody.appendChild(el('div', 'mi-panel-empty', 'No scenarios match the current filters.'));
-    if (socialToShow.length === 0) socialBody.appendChild(el('div', 'mi-panel-empty', 'No scenarios match the current filters.'));
+    if (macroToShow.length === 0)  macroBody.appendChild(el('div', 'mi-panel-empty', emptyPanelMessage()));
+    if (socialToShow.length === 0) socialBody.appendChild(el('div', 'mi-panel-empty', emptyPanelMessage()));
 
     renderSummary(visibleGlobal);
 
@@ -1444,7 +1596,28 @@
   }
 
   function scenarioSort(a, b) {
-    return (b.last_updated_at - a.last_updated_at) || (b.scenario_score - a.scenario_score);
+    if (STATE.global.sortMode === 'newest') {
+      return (b.last_updated_at - a.last_updated_at)
+        || (Number(b.scenario_score || b.signal_strength || 0) - Number(a.scenario_score || a.signal_strength || 0))
+        || (Number(b.confidence_score || 0) - Number(a.confidence_score || 0));
+    }
+    var scoreA = Number(a.scenario_score || a.signal_strength || 0);
+    var scoreB = Number(b.scenario_score || b.signal_strength || 0);
+    var signalA = Number(a.signal_strength || 0);
+    var signalB = Number(b.signal_strength || 0);
+    var confA = Number(a.confidence_score || 0);
+    var confB = Number(b.confidence_score || 0);
+    return (scoreB - scoreA)
+      || (signalB - signalA)
+      || (confB - confA)
+      || (b.last_updated_at - a.last_updated_at);
+  }
+
+  function emptyPanelMessage() {
+    if (STATE.dataSource === 'loading') return 'Loading live scenarios...';
+    if (STATE.dataSource === 'error') return 'Live Market Intelligence failed to load. Refresh to try again.';
+    if (STATE.dataSource === 'live-empty') return 'Live API is healthy, but there are no scenarios yet.';
+    return 'No scenarios match the current filters.';
   }
 
   function updateStatusCounts(engineKey, list) {
@@ -1532,7 +1705,21 @@
   var OPERATOR_LOADED = false;
   var EIGEN_LOADED = false;
   var CONVERGENCE_LOADED = false;
-  var CONVERGENCE_STATE = { tier: 0 };
+  var CONVERGENCE_STATE = { tier: 0, tag: 'all', search: '' };
+  var LAST_CONV_DATA = null;
+
+  function rowHasFade(row) { return !!(row && row.overlays && row.overlays.fade); }
+  function rowHasBottom(row) { return !!(row && row.overlays && row.overlays.contrarian); }
+  function rowMatchesTag(row, tag) {
+    if (tag === 'fade') return rowHasFade(row);
+    if (tag === 'bottom') return rowHasBottom(row);
+    if (tag === 'either') return rowHasFade(row) || rowHasBottom(row);
+    return true;
+  }
+  var CONVERGENCE_THESES = {};
+  var THESIS_POLLS = 0;
+  var EVENT_RISK_ALERTS = [];
+  var SOCIAL_THESIS_ALERTS = [];
   var OPERATOR_STATE = {
     tracked: { items: [], total: 0, status: 'active', target_type: '', search: '' },
     emerging: { items: [], filter: 'unpromoted' }
@@ -1863,6 +2050,22 @@
     return Number(value).toFixed(2) + '%';
   }
 
+  function formatCompactMoney(value) {
+    if (value == null || !isFinite(Number(value))) return '-';
+    var n = Number(value);
+    var abs = Math.abs(n);
+    if (abs >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+    if (abs >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+    if (abs >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+    return '$' + n.toFixed(0);
+  }
+
+  function formatPrice(value) {
+    if (value == null || !isFinite(Number(value))) return '-';
+    var n = Number(value);
+    return '$' + (Math.abs(n) < 10 ? n.toFixed(2) : n.toFixed(2));
+  }
+
   function formatEigenOptions(options) {
     if (!options) return '-';
     var bias = options.flow_bias || 'flow';
@@ -2066,7 +2269,9 @@
 
   function fetchConvergence() {
     var tier = CONVERGENCE_STATE.tier || 0;
-    var url = API_BASE + '/convergence/latest?limit=150' + (tier ? '&tier=' + tier : '');
+    var q = (CONVERGENCE_STATE.search || '').trim();
+    var url = API_BASE + '/convergence/latest?limit=150' + (tier ? '&tier=' + tier : '') +
+      (q ? '&q=' + encodeURIComponent(q) : '');
     return fetch(url, { headers: { 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (payload) {
@@ -2105,6 +2310,110 @@
     return wrap;
   }
 
+  // Real Volume (eigen-volume) confirmation badge. This is a *gate on the
+  // eigen-price move*, not a vote: backtests show real-vol-confirmed breakouts
+  // carry forward excess (t~3-4) while real-vol-absent ones drag. Green =
+  // confirmed conviction, gray = skip, amber = weak/borderline.
+  function renderRealVolChip(rv) {
+    if (!rv || rv.real_vol_z == null) return null;
+    var z = Number(rv.real_vol_z);
+    var state = rv.state || (z > 0.5 ? 'confirmed' : (z <= 0 ? 'absent' : 'weak'));
+    var cls = state === 'confirmed' ? 'confirm' : (state === 'absent' ? 'skip' : 'weak');
+    var slope = rv.real_vol_slope_3d;
+    var arrow = (slope != null) ? (slope > 0.05 ? ' \u2191' : (slope < -0.05 ? ' \u2193' : '')) : '';
+    var chip = el('span', 'mi-conv-chip rvol ' + cls,
+      'Real Vol ' + (z >= 0 ? '+' : '') + z.toFixed(2) + arrow);
+    chip.title = 'Real Volume (eigen-volume): name-specific volume after removing the market-wide tide. '
+      + state + ' (z ' + z.toFixed(2) + (slope != null ? ', 3d slope ' + Number(slope).toFixed(2) : '') + ').';
+    return chip;
+  }
+
+  // Price-extension badge: how many sigma the price sits above (or below) the
+  // stock's own long-term log-price trend. This is a FADE input, not a vote —
+  // backtests show overvalued + stretched (>=2 sigma) + euphoric crowd
+  // underperforms ~-4% over 3 months. Only render when meaningfully stretched
+  // or depressed; near-trend names add no signal.
+  function renderPriceStretchChip(pe) {
+    if (!pe || pe.price_ext_z == null) return null;
+    var z = Number(pe.price_ext_z);
+    var state = pe.state || (z >= 3 ? 'extended' : (z >= 2 ? 'stretched' : (z <= -2 ? 'depressed' : 'normal')));
+    if (state === 'normal') return null;
+    var label = state === 'extended' ? 'Stretch +' + z.toFixed(1) + '\u03c3'
+      : state === 'stretched' ? 'Stretch +' + z.toFixed(1) + '\u03c3'
+      : 'Below trend ' + z.toFixed(1) + '\u03c3';
+    var chip = el('span', 'mi-conv-chip pstretch ' + state, label);
+    var rp = (pe.range_pos != null) ? ', ' + Math.round(Number(pe.range_pos) * 100) + '% of all-time range' : '';
+    chip.title = 'Price extension: ' + z.toFixed(2) + ' sigma '
+      + (z >= 0 ? 'above' : 'below') + " the stock's long-term price trend"
+      + rp + '. '
+      + (state === 'extended' ? 'Extended/exhaustion — strong FADE input if also overvalued + crowd bullish.'
+         : state === 'stretched' ? 'Stretched — FADE input if also overvalued + crowd bullish.'
+         : 'Beaten down vs its own trend (context only; not a long signal on its own).');
+    return chip;
+  }
+
+  var FADE_TIMING_META = {
+    extended: { suffix: 'at highs', tcls: 'wait', tip: 'Still pinned near the high — too early, don\u2019t chase.' },
+    broken: { suffix: 'wait', tcls: 'wait', tip: 'Rolled over but no retest yet — WAIT for price to rally back and tag the prior high.' },
+    retest: { suffix: 'armed', tcls: 'armed', tip: 'Retesting the prior high as a lower/equal high — armed; watch for rejection (double-top right shoulder).' },
+    confirmed: { suffix: 'trigger', tcls: 'trigger', tip: 'Closed below the neckline (post-peak trough) — double top confirmed, fade trigger.' }
+  };
+
+  function renderFadeBadge(fade) {
+    if (!fade) return null;
+    var legs = fade.legs || {};
+    var timing = fade.timing || null;
+    var tmeta = timing && FADE_TIMING_META[timing.state];
+    var cls = fade.candidate ? 'mi-conv-chip fade candidate' : 'mi-conv-chip fade partial';
+    if (fade.confidence === 'strong') cls += ' strong';
+    if (tmeta) cls += ' t-' + tmeta.tcls;
+    var label = (fade.candidate ? (fade.confidence === 'strong' ? 'FADE+' : 'FADE') : 'FADE?')
+      + (tmeta ? ' \u00b7 ' + tmeta.suffix : '');
+    var chip = el('span', cls, label);
+    var legTxt = [
+      'DCF overvalued: ' + (legs.overvalued ? 'yes' : 'no'),
+      'price \u22652\u03c3 stretched: ' + (legs.stretched ? 'yes' : 'no'),
+      'crowd euphoric: ' + (legs.crowd_bullish ? 'yes' : 'no'),
+      'insider selling: ' + (legs.insider_selling ? 'yes' : 'no')
+    ].join(' \u00b7 ');
+    var timingTxt = '';
+    if (timing) {
+      timingTxt = '\nEntry timing: ' + (tmeta ? tmeta.tip : timing.state)
+        + ' (peak ' + timing.peak + ', now ' + timing.last + ', '
+        + timing.drawdown_pct + '% off high; neckline ' + timing.neckline + ')';
+    }
+    chip.title = (fade.candidate
+        ? (fade.confidence === 'strong'
+            ? 'FADE CANDIDATE (STRONG) — overvalued + stretched + euphoric crowd AND insiders distributing into strength.'
+            : 'FADE CANDIDATE — overvalued + stretched, confirmed by euphoric crowd or insider selling (the backtested ~-2.5%/-4% over 3mo short setup).')
+        : 'Partial fade — overvalued + stretched, but no confirming leg (crowd thin/mixed and no insider distribution).')
+      + '\n' + legTxt
+      + (fade.detail ? '\n' + fade.detail : '')
+      + timingTxt
+      + '\nNote: short/caution flag only — it does NOT pick longs.';
+    return chip;
+  }
+
+  function renderContrarianBadge(cw) {
+    if (!cw) return null;
+    var legs = cw.legs || {};
+    var cls = cw.watch ? 'mi-conv-chip contra watch' : 'mi-conv-chip contra partial';
+    var label = cw.watch ? 'BOTTOM?' : 'BOTTOM?\u00b7partial';
+    var chip = el('span', cls, label);
+    var legTxt = [
+      'undervalued: ' + (legs.undervalued ? 'yes' : 'no'),
+      'eigen down: ' + (legs.eigen_down ? 'yes' : 'no'),
+      'crowd bearish: ' + (legs.crowd_bearish ? 'yes' : 'no') + (legs.crowd_flip_to_bear ? ' (FLIPPED)' : '')
+    ].join(' \u00b7 ');
+    chip.title = (cw.watch
+        ? 'CONTRARIAN-BOTTOM WATCH — undervalued + eigen down + crowd capitulated bearish. Forward paper-track hypothesis (NOT yet backtested — social data too thin before 2026).'
+        : 'Partial — undervalued + eigen down, but crowd not (yet) bearish.')
+      + '\n' + legTxt
+      + (cw.detail ? '\n' + cw.detail : '')
+      + '\nLong/contrarian idea, logged forward for later evaluation.';
+    return chip;
+  }
+
   function convStep(title, lines) {
     var step = el('div', 'mi-conv-step');
     step.appendChild(el('h5', '', title));
@@ -2130,6 +2439,49 @@
     sigLines.push('residual z ' + Number(row.residual_z || 0).toFixed(2));
     if (ov.residual_z_slope_3d != null) sigLines.push('slope 3d ' + Number(ov.residual_z_slope_3d).toFixed(2));
     if (ov.unexplained_return_pct != null) sigLines.push('unexplained ' + formatPct(ov.unexplained_return_pct));
+    var rv = ov.real_volume;
+    if (rv && rv.real_vol_z != null) {
+      var rvLabel = rv.state === 'confirmed' ? 'CONFIRMED' : (rv.state === 'absent' ? 'absent — skip' : 'weak');
+      sigLines.push('real volume ' + Number(rv.real_vol_z).toFixed(2) + ' (' + rvLabel + ')'
+        + (rv.real_vol_slope_3d != null ? ', 3d slope ' + Number(rv.real_vol_slope_3d).toFixed(2) : ''));
+    }
+    var pe = ov.price_extension;
+    if (pe && pe.price_ext_z != null) {
+      var peLabel = pe.state === 'extended' ? 'EXTENDED — fade input'
+        : pe.state === 'stretched' ? 'stretched — fade input'
+        : pe.state === 'depressed' ? 'below trend' : 'near trend';
+      sigLines.push('price extension ' + (Number(pe.price_ext_z) >= 0 ? '+' : '')
+        + Number(pe.price_ext_z).toFixed(2) + '\u03c3 vs trend (' + peLabel + ')'
+        + (pe.range_pos != null ? ', ' + Math.round(Number(pe.range_pos) * 100) + '% of range' : ''));
+    }
+    var cs = ov.crowd_sentiment;
+    if (cs && cs.net_bull_share != null) {
+      sigLines.push('crowd ' + Math.round(Number(cs.net_bull_share) * 100) + '% bull ('
+        + (cs.mood || 'mixed') + ', n=' + (cs.n_directional || 0) + ' over ' + (cs.window_days || 45) + 'd)');
+    }
+    var fd = ov.fade;
+    if (fd) {
+      sigLines.push((fd.candidate ? (fd.confidence === 'strong' ? '\u2691 FADE CANDIDATE (STRONG)' : '\u2691 FADE CANDIDATE') : 'partial fade')
+        + ' — overvalued ' + (fd.legs && fd.legs.overvalued ? '\u2713' : '\u2717')
+        + ', stretched ' + (fd.legs && fd.legs.stretched ? '\u2713' : '\u2717')
+        + ', crowd euphoric ' + (fd.legs && fd.legs.crowd_bullish ? '\u2713' : '\u2717')
+        + ', insider selling ' + (fd.legs && fd.legs.insider_selling ? '\u2713' : '\u2717')
+        + (fd.detail ? ' (' + fd.detail + ')' : ''));
+      if (fd.timing) {
+        var t = fd.timing;
+        sigLines.push('  entry timing: ' + (t.action || t.state)
+          + ' — peak ' + t.peak + ', now ' + t.last + ' (' + t.drawdown_pct + '% off high), neckline ' + t.neckline);
+      }
+    }
+    var cw = ov.contrarian;
+    if (cw) {
+      sigLines.push((cw.watch ? '\u2691 BOTTOM WATCH (contrarian, forward-tracked)' : 'partial bottom watch')
+        + ' — undervalued ' + (cw.legs && cw.legs.undervalued ? '\u2713' : '\u2717')
+        + ', eigen down ' + (cw.legs && cw.legs.eigen_down ? '\u2713' : '\u2717')
+        + ', crowd bearish ' + (cw.legs && cw.legs.crowd_bearish ? '\u2713' : '\u2717')
+        + (cw.legs && cw.legs.crowd_flip_to_bear ? ' (FLIPPED)' : '')
+        + (cw.detail ? ' (' + cw.detail + ')' : ''));
+    }
     funnel.appendChild(convStep('1 · Signal (Eigen)', sigLines));
 
     // 2. Sub-surface corroboration — insider + activist
@@ -2187,80 +2539,509 @@
       });
   }
 
+  // Render a structured thesis result (shared by cached + live re-scan).
+  function renderThesisBlock(out, data) {
+    out.textContent = '';
+    if (data.classification) out.appendChild(el('div', 'mi-conv-thesis-class', data.classification));
+    if (data.headline) out.appendChild(el('div', 'mi-conv-thesis-headline', data.headline));
+    var theses = Array.isArray(data.theses) ? data.theses : [];
+    theses.forEach(function (t) {
+      var box = el('div', 'mi-conv-thesis-item');
+      var dir = t.direction === 'bull' ? '\u25B2 bull' : t.direction === 'bear' ? '\u25BC bear' : '';
+      box.appendChild(el('div', 'mi-conv-thesis-claim', (dir ? dir + ' \u00b7 ' : '') + (t.claim || '')));
+      if (t.driver) box.appendChild(el('div', 'mi-conv-thesis-sub', 'driver: ' + t.driver));
+      if (t.mechanism) box.appendChild(el('div', 'mi-conv-thesis-sub', 'mechanism: ' + t.mechanism));
+      out.appendChild(box);
+    });
+    if (data.narrative) out.appendChild(el('div', 'mi-conv-narrative-text', data.narrative));
+    if (!theses.length && !data.narrative) {
+      var msgs = {
+        no_evidence: 'No social/forum posts on file for this symbol yet.',
+        no_api_key: 'Thesis extraction unavailable (no API key configured).',
+        no_thesis: 'Only low-substance chatter \u2014 no real business thesis detected.',
+        empty: 'The analyst returned nothing.',
+        quota: 'Model API quota exceeded \u2014 the analyst never ran. Check OpenAI billing/credits.',
+        error: 'Thesis extraction failed (model API error).'
+      };
+      out.appendChild(el('span', 'muted', msgs[data.narrative_status] || 'No thesis detected.'));
+      if ((data.narrative_status === 'quota' || data.narrative_status === 'error') && data.narrative_detail) {
+        out.appendChild(el('div', 'muted', data.narrative_detail));
+      }
+    }
+    if (typeof data.signal_count === 'number') {
+      out.appendChild(el('div', 'mi-conv-thesis-meta', 'signal ' + data.signal_count + ' \u00b7 noise ' + (data.noise_count || 0)));
+    }
+    var sources = Array.isArray(data.sources) ? data.sources : [];
+    if (sources.length) {
+      var srcWrap = el('div', 'mi-conv-sources');
+      srcWrap.appendChild(el('div', 'mi-conv-sources-head', 'Sources (' + (data.evidence_count || sources.length) + ')'));
+      sources.forEach(function (s) {
+        var line = el('div', 'mi-conv-source' + (s.alias_risk ? ' alias-risk' : ''));
+        var label = '[' + s.idx + '] ' + (s.source_type || '') + ' \u00b7 ' + (s.posted_at || '') + (s.alias_risk ? ' \u00b7 alias risk' : '');
+        if (s.source_url) {
+          var a = el('a', 'mi-open-scanner-link', label);
+          a.href = s.source_url; a.target = '_blank'; a.rel = 'noopener';
+          line.appendChild(a);
+        } else {
+          line.appendChild(el('span', '', label));
+        }
+        if (s.title || s.excerpt) line.appendChild(el('div', 'mi-conv-source-text', s.title || s.excerpt));
+        srcWrap.appendChild(line);
+      });
+      out.appendChild(srcWrap);
+    }
+  }
+
   function renderCatalystHunt(row) {
+    var symbol = String(row.symbol || '').toUpperCase();
     var panel = el('div', 'mi-conv-catalyst');
     var head = el('div', 'mi-conv-catalyst-head');
-    head.appendChild(el('span', '', 'Catalyst Hunt \u2014 what\u2019s going on behind the scenes?'));
-    var btn = el('button', 'mi-operator-btn', 'Investigate');
+    head.appendChild(el('span', '', 'Catalyst Hunt \u2014 thesis extractor'));
+    var btn = el('button', 'mi-operator-btn', 'Re-scan live');
     head.appendChild(btn);
     panel.appendChild(head);
     var out = el('div', 'mi-conv-catalyst-body');
-    out.appendChild(el('span', 'muted', 'Click Investigate to have the analyst read recent social/forum posts and summarize the emerging narrative.'));
     panel.appendChild(out);
 
-    var loaded = false;
+    // Auto-show the cached thesis (computed in the background after the
+    // convergence run) so the operator does not have to ask.
+    var cached = CONVERGENCE_THESES[symbol];
+    if (cached && (cached.has_thesis || (cached.theses && cached.theses.length))) {
+      renderThesisBlock(out, {
+        classification: cached.classification, headline: cached.headline,
+        theses: cached.theses, narrative: cached.narrative,
+        signal_count: cached.signal_count, noise_count: cached.noise_count,
+        narrative_status: cached.has_thesis ? 'ok' : 'no_thesis'
+      });
+      out.appendChild(el('div', 'muted', 'cached ' + (cached.updated_at || '') + ' \u00b7 Re-scan live for fresh posts'));
+    } else if (cached) {
+      out.appendChild(el('span', 'muted', 'No business thesis detected in recent buzz \u2014 only noise. Re-scan live to recheck.'));
+    } else {
+      out.appendChild(el('span', 'muted', 'Not scanned yet. Click Re-scan live to read recent posts now.'));
+    }
+
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (loaded) return;
-      loaded = true;
-      btn.disabled = true;
-      btn.textContent = 'Investigating\u2026';
+      btn.disabled = true; btn.textContent = 'Scanning\u2026';
       out.textContent = '';
-      out.appendChild(el('span', 'muted', 'Reading posts and synthesizing\u2026'));
-      fetchCatalystNarrative(String(row.symbol || ''))
-        .then(function (data) {
-          out.textContent = '';
-          if (data.narrative) {
-            out.appendChild(el('div', 'mi-conv-narrative-text', data.narrative));
-          } else {
-            var msgs = {
-              no_evidence: 'No social/forum posts on file for this symbol yet.',
-              no_api_key: 'Narrative synthesis unavailable (no API key configured).',
-              empty: 'The analyst returned no narrative.',
-              error: 'Narrative synthesis failed.'
-            };
-            out.appendChild(el('span', 'muted', msgs[data.narrative_status] || 'No narrative available.'));
-          }
-          var sources = Array.isArray(data.sources) ? data.sources : [];
-          if (sources.length) {
-            var srcWrap = el('div', 'mi-conv-sources');
-            srcWrap.appendChild(el('div', 'mi-conv-sources-head', 'Sources (' + data.evidence_count + ')'));
-            sources.forEach(function (s) {
-              var line = el('div', 'mi-conv-source' + (s.alias_risk ? ' alias-risk' : ''));
-              var label = '[' + s.idx + '] ' + (s.source_type || '') + '/' + (s.source_community || '') +
-                ' \u00b7 ' + (s.posted_at || '') + (s.alias_risk ? ' \u00b7 alias risk' : '');
-              if (s.source_url) {
-                var a = el('a', 'mi-open-scanner-link', label);
-                a.href = s.source_url; a.target = '_blank'; a.rel = 'noopener';
-                line.appendChild(a);
-              } else {
-                line.appendChild(el('span', '', label));
-              }
-              if (s.title || s.excerpt) {
-                line.appendChild(el('div', 'mi-conv-source-text', s.title || s.excerpt));
-              }
-              srcWrap.appendChild(line);
-            });
-            out.appendChild(srcWrap);
-          }
-        })
-        .catch(function (err) {
-          out.textContent = '';
-          out.appendChild(el('span', 'muted', 'Failed: ' + err.message));
-          loaded = false;
-          btn.disabled = false;
-          btn.textContent = 'Retry';
-        })
-        .finally(function () {
-          if (loaded) { btn.disabled = false; btn.textContent = 'Refresh'; }
-        });
+      out.appendChild(el('span', 'muted', 'Reading posts and extracting thesis\u2026'));
+      fetchCatalystNarrative(symbol)
+        .then(function (data) { renderThesisBlock(out, data); })
+        .catch(function (err) { out.textContent = ''; out.appendChild(el('span', 'muted', 'Failed: ' + err.message)); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Re-scan live'; });
     });
 
     return panel;
   }
 
+  function decorateThesisFlags() {
+    var trs = document.querySelectorAll('#mi-convergence-table tbody tr.mi-conv-row');
+    Array.prototype.forEach.call(trs, function (tr) {
+      var sym = tr.getAttribute('data-symbol');
+      if (!sym) return;
+      var cell = tr.querySelector('.mi-conv-symcell');
+      if (!cell) return;
+      var old = cell.querySelector('.mi-conv-thesis-flag');
+      if (old) cell.removeChild(old);
+      var info = CONVERGENCE_THESES[sym];
+      if (info && info.has_thesis) {
+        var flag = el('span', 'mi-conv-thesis-flag', '\u26A0 thesis');
+        flag.title = (info.classification ? info.classification + ' \u2014 ' : '') + (info.headline || '');
+        cell.appendChild(flag);
+      }
+    });
+  }
+
+  function fetchConvergenceTheses() {
+    return fetch(API_BASE + '/convergence/theses', { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.success && j.data) {
+          CONVERGENCE_THESES = j.data.theses || {};
+          decorateThesisFlags();
+          var st = j.data.scan_status;
+          if (st && st.running && THESIS_POLLS < 40) {
+            THESIS_POLLS += 1;
+            setTimeout(fetchConvergenceTheses, 8000);
+          }
+        }
+      })
+      .catch(function () { /* flags are best-effort */ });
+  }
+
+  function fetchEventRiskRadar() {
+    var table = document.querySelector('#mi-event-risk-table tbody');
+    if (table) {
+      table.innerHTML = '<tr><td colspan="5" class="mi-operator-empty">Loading event risk radar...</td></tr>';
+    }
+    return fetch(API_BASE + '/event-risk-radar?days=45&limit=75', { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.success || !j.data) throw new Error((j && j.error) || 'Malformed event risk response');
+        EVENT_RISK_ALERTS = Array.isArray(j.data.items) ? j.data.items : [];
+        renderEventRiskRadar(j.data);
+      })
+      .catch(function (err) {
+        var tbody = document.querySelector('#mi-event-risk-table tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="mi-operator-empty">Load failed: ' + esc(err.message || err) + '</td></tr>';
+        var summary = document.getElementById('mi-event-risk-summary');
+        if (summary) summary.textContent = 'load failed';
+      });
+  }
+
+  function eventRiskWhy(row) {
+    var thesis = row.thesis || {};
+    if (thesis.has_thesis && thesis.headline) return thesis.headline;
+    var social = row.social_context || {};
+    var posts = Array.isArray(social.posts) ? social.posts : [];
+    var keywords = social.keyword_counts || {};
+    var tags = Object.keys(keywords).filter(function (k) { return Number(keywords[k] || 0) > 0; });
+    if (tags.length) return 'Social context: ' + tags.slice(0, 4).join(', ');
+    if (posts.length && posts[0].text) return posts[0].text;
+    return 'No explicit narrative found yet. Treat the options footprint as the lead.';
+  }
+
+  function eventRiskKeywordTags(row) {
+    var keywords = (row.social_context && row.social_context.keyword_counts) || {};
+    return Object.keys(keywords).filter(function (k) {
+      return Number(keywords[k] || 0) > 0;
+    }).sort(function (a, b) {
+      return Number(keywords[b] || 0) - Number(keywords[a] || 0);
+    }).slice(0, 5).map(function (k) {
+      return k + ' ' + Number(keywords[k] || 0);
+    });
+  }
+
+  function eventRiskBand(score) {
+    score = Number(score || 0);
+    if (score >= 350) return { label: 'urgent', detail: 'multiple critical option alerts and/or narrative confirmation' };
+    if (score >= 200) return { label: 'high', detail: 'strong options footprint; needs immediate why-hunt' };
+    if (score >= 100) return { label: 'watch', detail: 'notable options footprint; monitor for narrative' };
+    return { label: 'background', detail: 'low-grade anomaly or thin confirmation' };
+  }
+
+  function formatEventBuzz(buzz) {
+    if (!buzz || !buzz.trade_date) return { line: 'No social buzz score yet.', title: '' };
+    var z = buzz.buzz_zscore == null ? 'n/a' : Number(buzz.buzz_zscore).toFixed(2);
+    var st = Number(buzz.stocktwits_mentions || 0);
+    var y = Number(buzz.yahoo_mentions || 0);
+    return {
+      line: 'Buzz z-score ' + z + ' on ' + buzz.trade_date + ' · StockTwits mentions ' + st + ' · Yahoo mentions ' + y,
+      title: 'Buzz z-score is the mention-volume anomaly. ST = StockTwits mentions. Y = Yahoo mentions. Validity: ' + (buzz.score_validity || 'n/a'),
+    };
+  }
+
+  function renderEventRiskDetail(row) {
+    var wrap = el('div', 'mi-risk-detail-grid');
+    var band = eventRiskBand(row.risk_score);
+
+    var thesisCard = el('div', 'mi-risk-detail-card');
+    thesisCard.appendChild(el('h5', '', 'Thesis / Why'));
+    var thesis = row.thesis || {};
+    if (thesis.has_thesis) {
+      thesisCard.appendChild(el('div', 'mi-risk-detail-item', thesis.headline || 'Material thesis detected'));
+      thesisCard.appendChild(el('div', 'mi-risk-detail-meta',
+        [thesis.direction || null, thesis.classification || null, thesis.updated_at ? 'updated ' + fmtDateTime(thesis.updated_at) : null].filter(Boolean).join(' · ')));
+    } else {
+      thesisCard.appendChild(el('div', 'mi-risk-detail-item', 'No extracted thesis yet.'));
+      thesisCard.appendChild(el('div', 'mi-risk-detail-meta', 'The options footprint is the lead. Social keywords/posts below are only clues until a thesis is extracted.'));
+    }
+    var tags = eventRiskKeywordTags(row);
+    if (tags.length) {
+      var tagWrap = el('div', 'mi-risk-tags');
+      tags.forEach(function (tag) { tagWrap.appendChild(el('span', 'mi-risk-tag', tag)); });
+      thesisCard.appendChild(tagWrap);
+    }
+    wrap.appendChild(thesisCard);
+
+    var scoreCard = el('div', 'mi-risk-detail-card');
+    scoreCard.appendChild(el('h5', '', 'Risk Score'));
+    scoreCard.appendChild(el('div', 'mi-risk-detail-item', band.label.toUpperCase() + ' · raw score ' + Number(row.risk_score || 0)));
+    scoreCard.appendChild(el('div', 'mi-risk-detail-meta', band.detail));
+    scoreCard.appendChild(el('div', 'mi-risk-detail-meta',
+      'Inputs: critical ' + Number(row.critical_count || 0) +
+      ', high ' + Number(row.high_count || 0) +
+      ', downside ' + Number(row.downside_count || 0) +
+      ', upside ' + Number(row.upside_count || 0) +
+      ', total alerts ' + Number(row.alert_count || 0) + '.'));
+    scoreCard.appendChild(el('div', 'mi-risk-detail-meta', 'Score is a ranking number, not a probability. Higher means more independent reasons to investigate now.'));
+    wrap.appendChild(scoreCard);
+
+    var buzzCard = el('div', 'mi-risk-detail-card');
+    buzzCard.appendChild(el('h5', '', 'Buzz'));
+    var buzzInfo = formatEventBuzz(row.latest_buzz);
+    buzzCard.appendChild(el('div', 'mi-risk-detail-item', buzzInfo.line));
+    buzzCard.appendChild(el('div', 'mi-risk-detail-meta', 'Mention velocity ' + num(row.latest_buzz && row.latest_buzz.mention_velocity, 2) +
+      ' · acceleration ' + num(row.latest_buzz && row.latest_buzz.mention_acceleration, 2) +
+      ' · score validity ' + ((row.latest_buzz && row.latest_buzz.score_validity) || 'n/a') + '.'));
+    wrap.appendChild(buzzCard);
+
+    var alertsCard = el('div', 'mi-risk-detail-card');
+    alertsCard.appendChild(el('h5', '', 'Options Alerts'));
+    var alertList = el('div', 'mi-risk-detail-list');
+    (Array.isArray(row.alerts) ? row.alerts : []).forEach(function (a) {
+      var item = el('div', 'mi-risk-detail-item');
+      item.appendChild(el('div', '', (a.trade_date || 'n/a') + ' · ' + (a.severity || 'alert') + ' · ' + (a.headline || a.alert_type || 'Options alert')));
+      if (a.detail) item.appendChild(el('div', 'mi-risk-detail-meta', a.detail));
+      alertList.appendChild(item);
+    });
+    if (!alertList.childNodes.length) alertList.appendChild(el('div', 'mi-risk-detail-meta', 'No alert detail available.'));
+    alertsCard.appendChild(alertList);
+    wrap.appendChild(alertsCard);
+
+    var postsCard = el('div', 'mi-risk-detail-card');
+    postsCard.appendChild(el('h5', '', 'Recent Social'));
+    var postList = el('div', 'mi-risk-detail-list');
+    var posts = row.social_context && Array.isArray(row.social_context.posts) ? row.social_context.posts : [];
+    posts.forEach(function (post) {
+      var item = el('div', 'mi-risk-detail-item');
+      item.appendChild(el('div', '', (post.platform || 'social') + ' · ' + (post.author || 'unknown') + ' · ' + (post.posted_at ? fmtDateTime(post.posted_at) : '')));
+      item.appendChild(el('div', 'mi-risk-detail-meta', post.text || ''));
+      postList.appendChild(item);
+    });
+    if (!postList.childNodes.length) postList.appendChild(el('div', 'mi-risk-detail-meta', 'No recent social posts found for this symbol.'));
+    postsCard.appendChild(postList);
+    wrap.appendChild(postsCard);
+
+    var actionCard = el('div', 'mi-risk-detail-card');
+    actionCard.appendChild(el('h5', '', 'Operator Read'));
+    actionCard.appendChild(el('div', 'mi-risk-detail-item',
+      row.posture === 'binary_event'
+        ? 'Two-sided options demand: traders may be positioning for a binary catalyst or hedging a known event.'
+        : row.posture === 'downside_protection'
+          ? 'Downside protection demand: puts/skew are the lead signal.'
+          : row.posture === 'upside_speculation'
+            ? 'Upside speculation: call demand is the lead signal.'
+            : 'Options anomaly: inspect before assigning direction.'));
+    actionCard.appendChild(el('div', 'mi-risk-detail-meta', 'Next check: catalyst calendar, trial/approval timing, filings, cash runway, and whether social chatter has a concrete claim.'));
+    wrap.appendChild(actionCard);
+
+    return wrap;
+  }
+
+  function renderEventRiskRadar(data) {
+    var tbody = document.querySelector('#mi-event-risk-table tbody');
+    if (!tbody) return;
+    tbody.textContent = '';
+    var summary = document.getElementById('mi-event-risk-summary');
+    if (summary) {
+      var critical = EVENT_RISK_ALERTS.filter(function (r) { return String(r.max_severity || '').toLowerCase() === 'critical'; }).length;
+      summary.textContent = 'alerts: ' + EVENT_RISK_ALERTS.length + (critical ? ' · critical: ' + critical : '') + (data && data.as_of ? ' · ' + data.as_of : '');
+    }
+    if (!EVENT_RISK_ALERTS.length) {
+      var empty = el('tr');
+      var td = el('td', 'mi-operator-empty', 'No event-risk footprints in the current lookback.');
+      td.colSpan = 5;
+      empty.appendChild(td);
+      tbody.appendChild(empty);
+      return;
+    }
+    EVENT_RISK_ALERTS.forEach(function (row) {
+      var tr = el('tr', 'mi-conv-row');
+      var sym = String(row.symbol || '').toUpperCase();
+      var band = eventRiskBand(row.risk_score);
+
+      var symTd = el('td');
+      var symWrap = el('div', 'mi-risk-symbol');
+      symWrap.appendChild(scannerLink(sym || '?', 'mi-open-scanner-link mi-scanner-symbol-link'));
+      symWrap.appendChild(el('span', 'mi-risk-posture ' + String(row.posture || ''), String(row.posture || 'risk').replace(/_/g, ' ')));
+      symTd.appendChild(symWrap);
+      tr.appendChild(symTd);
+
+      var riskTd = el('td');
+      riskTd.appendChild(el('div', 'mi-risk-score-label', band.label));
+      riskTd.appendChild(el('div', 'mi-risk-score-sub', 'raw ' + Number(row.risk_score || 0) + ' · ' + String(row.max_severity || 'alert')));
+      riskTd.title = 'Raw score is for ranking, not probability. ' + band.detail;
+      tr.appendChild(riskTd);
+
+      var optTd = el('td');
+      var heads = Array.isArray(row.option_headlines) ? row.option_headlines : [];
+      optTd.appendChild(el('div', 'mi-risk-why', heads[0] || 'Options anomaly'));
+      optTd.appendChild(el('div', 'mi-risk-snippet',
+        Number(row.alert_count || 0) + ' alerts · downside ' + Number(row.downside_count || 0) +
+        ' · upside ' + Number(row.upside_count || 0) +
+        ' · latest ' + (row.latest_trade_date || 'n/a')));
+      tr.appendChild(optTd);
+
+      var whyTd = el('td');
+      whyTd.appendChild(el('div', 'mi-risk-why', eventRiskWhy(row)));
+      var posts = row.social_context && Array.isArray(row.social_context.posts) ? row.social_context.posts : [];
+      if (posts.length && posts[0].text) {
+        whyTd.appendChild(el('div', 'mi-risk-snippet', posts[0].platform + ' · ' + posts[0].text));
+      }
+      var tags = eventRiskKeywordTags(row);
+      if (tags.length) {
+        var tagWrap = el('div', 'mi-risk-tags');
+        tags.forEach(function (tag) { tagWrap.appendChild(el('span', 'mi-risk-tag', tag)); });
+        whyTd.appendChild(tagWrap);
+      }
+      tr.appendChild(whyTd);
+
+      var buzz = row.latest_buzz || {};
+      var buzzInfo = formatEventBuzz(buzz);
+      var buzzTd = el('td');
+      if (buzz.trade_date) {
+        buzzTd.appendChild(el('div', 'mi-risk-buzz', 'Buzz z-score: ' + (buzz.buzz_zscore == null ? 'n/a' : Number(buzz.buzz_zscore).toFixed(2))));
+        buzzTd.appendChild(el('div', 'mi-risk-snippet', 'StockTwits: ' + Number(buzz.stocktwits_mentions || 0) + ' · Yahoo: ' + Number(buzz.yahoo_mentions || 0)));
+      } else {
+        buzzTd.appendChild(el('div', 'mi-risk-snippet', 'No social buzz score yet.'));
+      }
+      buzzTd.title = buzzInfo.title;
+      tr.appendChild(buzzTd);
+
+      tbody.appendChild(tr);
+
+      var detailTr = null;
+      tr.addEventListener('click', function (e) {
+        if (e.target && e.target.tagName === 'A') return;
+        if (detailTr && detailTr.parentNode) {
+          detailTr.parentNode.removeChild(detailTr);
+          detailTr = null;
+          return;
+        }
+        detailTr = el('tr', 'mi-risk-detail');
+        var dtd = el('td');
+        dtd.colSpan = 5;
+        dtd.appendChild(renderEventRiskDetail(row));
+        detailTr.appendChild(dtd);
+        tr.parentNode.insertBefore(detailTr, tr.nextSibling);
+      });
+    });
+  }
+
+  function initEventRiskRadar() {
+    var section = document.getElementById('mi-event-risk-section');
+    var header = document.getElementById('mi-event-risk-header');
+    var toggle = document.getElementById('mi-event-risk-toggle');
+    if (section && header && toggle) {
+      header.addEventListener('click', function (e) {
+        if (e.target && e.target.tagName === 'BUTTON' && e.target !== toggle) return;
+        var open = !section.classList.contains('expanded');
+        section.classList.toggle('expanded', open);
+        toggle.textContent = open ? '\u2212' : '+';
+      });
+    }
+    var refresh = document.getElementById('mi-event-risk-refresh');
+    if (refresh) refresh.addEventListener('click', function (e) {
+      e.stopPropagation();
+      fetchEventRiskRadar();
+    });
+    fetchEventRiskRadar();
+  }
+
+  function fetchSocialThesisAlerts() {
+    var table = document.querySelector('#mi-social-thesis-table tbody');
+    if (table) {
+      table.innerHTML = '<tr><td colspan="5" class="mi-operator-empty">Loading social theses...</td></tr>';
+    }
+    return fetch(API_BASE + '/social-thesis-alerts?limit=75', { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.success || !j.data) throw new Error((j && j.error) || 'Malformed thesis alert response');
+        SOCIAL_THESIS_ALERTS = Array.isArray(j.data.items) ? j.data.items : [];
+        renderSocialThesisAlerts();
+      })
+      .catch(function (err) {
+        var tbody = document.querySelector('#mi-social-thesis-table tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="mi-operator-empty">Load failed: ' + esc(err.message || err) + '</td></tr>';
+        var summary = document.getElementById('mi-social-thesis-summary');
+        if (summary) summary.textContent = 'load failed';
+      });
+  }
+
+  function renderSocialThesisAlerts() {
+    var tbody = document.querySelector('#mi-social-thesis-table tbody');
+    if (!tbody) return;
+    tbody.textContent = '';
+    var summary = document.getElementById('mi-social-thesis-summary');
+    if (summary) {
+      var bear = SOCIAL_THESIS_ALERTS.filter(function (r) { return String(r.direction || '').toLowerCase() === 'bear'; }).length;
+      summary.textContent = 'theses: ' + SOCIAL_THESIS_ALERTS.length + (bear ? ' · bear: ' + bear : '');
+    }
+    if (!SOCIAL_THESIS_ALERTS.length) {
+      var empty = el('tr');
+      var td = el('td', 'mi-operator-empty', 'No cached social theses yet. Run a scanner thesis extraction or convergence thesis scan.');
+      td.colSpan = 5;
+      empty.appendChild(td);
+      tbody.appendChild(empty);
+      return;
+    }
+    SOCIAL_THESIS_ALERTS.forEach(function (row) {
+      var tr = el('tr', 'mi-conv-row');
+      var sym = String(row.symbol || '').toUpperCase();
+
+      var symTd = el('td');
+      var symWrap = el('div', 'mi-thesis-symbol');
+      symWrap.appendChild(scannerLink(sym || '?', 'mi-open-scanner-link mi-scanner-symbol-link'));
+      if (row.stale) {
+        var stale = el('span', 'mi-conv-thesis-flag', 'stale');
+        stale.title = 'Cached thesis is older than the freshness window';
+        symWrap.appendChild(stale);
+      }
+      symTd.appendChild(symWrap);
+      tr.appendChild(symTd);
+
+      var thesisTd = el('td');
+      thesisTd.appendChild(el('div', 'mi-thesis-headline', row.headline || 'Material social thesis'));
+      var sub = [
+        row.classification || null,
+        row.narrative ? String(row.narrative).slice(0, 180) : null,
+      ].filter(Boolean).join(' · ');
+      thesisTd.appendChild(el('div', 'mi-thesis-sub', sub || 'No narrative summary cached.'));
+      tr.appendChild(thesisTd);
+
+      var dir = String(row.direction || 'mixed').toLowerCase();
+      tr.appendChild(el('td', 'mi-thesis-dir ' + (dir === 'bear' ? 'bear' : dir === 'bull' ? 'bull' : ''), dir));
+
+      var buzz = row.latest_buzz || {};
+      var buzzText = buzz.trade_date
+        ? 'z ' + (buzz.buzz_zscore == null ? 'n/a' : Number(buzz.buzz_zscore).toFixed(2)) +
+          ' · ST ' + Number(buzz.stocktwits_mentions || 0) +
+          ' · Y ' + Number(buzz.yahoo_mentions || 0)
+        : 'n/a';
+      var buzzTd = el('td', 'mi-thesis-z', buzzText);
+      if (buzz.score_validity) buzzTd.title = 'score_validity: ' + buzz.score_validity + ' · trade_date: ' + buzz.trade_date;
+      tr.appendChild(buzzTd);
+
+      tr.appendChild(el('td', '', fmtDateTime(row.updated_at)));
+      tbody.appendChild(tr);
+    });
+  }
+
+  function initSocialThesisAlerts() {
+    var section = document.getElementById('mi-social-thesis-section');
+    var header = document.getElementById('mi-social-thesis-header');
+    var toggle = document.getElementById('mi-social-thesis-toggle');
+    if (section && header && toggle) {
+      header.addEventListener('click', function (e) {
+        if (e.target && e.target.tagName === 'BUTTON' && e.target !== toggle) return;
+        var open = !section.classList.contains('expanded');
+        section.classList.toggle('expanded', open);
+        toggle.textContent = open ? '\u2212' : '+';
+      });
+    }
+    var refresh = document.getElementById('mi-social-thesis-refresh');
+    if (refresh) refresh.addEventListener('click', function (e) {
+      e.stopPropagation();
+      fetchSocialThesisAlerts();
+    });
+    fetchSocialThesisAlerts();
+  }
+
   function renderConvergence(data) {
-    var rows = Array.isArray(data.rows) ? data.rows : [];
+    LAST_CONV_DATA = data;
+    var allRows = Array.isArray(data.rows) ? data.rows : [];
+    var tag = CONVERGENCE_STATE.tag || 'all';
+    var q = (CONVERGENCE_STATE.search || '').trim().toLowerCase();
+    var rows = allRows;
+    if (tag !== 'all') rows = rows.filter(function (r) { return rowMatchesTag(r, tag); });
+    if (q) {
+      rows = rows.filter(function (r) {
+        return (String(r.symbol || '').toLowerCase().indexOf(q) !== -1) ||
+               (String(r.name || '').toLowerCase().indexOf(q) !== -1) ||
+               (String(r.sector || '').toLowerCase().indexOf(q) !== -1);
+      });
+    }
     var counts = data.tier_counts || {};
     var summary = document.getElementById('mi-convergence-summary');
     var count = document.getElementById('mi-convergence-count');
@@ -2268,7 +3049,10 @@
       summary.textContent = 'T1 ' + (counts.tier1 || 0) + ' · T2 ' + (counts.tier2 || 0) +
         ' · T3 ' + (counts.tier3 || 0) + ' · ' + (data.as_of || 'n/a');
     }
-    if (count) count.textContent = 'setups: ' + rows.length;
+    if (count) {
+      var filtered = (tag !== 'all') || q;
+      count.textContent = 'setups: ' + allRows.length + (filtered ? ' (showing ' + rows.length + ')' : '');
+    }
 
     var tbody = document.querySelector('#mi-convergence-table tbody');
     if (!tbody) return;
@@ -2284,9 +3068,10 @@
     var maxScore = rows.reduce(function (m, r) { return Math.max(m, Number(r.convergence_score) || 0); }, 1);
     rows.forEach(function (row, idx) {
       var tr = el('tr', 'mi-conv-row' + (row.narrative_only ? ' mi-conv-narrative' : ''));
+      tr.setAttribute('data-symbol', String(row.symbol || '').toUpperCase());
       tr.appendChild(el('td', '', String(idx + 1)));
 
-      var symbolCell = el('td');
+      var symbolCell = el('td', 'mi-conv-symcell');
       symbolCell.appendChild(scannerLink(String(row.symbol || '?'), 'mi-open-scanner-link mi-scanner-symbol-link'));
       tr.appendChild(symbolCell);
 
@@ -2318,6 +3103,14 @@
         votesCell.appendChild(el('span', 'mi-conv-chip', 'unconfirmed'));
       } else {
         votesCell.appendChild(renderConvVoteChips(row.votes));
+        var fadeChip = renderFadeBadge(row.overlays && row.overlays.fade);
+        if (fadeChip) votesCell.appendChild(fadeChip);
+        var contraChip = renderContrarianBadge(row.overlays && row.overlays.contrarian);
+        if (contraChip) votesCell.appendChild(contraChip);
+        var rvChip = renderRealVolChip(row.overlays && row.overlays.real_volume);
+        if (rvChip) votesCell.appendChild(rvChip);
+        var peChip = renderPriceStretchChip(row.overlays && row.overlays.price_extension);
+        if (peChip) votesCell.appendChild(peChip);
       }
       tr.appendChild(votesCell);
 
@@ -2341,6 +3134,13 @@
 
       tbody.appendChild(tr);
     });
+
+    // Decorate from whatever is already cached, then refresh the cache so the
+    // ⚠ thesis flags appear automatically (no click). Auto-scan after a
+    // convergence run keeps this populated.
+    decorateThesisFlags();
+    THESIS_POLLS = 0;
+    fetchConvergenceTheses();
   }
 
   function initConvergenceScoreboard() {
@@ -2381,8 +3181,235 @@
       });
     });
 
-    // Front-door view: expand and load immediately.
-    setExpanded(true);
+    // Tag filter (fade / bottom-watch) is client-side over the loaded rows —
+    // re-render in place, no refetch.
+    document.querySelectorAll('.mi-conv-tag-btn').forEach(function (btn) {
+      if (btn.id === 'mi-conv-search-clear') return;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        CONVERGENCE_STATE.tag = btn.getAttribute('data-conv-tag') || 'all';
+        document.querySelectorAll('.mi-conv-tag-btn[data-conv-tag]').forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        if (LAST_CONV_DATA) renderConvergence(LAST_CONV_DATA);
+        else { CONVERGENCE_LOADED = true; fetchConvergence(); }
+      });
+    });
+
+    // Symbol/sector search: instant client-side filter over loaded rows, plus a
+    // debounced server fetch (q=) so low-score names outside the top-150 surface.
+    var searchInput = document.getElementById('mi-conv-search');
+    var searchClear = document.getElementById('mi-conv-search-clear');
+    var searchTimer = null;
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        CONVERGENCE_STATE.search = searchInput.value || '';
+        if (LAST_CONV_DATA) renderConvergence(LAST_CONV_DATA);
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+          CONVERGENCE_LOADED = true;
+          fetchConvergence();
+        }, 250);
+      });
+      searchInput.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+    if (searchClear) {
+      searchClear.addEventListener('click', function (e) {
+        e.stopPropagation();
+        CONVERGENCE_STATE.search = '';
+        if (searchInput) searchInput.value = '';
+        CONVERGENCE_LOADED = true;
+        fetchConvergence();
+      });
+    }
+
+    setExpanded(section.classList.contains('expanded'));
+  }
+
+  // ---- Base-Break Cause Extractor ------------------------------------------
+  function renderCauseResults(results) {
+    var host = document.getElementById('mi-cause-results');
+    if (!host) return;
+    host.textContent = '';
+    if (!results || !results.length) {
+      host.appendChild(el('div', 'mi-operator-empty', 'No results.'));
+      return;
+    }
+    results.forEach(function (r) {
+      var p = r.price || {};
+      var f = r.fundamental || {};
+      var ll = r.lead_lag || {};
+      var card = el('div', 'mi-operator-card');
+      card.style.marginTop = '10px';
+      card.style.maxWidth = '100%';
+
+      var head = el('div', 'mi-operator-card-header');
+      var title = el('span');
+      title.appendChild(scannerLink(r.symbol, 'mi-scanner-symbol-link', r.symbol));
+      head.appendChild(title);
+      var verdict = String(ll.verdict || 'indeterminate');
+      var vColor = verdict === 'fundamentals_led_price' ? '#39d98a'
+        : verdict === 'price_led_fundamentals' ? '#ff5c7a'
+        : verdict === 'coincident' ? '#f5a623' : 'var(--color-text-subtle)';
+      var badge = el('span', '', verdict.replace(/_/g, ' '));
+      badge.style.color = vColor;
+      badge.style.fontFamily = 'var(--font-mono)';
+      badge.style.fontSize = '11px';
+      badge.style.textTransform = 'uppercase';
+      head.appendChild(badge);
+      card.appendChild(head);
+
+      var rows = [];
+      if (p.detected) {
+        rows.push(['PRICE', 'base ' + p.base_low + '–' + p.base_high + ' (tightness ' + p.base_tightness_ratio + 'x), broke out ' + p.breakout_date + ', now ' + p.last_price + ' (+' + p.run_vs_base_median_pct + '% vs base median)']);
+      } else {
+        rows.push(['PRICE', 'no base-break detected' + (p.reason ? ' — ' + p.reason : '')]);
+      }
+      if (f.detected) {
+        rows.push(['CAUSE', r.cause || '']);
+        rows.push(['INFLECTION Q', String(f.inflection_quarter_end || '?')]);
+      } else {
+        var fline = 'no fundamental inflection' + (f.reason ? ' — ' + f.reason : '');
+        if (f.trough_quarter_end) {
+          fline += ' (trough ' + f.trough_sales + ' @ ' + f.trough_quarter_end + ', latest ' + f.latest_sales + ' @ ' + f.latest_quarter_end + ', off-trough ' + f.off_trough_pct + '%)';
+        }
+        rows.push(['FUNDAMENTAL', fline]);
+      }
+      if (ll.verdict && ll.verdict !== 'indeterminate') {
+        rows.push(['LEAD/LAG', 'fundamentals public ~' + ll.inflection_public_est + ' vs breakout ' + ll.breakout_date + ' → fundamentals led by ' + ll.fundamental_lead_days + ' days']);
+      }
+
+      rows.forEach(function (kv) {
+        var line = el('div');
+        line.style.display = 'flex';
+        line.style.gap = '10px';
+        line.style.padding = '4px 0';
+        line.style.borderTop = '1px solid var(--color-border)';
+        var k = el('span', '', kv[0]);
+        k.style.minWidth = '110px';
+        k.style.color = 'var(--color-text-subtle)';
+        k.style.fontFamily = 'var(--font-mono)';
+        k.style.fontSize = '10px';
+        k.style.textTransform = 'uppercase';
+        var v = el('span', '', kv[1]);
+        v.style.fontSize = '12px';
+        v.style.lineHeight = '1.5';
+        line.appendChild(k);
+        line.appendChild(v);
+        card.appendChild(line);
+      });
+      host.appendChild(card);
+    });
+  }
+
+  function fetchBaseBreakCause(symbols) {
+    var host = document.getElementById('mi-cause-results');
+    var summary = document.getElementById('mi-cause-summary');
+    if (host) { host.textContent = ''; host.appendChild(el('div', 'mi-operator-empty', 'Extracting… (~5s)')); }
+    if (summary) summary.textContent = 'running…';
+    return fetch(API_BASE + '/base-break-cause/' + encodeURIComponent(symbols), { headers: { 'Accept': 'application/json' } })
+      .then(function (res) { return res.json(); })
+      .then(function (payload) {
+        if (!payload || !payload.success) {
+          throw new Error((payload && payload.error) || 'Extractor failed');
+        }
+        var results = (payload.data && payload.data.results) || [];
+        renderCauseResults(results);
+        if (summary) summary.textContent = results.length + ' symbol' + (results.length === 1 ? '' : 's');
+      })
+      .catch(function (err) {
+        showOperatorToast('mi-cause-toast', 'Failed: ' + err.message, true);
+        if (host) { host.textContent = ''; host.appendChild(el('div', 'mi-operator-empty', 'Failed: ' + err.message)); }
+        if (summary) summary.textContent = 'error';
+      });
+  }
+
+  function initBaseBreakCause() {
+    var section = document.getElementById('mi-cause-section');
+    var header = document.getElementById('mi-cause-header');
+    var toggle = document.getElementById('mi-cause-toggle');
+    if (!section || !header || !toggle) return;
+
+    function setExpanded(open) {
+      section.classList.toggle('expanded', open);
+      toggle.textContent = open ? '\u2212' : '+';
+    }
+    header.addEventListener('click', function (e) {
+      if (e.target && e.target.tagName === 'BUTTON' && e.target !== toggle) return;
+      if (e.target && e.target.tagName === 'INPUT') return;
+      setExpanded(!section.classList.contains('expanded'));
+    });
+
+    function run() {
+      var input = document.getElementById('mi-cause-input');
+      var raw = (input && input.value || '').trim();
+      if (!raw) { showOperatorToast('mi-cause-toast', 'Enter at least one symbol.', true); return; }
+      fetchBaseBreakCause(raw.toUpperCase());
+    }
+    var runBtn = document.getElementById('mi-cause-run');
+    if (runBtn) runBtn.addEventListener('click', function (e) { e.stopPropagation(); run(); });
+    var input = document.getElementById('mi-cause-input');
+    if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+  }
+
+  function fetchReaccelerationScreen() {
+    return fetch(API_BASE + '/reacceleration-screen/latest?limit=100&min_dollar_volume=1000000', {
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (payload) {
+        if (!payload || payload.success !== true) {
+          throw new Error((payload && payload.error) || 'Malformed reacceleration response');
+        }
+        renderReaccelerationScreen(payload.data || {});
+      })
+      .catch(function (err) {
+        showOperatorToast('mi-eigen-toast', 'Reacceleration screen failed: ' + err.message, true);
+      });
+  }
+
+  function renderReaccelerationScreen(data) {
+    var meta = data.meta || {};
+    var rows = Array.isArray(data.rows) ? data.rows : [];
+    var summary = document.getElementById('mi-reacceleration-summary');
+    var rule = document.getElementById('mi-reacceleration-rule');
+    if (summary) {
+      summary.textContent = 'matches: ' + Number(meta.total_matches || rows.length || 0).toLocaleString() +
+        ' · shown: ' + Number(rows.length || 0).toLocaleString();
+    }
+    if (rule) {
+      var screen = meta.screen || {};
+      rule.textContent = 'as of ' + (meta.as_of || '-') +
+        ' · clean universe ' + Number(meta.symbols_in_clean_universe || 0).toLocaleString() +
+        ' · range <= ' + Number(screen.range_pos_252d_lte ?? 0.10).toFixed(2) +
+        ' · rev TTM >= ' + Number(screen.revenue_ttm_growth_pct_gte ?? 17.7).toFixed(1) + '%' +
+        ' · liquidity >= ' + formatCompactMoney(screen.dollar_volume_63d_gte ?? 1000000);
+    }
+    var tbody = document.querySelector('#mi-reacceleration-table tbody');
+    if (!tbody) return;
+    tbody.textContent = '';
+    if (!rows.length) {
+      var empty = el('tr');
+      var td = el('td', 'mi-operator-empty', 'No depressed revenue reacceleration matches at the current thresholds.');
+      td.colSpan = 8;
+      empty.appendChild(td);
+      tbody.appendChild(empty);
+      return;
+    }
+    rows.slice(0, 100).forEach(function (row) {
+      var tr = el('tr');
+      var symbolCell = el('td');
+      symbolCell.appendChild(scannerLink(row.symbol || '?', 'mi-open-scanner-link mi-scanner-symbol-link'));
+      tr.appendChild(symbolCell);
+      tr.appendChild(el('td', '', formatPrice(row.price)));
+      tr.appendChild(el('td', '', Number(row.range_pos_252d || 0).toFixed(3)));
+      tr.appendChild(el('td', '', formatPct(row.revenue_ttm_growth_pct)));
+      tr.appendChild(el('td', '', formatCompactMoney(row.dollar_volume_63d)));
+      tr.appendChild(el('td', '', row.current_ratio == null ? '-' : Number(row.current_ratio).toFixed(2)));
+      tr.appendChild(el('td', '', row.net_margin_latest_pct == null ? '-' : formatPct(row.net_margin_latest_pct)));
+      tr.appendChild(el('td', '', Array.isArray(row.quality_flags) && row.quality_flags.length ? row.quality_flags.join(', ') : 'watch'));
+      tbody.appendChild(tr);
+    });
   }
 
   function renderEigenPressureTable(rows) {
@@ -3569,6 +4596,7 @@
       if (open && !EIGEN_LOADED) {
         EIGEN_LOADED = true;
         fetchEigenPerturbations();
+        fetchReaccelerationScreen();
       }
     }
 
@@ -3584,11 +4612,56 @@
       fetchEigenPerturbations();
     });
 
+    var reaccelRefresh = document.getElementById('mi-reacceleration-refresh');
+    if (reaccelRefresh) reaccelRefresh.addEventListener('click', function (e) {
+      e.stopPropagation();
+      fetchReaccelerationScreen();
+    });
+
+    var reaccelSection = document.getElementById('mi-reacceleration-section');
+    var reaccelHeader = document.getElementById('mi-reacceleration-header');
+    var reaccelToggle = document.getElementById('mi-reacceleration-toggle');
+    if (reaccelSection && reaccelHeader && reaccelToggle) {
+      function setReaccelExpanded(open) {
+        reaccelSection.classList.toggle('expanded', open);
+        reaccelToggle.textContent = open ? '\u2212' : '+';
+      }
+      reaccelHeader.addEventListener('click', function (e) {
+        if (e.target && e.target.tagName === 'BUTTON' && e.target !== reaccelToggle) return;
+        setReaccelExpanded(!reaccelSection.classList.contains('expanded'));
+      });
+    }
+
     var run = document.getElementById('mi-eigen-run');
     if (run) run.addEventListener('click', function (e) {
       e.stopPropagation();
       runEigenScanNow();
     });
+  }
+
+  function initScenarioPanelToggles() {
+    function wire(panelId, target, loadWhenOpen) {
+      var panel = document.getElementById(panelId);
+      var btn = document.querySelector('.mi-panel-collapse[data-collapse-target="' + target + '"]');
+      if (!panel || !btn) return;
+      var loaded = false;
+      function setOpen(open) {
+        panel.classList.toggle('collapsed', !open);
+        btn.textContent = open ? '\u2212' : '+';
+        btn.title = open ? 'Collapse ' + target + ' engine' : 'Expand ' + target + ' engine';
+        if (open && loadWhenOpen && !loaded) {
+          loaded = true;
+          loadWhenOpen();
+        }
+      }
+      setOpen(!panel.classList.contains('collapsed'));
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setOpen(panel.classList.contains('collapsed'));
+      });
+    }
+    wire('mi-macro-panel', 'macro', render);
+    wire('mi-social-panel', 'social', render);
   }
 
   function initOperatorTools() {
@@ -3722,6 +4795,10 @@
     document.getElementById('mi-time-horizon').addEventListener('change', function (e) {
       STATE.global.timeHorizon = e.target.value; render();
     });
+    document.getElementById('mi-sort-mode').addEventListener('change', function (e) {
+      STATE.global.sortMode = e.target.value === 'newest' ? 'newest' : 'priority';
+      render();
+    });
     document.getElementById('mi-include-invalidated').addEventListener('change', function (e) {
       STATE.global.includeInvalidated = e.target.checked; render();
     });
@@ -3746,10 +4823,24 @@
 
     document.getElementById('mi-drawer-close').addEventListener('click', closeDrawer);
     document.getElementById('mi-drawer-backdrop').addEventListener('click', closeDrawer);
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+    var reportClose = document.getElementById('mi-report-close');
+    var reportBackdrop = document.getElementById('mi-report-modal-backdrop');
+    var reportCopy = document.getElementById('mi-report-copy');
+    var reportDownload = document.getElementById('mi-report-download');
+    if (reportClose) reportClose.addEventListener('click', closeShareableReport);
+    if (reportBackdrop) reportBackdrop.addEventListener('click', closeShareableReport);
+    if (reportCopy) reportCopy.addEventListener('click', copyShareableReport);
+    if (reportDownload) reportDownload.addEventListener('click', downloadShareableReport);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeShareableReport();
+        closeDrawer();
+      }
+    });
 
     document.getElementById('mi-refresh-btn').addEventListener('click', function () {
       loadFromApi();
+      fetchReaccelerationScreen();
     });
 
     initOperatorTools();
@@ -3757,7 +4848,12 @@
     initQualityDashboard();
     initMacroSourceMonitor();
     initEigenPerturbationEngine();
+    initScenarioPanelToggles();
+    initEventRiskRadar();
+    initSocialThesisAlerts();
     initConvergenceScoreboard();
+    initBaseBreakCause();
+    fetchReaccelerationScreen();
 
     // Restore UI controls from persisted state
     document.querySelectorAll('.mi-engine-tab').forEach(function (btn) {
@@ -3779,6 +4875,8 @@
     if (mcEl) { mcEl.value = STATE.global.minConfidence; document.getElementById('mi-min-confidence-val').textContent = STATE.global.minConfidence; }
     var thEl = document.getElementById('mi-time-horizon');
     if (thEl) thEl.value = STATE.global.timeHorizon;
+    var smEl = document.getElementById('mi-sort-mode');
+    if (smEl) smEl.value = STATE.global.sortMode === 'newest' ? 'newest' : 'priority';
     var iiEl = document.getElementById('mi-include-invalidated');
     if (iiEl) iiEl.checked = STATE.global.includeInvalidated;
     var isEl = document.getElementById('mi-include-suppressed');
@@ -4021,6 +5119,27 @@
       if (fund) {
         html += '<div style="margin-bottom:16px;">';
         html += '<div style="font-size:11px;color:var(--color-text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Fundamentals</div>';
+        var valuationSnapshot = fund.valuation_snapshot || fund.valuationSnapshot || null;
+        if (valuationSnapshot) {
+          var gapVal = valuationSnapshot.valuation_gap_pct;
+          var gapColor = gapVal != null && Number(gapVal) < 0 ? '#ef4444' : (gapVal != null && Number(gapVal) > 0 ? '#4ade80' : null);
+          var stateLabel = valuationSnapshot.state || valuationSnapshot.valuation_state || valuationSnapshot.valuationState || 'N/A';
+          html += '<div style="margin-bottom:10px;">';
+          html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;">';
+          html += metricTile('DCF State', stateLabel, /overvalued/i.test(stateLabel) ? '#ef4444' : (/undervalued/i.test(stateLabel) ? '#4ade80' : null));
+          html += metricTile('DCF Gap', gapVal != null ? (Number(gapVal) > 0 ? '+' : '') + Number(gapVal).toFixed(1) + '%' : 'N/A', gapColor);
+          html += metricTile('Fair Value', valuationSnapshot.fair_value_mid != null ? '$' + Number(valuationSnapshot.fair_value_mid).toFixed(2) : 'N/A');
+          html += metricTile('Current', valuationSnapshot.current_price != null ? '$' + Number(valuationSnapshot.current_price).toFixed(2) : 'N/A');
+          html += '</div>';
+          html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;">';
+          html += metricTile('Low', valuationSnapshot.fair_value_low != null ? '$' + Number(valuationSnapshot.fair_value_low).toFixed(2) : 'N/A');
+          html += metricTile('High', valuationSnapshot.fair_value_high != null ? '$' + Number(valuationSnapshot.fair_value_high).toFixed(2) : 'N/A');
+          html += metricTile('Snapshot Price', valuationSnapshot.snapshot_price != null ? '$' + Number(valuationSnapshot.snapshot_price).toFixed(2) : 'N/A');
+          html += metricTile('Quality', (valuationSnapshot.quality_grade || 'N/A') + (valuationSnapshot.quality_score != null ? ' ' + Number(valuationSnapshot.quality_score).toFixed(0) : ''));
+          html += '</div>';
+          html += '<div style="font-size:10px;color:var(--color-text-subtle);line-height:1.5;">Coverage: ' + escHtml((valuationSnapshot.coverage_mode || 'N/A').replace(/_/g, ' ')) + (valuationSnapshot.as_of ? ' · As of ' + escHtml(String(valuationSnapshot.as_of).slice(0, 10)) : '') + '</div>';
+          html += '</div>';
+        }
         if (fund.dcf_summary) {
           var dcf = fund.dcf_summary;
           html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">';
@@ -4190,9 +5309,30 @@
       '</div>';
   }
 
+  function initOptionsFlowPanel() {
+    var panel = document.getElementById('mi-options-panel');
+    var toggle = document.getElementById('mi-options-toggle');
+    if (!panel || !toggle) return;
+    var loaded = false;
+    function setOpen(open) {
+      panel.classList.toggle('collapsed', !open);
+      toggle.textContent = open ? '\u2212' : '+';
+      toggle.title = open ? 'Collapse options flow anomaly engine' : 'Expand options flow anomaly engine';
+      if (open && !loaded) {
+        loaded = true;
+        window.miLoadOptionsAnomalies();
+      }
+    }
+    setOpen(!panel.classList.contains('collapsed'));
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(panel.classList.contains('collapsed'));
+    });
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { window.miLoadOptionsAnomalies(); });
+    document.addEventListener('DOMContentLoaded', initOptionsFlowPanel);
   } else {
-    window.miLoadOptionsAnomalies();
+    initOptionsFlowPanel();
   }
 })();

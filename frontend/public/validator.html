@@ -259,6 +259,7 @@
     .status-badge.testing { background: rgba(93, 122, 146, 0.15); color: var(--color-accent); }
     .status-badge.approved { background: rgba(79, 170, 114, 0.12); color: var(--color-positive); }
     .status-badge.rejected { background: rgba(176, 84, 84, 0.12); color: var(--color-negative); }
+    .status-badge.needs-review { background: rgba(200, 170, 60, 0.15); color: #c8aa3c; }
     .validation-badge {
       display: inline-flex;
       align-items: center;
@@ -621,6 +622,8 @@
     .verdict-badge.FAIL { background: rgba(176, 84, 84, 0.15); color: var(--color-negative); border: 1px solid rgba(176, 84, 84, 0.3); }
     .verdict-badge.HARD_FAIL { background: rgba(176, 84, 84, 0.28); color: #ffb0b0; border: 1px solid rgba(176, 84, 84, 0.45); }
     .verdict-badge.NEEDS_REVIEW { background: rgba(200, 170, 60, 0.15); color: #c8aa3c; border: 1px solid rgba(200, 170, 60, 0.3); }
+    .verdict-badge.INSUFFICIENT_DATA,
+    .verdict-badge.PROMISING_BUT_NOT_VALIDATED { background: rgba(200, 170, 60, 0.15); color: #c8aa3c; border: 1px solid rgba(200, 170, 60, 0.3); }
 
     /* Metric cards */
     .metrics-grid {
@@ -1339,33 +1342,14 @@
             </select>
           </div>
           <div class="modal-section">
-            <label class="modal-label">Validation Tier</label>
+            <label class="modal-label">Trade Evidence Target</label>
             <select id="run-validation-tier" class="input-field" onchange="updateRunTierDescription()">
-              <optgroup label="Validation Ladder">
-                <option value="tier1">Tier 1 - Kill Test</option>
-                <option value="tier1s">Tier 1S - Kill Test + Sensitivity</option>
-                <option value="tier1b">Tier 1B - Evidence Expansion</option>
-                <option value="tier1bs">Tier 1BS - Evidence Expansion + Sensitivity</option>
-                <option value="tier2">Tier 2 - Core Validation</option>
-                <option value="tier3">Tier 3 - Robustness</option>
-              </optgroup>
-              <optgroup label="Benchmark Universes">
-                <option value="large_cap_known">Large Cap (Known)</option>
-                <option value="sp500">S&amp;P 500 - Large Cap Stocks</option>
-                <option value="sp400">S&amp;P 400 - Mid Cap Stocks</option>
-                <option value="sp600">S&amp;P 600 - Small Cap Stocks</option>
-              </optgroup>
-              <optgroup label="Regime Universes (run build_regime_universes.py first)">
-                <option value="valuation_regime_undervalued_sample100">DCF: Undervalued Sample 100</option>
-                <option value="valuation_regime_undervalued">DCF: Undervalued</option>
-                <option value="valuation_regime_fair_sample100">DCF: Fair Value Sample 100</option>
-                <option value="valuation_regime_fair">DCF: Fair Value</option>
-                <option value="valuation_regime_overvalued_sample100">DCF: Overvalued Sample 100</option>
-                <option value="valuation_regime_overvalued">DCF: Overvalued</option>
-                <option value="regime_expansion">Regime: Expansion (above 200MA, momentum up)</option>
-                <option value="regime_distribution">Regime: Distribution (above 200MA, fading)</option>
-                <option value="regime_accumulation">Regime: Accumulation (below 200MA, recovering)</option>
-                <option value="regime_markdown">Regime: Markdown (below 200MA, declining)</option>
+              <optgroup label="Trade Evidence Targets">
+                <option value="evidence_50">Evidence 50 trades - early signal</option>
+                <option value="evidence_100" selected>Evidence 100 trades - useful sample</option>
+                <option value="evidence_200">Evidence 200 trades - statistical read</option>
+                <option value="evidence_500">Evidence 500 trades - strong sample</option>
+                <option value="full_clean">Full clean universe - confirmation</option>
               </optgroup>
             </select>
           </div>

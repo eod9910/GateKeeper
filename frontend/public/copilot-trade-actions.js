@@ -142,6 +142,75 @@ function applyOrderTypeButtonState() {
   }
 }
 
+function refreshTradeActionSizingSummary(options = {}) {
+  const panel = document.getElementById('position-sizing');
+  if (!panel) return false;
+  const shouldShow = !!options.showIfHidden;
+  if (panel.classList.contains('hidden') && !shouldShow) return false;
+
+  const settings = getSettings();
+  const isOptions = settings.instrumentType === 'options';
+  if (!entryPrice || (!isOptions && !stopLossPrice)) return false;
+
+  const stopPx = isOptions ? 0 : stopLossPrice;
+  const sizingContext = typeof getPositionSizingContext === 'function'
+    ? getPositionSizingContext(settings, entryPrice, stopPx)
+    : { autoSizing: calculatePositionSize(settings, entryPrice, stopPx), effectiveSizing: calculatePositionSize(settings, entryPrice, stopPx), manualUnits: null };
+  const sizing = sizingContext.effectiveSizing;
+  if (!sizing) return false;
+
+  const reward = takeProfitPrice ? Math.abs(takeProfitPrice - entryPrice) : 0;
+  let targetProfit = 0;
+  if (takeProfitPrice) {
+    switch (settings.instrumentType) {
+      case 'futures':
+        targetProfit = sizing.units * reward * settings.futuresPointValue;
+        break;
+      case 'options':
+        targetProfit = sizing.units * reward * settings.contractMultiplier;
+        break;
+      case 'forex': {
+        const lotUnits = { standard: 100000, mini: 10000, micro: 1000 };
+        const pipScale = (lotUnits[settings.lotSize] || 100000) / 100000;
+        targetProfit = sizing.units * reward * settings.pipValue * pipScale;
+        break;
+      }
+      default:
+        targetProfit = sizing.units * reward;
+        break;
+    }
+  }
+
+  const accountPercent = settings.accountSize > 0 ? (sizing.positionValue / settings.accountSize) * 100 : 0;
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
+  setText('position-shares', Number(sizing.units || 0).toLocaleString());
+  setText('position-value', '$' + Number(sizing.positionValue || 0).toLocaleString());
+  setText('max-loss', '-$' + Number(sizing.maxLoss || 0).toFixed(0));
+  setText('target-profit', '+$' + Number(targetProfit || 0).toFixed(0));
+  setText('account-percent', accountPercent.toFixed(1) + '%');
+  setText('position-unit-label', sizing.unitLabel || '');
+
+  if (settings.instrumentType === 'futures' || settings.instrumentType === 'forex') {
+    const marginInfo = document.getElementById('futures-margin-info');
+    if (marginInfo) marginInfo.classList.remove('hidden');
+    setText('futures-margin-detail', sizing.details || '');
+    setText('position-value-label', 'Margin Required');
+  } else {
+    const marginInfo = document.getElementById('futures-margin-info');
+    if (marginInfo) marginInfo.classList.add('hidden');
+    setText('position-value-label', settings.instrumentType === 'options' ? 'Premium Cost' : 'Position Value');
+  }
+
+  if (shouldShow) panel.classList.remove('hidden');
+  return true;
+}
+
+window.refreshTradeActionSizingSummary = refreshTradeActionSizingSummary;
+
 function setOrderType(type) {
   orderType = type;
   const limitRow = document.getElementById('limit-price-row');
@@ -316,12 +385,7 @@ async function calculateAndVerdict() {
   const accountPercent = (sizing.positionValue / settings.accountSize) * 100;
   const instrumentNames = { stock: 'Stock/ETF', futures: 'Futures', options: 'Options', forex: 'Forex', crypto: 'Crypto' };
 
-  document.getElementById('position-shares').textContent = sizing.units.toLocaleString();
-  document.getElementById('position-value').textContent = '$' + sizing.positionValue.toLocaleString();
-  document.getElementById('max-loss').textContent = '-$' + sizing.maxLoss.toFixed(0);
-  document.getElementById('target-profit').textContent = '+$' + targetProfit.toFixed(0);
-  document.getElementById('account-percent').textContent = accountPercent.toFixed(1) + '%';
-  document.getElementById('position-unit-label').textContent = sizing.unitLabel;
+  refreshTradeActionSizingSummary({ showIfHidden: true });
   document.getElementById('position-sizing').classList.remove('hidden');
 
   if (settings.instrumentType === 'futures' || settings.instrumentType === 'forex') {

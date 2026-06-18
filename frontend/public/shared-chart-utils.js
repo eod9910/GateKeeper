@@ -78,8 +78,75 @@
     return Object.assign(base, overrides || {});
   }
 
+  function median(numbers) {
+    var vals = numbers
+      .filter(function (value) { return Number.isFinite(value) && value > 0; })
+      .sort(function (a, b) { return a - b; });
+    if (!vals.length) return 0;
+    var mid = Math.floor(vals.length / 2);
+    return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+  }
+
+  function buildEqualVolumeBars(data, options) {
+    var bars = sanitizeChartData(data);
+    if (bars.length < 2) return bars;
+
+    var volumes = bars.map(function (bar) { return Number(bar.volume) || 0; });
+    var targetVolume = Number(options && options.targetVolume);
+    if (!Number.isFinite(targetVolume) || targetVolume <= 0) {
+      targetVolume = median(volumes);
+    }
+    if (!Number.isFinite(targetVolume) || targetVolume <= 0) return bars;
+
+    var equivolBars = [];
+    var bucket = null;
+
+    function finishBucket() {
+      if (!bucket) return;
+      equivolBars.push(bucket);
+      bucket = null;
+    }
+
+    bars.forEach(function (bar, index) {
+      var rawVolume = Math.max(0, Number(bar.volume) || 0);
+      var volume = rawVolume > 0 ? rawVolume : targetVolume;
+
+      if (!bucket) {
+        bucket = {
+          time: bar.time,
+          open: Number(bar.open),
+          high: Number(bar.high),
+          low: Number(bar.low),
+          close: Number(bar.close),
+          volume: 0,
+          sourceStartIndex: index,
+          sourceEndIndex: index,
+          sourceStartTime: bar.time,
+          sourceEndTime: bar.time,
+        };
+      } else {
+        bucket.high = Math.max(bucket.high, Number(bar.high));
+        bucket.low = Math.min(bucket.low, Number(bar.low));
+        bucket.close = Number(bar.close);
+        bucket.sourceEndIndex = index;
+        bucket.sourceEndTime = bar.time;
+      }
+
+      bucket.volume += volume;
+      bucket.time = bar.time;
+
+      if (bucket.volume >= targetVolume) {
+        finishBucket();
+      }
+    });
+
+    finishBucket();
+    return equivolBars.length ? equivolBars : bars;
+  }
+
   window.SharedChartUtils = {
     sanitizeChartData: sanitizeChartData,
     getCandlestickSeriesOptions: getCandlestickSeriesOptions,
+    buildEqualVolumeBars: buildEqualVolumeBars,
   };
 })();

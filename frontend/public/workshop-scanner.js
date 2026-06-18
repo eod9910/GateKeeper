@@ -1133,7 +1133,7 @@ async function loadWorkshopScannerSymbolCatalog() {
       futures: [],
       commodities: [],
       crypto: [],
-      indices: ['DIA', 'IWM', 'QQQ', 'SPY', 'VTI'],
+      indices: ['DIA', 'IWM', 'QQQ', 'SPY', 'VTI', '^FTSE', '^GDAXI', '^N225'],
       sectors: [],
       international: [],
       bonds: [],

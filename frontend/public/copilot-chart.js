@@ -632,15 +632,42 @@
     // Get the tick step for the current instrument (for input stepping)
     function getTickStep() {
       const sym = document.getElementById('copilot-symbol')?.value;
-      const spec = getContractSpec(sym);
-      return spec ? spec.tickSize : 0.01;
+      const spec = typeof getContractSpec === 'function' ? getContractSpec(sym) : null;
+      const tick = Number(spec?.tickSize ?? spec?.pipSize);
+      if (Number.isFinite(tick) && tick > 0) return tick;
+      const normalized = typeof normalizeTradingDeskSymbol === 'function'
+        ? normalizeTradingDeskSymbol(sym)
+        : String(sym || '').trim().toUpperCase();
+      if (normalized.endsWith('=X')) {
+        const pair = normalized.replace(/=X$/, '');
+        return pair.endsWith('JPY') ? 0.01 : 0.0001;
+      }
+      return 0.01;
     }
 
     function getPriceDecimals() {
       const tick = getTickStep();
-      const s = tick.toString();
+      const safeTick = Number.isFinite(Number(tick)) && Number(tick) > 0 ? Number(tick) : 0.01;
+      const s = safeTick.toString();
       const dot = s.indexOf('.');
       return dot < 0 ? 0 : s.length - dot - 1;
+    }
+
+    function applyChartPricePrecision() {
+      if (!candleSeries || typeof candleSeries.applyOptions !== 'function') return;
+      const minMove = getTickStep();
+      const precision = Math.max(0, Math.min(8, getPriceDecimals()));
+      try {
+        candleSeries.applyOptions({
+          priceFormat: {
+            type: 'price',
+            precision,
+            minMove,
+          },
+        });
+      } catch (e) {
+        console.warn('applyChartPricePrecision:', e);
+      }
     }
 
     // Update the step attribute on all price inputs to match instrument tick size
@@ -651,6 +678,7 @@
         const el = document.getElementById(id);
         if (el) el.step = step;
       });
+      applyChartPricePrecision();
     }
 
     // Set entry level
@@ -679,6 +707,10 @@
       if (typeof window.syncTradePlanStoreFromDesk === 'function') window.syncTradePlanStoreFromDesk('entry_set');
       // Stop and TP auto-calc removed — levels should be placed independently.
       // The stop/target type dropdowns have their own onchange handlers.
+    }
+
+    function getActiveEntryPrice() {
+      return Number.isFinite(Number(entryPrice)) ? Number(entryPrice) : null;
     }
 
     // Set stop loss level
@@ -1742,6 +1774,33 @@
       if (pnlPanel) pnlPanel.style.display = 'none';
     }
 
+    // Clear trade markup while preserving the loaded symbol and candle data.
+    function clearChartMarkup() {
+      // Clear entry/stop/target levels
+      clearLevels();
+
+      // Clear user drawings from both the legacy overlay and drawing-tools module.
+      clearUserDrawings();
+      if (window._copilotDrawingTools && typeof window._copilotDrawingTools.clear === 'function') {
+        window._copilotDrawingTools.clear();
+      }
+
+      // Cancel any active drawing tool
+      cancelDrawing();
+
+      // Clear marker mode (entry/stop/target button highlight)
+      if (markerMode) setMarkerMode(null);
+
+      // Clear analysis overlay lines (fib levels, range lines, base lines)
+      drawingLines.forEach(function(line) {
+        try { candleSeries.removePriceLine(line); } catch(e) {}
+      });
+      drawingLines = [];
+
+      if (typeof syncKeyLevelsPanel === 'function') syncKeyLevelsPanel();
+      if (typeof window.syncTradePlanStoreFromDesk === 'function') window.syncTradePlanStoreFromDesk('markup_cleared');
+    }
+
     // Clear everything â€” full reset to default state
     function clearChart() {
       if (typeof window._rtStopChartUpdates === 'function') window._rtStopChartUpdates();
@@ -1817,7 +1876,11 @@
       
       // For options: stop loss is always 0 (max loss = premium), so only need entry + TP
       if (isOptions) {
-        if (!entryPrice || !takeProfitPrice) return;
+        if (!entryPrice) return;
+        if (typeof window.refreshTradeActionSizingSummary === 'function') {
+          window.refreshTradeActionSizingSummary();
+        }
+        if (!takeProfitPrice) return;
         
         // R:R for options: potential profit / premium risked
         const optResult = calcOptionsPremiumPnL(settings, manualSizeOverride || parseInt(document.getElementById('manual-position-size').value) || 1);
@@ -1842,8 +1905,12 @@
         return;
       }
       
-      // Normal mode: need all three levels
-      if (!entryPrice || !stopLossPrice || !takeProfitPrice) return;
+      // Normal mode can refresh max-loss as soon as entry + stop exist.
+      if (!entryPrice || !stopLossPrice) return;
+      if (typeof window.refreshTradeActionSizingSummary === 'function') {
+        window.refreshTradeActionSizingSummary();
+      }
+      if (!takeProfitPrice) return;
 
       const risk = Math.abs(entryPrice - stopLossPrice);
       const reward = Math.abs(takeProfitPrice - entryPrice);
@@ -1853,7 +1920,7 @@
       document.getElementById('risk-reward').classList.toggle('text-green-400', parseFloat(rr) >= 2);
       document.getElementById('risk-reward').classList.toggle('text-yellow-400', parseFloat(rr) >= 1 && parseFloat(rr) < 2);
       document.getElementById('risk-reward').classList.toggle('text-red-400', parseFloat(rr) < 1);
-      
+
       // Auto-request verdict when all three levels are set for the first time
       if (!verdictRequested && entryPrice && stopLossPrice && takeProfitPrice) {
         verdictRequested = true;
@@ -1950,3 +2017,7 @@
     window.setTakeProfit2 = setTakeProfit2;
     window.setTakeProfit3 = setTakeProfit3;
     window.setEntry       = setEntry;
+    window.getActiveEntryPrice = getActiveEntryPrice;
+    window.getPriceDecimals = getPriceDecimals;
+    window.updatePriceInputSteps = updatePriceInputSteps;
+    window.applyChartPricePrecision = applyChartPricePrecision;

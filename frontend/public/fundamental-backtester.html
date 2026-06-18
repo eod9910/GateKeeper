@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en" data-page-id="fundamental-backtester">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fundamental Backtester - Pattern Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .fb-shell {
+      display: grid;
+      grid-template-columns: minmax(460px, 520px) minmax(0, 1fr);
+      gap: var(--space-16);
+      min-height: calc(100vh - 48px);
+      padding-left: var(--space-16);
+    }
+    .fb-panel {
+      border: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+      border-radius: var(--radius);
+      overflow: hidden;
+      flex: 0 0 auto;
+      min-width: 0;
+    }
+    .fb-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      padding: var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      background: var(--color-bg-subtle);
+    }
+    .fb-panel-body {
+      padding: var(--space-16);
+    }
+    .fb-config {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-16);
+      overflow-y: visible;
+      padding-right: var(--space-4);
+      min-width: 0;
+    }
+    .fb-main {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      min-width: 0;
+    }
+    .fb-ledger-section {
+      margin-top: var(--space-16);
+      padding-left: var(--space-16);
+    }
+    .fb-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .fb-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-12);
+    }
+    .fb-field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+    .fb-label {
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .fb-input,
+    .fb-select,
+    .fb-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--color-border);
+      background: var(--color-void);
+      color: var(--color-text);
+      border-radius: var(--radius-sm);
+      padding: var(--space-8) var(--space-12);
+      font-family: var(--font-sans);
+      font-size: var(--text-small);
+      min-height: 36px;
+      min-width: 0;
+    }
+    .fb-input {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fb-textarea {
+      min-height: 270px;
+      resize: vertical;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+    .fb-input:focus,
+    .fb-select:focus,
+    .fb-textarea:focus {
+      outline: none;
+      border-color: var(--color-accent);
+    }
+    .fb-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-12);
+      border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+      border-radius: var(--radius-sm);
+      padding: var(--space-12);
+      background: color-mix(in srgb, var(--color-bg-subtle) 72%, transparent);
+    }
+    .fb-section-title {
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .fb-rule-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 76px 104px 34px;
+      gap: var(--space-8);
+      align-items: end;
+      padding-bottom: var(--space-12);
+      border-bottom: 1px solid color-mix(in srgb, var(--color-border) 58%, transparent);
+    }
+    .fb-rule-row:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+    .fb-rule-row .fb-field[data-rule-field="metric"] {
+      min-width: 0;
+    }
+    .fb-rule-row .fb-field[data-rule-field="op"] {
+      width: 76px;
+    }
+    .fb-rule-row .fb-field[data-rule-field="value"] {
+      width: 104px;
+    }
+    .fb-icon-btn {
+      height: 34px;
+      width: 34px;
+      min-width: 34px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-subtle);
+      color: var(--color-text);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      line-height: 1;
+    }
+    .fb-icon-btn:hover,
+    .fb-action:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+    .fb-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+    }
+    .fb-action {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-subtle);
+      color: var(--color-text);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: var(--text-caption);
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      padding: var(--space-8) var(--space-12);
+      text-transform: uppercase;
+    }
+    .fb-action.primary {
+      border-color: color-mix(in srgb, var(--color-accent) 72%, var(--color-border));
+      background: color-mix(in srgb, var(--color-accent) 18%, var(--color-bg-subtle));
+    }
+    .fb-action.compact {
+      padding: var(--space-4) var(--space-8);
+      font-size: 10px;
+      min-height: 28px;
+      white-space: nowrap;
+    }
+    .fb-action:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+    .fb-status {
+      color: var(--color-text-muted);
+      font-size: var(--text-small);
+      min-height: 18px;
+    }
+    .fb-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: var(--space-8);
+    }
+    .fb-metric {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-subtle);
+      padding: var(--space-12);
+      min-height: 72px;
+    }
+    .fb-metric-label {
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .fb-metric-value {
+      margin-top: var(--space-8);
+      color: var(--color-text);
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .fb-table-wrap {
+      overflow-x: auto;
+    }
+    .fb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-small);
+    }
+    .fb-table th,
+    .fb-table td {
+      padding: var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--color-border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    .fb-table th {
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .fb-chip-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+    }
+    .fb-chip {
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 4px 8px;
+    }
+    .fb-chip.good {
+      border-color: color-mix(in srgb, var(--color-up) 65%, var(--color-border));
+      color: var(--color-up);
+    }
+    .fb-chip.warn {
+      border-color: color-mix(in srgb, var(--color-warning) 65%, var(--color-border));
+      color: var(--color-warning);
+    }
+    .fb-run-rules {
+      max-width: 360px;
+      white-space: normal;
+      line-height: 1.45;
+    }
+    .fb-score {
+      color: var(--color-up);
+      font-weight: 700;
+    }
+    .fb-compare-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      margin-bottom: var(--space-12);
+    }
+    .fb-compare-output {
+      display: none;
+      margin-top: var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-subtle);
+      padding: var(--space-12);
+      white-space: pre-wrap;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+    @media (max-width: 1120px) {
+      .fb-shell {
+        grid-template-columns: 1fr;
+      }
+      .fb-config {
+        max-height: none;
+      }
+      .fb-metrics {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }
+    }
+    @media (max-width: 680px) {
+      .fb-grid-2,
+      .fb-grid-3,
+      .fb-rule-row,
+      .fb-metrics {
+        grid-template-columns: 1fr;
+      }
+      .fb-icon-btn {
+        width: 100%;
+      }
+      .fb-rule-row .fb-field[data-rule-field="op"],
+      .fb-rule-row .fb-field[data-rule-field="value"] {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <aside class="app-sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-header">
+      <a href="/scanner" class="sidebar-logo" aria-label="Home">
+        <span class="logo-mark">PD</span>
+        <span class="sidebar-label-text">Pattern Detector</span>
+      </a>
+      <button class="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="/scanner" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Scanner</span></a>
+      <a href="/trading-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Trading Desk</span></a>
+      <a href="/position-book" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Position Book</span></a>
+      <a href="/validator" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Validator</span></a>
+      <a href="/indicator-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Indicator Studio</span></a>
+      <a href="/research-studio" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Research Studio</span></a>
+      <a href="/parameter-sweep" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Parameter Sweep</span></a>
+      <a href="/execution-desk" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Execution Desk</span></a>
+      <a href="/market-intelligence" class="sidebar-nav-item"><span class="nav-dot"></span><span class="sidebar-label-text">Market Intelligence</span></a>
+      <a href="fundamental-backtester.html" class="sidebar-nav-item active" aria-current="page"><span class="nav-dot"></span><span class="sidebar-label-text">Fundamental Backtester</span></a>
+      <a href="/settings" class="sidebar-nav-item" style="margin-top:var(--space-8);border-top:1px solid var(--color-border);padding-top:var(--space-8);"><span class="nav-dot"></span><span class="sidebar-label-text">Settings</span></a>
+    </nav>
+  </aside>
+
+  <main class="app-main">
+    <div class="page-header">
+      <div>
+        <h1>Fundamental Backtester</h1>
+        <p class="text-muted">Point-in-time rule research</p>
+      </div>
+      <div class="fb-chip-row">
+        <span class="fb-chip warn" id="fb-engine-chip">Engine pending</span>
+        <span class="fb-chip good">PIT guarded</span>
+      </div>
+    </div>
+
+    <section class="fb-shell">
+      <div class="fb-config">
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Study</span>
+          </div>
+          <div class="fb-panel-body">
+            <div class="fb-field">
+              <label class="fb-label" for="fb-preset">Preset</label>
+              <select class="fb-select" id="fb-preset"></select>
+            </div>
+            <div class="fb-grid-2" style="margin-top: var(--space-8);">
+              <div class="fb-field">
+                <label class="fb-label" for="fb-name">Rule name</label>
+                <input class="fb-input" id="fb-name" type="text">
+              </div>
+              <div class="fb-field">
+                <label class="fb-label" for="fb-universe">Universe</label>
+                <select class="fb-select" id="fb-universe">
+                  <option value="clean">Clean universe</option>
+                  <option value="liquid_clean">Liquid clean</option>
+                  <option value="microcap">Microcap only</option>
+                  <option value="custom">Custom symbols</option>
+                </select>
+              </div>
+            </div>
+            <div class="fb-grid-3" style="margin-top: var(--space-8);">
+              <div class="fb-field">
+                <label class="fb-label" for="fb-start">Start</label>
+                <input class="fb-input" id="fb-start" type="date">
+              </div>
+              <div class="fb-field">
+                <label class="fb-label" for="fb-end">End</label>
+                <input class="fb-input" id="fb-end" type="date">
+              </div>
+              <div class="fb-field">
+                <label class="fb-label" for="fb-rebalance">Rebalance</label>
+                <select class="fb-select" id="fb-rebalance">
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+            </div>
+            <div class="fb-grid-3" style="margin-top: var(--space-8);">
+              <div class="fb-field">
+                <label class="fb-label" for="fb-max-symbols">Max symbols</label>
+                <input class="fb-input" id="fb-max-symbols" type="number" min="0" step="50">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Entry Rules</span>
+            <button class="fb-icon-btn" id="fb-add-entry" title="Add entry rule">+</button>
+          </div>
+          <div class="fb-panel-body">
+            <div class="fb-section" id="fb-entry-rules"></div>
+          </div>
+        </div>
+
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Exclusions</span>
+            <button class="fb-icon-btn" id="fb-add-exclusion" title="Add exclusion">+</button>
+          </div>
+          <div class="fb-panel-body">
+            <div class="fb-section" id="fb-exclusion-rules"></div>
+          </div>
+        </div>
+
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Exit And Portfolio</span>
+          </div>
+          <div class="fb-panel-body">
+            <div class="fb-grid-2">
+              <div class="fb-field">
+                <label class="fb-label" for="fb-max-hold">Max hold days</label>
+                <input class="fb-input" id="fb-max-hold" type="number" min="1" step="1">
+              </div>
+              <div class="fb-field">
+                <label class="fb-label" for="fb-top-n">Top N/date</label>
+                <input class="fb-input" id="fb-top-n" type="number" min="0" step="1">
+              </div>
+              <div class="fb-field">
+                <label class="fb-label" for="fb-stop">Stop loss %</label>
+                <input class="fb-input" id="fb-stop" type="number" step="1">
+              </div>
+              <div class="fb-field">
+                <label class="fb-label" for="fb-trailing">Trailing stop %</label>
+                <input class="fb-input" id="fb-trailing" type="number" min="0" step="1">
+              </div>
+            </div>
+            <div class="fb-field" style="margin-top: var(--space-8);">
+              <label class="fb-label" for="fb-take-profit">Take-profit ladder %</label>
+              <input class="fb-input" id="fb-take-profit" type="text">
+            </div>
+            <div class="fb-grid-2" style="margin-top: var(--space-8);">
+              <div class="fb-field">
+                <label class="fb-label" for="fb-benchmark">Benchmark</label>
+                <input class="fb-input" id="fb-benchmark" type="text">
+              </div>
+              <div class="fb-field">
+                <label class="fb-label" for="fb-result-mode">Result mode</label>
+                <select class="fb-select" id="fb-result-mode">
+                  <option value="equal_weight">Equal weight</option>
+                  <option value="trade_level">Trade level</option>
+                  <option value="top_n">Top N per date</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fb-actions">
+          <button class="fb-action primary" id="fb-save">Save Config</button>
+          <button class="fb-action" id="fb-copy">Copy JSON</button>
+          <button class="fb-action" id="fb-reset">Reset</button>
+        </div>
+        <div class="fb-status" id="fb-status"></div>
+      </div>
+
+      <div class="fb-main">
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Run</span>
+            <button class="fb-action primary" id="fb-run">Run Backtest</button>
+          </div>
+          <div class="fb-panel-body">
+            <div class="fb-metrics">
+              <div class="fb-metric">
+                <div class="fb-metric-label">Entry rules</div>
+                <div class="fb-metric-value" id="fb-metric-entry">0</div>
+              </div>
+              <div class="fb-metric">
+                <div class="fb-metric-label">Exclusions</div>
+                <div class="fb-metric-value" id="fb-metric-exclusions">0</div>
+              </div>
+              <div class="fb-metric">
+                <div class="fb-metric-label">Hold</div>
+                <div class="fb-metric-value" id="fb-metric-hold">-</div>
+              </div>
+              <div class="fb-metric">
+                <div class="fb-metric-label">Benchmark</div>
+                <div class="fb-metric-value" id="fb-metric-benchmark">SPY</div>
+              </div>
+            </div>
+            <div class="fb-status" id="fb-run-status" style="margin-top: var(--space-10);">Ready.</div>
+          </div>
+        </div>
+
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Rule JSON</span>
+          </div>
+          <div class="fb-panel-body">
+            <textarea class="fb-textarea" id="fb-json" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Saved Configs</span>
+          </div>
+          <div class="fb-panel-body">
+            <div class="fb-table-wrap">
+              <table class="fb-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Universe</th>
+                    <th>Rebalance</th>
+                    <th>Rules</th>
+                    <th>Saved</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="fb-saved-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="fb-panel">
+          <div class="fb-panel-header">
+            <span>Results</span>
+            <button class="fb-action compact" id="fb-copy-results" type="button">Copy Results</button>
+          </div>
+          <div class="fb-panel-body">
+            <div class="fb-table-wrap">
+              <table class="fb-table">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="fb-results-body">
+                  <tr><td>Trade count</td><td>-</td><td>No completed run</td></tr>
+                  <tr><td>Win rate</td><td>-</td><td>No completed run</td></tr>
+                  <tr><td>Median return</td><td>-</td><td>No completed run</td></tr>
+                  <tr><td>Average SPY return over same windows</td><td>-</td><td>No completed run</td></tr>
+                  <tr><td>Trades beating SPY</td><td>-</td><td>No completed run</td></tr>
+                  <tr><td>Outlier dependency</td><td>-</td><td>No completed run</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="fb-ledger-section">
+      <div class="fb-panel">
+        <div class="fb-panel-header">
+          <span>Research Runs</span>
+          <div class="fb-actions">
+            <select class="fb-select" id="fb-run-sort" style="min-width: 170px;">
+              <option value="score">Score</option>
+              <option value="created">Newest</option>
+              <option value="median">Median return</option>
+              <option value="average">Average return</option>
+              <option value="win">Win rate</option>
+              <option value="beat">Beat benchmark</option>
+              <option value="trades">Trade count</option>
+            </select>
+            <button class="fb-action compact" id="fb-refresh-runs" type="button">Refresh</button>
+            <button class="fb-action compact" id="fb-compare-runs" type="button">Compare</button>
+          </div>
+        </div>
+        <div class="fb-panel-body">
+          <div class="fb-compare-bar">
+            <span class="text-muted">Saved backtests are ranked by research score. Select rows to compare.</span>
+            <span class="fb-chip" id="fb-run-count">0 runs</span>
+          </div>
+          <div class="fb-table-wrap">
+            <table class="fb-table">
+              <thead>
+                <tr>
+                  <th>Compare</th>
+                  <th>Score</th>
+                  <th>Rule</th>
+                  <th>Tested</th>
+                  <th>Trades</th>
+                  <th>Median</th>
+                  <th>Avg</th>
+                  <th>Win</th>
+                  <th>Beat</th>
+                  <th>Saved</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="fb-runs-body">
+                <tr><td colspan="11" class="text-muted">No saved research runs yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="fb-compare-output" id="fb-compare-output"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script src="fundamental-backtester.js"></script>
+</body>
+</html>

@@ -28,6 +28,7 @@ class DrawingToolsManager {
     vline:        { clicks: 1, label: 'Vertical Line',   icon: '│',  color: '#a78bfa' },
     channel:      { clicks: 3, label: 'Parallel Channel', icon: '▬', color: '#f59e0b' },
     fib:          { clicks: 2, label: 'Fibonacci',       icon: 'Fib', color: '#d97706' },
+    'trade-fib':  { clicks: 2, label: 'Trade Fib',       icon: 'TFib', color: '#22c55e' },
     rect:         { clicks: 2, label: 'Rectangle',       icon: '▭',  color: '#3b82f6' },
     crossline:    { clicks: 1, label: 'Cross',           icon: '✚',  color: '#ec4899' },
     'pattern-head-shoulders': { clicks: 5, label: 'Head and Shoulders', icon: 'H&S', color: '#f97316' },
@@ -40,6 +41,13 @@ class DrawingToolsManager {
   };
 
   static FIB_DEFAULTS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
+  static TRADE_FIB_STOP_EXTENSIONS = [0, -0.10, -0.20, -0.30, -0.40, -0.50, -0.60, -0.70, -0.80, -0.90, -1.0];
+  static TRADE_FIB_TP_PROGRESS = [
+    0.25, 0.5, 0.75, 1.0,
+    1.25, 1.5, 1.75, 2.0,
+    2.25, 2.5, 2.75, 3.0,
+    3.25, 3.5, 3.75, 4.0,
+  ];
   static FIB_COLORS = {
     0:     '#22c55e', 0.236: '#3b82f6', 0.382: '#8b5cf6',
     0.5:   '#f59e0b', 0.618: '#f97316', 0.786: '#ef4444', 1.0: '#dc2626',
@@ -142,6 +150,55 @@ class DrawingToolsManager {
 
   getDrawings() { return JSON.parse(JSON.stringify(this._drawings)); }
 
+  _isTradeManageCandidate(d) {
+    return d && (d.type === 'trade-fib' || d.type === 'fib') && Number.isFinite(Number(d.price1)) && Number.isFinite(Number(d.price2));
+  }
+
+  _findTradeManageCandidateIndex() {
+    if (this._selectedIdx >= 0 && this._selectedIdx < this._drawings.length && this._isTradeManageCandidate(this._drawings[this._selectedIdx])) {
+      return this._selectedIdx;
+    }
+    if (this._hoveredIdx >= 0 && this._hoveredIdx < this._drawings.length && this._isTradeManageCandidate(this._drawings[this._hoveredIdx])) {
+      return this._hoveredIdx;
+    }
+    for (let i = this._drawings.length - 1; i >= 0; i -= 1) {
+      if (this._drawings[i] && this._drawings[i].type === 'trade-fib') return i;
+    }
+    for (let i = this._drawings.length - 1; i >= 0; i -= 1) {
+      if (this._drawings[i] && this._drawings[i].type === 'fib') return i;
+    }
+    return -1;
+  }
+
+  configureLatestFibTradeMode(opts = {}) {
+    const idx = this._findTradeManageCandidateIndex();
+    if (idx < 0) return false;
+    const d = this._drawings[idx];
+    if (d.type === 'fib') {
+      d.type = 'trade-fib';
+      d.dualMode = true;
+    }
+    d.mode = 'management';
+    d.lockedStructure = true;
+    d.direction = opts.direction === 'short' ? 'short' : 'long';
+    d.entryFibLevel = Number.isFinite(Number(opts.entryFibLevel)) ? Number(opts.entryFibLevel) : 78.6;
+    if (Number.isFinite(Number(opts.actualEntryPrice))) d.actualEntryPrice = Number(opts.actualEntryPrice);
+    if (Number.isFinite(Number(opts.targetPrice))) d.targetPrice = Number(opts.targetPrice);
+    else delete d.targetPrice;
+    if (Number.isFinite(Number(opts.selectedStopLevel))) d.selectedStopLevel = Number(opts.selectedStopLevel);
+    d.stopExtensionLevels = Array.isArray(opts.stopExtensionLevels)
+      ? opts.stopExtensionLevels.map(Number).filter(Number.isFinite)
+      : [0, -10, -20, -30, -40, -50, -60, -70, -80, -90, -100];
+    d.tpProgressLevels = Array.isArray(opts.tpProgressLevels)
+      ? opts.tpProgressLevels.map(Number).filter(Number.isFinite)
+      : [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400];
+    this._selectedIdx = idx;
+    this._setStatus('Fib trade-management mode enabled.');
+    this._render();
+    this._fireChange();
+    return true;
+  }
+
   loadDrawings(arr) {
     if (!Array.isArray(arr)) return;
     this._drawings = JSON.parse(JSON.stringify(arr));
@@ -162,6 +219,10 @@ class DrawingToolsManager {
 
   setBarsProvider(providerFn) {
     this._getBars = typeof providerFn === 'function' ? providerFn : null;
+  }
+
+  _isFibTool(tool) {
+    return tool === 'fib' || tool === 'trade-fib';
   }
 
   destroy() {
@@ -804,7 +865,7 @@ class DrawingToolsManager {
     const my = e.clientY - rect.top;
     const idx = this._hitTest(mx, my);
     if (idx >= 0) {
-      if (this._drawings[idx].type === 'fib') {
+      if (this._isFibTool(this._drawings[idx].type)) {
         this._openFibEditor(idx);
       } else if (this._drawings[idx].type === 'reg-channel') {
         this._openRegressionChannelEditor(idx);
@@ -936,7 +997,17 @@ class DrawingToolsManager {
     } else {
       d.price1 = s.price1; d.time1 = s.time1; d.logical1 = s.logical1;
       d.price2 = s.price2; d.time2 = s.time2; d.logical2 = s.logical2;
-      if (tool === 'fib') d.levels = [...this._fibLevels];
+      if (this._isFibTool(tool)) {
+        d.levels = [...this._fibLevels];
+        if (tool === 'trade-fib') {
+          d.mode = 'structure';
+          d.dualMode = true;
+          d.lockedStructure = false;
+          d.entryFibLevel = 78.6;
+          d.stopExtensionLevels = [...DrawingToolsManager.TRADE_FIB_STOP_EXTENSIONS];
+          d.tpProgressLevels = [...DrawingToolsManager.TRADE_FIB_TP_PROGRESS];
+        }
+      }
     }
 
     this._drawings.push(d);
@@ -987,7 +1058,7 @@ class DrawingToolsManager {
       const y1 = Math.min(p1.y, p2.y), y2 = Math.max(p1.y, p2.y);
       return mx >= x1 - threshold && mx <= x2 + threshold && my >= y1 - threshold && my <= y2 + threshold;
     }
-    if (d.type === 'fib') {
+    if (this._isFibTool(d.type)) {
       const range = d.price2 - d.price1;
       const levels = d.levels || DrawingToolsManager.FIB_DEFAULTS;
       for (const lvl of levels) {
@@ -1174,7 +1245,7 @@ class DrawingToolsManager {
     else if (d.type === 'ext-line') this._drawExtLine(ctx, d, W, H);
     else if (d.type === 'reg-channel') this._drawRegressionChannel(ctx, d);
     else if (d.type === 'rect')   this._drawRect(ctx, d);
-    else if (d.type === 'fib')    this._drawFib(ctx, d, W, highlight);
+    else if (this._isFibTool(d.type))    this._drawFib(ctx, d, W, highlight);
     else if (d.type === 'fixed-range-volume-profile') this._drawFixedRangeVolumeProfile(ctx, d, highlight);
     else if (d.type === 'channel') this._drawChannel(ctx, d, W, H);
   }
@@ -1221,7 +1292,7 @@ class DrawingToolsManager {
     }
 
     if (t === 'trendline' || t === 'ray' || t === 'ext-line'
-        || t === 'fib' || t === 'fixed-range-volume-profile') {
+        || this._isFibTool(t) || t === 'fixed-range-volume-profile') {
       return [
         {
           name: 'p1', price: d.price1, time: d.time1, logical: d.logical1,
@@ -1654,6 +1725,154 @@ class DrawingToolsManager {
     const levels = d.levels || DrawingToolsManager.FIB_DEFAULTS;
     const range = d.price2 - d.price1;
 
+    if (d.type === 'trade-fib' && d.mode === 'management') {
+      const entryLevel = Number.isFinite(Number(d.entryFibLevel)) ? Number(d.entryFibLevel) / 100 : 0.786;
+      const side = d.direction === 'short' ? 'short' : 'long';
+      const structureHigh = Math.max(Number(d.price1), Number(d.price2));
+      const structureLow = Math.min(Number(d.price1), Number(d.price2));
+      const structureTarget = side === 'short' ? structureLow : structureHigh;
+      const structureStop = side === 'short' ? structureHigh : structureLow;
+      const structureRange = structureStop - structureTarget;
+      const entryPrice = Number.isFinite(Number(d.actualEntryPrice))
+        ? Number(d.actualEntryPrice)
+        : structureTarget + structureRange * entryLevel;
+      const targetPrice = Number.isFinite(Number(d.targetPrice)) ? Number(d.targetPrice) : structureTarget;
+      const tradeRange = targetPrice - entryPrice;
+      if (!Number.isFinite(entryPrice) || !Number.isFinite(targetPrice) || Math.abs(tradeRange) < 1e-9) return;
+      const basePriceDecimals = Math.max(2, Math.min(8, typeof getPriceDecimals === 'function' ? getPriceDecimals() : 2));
+      const rawSymbol = String(document.getElementById('copilot-symbol')?.value || '').trim().toUpperCase();
+      const normalizedSymbol = typeof normalizeTradingDeskSymbol === 'function' ? normalizeTradingDeskSymbol(rawSymbol) : rawSymbol;
+      const forexPair = normalizedSymbol.endsWith('=X') ? normalizedSymbol.replace(/=X$/, '') : '';
+      const priceDecimals = forexPair
+        ? Math.max(basePriceDecimals, forexPair.endsWith('JPY') ? 3 : 5)
+        : basePriceDecimals;
+      const useStructureRiskStops = !!forexPair;
+      const structureRiskDistance = Math.abs(structureStop - entryPrice);
+      const priceForManagedLevel = (lvl) => {
+        if (lvl < 0) {
+          if (useStructureRiskStops && Number.isFinite(structureRiskDistance) && structureRiskDistance > 0) {
+            return side === 'short'
+              ? entryPrice + structureRiskDistance * Math.abs(lvl)
+              : entryPrice - structureRiskDistance * Math.abs(lvl);
+          }
+          return side === 'short'
+            ? entryPrice * (1 - lvl)
+            : entryPrice * (1 + lvl);
+        }
+        return entryPrice + tradeRange * lvl;
+      };
+      const stopLevelForPrice = (price) => {
+        if (!Number.isFinite(price) || entryPrice <= 0) return NaN;
+        if (useStructureRiskStops && Number.isFinite(structureRiskDistance) && structureRiskDistance > 0) {
+          const unfavorableDistance = side === 'short' ? price - entryPrice : entryPrice - price;
+          return -unfavorableDistance / structureRiskDistance;
+        }
+        return side === 'short'
+          ? 1 - (price / entryPrice)
+          : (price / entryPrice) - 1;
+      };
+      const structureStopLevel = stopLevelForPrice(structureStop);
+      const stopLevel = Number.isFinite(Number(d.selectedStopLevel))
+        ? Number(d.selectedStopLevel)
+        : (Number.isFinite(structureStopLevel) && structureStopLevel < 0 ? structureStopLevel : null);
+      const riskDistance = stopLevel != null ? Math.abs(priceForManagedLevel(stopLevel) - entryPrice) : NaN;
+
+      const stopExtensions = Array.isArray(d.stopExtensionLevels) && d.stopExtensionLevels.length
+        ? d.stopExtensionLevels
+        : DrawingToolsManager.TRADE_FIB_STOP_EXTENSIONS;
+      const tpProgress = Array.isArray(d.tpProgressLevels) && d.tpProgressLevels.length
+        ? d.tpProgressLevels
+        : DrawingToolsManager.TRADE_FIB_TP_PROGRESS;
+      const managedLevels = [];
+
+      for (const ext of stopExtensions) {
+        const n = Number(ext);
+        if (!Number.isFinite(n)) continue;
+        const lvl = Math.abs(n) > 1 ? n / 100 : n;
+        managedLevels.push(lvl);
+      }
+      if (Number.isFinite(structureStopLevel) && structureStopLevel < 0) {
+        managedLevels.push(structureStopLevel);
+      }
+      managedLevels.push(0);
+      for (const progress of tpProgress) {
+        const n = Number(progress);
+        if (!Number.isFinite(n)) continue;
+        managedLevels.push(n > 1 ? n / 100 : n);
+      }
+
+      const uniqueLevels = Array.from(new Set(managedLevels.map((lvl) => Number(lvl.toFixed(4)))))
+        .sort((a, b) => a - b);
+
+      for (let i = 0; i < uniqueLevels.length; i += 1) {
+        const lvl = uniqueLevels[i];
+        const price = priceForManagedLevel(lvl);
+        const y = this._priceToY(price);
+        if (y === null) continue;
+        const isEntry = Math.abs(lvl) < 0.0001;
+        const isTarget = Math.abs(lvl - 1) < 0.0001;
+        const isStructureStop = Number.isFinite(structureStopLevel) && Math.abs(lvl - structureStopLevel) < 0.0005;
+        const c = isEntry
+          ? '#22c55e'
+          : lvl < 0
+            ? (isStructureStop ? '#ef4444' : '#f97316')
+            : isTarget
+              ? '#a855f7'
+              : '#8b5cf6';
+
+        const nextLevel = uniqueLevels[i + 1];
+        if (Number.isFinite(nextLevel)) {
+          const nextPrice = priceForManagedLevel(nextLevel);
+          const nextY = this._priceToY(nextPrice);
+          if (nextY !== null) {
+            ctx.fillStyle = c + (lvl < 0 ? '0f' : '10');
+            ctx.fillRect(0, Math.min(y, nextY), W, Math.abs(nextY - y));
+          }
+        }
+
+        ctx.strokeStyle = c;
+        ctx.lineWidth = isEntry || isTarget ? 2 : 1.25;
+        ctx.setLineDash(isEntry || isTarget ? [] : [5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const favorableDistance = side === 'short' ? entryPrice - price : price - entryPrice;
+        const rMultiple = Number.isFinite(riskDistance) && riskDistance > 0 ? favorableDistance / riskDistance : NaN;
+        const rText = Number.isFinite(rMultiple)
+          ? '  ' + (rMultiple >= 0 ? '+' : '') + rMultiple.toFixed(2) + 'R'
+          : '';
+        const structureLabel = side === 'short' ? ' STRUCTURE HIGH' : ' STRUCTURE LOW';
+        const label = isEntry
+          ? '0.0% ENTRY'
+          : isTarget
+            ? '100.0% TARGET'
+            : lvl < 0
+              ? Math.abs(lvl * 100).toFixed(1) + (useStructureRiskStops ? '% STRUCTURE RISK' : (side === 'short' ? '% ABOVE ENTRY' : '% BELOW ENTRY')) + (isStructureStop ? structureLabel : '')
+              : (lvl * 100).toFixed(1) + '% TARGET' + (isStructureStop ? structureLabel : '');
+        const deltaText = isEntry ? '' : '  Δ' + (price - entryPrice >= 0 ? '+' : '') + (price - entryPrice).toFixed(priceDecimals);
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = c;
+        ctx.fillText(label + '  $' + price.toFixed(priceDecimals) + deltaText + rText, 5, y - 4);
+      }
+
+      const p1 = this._toPixel(d.time1, d.price1, d.logical1);
+      const p2 = this._toPixel(d.time2, d.price2, d.logical2);
+      if (p1 && p2) {
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 5]);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      return;
+    }
+
     for (let i = 0; i < levels.length; i++) {
       const lvl = levels[i];
       const price = d.price1 + range * lvl;
@@ -1681,6 +1900,16 @@ class DrawingToolsManager {
       ctx.font = 'bold 11px sans-serif';
       ctx.fillStyle = c;
       ctx.fillText(`${(lvl * 100).toFixed(1)}%  $${price.toFixed(2)}`, 5, y - 4);
+    }
+
+    if (d.type === 'trade-fib' && d.mode !== 'management') {
+      const p = this._toPixel(d.time2, d.price2, d.logical2);
+      if (p) {
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = '#22c55e';
+        ctx.fillText('TRADE FIB: STRUCTURE', Math.max(5, W * 0.56), p.y - 18);
+      }
+      return;
     }
   }
 
@@ -1873,7 +2102,7 @@ class DrawingToolsManager {
         ctx.fillRect(x, y, w, h);
         ctx.strokeRect(x, y, w, h);
       }
-    } else if (s.clicks === 1 && tool === 'fib') {
+    } else if (s.clicks === 1 && this._isFibTool(tool)) {
       const levels = this._fibLevels;
       const range = s.previewPrice - s.price1;
       ctx.globalAlpha = 0.4;
@@ -2695,7 +2924,7 @@ class DrawingToolsManager {
 
   static createToolbar(containerId, opts = {}) {
     const variant = String(opts.variant || DrawingToolsManager.DEFAULT_TOOLBAR_VARIANT || 'default').trim().toLowerCase();
-    const tools = opts.tools || ['trendline', 'ray', 'ext-line', 'reg-channel', 'hline', 'vline', 'fib', 'rect', 'channel', 'crossline'];
+    const tools = opts.tools || ['trendline', 'ray', 'ext-line', 'reg-channel', 'hline', 'vline', 'fib', 'trade-fib', 'rect', 'channel', 'crossline'];
     const div = document.createElement('div');
     div.className = variant === 'grouped-dock' ? 'dt-toolbar dt-toolbar--dock dt-toolbar--grouped' : 'dt-toolbar';
     div.setAttribute('data-dt-for', containerId);
@@ -2707,7 +2936,7 @@ class DrawingToolsManager {
           id: 'fib',
           label: 'Fib',
           sections: [
-            { label: 'Fibonacci', tools: ['fib', 'fixed-range-volume-profile'] },
+            { label: 'Fibonacci', tools: ['fib', 'trade-fib', 'fixed-range-volume-profile'] },
           ],
         },
         {

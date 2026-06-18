@@ -420,6 +420,11 @@ function _tbInitChart() {
       interval: '1d',
       containerEl: container,
     });
+    if (typeof refreshDynamicIndicators === 'function') {
+      refreshDynamicIndicators().catch((err) => {
+        console.warn('Failed to refresh chart indicators for trade browser:', err);
+      });
+    }
     _ciPopulateIndicatorSelect();
   }
 

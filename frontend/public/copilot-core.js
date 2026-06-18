@@ -238,10 +238,16 @@
 
     // Map contract-month symbols (e.g. 6CU26, ESZ25) to their continuous symbol
     function normalizeContractMonth(symbol) {
-      var match = symbol.match(/^([A-Z0-9]{1,4})[FGHJKMNQUVXZ]\d{2,4}$/);
-      if (match) {
-        var root = match[1];
+      var monthCodes = 'FGHJKMNQUVXZ';
+      for (var i = 0; i < 2; i += 1) {
+        var yearLen = i === 0 ? 4 : 2;
+        if (symbol.length <= yearLen + 1) continue;
+        var year = symbol.slice(-yearLen);
+        var monthCode = symbol.slice(-yearLen - 1, -yearLen);
+        if (!/^\d+$/.test(year) || monthCodes.indexOf(monthCode) === -1) continue;
+        var root = symbol.slice(0, -yearLen - 1);
         if (MARKET_SYMBOL_ALIASES[root]) return MARKET_SYMBOL_ALIASES[root];
+        if (MARKET_SYMBOL_ALIASES[root + '1']) return MARKET_SYMBOL_ALIASES[root + '1'];
         return root + '=F';
       }
       return null;
@@ -252,6 +258,17 @@
       if (!input) return '';
       const collapsed = input.replace(/\s+/g, '');
       const unslashed = collapsed.replace(/^\//, '');
+      const forexCompact = unslashed.replace(/[\s\/\-_]/g, '');
+      const explicitForex = unslashed.includes('/') || forexCompact.endsWith('=X');
+      const forexSymbol = forexCompact.endsWith('=X') ? forexCompact : forexCompact + '=X';
+      const knownForex = /^[A-Z]{6}$/.test(forexCompact)
+        && (
+          (Array.isArray(COPILOT_SYMBOL_LISTS?.forex) && COPILOT_SYMBOL_LISTS.forex.includes(forexSymbol))
+          || !!CONTRACT_SPECS?.[forexSymbol]
+        );
+      if (/^[A-Z]{6}(=X)?$/.test(forexCompact) && (explicitForex || knownForex)) {
+        return forexCompact.endsWith('=X') ? forexCompact : forexCompact + '=X';
+      }
       if (MARKET_SYMBOL_ALIASES[unslashed]) return MARKET_SYMBOL_ALIASES[unslashed];
       var monthNorm = normalizeContractMonth(unslashed);
       if (monthNorm) return monthNorm;
@@ -354,12 +371,16 @@
       international: [],
       bonds: [],
       smallcaps: [],
+      crypto: [],
+      forex: [],
+      optionable: [],
+      stocks: [],
       all: ["SPY", "QQQ"],
     };
     let COPILOT_SYMBOL_LISTS = { ...FALLBACK_COPILOT_SYMBOL_LISTS };
 
     function normalizeCopilotSymbolLists(raw) {
-      const keys = ['commodities', 'futures', 'indices', 'sectors', 'international', 'bonds', 'smallcaps'];
+      const keys = ['stocks', 'commodities', 'futures', 'indices', 'sectors', 'international', 'bonds', 'smallcaps', 'crypto', 'forex', 'optionable'];
       const src = raw && typeof raw === 'object' ? raw : {};
       const out = {};
       for (const key of keys) {
@@ -414,6 +435,12 @@
         document.getElementById('exchange-fee').value = spec.exchangeFee;
       }
 
+      if (typeof window.updatePriceInputSteps === 'function') {
+        window.updatePriceInputSteps();
+      } else if (typeof window.applyChartPricePrecision === 'function') {
+        window.applyChartPricePrecision();
+      }
+
       saveSettings();
       if (typeof syncInstrumentPnlSummary === 'function') syncInstrumentPnlSummary();
     }
@@ -431,18 +458,33 @@
         const catalog = [];
         const seen = new Set();
 
+        function addCatalogSymbol(symbol, name, type) {
+          const sym = String(symbol || '').trim().toUpperCase();
+          if (!sym || seen.has(sym)) return;
+          seen.add(sym);
+          catalog.push({ symbol: sym, name: name || '', type: type || '' });
+        }
+
+        function addForexAliases(symbol) {
+          const sym = String(symbol || '').trim().toUpperCase();
+          const compact = sym.replace(/[\s\/\-_]/g, '').replace(/=X$/, '');
+          if (!/^[A-Z]{6}$/.test(compact)) return;
+          const slash = `${compact.slice(0, 3)}/${compact.slice(3)}`;
+          addCatalogSymbol(compact, slash, 'forex');
+        }
+
         // CONTRACT_SPECS entries (futures, forex, crypto) — highest priority
         for (const [sym, spec] of Object.entries(CONTRACT_SPECS)) {
-          if (!seen.has(sym)) {
-            seen.add(sym);
-            catalog.push({ symbol: sym, name: spec.name || '', type: spec.type || '' });
-          }
+          addCatalogSymbol(sym, spec.name || '', spec.type || '');
+          if (spec.type === 'forex') addForexAliases(sym);
         }
 
         // Symbol lists from API
-        Object.values(COPILOT_SYMBOL_LISTS).forEach(list => {
+        Object.entries(COPILOT_SYMBOL_LISTS).forEach(([bucket, list]) => {
           list.forEach(s => {
-            if (!seen.has(s)) { seen.add(s); catalog.push({ symbol: s, name: '', type: '' }); }
+            const type = bucket === 'futures' ? 'futures' : bucket === 'forex' ? 'forex' : bucket === 'crypto' ? 'crypto' : '';
+            addCatalogSymbol(s, '', type);
+            if (bucket === 'forex') addForexAliases(s);
           });
         });
 
@@ -2058,6 +2100,43 @@
 
   let tradeDirection = 0; // 1 = long, -1 = short, 0 = unset
 
+  function manageTradeFibFromDesk() {
+    const manager = window._copilotDrawingTools;
+    if (!manager || typeof manager.configureLatestFibTradeMode !== 'function') {
+      alert('Drawing tools are not ready yet.');
+      return;
+    }
+    if (tradeDirection !== 1 && tradeDirection !== -1) {
+      alert('Choose LONG or SHORT before switching the Trade Fib to manage mode.');
+      return;
+    }
+
+    const activeEntryValue = typeof window.getActiveEntryPrice === 'function'
+      ? Number(window.getActiveEntryPrice())
+      : NaN;
+    const entryInput = document.getElementById('entry-price-input');
+    const inputEntryValue = parseFloat(entryInput?.value || '');
+    const entryValue = Number.isFinite(activeEntryValue) && activeEntryValue > 0
+      ? activeEntryValue
+      : inputEntryValue;
+    const opts = {
+      direction: tradeDirection === -1 ? 'short' : 'long',
+    };
+    if (Number.isFinite(entryValue) && entryValue > 0) {
+      opts.actualEntryPrice = entryValue;
+    }
+
+    const ok = manager.configureLatestFibTradeMode(opts);
+    if (!ok) {
+      alert('Draw a Trade Fib first, then click Manage Fib.');
+      return;
+    }
+    const statusEl = document.getElementById('drawing-status');
+    if (statusEl) {
+      statusEl.textContent = `Manage fib: ${opts.direction.toUpperCase()}`;
+    }
+  }
+
   function setTradeDirection(dir) {
     const normalized = dir === -1 || String(dir).toUpperCase() === 'SHORT'
       ? -1
@@ -2105,6 +2184,8 @@
       // trader's explicit choice — re-running would re-apply the analysis's own
       // verdict direction and flip the buttons back (e.g. always to LONG).
     }
+
+    window.manageTradeFibFromDesk = manageTradeFibFromDesk;
 
     // ========== LIVE P&L UPDATER ==========
 
@@ -2449,8 +2530,10 @@
       if (pnl === null || !Number.isFinite(pnl)) { clearToolbarPnLProbe(); return; }
       const pct = entryPrice > 0 ? ((price - entryPrice) / entryPrice * 100 * tradeDirection) : 0;
 
-      const spec = getContractSpec(document.getElementById('copilot-symbol')?.value);
-      const pxDec = spec ? Math.max(2, (spec.tickSize).toString().replace(/0+$/, '').split('.')[1]?.length || 2) : 2;
+      const spec = typeof getContractSpec === 'function' ? getContractSpec(document.getElementById('copilot-symbol')?.value) : null;
+      const tickSize = Number(spec?.tickSize);
+      const tickString = (Number.isFinite(tickSize) && tickSize > 0 ? tickSize : 0.01).toString();
+      const pxDec = Math.max(2, tickString.replace(/0+$/, '').split('.')[1]?.length || 2);
       const color = pnl > 0.005 ? '#22c55e' : pnl < -0.005 ? '#ef4444' : '#94a3b8';
       const arrow = pnl > 0.005 ? '\u25B2' : pnl < -0.005 ? '\u25BC' : '';
       const dollar = '$' + Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2531,8 +2614,10 @@
       if (pnlSizeEl) pnlSizeEl.textContent = `${effectiveSize} ${livePnLSizing.unitLabel}`;
 
       // Current price
-      const spec_ = getContractSpec(document.getElementById('copilot-symbol')?.value);
-      const pxDec = spec_ ? Math.max(2, (spec_.tickSize).toString().replace(/0+$/, '').split('.')[1]?.length || 2) : 2;
+      const spec_ = typeof getContractSpec === 'function' ? getContractSpec(document.getElementById('copilot-symbol')?.value) : null;
+      const tickSize = Number(spec_?.tickSize);
+      const tickString = (Number.isFinite(tickSize) && tickSize > 0 ? tickSize : 0.01).toString();
+      const pxDec = Math.max(2, tickString.replace(/0+$/, '').split('.')[1]?.length || 2);
       document.getElementById('live-pnl-current').textContent = `$${lastChartPrice.toFixed(pxDec)}`;
 
       // Live open-position P&L in Key Levels (current price, not mouse)

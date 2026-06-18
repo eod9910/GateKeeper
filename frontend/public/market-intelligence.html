@@ -308,6 +308,13 @@
       color: var(--color-text-subtle); font-size: var(--text-small);
     }
     .mi-panel-collapse:hover { color: var(--color-text); }
+    .mi-panel.collapsed { min-height: 0; }
+    .mi-panel.collapsed .mi-panel-header { border-bottom: 0; }
+    .mi-panel.collapsed .mi-panel-subtitle,
+    .mi-panel.collapsed .mi-panel-filters,
+    .mi-panel.collapsed .mi-panel-body { display: none; }
+    .mi-panel.collapsed .mi-options-controls select,
+    .mi-panel.collapsed .mi-options-controls .btn { display: none; }
 
     .mi-panel-filters {
       display: flex;
@@ -525,7 +532,7 @@
     .mi-data-source-pill[data-state="loading"]       { background: var(--color-surface-hover); color: var(--color-text-muted); }
     .mi-data-source-pill[data-state="live"]          { background: rgba(79, 170, 114, 0.18);  color: #79c79a; border-color: rgba(79, 170, 114, 0.4); }
     .mi-data-source-pill[data-state="live-empty"]    { background: rgba(196, 168, 84, 0.18);  color: #c8b878; border-color: rgba(196, 168, 84, 0.4); }
-    .mi-data-source-pill[data-state="mock-fallback"] { background: rgba(176, 84, 84, 0.18);   color: #c87878; border-color: rgba(176, 84, 84, 0.4); }
+    .mi-data-source-pill[data-state="error"]         { background: rgba(176, 84, 84, 0.18);   color: #c87878; border-color: rgba(176, 84, 84, 0.4); }
     .mi-data-source-pill .mi-data-source-detail {
       margin-left: 6px;
       font-weight: 500;
@@ -648,6 +655,73 @@
       border-bottom: 1px solid var(--color-border-subtle);
     }
     .mi-drawer-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+    .mi-report-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-8);
+      align-items: center;
+      margin-top: var(--space-8);
+    }
+    .mi-report-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.64);
+      z-index: 80;
+      display: none;
+    }
+    .mi-report-modal-backdrop.open { display: block; }
+    .mi-report-modal {
+      position: fixed;
+      inset: min(5vh, 40px) min(5vw, 56px);
+      z-index: 90;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      display: none;
+      flex-direction: column;
+      min-height: 0;
+      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.45);
+    }
+    .mi-report-modal.open { display: flex; }
+    .mi-report-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-16);
+      padding: var(--space-16);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .mi-report-modal-title {
+      font-size: var(--text-h3);
+      font-weight: 600;
+      color: var(--color-text);
+      line-height: 1.25;
+    }
+    .mi-report-modal-subtitle {
+      font-size: var(--text-caption);
+      color: var(--color-text-muted);
+      margin-top: var(--space-4);
+    }
+    .mi-report-modal-actions {
+      display: flex;
+      gap: var(--space-8);
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .mi-report-textarea {
+      flex: 1;
+      width: 100%;
+      resize: none;
+      border: none;
+      outline: none;
+      background: var(--color-bg);
+      color: var(--color-text);
+      padding: var(--space-16);
+      font-family: var(--font-mono);
+      font-size: var(--text-small);
+      line-height: 1.55;
+      min-height: 0;
+    }
 
     .mi-stat {
       background: var(--color-bg);
@@ -1119,6 +1193,13 @@
               </select>
             </div>
             <div class="mi-filter">
+              <label for="mi-sort-mode">Sort by</label>
+              <select id="mi-sort-mode" aria-label="Sort scenarios">
+                <option value="priority">Priority</option>
+                <option value="newest">Newest</option>
+              </select>
+            </div>
+            <div class="mi-filter">
               <label for="mi-min-strength">Min signal strength</label>
               <div class="mi-filter-slider-row">
                 <input type="range" id="mi-min-strength" min="0" max="100" value="0" step="5" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -1152,6 +1233,48 @@
         </section>
 
         <!-- Theme Performance (Phase 5) — collapsed by default -->
+        <section class="mi-operator-section" id="mi-reacceleration-section">
+          <div class="mi-operator-header" id="mi-reacceleration-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-title-dot" style="background:var(--color-positive);"></span>
+              Revenue Reacceleration Screen
+              <span class="mi-operator-card-count" id="mi-reacceleration-summary">matches: 0</span>
+            </div>
+            <span>
+              <button class="mi-operator-btn" id="mi-reacceleration-refresh" type="button">Refresh</button>
+              <button class="mi-operator-toggle" id="mi-reacceleration-toggle" type="button" aria-label="Toggle revenue reacceleration screen">+</button>
+            </span>
+          </div>
+          <div class="mi-operator-body" id="mi-reacceleration-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="grid-column:1 / -1;max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Depressed Price + Revenue Growth</span>
+                <span class="mi-operator-card-count">watchlist generator</span>
+              </div>
+              <div class="mi-operator-toolbar" id="mi-reacceleration-rule" style="justify-content:flex-start;">
+                range &le; 10% &middot; revenue TTM growth &ge; 17.7% &middot; liquidity &ge; $1M
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-reacceleration-table">
+                  <thead>
+                    <tr>
+                      <th>symbol</th>
+                      <th>price</th>
+                      <th>range</th>
+                      <th>rev TTM</th>
+                      <th>liquidity</th>
+                      <th>current</th>
+                      <th>margin</th>
+                      <th>flags</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="8" class="mi-operator-empty">Loading revenue reacceleration candidates.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="mi-operator-section" id="mi-quality-section">
           <div class="mi-operator-header" id="mi-quality-header">
             <div class="mi-operator-title">
@@ -1237,6 +1360,20 @@
           }
           .mi-conv-tier-btn:hover { color: var(--color-text); background: var(--color-surface-hover); }
           .mi-conv-tier-btn.active { color: var(--color-text); background: var(--color-surface-hover); font-weight: 600; border-color: var(--color-text-subtle); }
+          .mi-conv-tag-btn {
+            font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; cursor: pointer;
+            background: var(--color-surface); color: var(--color-text-muted);
+            border: 1px solid var(--color-border); border-radius: 4px;
+          }
+          .mi-conv-tag-btn:hover { color: var(--color-text); background: var(--color-surface-hover); }
+          .mi-conv-tag-btn.active { color: var(--color-text); background: var(--color-surface-hover); font-weight: 600; border-color: var(--color-text-subtle); }
+          .mi-conv-search {
+            font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; min-width: 200px;
+            background: var(--color-surface); color: var(--color-text);
+            border: 1px solid var(--color-border); border-radius: 4px; margin-left: 4px;
+          }
+          .mi-conv-search:focus { outline: none; border-color: var(--color-text-subtle); background: var(--color-surface-hover); }
+          .mi-conv-search::placeholder { color: var(--color-text-subtle); }
           .mi-conv-badge {
             display:inline-block; font-family: var(--font-mono); font-size: 10px; font-weight:600;
             padding: 1px 6px; border-radius: 3px; letter-spacing: .03em;
@@ -1254,6 +1391,25 @@
           }
           .mi-conv-chip.up { color:#34d399; border-color: rgba(52,211,153,.35); }
           .mi-conv-chip.down { color:#f87171; border-color: rgba(248,113,113,.35); }
+          .mi-conv-chip.rvol { font-weight:600; }
+          .mi-conv-chip.rvol.confirm { color:#34d399; border-color: rgba(52,211,153,.55); background: rgba(52,211,153,.10); }
+          .mi-conv-chip.rvol.skip { color:#94a3b8; border-color: rgba(148,163,184,.35); }
+          .mi-conv-chip.rvol.weak { color:#fbbf24; border-color: rgba(251,191,36,.40); }
+          .mi-conv-chip.pstretch { font-weight:600; }
+          .mi-conv-chip.pstretch.extended { color:#f87171; border-color: rgba(248,113,113,.55); background: rgba(248,113,113,.10); }
+          .mi-conv-chip.pstretch.stretched { color:#fbbf24; border-color: rgba(251,191,36,.45); }
+          .mi-conv-chip.pstretch.depressed { color:#60a5fa; border-color: rgba(96,165,250,.40); }
+          .mi-conv-chip.fade { font-weight:700; letter-spacing:.03em; }
+          .mi-conv-chip.fade.candidate { color:#fff; background:#dc2626; border-color:#dc2626; }
+          .mi-conv-chip.fade.candidate.strong { background:#b91c1c; border-color:#7f1d1d; box-shadow:0 0 0 1px rgba(220,38,38,.6); }
+          .mi-conv-chip.fade.partial { color:#f87171; border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.06); }
+          /* entry-timing tint overrides the base fade fill */
+          .mi-conv-chip.fade.t-wait { color:#f87171; background: rgba(248,113,113,.06); border-color: rgba(248,113,113,.35); }
+          .mi-conv-chip.fade.t-armed { color:#0b0f17; background:#f59e0b; border-color:#f59e0b; }
+          .mi-conv-chip.fade.t-trigger { color:#fff; background:#dc2626; border-color:#dc2626; box-shadow:0 0 0 1px rgba(220,38,38,.5); }
+          .mi-conv-chip.contra { font-weight:700; letter-spacing:.02em; }
+          .mi-conv-chip.contra.watch { color:#0b0f17; background:#38bdf8; border-color:#38bdf8; }
+          .mi-conv-chip.contra.partial { color:#38bdf8; border-color: rgba(56,189,248,.45); background: rgba(56,189,248,.06); }
           .mi-conv-score-cell { display:flex; align-items:center; gap:6px; min-width:72px; }
           .mi-conv-score-bar { height:5px; border-radius:3px; background:var(--color-accent,#60a5fa); }
           .mi-conv-row { cursor:pointer; }
@@ -1276,7 +1432,110 @@
           .mi-conv-source { font-size:11px; margin-bottom:6px; }
           .mi-conv-source.alias-risk { opacity:.6; }
           .mi-conv-source-text { color:var(--color-text-muted); font-size:11px; line-height:1.4; margin-top:1px; }
+          .mi-conv-symcell { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+          .mi-conv-thesis-flag { font-size:10px; font-family:var(--font-mono); color:#fbbf24; border:1px solid rgba(251,191,36,.4); background:rgba(251,191,36,.08); border-radius:4px; padding:1px 5px; white-space:nowrap; cursor:help; }
+          .mi-conv-thesis-class { display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.04em; font-family:var(--font-mono); color:#fbbf24; border:1px solid rgba(251,191,36,.4); background:rgba(251,191,36,.08); border-radius:4px; padding:2px 7px; margin-bottom:8px; }
+          .mi-conv-thesis-headline { font-size:13px; font-weight:600; color:var(--color-text); margin-bottom:8px; }
+          .mi-conv-thesis-item { border-left:2px solid rgba(251,191,36,.4); padding:2px 0 2px 9px; margin-bottom:8px; }
+          .mi-conv-thesis-claim { font-size:12px; color:var(--color-text); }
+          .mi-conv-thesis-sub { font-size:11px; color:var(--color-text-muted); margin-top:1px; }
+          .mi-conv-thesis-meta { font-size:10px; font-family:var(--font-mono); color:var(--color-text-subtle); margin-top:6px; }
+          .mi-thesis-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+          .mi-thesis-note { font-size:11px; color:var(--color-text-muted); }
+          .mi-thesis-symbol { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+          .mi-thesis-dir { font-family:var(--font-mono); font-size:10px; text-transform:uppercase; border:1px solid var(--color-border); border-radius:4px; padding:1px 5px; }
+          .mi-thesis-dir.bear { color:#f87171; border-color:rgba(248,113,113,.45); background:rgba(248,113,113,.08); }
+          .mi-thesis-dir.bull { color:#39d98a; border-color:rgba(57,217,138,.45); background:rgba(57,217,138,.08); }
+          .mi-thesis-headline { color:var(--color-text); font-weight:600; }
+          .mi-thesis-sub { color:var(--color-text-muted); font-size:11px; line-height:1.35; }
+          .mi-thesis-z { font-family:var(--font-mono); color:#fbbf24; }
+          .mi-risk-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+          .mi-risk-note { font-size:11px; color:var(--color-text-muted); }
+          .mi-risk-symbol { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+          .mi-risk-score { font-family:var(--font-mono); font-weight:700; color:#f87171; }
+          .mi-risk-score-label { font-family:var(--font-mono); font-size:10px; text-transform:uppercase; color:var(--color-text); }
+          .mi-risk-score-sub { color:var(--color-text-muted); font-size:11px; line-height:1.35; }
+          .mi-risk-posture { display:inline-block; font-family:var(--font-mono); font-size:10px; text-transform:uppercase; border:1px solid rgba(248,113,113,.45); color:#f87171; background:rgba(248,113,113,.08); border-radius:4px; padding:1px 5px; }
+          .mi-risk-posture.binary_event { color:#fbbf24; border-color:rgba(251,191,36,.45); background:rgba(251,191,36,.08); }
+          .mi-risk-posture.upside_speculation { color:#39d98a; border-color:rgba(57,217,138,.45); background:rgba(57,217,138,.08); }
+          .mi-risk-why { color:var(--color-text); font-weight:600; }
+          .mi-risk-snippet { color:var(--color-text-muted); font-size:11px; line-height:1.35; margin-top:2px; }
+          .mi-risk-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+          .mi-risk-tag { font-family:var(--font-mono); font-size:10px; color:var(--color-text-subtle); border:1px solid var(--color-border); border-radius:4px; padding:1px 5px; }
+          .mi-risk-buzz { color:var(--color-text); font-size:11px; line-height:1.45; }
+          .mi-risk-buzz strong { color:#fbbf24; font-family:var(--font-mono); }
+          .mi-risk-detail td { background:var(--color-surface); padding:12px !important; }
+          .mi-risk-detail-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+          .mi-risk-detail-card { border:1px solid var(--color-border); border-radius:6px; padding:10px; min-width:0; }
+          .mi-risk-detail-card h5 { margin:0 0 7px; color:var(--color-text-subtle); font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
+          .mi-risk-detail-list { display:grid; gap:7px; }
+          .mi-risk-detail-item { color:var(--color-text); font-size:12px; line-height:1.4; }
+          .mi-risk-detail-meta { color:var(--color-text-muted); font-size:11px; margin-top:2px; }
         </style>
+        <section class="mi-operator-section" id="mi-event-risk-section">
+          <div class="mi-operator-header" id="mi-event-risk-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-dot" style="background:#f87171;"></span>
+              Event Risk Radar
+              <span id="mi-event-risk-summary" style="color:var(--color-text-subtle);font-weight:500;">loading</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-event-risk-toggle" type="button" aria-label="Toggle event risk radar">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-event-risk-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="grid-column:1 / -1;max-width:100%;">
+              <div class="mi-risk-toolbar">
+                <div class="mi-risk-note">Options-flow anomalies ranked first, then paired with social buzz and recent narrative clues.</div>
+                <button class="mi-operator-btn" id="mi-event-risk-refresh" type="button">Refresh</button>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-event-risk-table">
+                  <thead>
+                    <tr>
+                      <th>symbol</th>
+                      <th>risk</th>
+                      <th>options footprint</th>
+                      <th>possible why</th>
+                      <th>latest buzz</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="5" class="mi-operator-empty">Loading event risk radar...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="mi-operator-section" id="mi-social-thesis-section">
+          <div class="mi-operator-header" id="mi-social-thesis-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-dot" style="background:#fbbf24;"></span>
+              Social Thesis Alerts
+              <span id="mi-social-thesis-summary" style="color:var(--color-text-subtle);font-weight:500;">loading</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-social-thesis-toggle" type="button" aria-label="Toggle social thesis alerts">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-social-thesis-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="grid-column:1 / -1;max-width:100%;">
+              <div class="mi-thesis-toolbar">
+                <div class="mi-thesis-note">Cached scanner/social theses that have not necessarily become promoted scenarios yet.</div>
+                <button class="mi-operator-btn" id="mi-social-thesis-refresh" type="button">Refresh</button>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="mi-operator-table" id="mi-social-thesis-table">
+                  <thead>
+                    <tr>
+                      <th>symbol</th>
+                      <th>thesis</th>
+                      <th>direction</th>
+                      <th>latest buzz</th>
+                      <th>updated</th>
+                    </tr>
+                  </thead>
+                  <tbody><tr><td colspan="5" class="mi-operator-empty">Loading social theses...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
         <section class="mi-operator-section" id="mi-convergence-section">
           <div class="mi-operator-header" id="mi-convergence-header">
             <div class="mi-operator-title">
@@ -1301,6 +1560,16 @@
                 <button class="mi-conv-tier-btn" data-conv-tier="2" type="button">Tier 2 · watch</button>
                 <button class="mi-conv-tier-btn" data-conv-tier="3" type="button">Tier 3 · background</button>
               </div>
+              <div class="mi-conv-toolbar">
+                <span style="font-family:var(--font-mono); font-size:10px; color:var(--color-text-subtle); text-transform:uppercase; letter-spacing:.05em;">Tags</span>
+                <button class="mi-conv-tag-btn active" data-conv-tag="all" type="button">All</button>
+                <button class="mi-conv-tag-btn" data-conv-tag="either" type="button">Tagged only</button>
+                <button class="mi-conv-tag-btn" data-conv-tag="fade" type="button">▼ Fade</button>
+                <button class="mi-conv-tag-btn" data-conv-tag="bottom" type="button">▲ Bottom watch</button>
+                <input id="mi-conv-search" class="mi-conv-search" type="search" autocomplete="off"
+                       placeholder="search symbol / sector…" aria-label="Search convergence scoreboard" />
+                <button id="mi-conv-search-clear" class="mi-conv-tag-btn" type="button" title="Clear search">✕</button>
+              </div>
               <div style="overflow-x:auto;">
                 <table class="mi-operator-table" id="mi-convergence-table">
                   <thead>
@@ -1318,6 +1587,34 @@
                 </table>
               </div>
               <div class="mi-operator-toast" id="mi-convergence-toast" hidden></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Base-Break Cause Extractor — collapsed by default -->
+        <section class="mi-operator-section" id="mi-cause-section">
+          <div class="mi-operator-header" id="mi-cause-header">
+            <div class="mi-operator-title">
+              <span class="mi-operator-dot" style="background:#39d98a;"></span>
+              Base-Break Cause Extractor
+              <span id="mi-cause-summary" style="color:var(--color-text-subtle);font-weight:500;">enter a symbol</span>
+            </div>
+            <button class="mi-operator-toggle" id="mi-cause-toggle" type="button" aria-label="Toggle base-break cause extractor">+</button>
+          </div>
+          <div class="mi-operator-body" id="mi-cause-body" style="grid-template-columns:1fr;">
+            <div class="mi-operator-card" style="grid-column:1 / -1;max-width:100%;">
+              <div class="mi-operator-card-header">
+                <span>Why did it leave its base? (fundamental inflection = the leading cause; price/eigen are coincident)</span>
+              </div>
+              <div class="mi-conv-toolbar">
+                <input type="text" id="mi-cause-input" placeholder="symbols, e.g. VIAV or VIAV,RMD"
+                       style="flex:1;min-width:180px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-text);padding:6px 10px;border-radius:6px;font-family:var(--font-mono);font-size:12px;" />
+                <button class="mi-operator-btn" id="mi-cause-run" type="button">Extract</button>
+              </div>
+              <div id="mi-cause-results">
+                <div class="mi-operator-empty">Enter a symbol that recently broke a multi-year base and click Extract.</div>
+              </div>
+              <div class="mi-operator-toast" id="mi-cause-toast" hidden></div>
             </div>
           </div>
         </section>
@@ -1603,14 +1900,14 @@
         <section class="mi-panels" id="mi-panels">
 
           <!-- Macro panel -->
-          <div class="mi-panel mi-panel-macro">
+          <div class="mi-panel mi-panel-macro collapsed" id="mi-macro-panel">
             <div class="mi-panel-header">
               <div class="mi-panel-title-row">
                 <div class="mi-panel-title">
                   <span class="mi-engine-dot"></span>
                   Macro Engine
                 </div>
-                <button class="mi-panel-collapse" data-collapse-target="macro" title="Collapse">&times;</button>
+                <button class="mi-panel-collapse" data-collapse-target="macro" title="Toggle macro engine">+</button>
               </div>
               <div class="mi-panel-subtitle">broad-based scenarios &mdash; news / filings / RSS / macro releases</div>
               <div class="mi-panel-filters">
@@ -1636,14 +1933,14 @@
           </div>
 
           <!-- Social Arbitrage panel -->
-          <div class="mi-panel mi-panel-social">
+          <div class="mi-panel mi-panel-social collapsed" id="mi-social-panel">
             <div class="mi-panel-header">
               <div class="mi-panel-title-row">
                 <div class="mi-panel-title">
                   <span class="mi-engine-dot"></span>
                   Social Arbitrage Engine
                 </div>
-                <button class="mi-panel-collapse" data-collapse-target="social" title="Collapse">&times;</button>
+                <button class="mi-panel-collapse" data-collapse-target="social" title="Toggle social arbitrage engine">+</button>
               </div>
               <div class="mi-panel-subtitle">uncovered names with organic, authenticated attention spikes</div>
               <div class="mi-panel-filters">
@@ -1688,14 +1985,14 @@
 
         <!-- Options Flow Anomaly Engine -->
         <section style="margin-top:var(--space-16);">
-          <div class="mi-panel" style="border-color:rgba(239,68,68,0.3);">
+          <div class="mi-panel collapsed" id="mi-options-panel" style="border-color:rgba(239,68,68,0.3);">
             <div class="mi-panel-header">
               <div class="mi-panel-title-row">
                 <div class="mi-panel-title">
                   <span class="mi-engine-dot" style="background:#ef4444;"></span>
                   Options Flow Anomaly Engine
                 </div>
-                <div style="display:flex;gap:var(--space-8);align-items:center;flex-wrap:wrap;">
+                <div class="mi-options-controls" style="display:flex;gap:var(--space-8);align-items:center;flex-wrap:wrap;">
                   <select id="mi-options-direction" class="input" style="font-size:11px;padding:4px 8px;" onchange="miLoadOptionsAnomalies()">
                     <option value="both">Both directions</option>
                     <option value="put">Put-heavy</option>
@@ -1709,6 +2006,7 @@
                   </select>
                   <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="miLoadOptionsAnomalies()">Refresh</button>
                   <button class="btn btn-primary btn-sm" style="font-size:11px;" onclick="miRunOptionsCollect()">Collect Now</button>
+                  <button class="mi-panel-collapse" id="mi-options-toggle" type="button" title="Toggle options flow anomaly engine">+</button>
                 </div>
               </div>
               <div class="mi-panel-subtitle">Detects unusual put-heavy and call-heavy options activity, IV skew shifts, and volume anomalies. Symbols ranked by dominant options imbalance so bullish and bearish flow both surface.</div>
@@ -1732,6 +2030,22 @@
         </div>
         <div class="mi-drawer-body" id="mi-drawer-body"></div>
       </aside>
+
+      <div class="mi-report-modal-backdrop" id="mi-report-modal-backdrop"></div>
+      <section class="mi-report-modal" id="mi-report-modal" role="dialog" aria-modal="true" aria-labelledby="mi-report-modal-title">
+        <div class="mi-report-modal-header">
+          <div>
+            <div class="mi-report-modal-title" id="mi-report-modal-title">Shareable Intelligence Report</div>
+            <div class="mi-report-modal-subtitle" id="mi-report-modal-subtitle">Markdown report generated from scenario evidence, consequence analysis, valuation checks, and exposure map.</div>
+          </div>
+          <div class="mi-report-modal-actions">
+            <button class="mi-operator-btn go" id="mi-report-copy" type="button">Copy</button>
+            <button class="mi-operator-btn" id="mi-report-download" type="button">Download</button>
+            <button class="mi-drawer-close" id="mi-report-close" type="button" aria-label="Close report">&times;</button>
+          </div>
+        </div>
+        <textarea class="mi-report-textarea" id="mi-report-textarea" spellcheck="false"></textarea>
+      </section>
 
     </div>
   </div>

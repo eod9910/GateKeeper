@@ -5,8 +5,15 @@
 let aiAvailable = false;
 let aiStatusProviderLabel = 'Ready';
 const SCANNER_FUNDAMENTALS_TIMEOUT_MS = 10000;
+const scannerFundamentalsInflight = new Map();
+const scannerFundamentalsBackgroundRefresh = new Set();
 const SCANNER_ANALYST_STORAGE_KEY = 'scanner.selectedAnalyst';
 const DEFAULT_SCANNER_ANALYST = 'financial_analyst';
+
+function isAbortError(err) {
+  return err && (err.name === 'AbortError' || String(err.message || '').toLowerCase().includes('aborted'));
+}
+
 let scannerAnalystRegistry = [
   { id: 'financial_analyst', label: 'Ledger' },
   { id: 'technical_analyst', label: 'Structure' },
@@ -40,6 +47,71 @@ const scannerChatAttachments = {
 };
 let scannerAutoLedgerTimer = null;
 let scannerAutoLedgerRequestId = 0;
+// Cache of completed Ledger auto-overviews keyed by symbol. Once a symbol has
+// been analyzed, revisiting it replays the cached report instead of paying for
+// another (expensive) model call. Backed by localStorage so it survives full
+// page reloads, with a freshness window so reports don't go stale forever.
+// Only cleared when the user explicitly asks the AI to do something different.
+const SCANNER_LEDGER_CACHE_KEY = 'scannerLedgerOverviewCacheV2';
+const SCANNER_LEDGER_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function loadScannerLedgerOverviewCache() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SCANNER_LEDGER_CACHE_KEY) || '{}');
+    if (!raw || typeof raw !== 'object') return {};
+    const now = Date.now();
+    const fresh = {};
+    Object.entries(raw).forEach(([sym, entry]) => {
+      if (entry && typeof entry.text === 'string' && typeof entry.ts === 'number' && (now - entry.ts) < SCANNER_LEDGER_CACHE_TTL_MS) {
+        fresh[sym] = entry;
+      }
+    });
+    return fresh;
+  } catch (e) {
+    return {};
+  }
+}
+
+const scannerLedgerOverviewCache = loadScannerLedgerOverviewCache();
+
+function persistScannerLedgerOverviewCache() {
+  try {
+    localStorage.setItem(SCANNER_LEDGER_CACHE_KEY, JSON.stringify(scannerLedgerOverviewCache));
+  } catch (e) { /* quota or disabled storage — in-memory still works */ }
+}
+
+function getScannerLedgerOverview(symbol) {
+  const key = String(symbol || '').trim().toUpperCase();
+  const entry = scannerLedgerOverviewCache[key];
+  if (!entry || typeof entry.text !== 'string') return null;
+  if (!/^Cached scanner overview/i.test(entry.text)) {
+    delete scannerLedgerOverviewCache[key];
+    persistScannerLedgerOverviewCache();
+    return null;
+  }
+  if (Date.now() - (entry.ts || 0) >= SCANNER_LEDGER_CACHE_TTL_MS) {
+    delete scannerLedgerOverviewCache[key];
+    persistScannerLedgerOverviewCache();
+    return null;
+  }
+  return entry.text;
+}
+
+function setScannerLedgerOverview(symbol, text) {
+  const key = String(symbol || '').trim().toUpperCase();
+  if (!key) return;
+  scannerLedgerOverviewCache[key] = { text: String(text), ts: Date.now() };
+  persistScannerLedgerOverviewCache();
+}
+
+function clearScannerLedgerOverviewCache(symbol) {
+  if (symbol) {
+    delete scannerLedgerOverviewCache[String(symbol).trim().toUpperCase()];
+  } else {
+    Object.keys(scannerLedgerOverviewCache).forEach((k) => delete scannerLedgerOverviewCache[k]);
+  }
+  persistScannerLedgerOverviewCache();
+}
 
 function getDefaultScannerAnalysts() {
   return [
@@ -618,11 +690,78 @@ function clearScannerChatSession(symbol, timeframe) {
 
 function buildAutoLedgerOverviewPrompt(symbol, timeframe) {
   return [
-    `Load the Ledger overview report for ${symbol || 'this symbol'} immediately.`,
-    'Give me the overall company view, financial picture, valuation posture, survivability, reported execution, forward expectations, social buzz, option-flow context if available, and the scanner setup context.',
-    'Use the fundamentals snapshot cards as structured evidence. Be concise but complete, and separate facts, interpretation, judgment, and invalidation.',
+    `Give me a lightweight scanner overview for ${symbol || 'this symbol'} using only the context already attached to this request.`,
+    'Do not run deep Ledger tools or filing retrieval in this automatic overview.',
+    'Summarize the scanner setup, cached fundamentals if present, social/options context if present, and what is missing if cached data is unavailable.',
+    'Be concise but complete, and separate facts, interpretation, judgment, and invalidation.',
     timeframe ? `Scanner timeframe: ${timeframe}.` : '',
   ].filter(Boolean).join(' ');
+}
+
+function formatAutoOverviewValue(value, suffix = '') {
+  if (value == null || value === '') return 'N/A';
+  const n = Number(value);
+  if (Number.isFinite(n)) return `${Math.round(n * 10) / 10}${suffix}`;
+  return String(value);
+}
+
+function buildLocalScannerOverview(symbol, candidate, detector, fundamentals) {
+  const lines = [];
+  lines.push(`Cached scanner overview for ${symbol}`);
+  lines.push('');
+  lines.push('Facts');
+  lines.push(`- Setup: ${candidate?.pattern_type || candidate?.scan_mode || 'N/A'} on ${candidate?.timeframe || 'N/A'}`);
+  lines.push(`- Score: ${candidate?.score ?? 'N/A'}; retracement: ${candidate?.retracement_pct ?? 'N/A'}`);
+  if (detector) {
+    lines.push(`- Structure: ${detector.activeBaseState || 'N/A'}; top ${detector.activeBaseTop ?? 'N/A'}; bottom ${detector.activeBaseBottom ?? 'N/A'}`);
+  }
+  if (fundamentals) {
+    lines.push(`- Company: ${fundamentals.companyName || symbol}; ${[fundamentals.sector, fundamentals.industry].filter(Boolean).join(' / ') || 'sector N/A'}`);
+    lines.push(`- Quality: ${fundamentals.quality || 'N/A'}; tactical grade: ${fundamentals.tacticalGrade || 'N/A'}; score: ${fundamentals.tacticalScore ?? 'N/A'}`);
+    lines.push(`- Revenue growth: ${formatAutoOverviewValue(fundamentals.revenueGrowthPct, '%')}; FCF TTM: ${formatAutoOverviewValue(fundamentals.freeCashFlowTTM)}; cash runway: ${formatAutoOverviewValue(fundamentals.cashRunwayQuarters, ' qtrs')}`);
+    lines.push(`- Risk note: ${fundamentals.riskNote || fundamentals.statusNote || 'N/A'}`);
+    if (fundamentals.optionsFlow?.trade_date) {
+      lines.push(`- Options flow: ${fundamentals.optionsFlow.flow_bias || 'available'}; C/P ${formatAutoOverviewValue(fundamentals.optionsFlow.call_put_volume_ratio)}; date ${fundamentals.optionsFlow.trade_date}`);
+    } else {
+      lines.push('- Options flow: no local options-flow snapshot available.');
+    }
+  } else {
+    lines.push('- Cached fundamentals: unavailable; background refresh was started.');
+  }
+  lines.push('');
+  lines.push('Interpretation');
+  if (fundamentals) {
+    const risk = String(fundamentals.tacticalGrade || fundamentals.quality || '').toLowerCase();
+    lines.push(risk.includes('fragile') || risk.includes('speculative')
+      ? '- Fundamentals are usable as context, but this is not a clean quality filter. Size/timing should depend on the chart.'
+      : '- Fundamentals are available and should be used as secondary context after the chart structure.');
+  } else {
+    lines.push('- This read is chart-first because fundamentals were not available from cache at selection time.');
+  }
+  lines.push('');
+  lines.push('Judgment');
+  lines.push('- Automatic scanner overview is cache-only now, so it will not block on Yahoo or deep Ledger retrieval.');
+  lines.push('- Ask for a full Ledger/company/filing read when you want the slower AI analysis.');
+  return lines.join('\n');
+}
+
+function readResponseErrorFromPayload(response, data, rawText = '') {
+  if (data?.error) return String(data.error);
+  if (data?.data?.error) return String(data.data.error);
+  if (data?.message) return String(data.message);
+  if (rawText) return String(rawText).slice(0, 500);
+  return `HTTP ${response.status}`;
+}
+
+function describeCaughtError(err) {
+  if (!err) return 'Unknown error';
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'string') return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
 }
 
 function scheduleScannerLedgerAutoOverview(candidate) {
@@ -642,53 +781,44 @@ function scheduleScannerLedgerAutoOverview(candidate) {
   }, 350);
 }
 
-async function runScannerLedgerAutoOverview(candidate, requestId) {
+async function runScannerLedgerAutoOverview(candidate, requestId, opts) {
   if (!candidate?.symbol) return;
   const symbol = String(candidate.symbol || '').trim().toUpperCase();
   const messagesId = 'scanner-chat-messages';
   const statusId = 'ai-status';
+  const force = !!(opts && opts.force);
+
+  // Cache hit: replay the stored report instantly, no model call.
+  const cachedOverview = force ? null : getScannerLedgerOverview(symbol);
+  if (cachedOverview) {
+    await appendScannerChatMessage(cachedOverview, 'ai', messagesId, { animate: false });
+    setScannerChatStatus('Ready (cached)', statusId);
+    return;
+  }
+
   const messages = document.getElementById(messagesId);
   if (messages && !messages.textContent.trim()) {
     await appendScannerChatMessage(`Loading Ledger overview for ${symbol}...`, 'ai', messagesId, { animate: false });
   }
   setScannerChatStatus('Loading Ledger report', statusId);
   try {
-    const fundamentals = await ensureScannerFundamentals(symbol);
+    const fundamentals = await ensureScannerFundamentals(symbol, {
+      cacheOnly: true,
+      includeBuzz: false,
+    });
     const active = candidates?.[currentIndex];
     const activeSymbol = String(active?.symbol || '').trim().toUpperCase();
     if (!active || activeSymbol !== symbol || requestId !== scannerAutoLedgerRequestId) return;
     if (!fundamentals) {
-      await appendScannerChatMessage(`Fundamentals snapshot was unavailable for ${symbol}. Ledger can continue with scanner context only, but the overview report is incomplete.`, 'ai', messagesId, { animate: false });
+      await appendScannerChatMessage(`Cached fundamentals were unavailable for ${symbol}. I kicked off a background refresh and will keep this overview lightweight instead of blocking on Yahoo/Ledger.`, 'ai', messagesId, { animate: false });
     }
     const detector = buildDetectorContext(candidate);
-    const rawPrompt = buildAutoLedgerOverviewPrompt(symbol, candidate.timeframe || 'N/A');
-    const message = buildScannerMessage(rawPrompt, candidate, detector, fundamentals);
-    const settings = getStoredCopilotSettings();
-    const context = buildScannerChatContext(fundamentals, messagesId);
-    const response = await fetch('/api/vision/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message,
-        context,
-        analyst: 'financial_analyst',
-        role: null,
-        aiModel: settings.aiModel,
-        chartImage: null,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || `HTTP ${response.status}`);
-    }
-    const responseText = String(data.data?.response || 'No response.');
-    const latest = candidates?.[currentIndex];
-    if (String(latest?.symbol || '').trim().toUpperCase() !== symbol || requestId !== scannerAutoLedgerRequestId) return;
-    setScannerChatStatus('Typing', statusId);
-    await appendScannerChatMessage(responseText, 'ai', messagesId, { animate: true });
-    setScannerChatStatus('Ready', statusId);
+    const localOverview = buildLocalScannerOverview(symbol, candidate, detector, fundamentals);
+    setScannerLedgerOverview(symbol, localOverview);
+    await appendScannerChatMessage(localOverview, 'ai', messagesId, { animate: false });
+    setScannerChatStatus('Ready (cached)', statusId);
   } catch (err) {
-    await appendScannerChatMessage(`Ledger overview failed: ${err.message}`, 'ai', messagesId, { animate: false });
+    await appendScannerChatMessage(`Ledger overview failed: ${describeCaughtError(err)}`, 'ai', messagesId, { animate: false });
     setScannerChatStatus('Error', statusId);
   }
 }
@@ -759,6 +889,8 @@ function buildFundamentalsContext(snapshot) {
     marketContext: snapshot.marketContext || null,
     ownership: snapshot.ownership || null,
     socialBuzz: snapshot.socialBuzz || null,
+    optionsFlow: snapshot.optionsFlow || null,
+    optionsFlowAvailable: Boolean(snapshot.optionsFlow?.trade_date),
     tags: Array.isArray(snapshot.tags) ? snapshot.tags : [],
   };
 }
@@ -810,47 +942,120 @@ function buildDetectorMessageBlock(detector) {
   return `\nDETECTOR_CONTEXT:\n- pattern_type: ${detector.patternType || 'N/A'}\n- active_base_state: ${detector.activeBaseState || 'N/A'}\n- active_base_top: ${detector.activeBaseTop ?? 'N/A'}\n- active_base_bottom: ${detector.activeBaseBottom ?? 'N/A'}\n- active_base_atr: ${detector.activeBaseAtr ?? 'N/A'}\n- active_base_extension_atr: ${detector.activeBaseExtensionAtr ?? 'N/A'}\n- active_base_breakout_age_bars: ${detector.activeBaseBreakoutAgeBars ?? 'N/A'}\n- structural_score: ${detector.structuralScore ?? 'N/A'}\n- rank_score: ${detector.rankScore ?? 'N/A'}\n- scale: ${detector.scale || 'N/A'}\n- recovered: ${detector.recovered ?? 'N/A'}\n`;
 }
 
-async function ensureScannerFundamentals(symbol) {
+async function ensureScannerFundamentals(symbol, opts = {}) {
   const normalized = String(symbol || '').trim().toUpperCase();
   if (!normalized) return null;
+  const forceRefresh = !!opts.forceRefresh;
+  const cachedOnlyFirst = opts.cachedOnlyFirst !== false && !forceRefresh;
+  const cacheOnly = !!opts.cacheOnly;
+  const backgroundRefresh = opts.backgroundRefresh !== false;
+  const includeBuzz = opts.includeBuzz !== false;
+  const timeoutMs = Number.isFinite(Number(opts.timeoutMs)) && Number(opts.timeoutMs) > 0
+    ? Number(opts.timeoutMs)
+    : SCANNER_FUNDAMENTALS_TIMEOUT_MS;
 
-  if (typeof fundamentalsCache !== 'undefined' && fundamentalsCache.has(normalized)) {
-    return fundamentalsCache.get(normalized);
+  if (!forceRefresh && typeof fundamentalsCache !== 'undefined' && fundamentalsCache.has(normalized)) {
+    const cached = fundamentalsCache.get(normalized);
+    if (!includeBuzz || cached?.socialBuzz) {
+      return cached;
+    }
   }
 
-  try {
+  const inflightKey = `${normalized}|${forceRefresh ? 'force' : cachedOnlyFirst ? 'cached-first' : 'full'}|${includeBuzz ? 'buzz' : 'snapshot'}`;
+  if (scannerFundamentalsInflight.has(inflightKey)) {
+    return scannerFundamentalsInflight.get(inflightKey);
+  }
+
+  const requestPromise = (async () => {
     const apiBase = typeof API_URL === 'string' ? API_URL : '';
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller
-      ? setTimeout(() => controller.abort(), SCANNER_FUNDAMENTALS_TIMEOUT_MS)
+      ? setTimeout(() => controller.abort('scanner-fundamentals-timeout'), timeoutMs)
       : null;
     const requestOptions = controller ? { signal: controller.signal } : undefined;
-    const [fundamentalsRes, buzzRes] = await Promise.allSettled([
-      fetch(`${apiBase}/api/fundamentals/${encodeURIComponent(normalized)}`, requestOptions),
-      fetch(`${apiBase}/api/fundamentals/${encodeURIComponent(normalized)}/buzz`, requestOptions),
-    ]);
-    if (timeoutId) clearTimeout(timeoutId);
-    if (fundamentalsRes.status !== 'fulfilled') return null;
-    const data = await fundamentalsRes.value.json();
-    if (!fundamentalsRes.value.ok || !data?.success || !data?.data) return null;
-    const merged = { ...data.data };
-    if (buzzRes.status === 'fulfilled') {
-      try {
-        const buzzData = await buzzRes.value.json();
-        if (buzzRes.value.ok && buzzData?.success && buzzData?.data?.available) {
-          merged.socialBuzz = buzzData.data;
+
+    async function fetchSnapshot(query = '') {
+      const suffix = query ? `?${query}` : '';
+      const res = await fetch(`${apiBase}/api/fundamentals/${encodeURIComponent(normalized)}${suffix}`, requestOptions);
+      const data = await res.json();
+      if (!res.ok || !data?.success || !data?.data) return null;
+      return {
+        ...data.data,
+        freshness: data.freshness || null,
+      };
+    }
+
+    try {
+      let snapshot = cachedOnlyFirst ? await fetchSnapshot('cached_only=true') : null;
+      if (!snapshot && cacheOnly) {
+        if (backgroundRefresh) {
+          refreshScannerFundamentalsInBackground(normalized, { includeBuzz });
         }
-      } catch {}
+        return null;
+      }
+      if (!snapshot) {
+        const query = forceRefresh ? 'force_refresh=true' : '';
+        snapshot = await fetchSnapshot(query);
+      }
+      if (!snapshot) return null;
+
+      const merged = { ...snapshot };
+      if (includeBuzz) {
+        try {
+          const buzzRes = await fetch(`${apiBase}/api/fundamentals/${encodeURIComponent(normalized)}/buzz`, requestOptions);
+          const buzzData = await buzzRes.json();
+          if (buzzRes.ok && buzzData?.success && buzzData?.data?.available) {
+            merged.socialBuzz = buzzData.data;
+          }
+        } catch {}
+      }
+      if (typeof fundamentalsCache !== 'undefined') {
+        fundamentalsCache.set(normalized, merged);
+      }
+      return merged;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
-    if (typeof fundamentalsCache !== 'undefined') {
-      fundamentalsCache.set(normalized, merged);
-    }
-    return merged;
+  })();
+
+  scannerFundamentalsInflight.set(inflightKey, requestPromise);
+  try {
+    return await requestPromise;
   } catch (err) {
+    if (isAbortError(err)) {
+      return null;
+    }
     console.warn('Failed to fetch fundamentals for AI context:', normalized, err);
     return null;
+  } finally {
+    scannerFundamentalsInflight.delete(inflightKey);
   }
 }
+
+window.ensureScannerFundamentals = ensureScannerFundamentals;
+
+function refreshScannerFundamentalsInBackground(symbol, opts = {}) {
+  const normalized = String(symbol || '').trim().toUpperCase();
+  if (!normalized || scannerFundamentalsBackgroundRefresh.has(normalized)) return;
+  scannerFundamentalsBackgroundRefresh.add(normalized);
+  ensureScannerFundamentals(normalized, {
+    cachedOnlyFirst: false,
+    includeBuzz: opts.includeBuzz !== false,
+    backgroundRefresh: false,
+    timeoutMs: 45000,
+  }).catch(() => {}).finally(() => {
+    scannerFundamentalsBackgroundRefresh.delete(normalized);
+  });
+}
+
+function prefetchScannerFundamentals(symbol) {
+  const normalized = String(symbol || '').trim().toUpperCase();
+  if (!normalized) return;
+  if (typeof fundamentalsCache !== 'undefined' && fundamentalsCache.has(normalized)) return;
+  ensureScannerFundamentals(normalized, { cachedOnlyFirst: true, cacheOnly: true, includeBuzz: false }).catch(() => {});
+}
+
+window.prefetchScannerFundamentals = prefetchScannerFundamentals;
 
 function buildFundamentalsMessageBlock(snapshot) {
   if (!snapshot) return '';
@@ -900,8 +1105,31 @@ function buildFundamentalsMessageBlock(snapshot) {
     `- forward_expectations_score: ${snapshot.forwardExpectationsScore ?? 'N/A'}`,
     `- positioning_score: ${snapshot.positioningScore ?? 'N/A'}`,
     `- market_context_score: ${snapshot.marketContextScore ?? 'N/A'}`,
+    `- options_flow_available: ${snapshot.optionsFlow?.trade_date ? 'true' : 'false'}`,
     `- tags: ${Array.isArray(snapshot.tags) ? snapshot.tags.map(tag => tag.label).join(', ') : 'N/A'}`
   ];
+
+  if (snapshot.optionsFlow?.trade_date) {
+    const flow = snapshot.optionsFlow;
+    lines.push(
+      `\n[OPTIONS_FLOW]`,
+      `- status: OPTIONS DATA AVAILABLE`,
+      `- trade_date: ${flow.trade_date || 'N/A'}`,
+      `- flow_bias: ${flow.flow_bias || 'N/A'}`,
+      `- put_call_volume_ratio: ${flow.put_call_volume_ratio ?? 'N/A'}`,
+      `- call_put_volume_ratio: ${flow.call_put_volume_ratio ?? 'N/A'}`,
+      `- total_put_volume: ${flow.total_put_volume ?? 'N/A'}`,
+      `- total_call_volume: ${flow.total_call_volume ?? 'N/A'}`,
+      `- anomaly_score: ${flow.anomaly_score ?? 'N/A'}`,
+      `- anomaly_flags: ${Array.isArray(flow.anomaly_flags) ? flow.anomaly_flags.join(', ') : 'N/A'}`
+    );
+  } else {
+    lines.push(
+      `\n[OPTIONS_FLOW]`,
+      `- status: NO OPTIONS DATA`,
+      `- interpretation: No local options-flow snapshot is available for this symbol; do not treat missing options data as neutral flow.`
+    );
+  }
 
   if (snapshot.reportedExecution) {
     const execution = snapshot.reportedExecution;
@@ -1316,17 +1544,28 @@ function handleFundamentalsChatKeydown(event) {
   }
 }
 
-function buildScannerChatContext(fundamentals = null, messagesId = 'scanner-chat-messages') {
+function buildScannerChatContext(fundamentals = null, messagesId = 'scanner-chat-messages', options = {}) {
   const candidate = candidates[currentIndex] || null;
   const detector = buildDetectorContext(candidate);
   const visual = buildScannerVisualContext();
+  const allowDeepLedgerContext = options.allowDeepLedgerContext !== false;
   return {
     symbol: candidate?.symbol || '',
     patternType: candidate?.pattern_type || candidate?.scan_mode || 'wyckoff',
     tradeDirection: 'LONG',
     chatHistory: summarizeRecentScannerChat(messagesId),
+    scannerPolicy: {
+      fundamentalsCachePolicy: options.fundamentalsCachePolicy || 'cached_first',
+      allowDeepLedgerContext,
+      backgroundRefresh: options.backgroundRefresh !== false,
+    },
     copilotAnalysis: {
       scanner: true,
+      scannerPolicy: {
+        fundamentalsCachePolicy: options.fundamentalsCachePolicy || 'cached_first',
+        allowDeepLedgerContext,
+        backgroundRefresh: options.backgroundRefresh !== false,
+      },
       candidate: candidate ? {
         symbol: candidate.symbol,
         retracement_pct: candidate.retracement_pct,
@@ -1347,6 +1586,7 @@ function buildScannerChatContext(fundamentals = null, messagesId = 'scanner-chat
       } : null,
       aiAnalysis: lastAIAnalysis || null,
       fundamentals: buildFundamentalsContext(fundamentals),
+      fundamentalsFreshness: fundamentals?.freshness || null,
       detector,
       visual,
     }
@@ -1516,7 +1756,13 @@ async function sendScannerChatRequest(options = {}) {
 
   try {
     const candidate = candidates[currentIndex] || null;
-    const fundamentals = candidate ? await ensureScannerFundamentals(candidate.symbol) : null;
+    const isDedicatedFundamentalsChat = messagesId === 'fundamentals-chat-messages';
+    const fundamentals = candidate
+      ? await ensureScannerFundamentals(candidate.symbol, {
+          cacheOnly: !isDedicatedFundamentalsChat,
+          includeBuzz: isDedicatedFundamentalsChat,
+        })
+      : null;
     if (messagesId === 'fundamentals-chat-messages' && candidate?.symbol && !fundamentals) {
       await appendScannerChatMessage(`Fundamentals snapshot was unavailable for ${candidate.symbol}. Continuing with scanner context only.`, 'ai', messagesId, { animate: false });
     }
@@ -1532,7 +1778,11 @@ async function sendScannerChatRequest(options = {}) {
     const chatRole = shouldUseLiteralChartReader(raw, Boolean(chartImage)) && chatAnalyst !== 'financial_analyst'
       ? 'literal_chart_reader'
       : null;
-    const context = buildScannerChatContext(fundamentals, messagesId);
+    const explicitDeepLedgerRequested = /\b(full\s+(ledger|company|financial|fundamentals?)|filing|notes?|md&a|liquidity|dilution|valuation|dcf|earnings\s+quality|business\s+quality|balance\s+sheet)\b/i.test(raw);
+    const context = buildScannerChatContext(fundamentals, messagesId, {
+      allowDeepLedgerContext: isDedicatedFundamentalsChat || explicitDeepLedgerRequested,
+      fundamentalsCachePolicy: isDedicatedFundamentalsChat ? 'cached_first_live_allowed' : 'cache_only_background_refresh',
+    });
     const fetchVisionChat = async (analyst, finalMessage, imagePayload = chartImage, role = chatRole) => {
       const response = await fetch('/api/vision/chat', {
         method: 'POST',

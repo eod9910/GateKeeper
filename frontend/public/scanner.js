@@ -1342,9 +1342,14 @@ async function loadIndicators() {
 let _symbolLibrary = null;
 let _universePriceSnapshot = null;
 let _lastScanInsiderScreenMap = new Map();
+let _symbolSuggestionOptions = [];
 
 async function loadSymbolLibrary(forceRefresh = false) {
-  if (_symbolLibrary && !forceRefresh) return _symbolLibrary;
+  if (_symbolLibrary && !forceRefresh) {
+    bindSymbolSuggestionFilters();
+    populateSymbolSuggestions();
+    return _symbolLibrary;
+  }
   try {
     const requestUrl = forceRefresh
       ? `${API_URL}/api/candidates/symbols?refresh=${Date.now()}`
@@ -1368,6 +1373,7 @@ async function loadSymbolLibrary(forceRefresh = false) {
       updateSelectCounts('scan-asset-class');
       updateSelectCounts('scan-secondary-filter');
       console.log('Symbol library loaded:', Object.keys(_symbolLibrary).filter(k => k !== 'description' && k !== 'all').map(k => `${k}: ${(_symbolLibrary[k] || []).length}`).join(', '));
+      bindSymbolSuggestionFilters();
       populateSymbolSuggestions();
       return _symbolLibrary;
     }
@@ -1375,13 +1381,14 @@ async function loadSymbolLibrary(forceRefresh = false) {
     console.error('Failed to load symbol library:', err);
   }
   _symbolLibrary = {
-    indices: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI'],
+    indices: ['SPY', 'QQQ', '^RUT', 'IWM', 'DIA', 'VTI'],
     sectors: ['XLF', 'XLE', 'XLK', 'XLV', 'XLI'],
     forex: [],
     optionable: [],
     smallcaps: [],
     largecaps: [],
     undervalued: [],
+    undervalued_below_mean: [],
     fairvalue: [],
     overvalued: [],
     socialbullish: [],
@@ -1389,9 +1396,40 @@ async function loadSymbolLibrary(forceRefresh = false) {
     socialhot: [],
     socialrising: [],
     socialconfirmed: [],
-    all: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI'],
+    all: ['SPY', 'QQQ', '^RUT', 'IWM', 'DIA', 'VTI', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI'],
   };
   return _symbolLibrary;
+}
+
+function getSelectedSymbolSuggestionScope() {
+  if (!_symbolLibrary) return [];
+  const assetClassEl = document.getElementById('scan-asset-class');
+  const assetClass = assetClassEl ? String(assetClassEl.value || 'all').trim() : 'all';
+  if (assetClass && assetClass !== 'all' && Array.isArray(_symbolLibrary[assetClass])) {
+    return _symbolLibrary[assetClass] || [];
+  }
+  return _symbolLibrary.all || [];
+}
+
+function bindSymbolSuggestionFilters() {
+  const assetClassEl = document.getElementById('scan-asset-class');
+  if (assetClassEl && !assetClassEl.dataset.symbolSuggestionsBound) {
+    assetClassEl.addEventListener('change', () => {
+      populateSymbolSuggestions();
+      updateSymbolSuggestionMenu();
+    });
+    assetClassEl.dataset.symbolSuggestionsBound = '1';
+  }
+
+  const singleSymbolEl = document.getElementById('scan-single-symbol');
+  if (singleSymbolEl && !singleSymbolEl.dataset.symbolSuggestionsBound) {
+    singleSymbolEl.addEventListener('input', updateSymbolSuggestionMenu);
+    singleSymbolEl.addEventListener('focus', updateSymbolSuggestionMenu);
+    singleSymbolEl.addEventListener('blur', () => {
+      setTimeout(hideSymbolSuggestionMenu, 120);
+    });
+    singleSymbolEl.dataset.symbolSuggestionsBound = '1';
+  }
 }
 
 async function reloadSymbolLibrary() {
@@ -1521,15 +1559,104 @@ async function applyInsiderScreenToSymbols(symbols, statusEl) {
 function populateSymbolSuggestions() {
   const datalist = document.getElementById('symbol-suggestions');
   if (!datalist || !_symbolLibrary) return;
-  
-  const allSymbols = _symbolLibrary.all || [];
-  datalist.innerHTML = '';
-  
-  allSymbols.forEach((symbol) => {
+
+  const allSymbols = getSelectedSymbolSuggestionScope();
+  const seen = new Set();
+  const addOption = (value, label = '', canonical = '') => {
+    const normalizedValue = String(value || '').trim().toUpperCase();
+    if (!normalizedValue || seen.has(normalizedValue)) return;
+    seen.add(normalizedValue);
     const option = document.createElement('option');
-    option.value = symbol;
+    option.value = normalizedValue;
+    if (label) option.label = label;
     datalist.appendChild(option);
+    _symbolSuggestionOptions.push({
+      value: normalizedValue,
+      label: label || normalizedValue,
+      canonical: String(canonical || label || normalizedValue).trim().toUpperCase(),
+      search: normalizeSymbolSuggestionSearch(`${normalizedValue} ${label || ''} ${canonical || ''}`),
+    });
+  };
+
+  datalist.innerHTML = '';
+  _symbolSuggestionOptions = [];
+
+  allSymbols.forEach((symbol) => {
+    const canonical = String(symbol || '').trim().toUpperCase();
+    if (!canonical) return;
+    addOption(canonical, '', canonical);
+
+    if (/^[A-Z]{6}=X$/.test(canonical)) {
+      const compact = canonical.replace(/=X$/, '');
+      const slashPair = `${compact.slice(0, 3)}/${compact.slice(3)}`;
+      addOption(compact, canonical, canonical);
+      addOption(slashPair, canonical, canonical);
+    }
   });
+}
+
+function normalizeSymbolSuggestionSearch(value) {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function hideSymbolSuggestionMenu() {
+  const menu = document.getElementById('symbol-suggestion-menu');
+  if (menu) {
+    menu.style.display = 'none';
+    menu.innerHTML = '';
+  }
+}
+
+function escapeSymbolSuggestionHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function updateSymbolSuggestionMenu() {
+  const input = document.getElementById('scan-single-symbol');
+  const menu = document.getElementById('symbol-suggestion-menu');
+  if (!input || !menu) return;
+  if (!_symbolLibrary) {
+    hideSymbolSuggestionMenu();
+    return;
+  }
+  if (!_symbolSuggestionOptions.length) populateSymbolSuggestions();
+
+  const rawQuery = String(input.value || '').trim();
+  const query = normalizeSymbolSuggestionSearch(rawQuery);
+  if (!query) {
+    hideSymbolSuggestionMenu();
+    return;
+  }
+
+  const matches = _symbolSuggestionOptions
+    .filter((item) => item.search.includes(query))
+    .slice(0, 30);
+  if (!matches.length) {
+    menu.innerHTML = `<div style="padding:8px 10px;color:var(--color-text-muted);font-size:12px;">No matches</div>`;
+    menu.style.display = 'block';
+    return;
+  }
+
+  menu.innerHTML = matches.map((item) => `
+    <button type="button" class="symbol-suggestion-option" data-symbol="${escapeSymbolSuggestionHtml(item.value)}" style="display:block;width:100%;border:0;border-bottom:1px solid var(--color-border);background:transparent;color:var(--color-text);text-align:left;padding:8px 10px;cursor:pointer;font:inherit;">
+      <span style="font-weight:700;">${escapeSymbolSuggestionHtml(item.value)}</span>
+      ${item.label && item.label !== item.value ? `<span style="display:block;color:var(--color-text-muted);font-size:11px;">${escapeSymbolSuggestionHtml(item.label)}</span>` : ''}
+    </button>
+  `).join('');
+  menu.querySelectorAll('.symbol-suggestion-option').forEach((button) => {
+    button.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      input.value = button.dataset.symbol || '';
+      hideSymbolSuggestionMenu();
+      input.focus();
+    });
+  });
+  menu.style.display = 'block';
 }
 
 function normalizeSingleSymbol(raw) {
@@ -1607,6 +1734,9 @@ async function getScanSymbols(statusEl) {
 }
 
 function getScanTimeframeFromInterval(interval) {
+  if (interval === '1m') return '1m';
+  if (interval === '5m') return '5m';
+  if (interval === '15m') return '15m';
   if (interval === '1h') return '1h';
   if (interval === '4h') return '4h';
   if (interval === '1d') return 'D';
@@ -1748,7 +1878,13 @@ async function runScan() {
   }
 
   const indicatorSelect = document.getElementById('scan-indicator-select');
-  const pluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
+  let pluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
+  const criteriaEl = document.getElementById('scan-secondary-filter');
+  const criteria = criteriaEl ? String(criteriaEl.value || 'any').trim().toLowerCase() : 'any';
+  if (!pluginId && criteria === 'undervalued_below_mean') {
+    pluginId = 'statistical_value_long_primitive';
+    if (indicatorSelect) indicatorSelect.value = pluginId;
+  }
   if (!pluginId) { alert('Please select a signal.'); return; }
 
   const periodEl = document.getElementById('scan-period');

@@ -3,6 +3,7 @@
 // =========================================================================
 
 const API_URL = '';  // Same origin
+const FUNDAMENTALS_SYNTHESIS_LAYOUT_ENABLED = true; // Set false to restore the prior scanner card layout.
 
 let candidates = [];
 let currentIndex = 0;
@@ -196,6 +197,160 @@ function formatValuationRange(low, high) {
   return formatMoneyValue(low) + ' to ' + formatMoneyValue(high);
 }
 
+function formatStretchZ(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) + 'σ' : 'N/A';
+}
+
+function stretchTone(stretch) {
+  if (!stretch) return null;
+  if (stretch.tone) return stretch.tone;
+  const z = Math.max(Number(stretch.rawZ) || -Infinity, Number(stretch.logZ) || -Infinity);
+  if (z >= 6) return 'danger';
+  if (z >= 2) return 'warning';
+  if (z <= -4) return 'positive';
+  return 'muted';
+}
+
+function finiteNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function hasUsableValuationSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return false;
+  const state = formatValuationStateLabel(snapshot.valuationState);
+  if (state !== 'N/A') return true;
+  if (snapshot.coverageMode || snapshot.asOfDate || snapshot.qualityGrade) return true;
+  const fairValueMid = finiteNumberOrNull(snapshot.fairValueMid);
+  const fairValueLow = finiteNumberOrNull(snapshot.fairValueLow);
+  const fairValueHigh = finiteNumberOrNull(snapshot.fairValueHigh);
+  const gap = finiteNumberOrNull(snapshot.valuationGapPct);
+  return [fairValueMid, fairValueLow, fairValueHigh, gap].some((value) => value !== null && value !== 0);
+}
+
+function normalizedOperatingCashFlowTTM(data) {
+  const value = finiteNumberOrNull(data && data.operatingCashFlowTTM);
+  if (value === null) return null;
+  const marketCap = finiteNumberOrNull(data && data.marketCap);
+  if (marketCap !== null && marketCap >= 1e9 && Math.abs(value) > 0 && Math.abs(value) < 1000000) {
+    return value * 1000000;
+  }
+  return value;
+}
+
+function formatOptionsBias(flow) {
+  if (!flow || !flow.trade_date) return { label: 'No local snapshot', tone: 'warning', confirmation: 'Check options-flow ingestion' };
+  const pc = finiteNumberOrNull(flow.put_call_volume_ratio);
+  if (pc === null) return { label: 'Ratio unavailable', tone: 'warning', confirmation: 'Options row has incomplete values' };
+  if (pc >= 2.0) return { label: 'Extreme put-heavy', tone: 'danger', confirmation: 'Confirms downside concern' };
+  if (pc >= 1.3) return { label: 'Elevated put-heavy', tone: 'warning', confirmation: 'Supports bearish watch' };
+  if (pc <= 0.5) return { label: 'Extreme call-heavy', tone: 'positive', confirmation: 'Contradicts short thesis' };
+  if (pc <= 0.8) return { label: 'Call-heavy', tone: 'positive', confirmation: 'Leans bullish' };
+  return { label: 'Fair / normal', tone: 'muted', confirmation: 'Does not confirm downside' };
+}
+
+function currentDcfGapPct(valuationSnapshot) {
+  if (!valuationSnapshot) return null;
+  const price = finiteNumberOrNull(valuationSnapshot.price);
+  const fairValue = finiteNumberOrNull(valuationSnapshot.fairValueMid);
+  if (price === null || price === 0 || fairValue === null) return null;
+  return ((fairValue - price) / price) * 100;
+}
+
+function buildThesisSummaryCard(data, valuationSnapshot, stretch, marketContext, positioning, optionsFlow, opCfTTM) {
+  const valuationGap = valuationSnapshot ? finiteNumberOrNull(valuationSnapshot.valuationGapPct) : null;
+  const rawZ = stretch ? finiteNumberOrNull(stretch.rawZ) : null;
+  const logZ = stretch ? finiteNumberOrNull(stretch.logZ) : null;
+  const optionBias = formatOptionsBias(optionsFlow);
+  let bearScore = 0;
+  let bullScore = 0;
+
+  if (valuationGap !== null && valuationGap <= -40) bearScore += 2;
+  else if (valuationGap !== null && valuationGap <= -20) bearScore += 1;
+  if ((rawZ !== null && rawZ >= 6) || (logZ !== null && logZ >= 4)) bearScore += 2;
+  else if ((rawZ !== null && rawZ >= 3) || (logZ !== null && logZ >= 2.5)) bearScore += 1;
+  if (positioning && positioning.signal === 'selling') bearScore += 1;
+  if (optionBias.tone === 'danger' || optionBias.tone === 'warning') bearScore += 1;
+  if (marketContext && marketContext.priceVs200DayPct != null && marketContext.priceVs200DayPct >= 100) bearScore += 1;
+
+  if (data.reportedExecutionScore != null && data.reportedExecutionScore >= 75) bullScore += 2;
+  else if (data.reportedExecutionScore != null && data.reportedExecutionScore >= 55) bullScore += 1;
+  if (data.revenueYoYGrowthPct != null && data.revenueYoYGrowthPct > 0) bullScore += 1;
+  if (data.forwardExpectationsScore != null && data.forwardExpectationsScore >= 60) bullScore += 1;
+  if ((data.freeCashFlowTTM != null && data.freeCashFlowTTM > 0) || (opCfTTM != null && opCfTTM > 0)) bullScore += 1;
+
+  const shortSetup = bearScore >= 5 ? 'Strong watch' : (bearScore >= 3 ? 'Developing' : 'Weak');
+  const longSupport = bullScore >= 5 ? 'Strong' : (bullScore >= 3 ? 'Mixed support' : 'Thin');
+  const bestRead = bearScore >= 4 && bullScore >= 3
+    ? 'Quality momentum vs valuation risk'
+    : (bearScore >= 4 ? 'Bearish asymmetry' : (bullScore >= 4 ? 'Fundamental support' : 'Incomplete setup'));
+  const cleanestRisk = bearScore >= 4 && bullScore >= 3
+    ? 'Do not confuse overextension with broken fundamentals'
+    : (bearScore >= 4 ? 'Reversal risk is elevated' : 'Needs more confirming evidence');
+
+  return sectionCard('Thesis Summary', [
+    ['Best Read', bestRead, bearScore >= 4 ? 'warning' : 'muted'],
+    ['Short Setup', shortSetup, bearScore >= 5 ? 'danger' : (bearScore >= 3 ? 'warning' : 'muted')],
+    ['Long Support', longSupport, bullScore >= 4 ? 'positive' : (bullScore >= 2 ? 'warning' : 'muted')],
+    ['Options Check', optionBias.confirmation, optionBias.tone],
+    ['Main Risk', cleanestRisk, bearScore >= 4 ? 'warning' : null],
+  ]);
+}
+
+function buildContradictionsCard(data, valuationSnapshot, stretch, positioning, optionsFlow) {
+  const valuationGap = valuationSnapshot ? finiteNumberOrNull(valuationSnapshot.valuationGapPct) : null;
+  const rawZ = stretch ? finiteNumberOrNull(stretch.rawZ) : null;
+  const optionBias = formatOptionsBias(optionsFlow);
+  const bullParts = [];
+  const bearParts = [];
+  if (data.reportedExecutionScore != null) bullParts.push('Execution ' + formatScoreValue(data.reportedExecutionScore));
+  if (data.revenueYoYGrowthPct != null) bullParts.push('Rev ' + formatSignedPercentValue(data.revenueYoYGrowthPct));
+  if (data.reportedExecution && data.reportedExecution.epsBeatStreak) bullParts.push(data.reportedExecution.epsBeatStreak + 'Q beat streak');
+  if (valuationGap !== null) bearParts.push('DCF ' + formatSignedPercentValue(valuationGap));
+  if (rawZ !== null) bearParts.push('Raw Z ' + formatStretchZ(rawZ));
+  if (positioning && positioning.signal) bearParts.push('Insiders ' + formatSignalLabel(positioning.signal).toLowerCase());
+
+  const bullActive = bullParts.length >= 2;
+  const bearActive = bearParts.length >= 2;
+  const conflict = bullActive && bearActive ? 'High' : (bullActive || bearActive ? 'Medium' : 'Low');
+
+  return sectionCard('Contradictions', [
+    ['Bull Case', bullParts.join(' | ') || 'No strong support', bullActive ? 'positive' : 'muted'],
+    ['Bear Case', bearParts.join(' | ') || 'No strong pressure', bearActive ? 'warning' : 'muted'],
+    ['Options Flow', optionBias.label, optionBias.tone],
+    ['Conflict Level', conflict, conflict === 'High' ? 'warning' : (conflict === 'Medium' ? 'muted' : null)],
+  ]);
+}
+
+function buildOptionsSentimentCard(flow) {
+  const bias = formatOptionsBias(flow);
+  const pc = flow && flow.trade_date ? finiteNumberOrNull(flow.put_call_volume_ratio) : null;
+  return sectionCard('Options Sentiment', [
+    ['Coverage', flow && flow.trade_date ? 'Snapshot available' : 'No local snapshot', flow && flow.trade_date ? 'positive' : 'warning'],
+    ['P/C Ratio', pc !== null ? pc.toFixed(2) : 'N/A', bias.tone],
+    ['Bias', bias.label, bias.tone],
+    ['Confirmation', bias.confirmation, bias.tone],
+    ['Put Volume', flow && flow.trade_date ? formatCompactNumber(flow.total_put_volume || 0) : 'N/A'],
+    ['Call Volume', flow && flow.trade_date ? formatCompactNumber(flow.total_call_volume || 0) : 'N/A'],
+    ['IV Skew', flow && flow.trade_date && flow.iv_skew != null ? formatSignedPercentValue(flow.iv_skew * 100) : 'N/A'],
+    ['As Of', flow && flow.trade_date ? formatDate(flow.trade_date) : 'N/A'],
+  ]);
+}
+
+function buildDataQualityCard(data, valuationSnapshot, stretch, optionsFlow) {
+  const currentGap = currentDcfGapPct(valuationSnapshot);
+  return sectionCard('Data Quality', [
+    ['Valuation As Of', valuationSnapshot ? formatDate(valuationSnapshot.asOfDate) : 'No DCF snapshot', valuationSnapshot ? null : 'warning'],
+    ['DCF Price', valuationSnapshot ? formatMoneyValue(valuationSnapshot.price) : 'N/A'],
+    ['Current FV Gap', currentGap !== null ? formatSignedPercentValue(currentGap) : 'N/A', currentGap !== null && currentGap <= -40 ? 'danger' : (currentGap !== null && currentGap <= -20 ? 'warning' : null)],
+    ['Options As Of', optionsFlow && optionsFlow.trade_date ? formatDate(optionsFlow.trade_date) : 'No options snapshot', optionsFlow && optionsFlow.trade_date ? null : 'warning'],
+    ['Stretch End', stretch && stretch.historyEnd ? formatDate(stretch.historyEnd) : 'N/A'],
+    ['Stretch Bars', stretch && stretch.bars != null ? String(stretch.bars) : 'N/A'],
+    ['Coverage Badge', data.coverageBadge && data.coverageBadge.label ? data.coverageBadge.label : 'Standard'],
+  ]);
+}
+
 function semanticRoleStyle(role) {
   if (role === 'context_indicator') return { border: 'rgba(148,163,184,0.35)', color: '#cbd5e1', bg: 'rgba(148,163,184,0.08)' };
   if (role === 'pattern_detector') return { border: 'rgba(96,165,250,0.35)', color: '#93c5fd', bg: 'rgba(96,165,250,0.10)' };
@@ -249,39 +404,94 @@ function sectionCard(title, rows) {
   );
 }
 
-function collapsibleSectionCard(title, content, summaryText) {
-  return (
-    '<details style="border:1px solid var(--color-border);border-radius:10px;background:rgba(255,255,255,0.02);padding:10px 12px;">' +
-      '<summary style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">' +
-        '<span>' + escapeHtml(title) + '</span>' +
-        '<span style="font-size:10px;color:var(--color-text-subtle);">' + escapeHtml(summaryText || 'Research only') + '</span>' +
-      '</summary>' +
-      '<div style="margin-top:10px;">' + content + '</div>' +
-    '</details>'
-  );
-}
-
-function buildEarningsHistoryCard(earnings) {
-  const cellStyle = 'padding:3px 6px;font-size:11px;font-family:var(--font-mono,monospace);white-space:nowrap;';
+function buildEarningsHistoryCard(earnings, summaryText) {
+  const cellStyle = 'padding:6px 6px;font-size:12px;font-family:var(--font-mono,monospace);white-space:nowrap;';
   const hdrStyle = cellStyle + 'color:var(--color-text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid var(--color-border);';
   let html = '<div style="border:1px solid var(--color-border);border-radius:10px;background:rgba(255,255,255,0.02);padding:10px 12px;">';
-  html += '<div style="font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">Earnings History</div>';
-  html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">';
-  html += '<tr><th style="' + hdrStyle + 'text-align:left;">QTR</th><th style="' + hdrStyle + 'text-align:right;">EPS</th><th style="' + hdrStyle + 'text-align:right;">EST</th><th style="' + hdrStyle + 'text-align:right;">BEAT</th><th style="' + hdrStyle + 'text-align:right;">SALES</th></tr>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">';
+  html += '<span>Earnings History</span>';
+  if (summaryText) html += '<span style="font-size:11px;color:var(--color-text-subtle);">' + escapeHtml(summaryText) + '</span>';
+  html += '</div>';
+  html += '<table style="width:100%;border-collapse:collapse;table-layout:auto;">';
+  html += '<tr><th style="' + hdrStyle + 'text-align:left;">QTR</th><th style="' + hdrStyle + 'text-align:right;">EPS</th><th style="' + hdrStyle + 'text-align:right;">EST</th><th style="' + hdrStyle + 'text-align:right;">BEAT</th></tr>';
   earnings.forEach(function(e) {
     const beatPct = e.epsSurprisePct;
     const beatColor = beatPct != null ? (beatPct > 0 ? '#4a8a60' : (beatPct < 0 ? '#9a5050' : 'inherit')) : 'inherit';
     const beatStr = beatPct != null ? (beatPct > 0 ? '+' : '') + beatPct.toFixed(1) + '%' : '--';
-    const salesStr = e.salesActual != null ? (e.salesActual >= 1e9 ? (e.salesActual / 1e9).toFixed(1) + 'B' : (e.salesActual / 1e6).toFixed(0) + 'M') : '--';
     html += '<tr>';
     html += '<td style="' + cellStyle + '">' + escapeHtml(e.period || '') + '</td>';
     html += '<td style="' + cellStyle + 'text-align:right;">' + (e.epsActual != null ? e.epsActual.toFixed(2) : '--') + '</td>';
     html += '<td style="' + cellStyle + 'text-align:right;color:var(--color-text-muted);">' + (e.epsEstimate != null ? e.epsEstimate.toFixed(2) : '--') + '</td>';
     html += '<td style="' + cellStyle + 'text-align:right;color:' + beatColor + ';">' + beatStr + '</td>';
-    html += '<td style="' + cellStyle + 'text-align:right;">' + salesStr + '</td>';
     html += '</tr>';
   });
-  html += '</table></div></div>';
+  html += '</table></div>';
+  return html;
+}
+
+function deriveEarningsTrendLabel(history, epsQoQGrowthPct) {
+  const recent = Array.isArray(history)
+    ? history
+        .map(function(row) { return finiteNumberOrNull(row && row.epsActual); })
+        .filter(function(value) { return value !== null; })
+        .slice(0, 3)
+    : [];
+  if (recent.length >= 3) {
+    if (recent[0] > recent[1] && recent[1] > recent[2]) return 'Accelerating';
+    if (recent[0] < recent[1] && recent[1] < recent[2]) return 'Declining';
+  }
+  const qoq = finiteNumberOrNull(epsQoQGrowthPct);
+  if (qoq !== null) {
+    if (qoq > 2) return 'Accelerating';
+    if (qoq < -2) return 'Declining';
+  }
+  return 'Stable';
+}
+
+function revenueHistoryValue(row) {
+  return row && row.salesActual != null ? row.salesActual : (row && row.revenue != null ? row.revenue : null);
+}
+
+function revenueHistoryEstimate(row) {
+  return row && row.salesEstimate != null ? row.salesEstimate : (row && row.revenueEstimate != null ? row.revenueEstimate : null);
+}
+
+function formatRevenueCompact(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '--';
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n < 0 ? '-' : '') + (abs / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return (n < 0 ? '-' : '') + (abs / 1e6).toFixed(0) + 'M';
+  if (abs >= 1e3) return (n < 0 ? '-' : '') + (abs / 1e3).toFixed(0) + 'K';
+  return n.toFixed(0);
+}
+
+function buildRevenueHistoryCard(history, summaryText) {
+  const rows = history.filter(function(row) { return revenueHistoryValue(row) != null; }).slice(0, 6);
+  if (!rows.length) return '';
+  const cellStyle = 'padding:6px 6px;font-size:12px;font-family:var(--font-mono,monospace);white-space:nowrap;';
+  const hdrStyle = cellStyle + 'color:var(--color-text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid var(--color-border);';
+  let html = '<div style="border:1px solid var(--color-border);border-radius:10px;background:rgba(255,255,255,0.02);padding:10px 12px;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">';
+  html += '<span>Revenue History</span>';
+  if (summaryText) html += '<span style="font-size:11px;color:var(--color-text-subtle);">' + escapeHtml(summaryText) + '</span>';
+  html += '</div>';
+  html += '<table style="width:100%;border-collapse:collapse;table-layout:auto;">';
+  html += '<tr><th style="' + hdrStyle + 'text-align:left;">QTR</th><th style="' + hdrStyle + 'text-align:right;">REV</th><th style="' + hdrStyle + 'text-align:right;">EST</th><th style="' + hdrStyle + 'text-align:right;">SURP</th></tr>';
+  rows.forEach(function(row) {
+    const revenue = revenueHistoryValue(row);
+    const estimate = revenueHistoryEstimate(row);
+    const surprise = row.salesSurprisePct != null ? row.salesSurprisePct : row.revenueSurprisePct;
+    const surpriseColor = surprise != null ? (surprise > 0 ? '#4a8a60' : (surprise < 0 ? '#9a5050' : 'inherit')) : 'inherit';
+    const surpriseStr = surprise != null ? (surprise > 0 ? '+' : '') + Number(surprise).toFixed(1) + '%' : '--';
+    html += '<tr>';
+    html += '<td style="' + cellStyle + '">' + escapeHtml(row.period || '') + '</td>';
+    html += '<td style="' + cellStyle + 'text-align:right;">' + formatRevenueCompact(revenue) + '</td>';
+    html += '<td style="' + cellStyle + 'text-align:right;color:var(--color-text-muted);">' + formatRevenueCompact(estimate) + '</td>';
+    html += '<td style="' + cellStyle + 'text-align:right;color:' + surpriseColor + ';">' + surpriseStr + '</td>';
+    html += '</tr>';
+  });
+  html += '</table></div>';
   return html;
 }
 
@@ -336,7 +546,25 @@ function renderOptionsFlowPanel(flow) {
   if (!panel || !summary) return;
 
   if (!flow || !flow.trade_date) {
-    panel.style.display = 'none';
+    panel.style.display = 'block';
+    panel.style.borderColor = 'rgba(245,158,11,0.35)';
+    summary.innerHTML =
+      '<div style="display:flex;flex-direction:column;gap:4px;min-width:260px;">' +
+        '<div style="font-size:13px;font-weight:700;color:#fcd34d;">No options-flow snapshot</div>' +
+        '<div style="font-size:11px;color:var(--color-text-muted);line-height:1.45;">This symbol may be optionable, but no local options-flow row is available. Check ingestion or symbol coverage.</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:2px;">' +
+        '<div style="font-size:13px;font-weight:600;">N/A</div>' +
+        '<div style="font-size:11px;color:var(--color-text-muted);">P/C Ratio</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:2px;">' +
+        '<div style="font-size:13px;font-weight:600;">N/A</div>' +
+        '<div style="font-size:11px;color:var(--color-text-muted);">Put Vol</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:2px;">' +
+        '<div style="font-size:13px;font-weight:600;">N/A</div>' +
+        '<div style="font-size:11px;color:var(--color-text-muted);">Call Vol</div>' +
+      '</div>';
     return;
   }
 
@@ -344,11 +572,11 @@ function renderOptionsFlowPanel(flow) {
 
   var pc = flow.put_call_volume_ratio;
   var pcColor = '#6b7280';
-  var pcLabel = 'Neutral';
-  if (pc >= 2.0) { pcColor = '#ef4444'; pcLabel = 'Heavy Puts'; }
-  else if (pc >= 1.3) { pcColor = '#f59e0b'; pcLabel = 'Put-Heavy'; }
-  else if (pc <= 0.5) { pcColor = '#22c55e'; pcLabel = 'Call-Heavy'; }
-  else if (pc <= 0.8) { pcColor = '#4ade80'; pcLabel = 'Slight Calls'; }
+  var pcLabel = 'Fair / normal';
+  if (pc >= 2.0) { pcColor = '#ef4444'; pcLabel = 'Extreme put-heavy'; }
+  else if (pc >= 1.3) { pcColor = '#f59e0b'; pcLabel = 'Elevated put-heavy'; }
+  else if (pc <= 0.5) { pcColor = '#22c55e'; pcLabel = 'Extreme call-heavy'; }
+  else if (pc <= 0.8) { pcColor = '#4ade80'; pcLabel = 'Elevated call-heavy'; }
 
   var flags = Array.isArray(flow.anomaly_flags) ? flow.anomaly_flags : [];
   var score = flow.anomaly_score || 0;
@@ -457,9 +685,11 @@ function renderFundamentalsSnapshot(data) {
   const positioning = data.positioning || null;
   const marketContext = data.marketContext || null;
   const ownership = data.ownership || null;
-  const valuationSnapshot = data.valuationSnapshot || null;
+  const valuationSnapshot = hasUsableValuationSnapshot(data.valuationSnapshot) ? data.valuationSnapshot : null;
+  const stretch = data.statisticalStretch || null;
   const specialSituation = data.specialSituation || null;
   const sdx = data.stockdex || null;
+  const opCfTTM = normalizedOperatingCashFlowTTM(data);
   const earningsHistory = execution && Array.isArray(execution.history) && execution.history.length
     ? execution.history
     : (sdx && Array.isArray(sdx.earningsHistory) ? sdx.earningsHistory : []);
@@ -478,18 +708,26 @@ function renderFundamentalsSnapshot(data) {
     const desc = data.businessDescription || '';
     // Truncate description to ~200 chars with ellipsis
     const descShort = desc.length > 220 ? desc.substring(0, 217) + '…' : desc;
+    const badge = data.coverageBadge || null;
+    const badgeHtml = badge
+      ? '<div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,176,103,0.45);background:rgba(95,47,8,0.28);">' +
+          '<div style="font-size:11px;font-weight:700;letter-spacing:0.05em;color:#ffb067;margin-bottom:3px;">' + escapeHtml(badge.label) + '</div>' +
+          '<div style="font-size:11px;color:var(--color-text-muted);line-height:1.5;">' + escapeHtml(badge.detail) + '</div>' +
+        '</div>'
+      : '';
     descEl.innerHTML =
+      badgeHtml +
       (name ? '<div style="font-size:13px;font-weight:700;color:var(--color-text);margin-bottom:2px;">' + escapeHtml(name) + '</div>' : '') +
       (sector ? '<div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;letter-spacing:0.02em;">' + escapeHtml(sector) + '</div>' : '') +
       (descShort ? '<div style="font-size:11px;color:var(--color-text-muted);line-height:1.5;font-style:italic;">' + escapeHtml(descShort) + '</div>' : '');
-    descEl.style.display = name || descShort ? 'block' : 'none';
+    descEl.style.display = name || descShort || badge ? 'block' : 'none';
   }
 
   summary.innerHTML = [
     summaryCard('Tactical', data.tacticalGrade || data.holdContext || 'N/A', data.quality || 'N/A'),
     summaryCard(
       'Runway',
-      formatRunwayValue(data.cashRunwayQuarters, data.freeCashFlowTTM, data.operatingCashFlowTTM),
+      formatRunwayValue(data.cashRunwayQuarters, data.freeCashFlowTTM, opCfTTM),
       'Survival ' + (data.survivabilityScore != null ? Number(data.survivabilityScore).toFixed(0) + '/100' : 'N/A')
     ),
     summaryCard('Execution', formatScoreValue(data.reportedExecutionScore), execution ? `${execution.epsBeatStreak || 0}Q beat streak` : 'Recent reported quality'),
@@ -506,6 +744,11 @@ function renderFundamentalsSnapshot(data) {
       valuationSnapshot ? formatValuationGapLabel(valuationSnapshot.valuationGapPct) : 'Universe DCF snapshot'
     ),
     summaryCard(
+      'Stretch',
+      stretch ? (stretch.label || 'Statistical stretch') : 'N/A',
+      stretch ? 'Raw ' + formatStretchZ(stretch.rawZ) + ' · Log ' + formatStretchZ(stretch.logZ) : 'Full-history channel'
+    ),
+    summaryCard(
       'Squeeze',
       formatScoreValue(data.squeezePressureScore),
       data.squeezePressureLabel || 'N/A'
@@ -518,6 +761,12 @@ function renderFundamentalsSnapshot(data) {
     tagList.push({
       label: formatValuationStateLabel(valuationSnapshot.valuationState),
       tone: valuationToneFromState(valuationSnapshot.valuationState),
+    });
+  }
+  if (stretch && stretch.label && stretch.severity !== 'normal') {
+    tagList.push({
+      label: stretch.label,
+      tone: stretchTone(stretch),
     });
   }
   if (specialSituation && specialSituation.label) {
@@ -544,13 +793,20 @@ function renderFundamentalsSnapshot(data) {
 
   renderOptionsFlowPanel(data.optionsFlow);
 
-  const sections = [
-    sectionCard('Survivability', [
+  const synthesisCards = FUNDAMENTALS_SYNTHESIS_LAYOUT_ENABLED
+    ? [
+        buildThesisSummaryCard(data, valuationSnapshot, stretch, marketContext, positioning, data.optionsFlow, opCfTTM),
+        buildContradictionsCard(data, valuationSnapshot, stretch, positioning, data.optionsFlow),
+      ]
+    : [];
+
+  const sections = synthesisCards.concat([
+    sectionCard('Balance Sheet / Liquidity', [
       ['Cash', formatMoneyValue(data.totalCash)],
-      ['OpCF TTM', formatMoneyValue(data.operatingCashFlowTTM), data.operatingCashFlowTTM != null && data.operatingCashFlowTTM > 0 ? 'positive' : (data.operatingCashFlowTTM != null && data.operatingCashFlowTTM < 0 ? 'danger' : null)],
+      ['OpCF TTM', formatMoneyValue(opCfTTM), opCfTTM != null && opCfTTM > 0 ? 'positive' : (opCfTTM != null && opCfTTM < 0 ? 'danger' : null)],
       ['FCF TTM', formatMoneyValue(data.freeCashFlowTTM), data.freeCashFlowTTM != null && data.freeCashFlowTTM > 0 ? 'positive' : (data.freeCashFlowTTM != null && data.freeCashFlowTTM < 0 ? 'danger' : null)],
       ['Burn / Q', formatMoneyValue(data.quarterlyCashBurn), data.quarterlyCashBurn != null && data.quarterlyCashBurn > 0 ? 'warning' : null],
-      ['Runway', formatRunwayValue(data.cashRunwayQuarters, data.freeCashFlowTTM, data.operatingCashFlowTTM), data.cashRunwayQuarters != null && data.cashRunwayQuarters >= 8 ? 'positive' : (data.cashRunwayQuarters != null && data.cashRunwayQuarters < 4 ? 'danger' : null)],
+      ['Runway', formatRunwayValue(data.cashRunwayQuarters, data.freeCashFlowTTM, opCfTTM), data.cashRunwayQuarters != null && data.cashRunwayQuarters >= 8 ? 'positive' : (data.cashRunwayQuarters != null && data.cashRunwayQuarters < 4 ? 'danger' : null)],
       ['Cash / MCap', formatPercentValue(data.cashPctMarketCap)],
       ['Current Ratio', formatRatioValue(data.currentRatio)],
       ['Quick Ratio', formatRatioValue(data.quickRatio)],
@@ -577,6 +833,7 @@ function renderFundamentalsSnapshot(data) {
       ['Qtr Earnings Growth', formatPercentValue(forward ? forward.quarterlyEarningsGrowthPct : null), forward && forward.quarterlyEarningsGrowthPct != null && forward.quarterlyEarningsGrowthPct > 0 ? 'positive' : (forward && forward.quarterlyEarningsGrowthPct != null && forward.quarterlyEarningsGrowthPct < 0 ? 'danger' : null)],
       ['Forward Score', formatScoreValue(data.forwardExpectationsScore), data.forwardExpectationsScore != null && data.forwardExpectationsScore >= 65 ? 'positive' : (data.forwardExpectationsScore != null && data.forwardExpectationsScore <= 35 ? 'danger' : null)],
     ]),
+    FUNDAMENTALS_SYNTHESIS_LAYOUT_ENABLED ? buildOptionsSentimentCard(data.optionsFlow) : '',
     sectionCard('Positioning / Event Risk', [
       ['Special Situation', specialSituation ? (specialSituation.label || 'Flagged') : 'None', specialSituation ? 'danger' : null],
       ['Deal Price', formatMoneyValue(specialSituation ? specialSituation.dealPricePerShare : null), specialSituation && specialSituation.dealPricePerShare != null ? 'warning' : null],
@@ -611,13 +868,23 @@ function renderFundamentalsSnapshot(data) {
       ['Trend State', marketContext ? (marketContext.above200Day ? 'Above 200D' : (marketContext.above200Day === false ? 'Below 200D' : 'N/A')) : 'N/A', marketContext && marketContext.above200Day === true ? 'positive' : (marketContext && marketContext.above200Day === false ? 'warning' : null)],
       ['Market Score', formatScoreValue(data.marketContextScore), data.marketContextScore != null && data.marketContextScore >= 65 ? 'positive' : (data.marketContextScore != null && data.marketContextScore <= 35 ? 'warning' : null)],
     ]),
+    sectionCard('Statistical Stretch', [
+      ['Stretch State', stretch ? (stretch.label || 'N/A') : 'N/A', stretchTone(stretch)],
+      ['Raw Z', stretch ? formatStretchZ(stretch.rawZ) : 'N/A', stretchTone(stretch)],
+      ['Log Z', stretch ? formatStretchZ(stretch.logZ) : 'N/A', stretch && Number(stretch.logZ) >= 4 ? 'warning' : null],
+      ['Raw Vs Trend', stretch ? formatSignedPercentValue(stretch.rawPctAboveTrend) : 'N/A', stretch && Number(stretch.rawPctAboveTrend) > 0 ? 'warning' : null],
+      ['Log Vs Trend', stretch ? formatSignedPercentValue(stretch.logPctAboveTrend) : 'N/A', stretch && Number(stretch.logPctAboveTrend) > 0 ? 'warning' : null],
+      ['History Bars', stretch && stretch.bars != null ? String(stretch.bars) : 'N/A'],
+      ['History Start', stretch && stretch.historyStart ? formatDate(stretch.historyStart) : 'N/A'],
+      ['History End', stretch && stretch.historyEnd ? formatDate(stretch.historyEnd) : 'N/A'],
+    ]),
     sectionCard('Valuation', [
       ['DCF State', formatValuationStateLabel(valuationSnapshot ? valuationSnapshot.valuationState : null), valuationSnapshot ? valuationToneFromState(valuationSnapshot.valuationState) : null],
       ['DCF Gap', valuationSnapshot ? formatSignedPercentValue(valuationSnapshot.valuationGapPct) : 'N/A', valuationSnapshot ? valuationToneFromState(valuationSnapshot.valuationState) : null],
       ['Fair Value Mid', valuationSnapshot ? formatMoneyValue(valuationSnapshot.fairValueMid) : 'N/A'],
       ['Fair Value Range', valuationSnapshot ? formatValuationRange(valuationSnapshot.fairValueLow, valuationSnapshot.fairValueHigh) : 'N/A'],
       ['Snapshot Price', valuationSnapshot ? formatMoneyValue(valuationSnapshot.price) : 'N/A'],
-      ['Coverage', valuationSnapshot && valuationSnapshot.coverageMode ? String(valuationSnapshot.coverageMode).replace(/_/g, ' ') : 'N/A'],
+      ['Coverage', valuationSnapshot && valuationSnapshot.coverageMode ? String(valuationSnapshot.coverageMode).replace(/_/g, ' ') : 'No DCF snapshot', valuationSnapshot ? null : 'warning'],
       ['Quality', valuationSnapshot ? ((valuationSnapshot.qualityGrade || 'N/A') + (valuationSnapshot.qualityScore != null ? ' (' + Number(valuationSnapshot.qualityScore).toFixed(0) + ')' : '')) : 'N/A'],
       ['As Of', valuationSnapshot ? formatDate(valuationSnapshot.asOfDate) : 'N/A'],
       ['Mkt Cap', formatCompactNumber(data.marketCap)],
@@ -625,7 +892,11 @@ function renderFundamentalsSnapshot(data) {
       ['EV / Sales', formatRatioValue(data.enterpriseToSales)],
       ['Cash - Debt', formatMoneyValue(data.netCash), data.netCash != null && data.netCash > 0 ? 'positive' : (data.netCash != null && data.netCash < 0 ? 'danger' : null)],
     ]),
-  ];
+  ]).filter(Boolean);
+
+  if (FUNDAMENTALS_SYNTHESIS_LAYOUT_ENABLED) {
+    sections.push(buildDataQualityCard(data, valuationSnapshot, stretch, data.optionsFlow));
+  }
 
   if (specialSituation && specialSituation.summary) {
     sections.unshift(
@@ -640,15 +911,13 @@ function renderFundamentalsSnapshot(data) {
   }
 
   if (earningsHistory.length > 0) {
-    const beatStreak = execution ? (execution.epsBeatStreak || 0) : 0;
-    const summary = beatStreak > 0 ? beatStreak + 'Q beat streak' : 'Last ' + Math.min(earningsHistory.length, 6) + ' quarters';
-    sections.push(
-      collapsibleSectionCard(
-        'Earnings History',
-        buildEarningsHistoryCard(earningsHistory.slice(0, 6)),
-        summary
-      )
-    );
+    const summary = deriveEarningsTrendLabel(earningsHistory, data.epsQoQGrowthPct);
+    sections.push(buildEarningsHistoryCard(earningsHistory.slice(0, 6), summary));
+    const revenueSummary = data.revenueTrendFlag
+      ? formatFlagLabel(data.revenueTrendFlag)
+      : (data.revenueYoYGrowthPct != null ? formatSignedPercentValue(data.revenueYoYGrowthPct) + ' YoY' : 'Revenue trend');
+    const revenueCard = buildRevenueHistoryCard(earningsHistory, revenueSummary);
+    if (revenueCard) sections.push(revenueCard);
   }
 
   grid.innerHTML = sections.join('');
@@ -665,6 +934,8 @@ function copyFundamentalsToClipboard() {
   var positioning = d.positioning || null;
   var mc = d.marketContext || null;
   var valuation = d.valuationSnapshot || null;
+  var stretch = d.statisticalStretch || null;
+  var opCfTTM = normalizedOperatingCashFlowTTM(d);
 
   function pct(v) { return v != null ? Number(v).toFixed(1) + '%' : 'N/A'; }
   function money(v) {
@@ -685,6 +956,7 @@ function copyFundamentalsToClipboard() {
     'Forward: ' + val(d.forwardExpectationsScore, '/100') + ' | Execution: ' + val(d.reportedExecutionScore, '/100'),
     'Insiders: ' + val(d.positioningScore, '/100') + ' | Squeeze: ' + val(d.squeezePressureScore, '/100'),
     'Market Context: ' + val(d.marketContextScore, '/100'),
+    stretch ? 'Stretch: ' + (stretch.label || 'N/A') + ' | Raw Z: ' + formatStretchZ(stretch.rawZ) + ' | Log Z: ' + formatStretchZ(stretch.logZ) : '',
     '',
     '── Tags ──',
     (Array.isArray(d.tags) ? d.tags.map(function(t) { return t.label; }).join(', ') : 'None'),
@@ -692,7 +964,7 @@ function copyFundamentalsToClipboard() {
     '',
     '── Survivability ──',
     'Cash: ' + money(d.totalCash) + ' | FCF TTM: ' + money(d.freeCashFlowTTM),
-    'OpCF TTM: ' + money(d.operatingCashFlowTTM) + ' | Burn/Q: ' + money(d.quarterlyCashBurn),
+    'OpCF TTM: ' + money(opCfTTM) + ' | Burn/Q: ' + money(d.quarterlyCashBurn),
     'Runway: ' + (d.cashRunwayQuarters != null ? d.cashRunwayQuarters + ' quarters' : 'N/A'),
     'Current Ratio: ' + val(d.currentRatio) + ' | Quick Ratio: ' + val(d.quickRatio),
     '',
@@ -723,7 +995,12 @@ function copyFundamentalsToClipboard() {
     mc ? '52W Change: ' + pct(mc.fiftyTwoWeekChangePct) + ' | 52W Range: ' + pct(mc.priceVs52WeekRangePct) : '',
     mc ? 'Trend: ' + (mc.above200Day ? 'Above 200D' : 'Below 200D') : '',
     '',
-    '── Valuation ──',
+    '-- Statistical Stretch --',
+    stretch ? 'State: ' + (stretch.label || 'N/A') + ' | Raw Z: ' + formatStretchZ(stretch.rawZ) + ' | Log Z: ' + formatStretchZ(stretch.logZ) : 'N/A',
+    stretch ? 'Raw vs Trend: ' + pct(stretch.rawPctAboveTrend) + ' | Log vs Trend: ' + pct(stretch.logPctAboveTrend) : '',
+    stretch ? 'History: ' + (stretch.historyStart || 'N/A') + ' to ' + (stretch.historyEnd || 'N/A') + ' (' + val(stretch.bars, ' bars') + ')' : '',
+    '',
+    '-- Valuation --',
     valuation ? 'DCF State: ' + formatValuationStateLabel(valuation.valuationState) + ' | Coverage: ' + (valuation.coverageMode || 'N/A') : 'DCF State: N/A',
     valuation ? 'Fair Value Mid: ' + money(valuation.fairValueMid) + ' | Range: ' + formatValuationRange(valuation.fairValueLow, valuation.fairValueHigh) : 'Fair Value Mid: N/A',
     valuation ? 'Snapshot Price: ' + money(valuation.price) + ' | Gap: ' + pct(valuation.valuationGapPct) : 'Snapshot Price: N/A',
@@ -755,11 +1032,12 @@ function copyFundamentalsToClipboard() {
 function refreshFundamentals() {
   const sym = candidates[currentIndex]?.symbol;
   if (!sym) return;
-  fundamentalsCache.delete(sym);
-  delete _buzzCache[sym];
+  const normalized = String(sym || '').trim().toUpperCase();
+  fundamentalsCache.delete(normalized);
+  delete _buzzCache[normalized];
   window._forceRefreshFundamentals = true;
   window._fundamentalsForceBackend = true;
-  loadCandidateFundamentals(sym);
+  loadCandidateFundamentals(normalized);
 }
 window.refreshFundamentals = refreshFundamentals;
 
@@ -771,33 +1049,78 @@ async function loadCandidateFundamentals(symbol) {
   const grid = document.getElementById('fundamentals-grid');
   const shell = document.getElementById('scanner-fundamentals-shell');
   if (!panel || !status || !summary || !tags || !grid || !symbol) return;
+  const normalized = String(symbol || '').trim().toUpperCase();
 
   panel.style.display = 'block';
   if (shell) shell.classList.remove('hidden');
-  summary.innerHTML = '';
-  tags.innerHTML = '';
-  grid.innerHTML = '';
-  status.textContent = 'Loading fundamentals...';
 
-  loadSocialBuzz(symbol);
+  loadSocialBuzz(normalized);
+  loadThesisExtract(normalized);
 
-  if (fundamentalsCache.has(symbol) && !window._forceRefreshFundamentals) {
-    renderFundamentalsSnapshot(fundamentalsCache.get(symbol));
-    return;
+  const hadClientCache = fundamentalsCache.has(normalized);
+  if (hadClientCache) {
+    renderFundamentalsSnapshot(fundamentalsCache.get(normalized));
+    if (!window._forceRefreshFundamentals) return;
+    status.textContent = 'Refreshing fundamentals in background...';
+  } else {
+    summary.innerHTML = '';
+    tags.innerHTML = '';
+    grid.innerHTML = '';
+    status.textContent = 'Loading cached fundamentals...';
   }
   window._forceRefreshFundamentals = false;
 
   try {
-    const refreshParam = window._fundamentalsForceBackend ? '?force_refresh=true' : '';
+    const forceBackend = !!window._fundamentalsForceBackend;
     window._fundamentalsForceBackend = false;
+    if (typeof window.ensureScannerFundamentals === 'function') {
+      const snapshot = await window.ensureScannerFundamentals(normalized, {
+        forceRefresh: forceBackend,
+        cachedOnlyFirst: !forceBackend,
+        cacheOnly: !forceBackend,
+        includeBuzz: false,
+      });
+      if (!snapshot) {
+        if (!hadClientCache) {
+          status.textContent = 'No cached fundamentals yet; refreshing in background...';
+        }
+        if (typeof window.ensureScannerFundamentals === 'function') {
+          window.ensureScannerFundamentals(normalized, {
+            cachedOnlyFirst: false,
+            cacheOnly: false,
+            includeBuzz: false,
+            backgroundRefresh: false,
+            timeoutMs: 45000,
+          }).then(function(refreshed) {
+            if (!refreshed) return;
+            fundamentalsCache.set(normalized, refreshed);
+            if (String(candidates[currentIndex]?.symbol || '').trim().toUpperCase() === normalized) {
+              renderFundamentalsSnapshot(refreshed);
+            }
+          }).catch(function(err) {
+            console.warn('Background fundamentals hydration failed:', normalized, err);
+          });
+        }
+        return;
+      }
+      fundamentalsCache.set(normalized, snapshot);
+      if (String(candidates[currentIndex]?.symbol || '').trim().toUpperCase() === normalized) {
+        renderFundamentalsSnapshot(snapshot);
+      }
+      return;
+    }
+
+    const refreshParam = forceBackend ? '?force_refresh=true' : '?cached_only=true';
     const res = await fetch(`${API_URL}/api/fundamentals/${encodeURIComponent(symbol)}${refreshParam}`);
     const data = await res.json();
     if (!data.success || !data.data) {
-      status.textContent = data.error || 'No fundamentals available';
+      if (!hadClientCache) {
+        status.textContent = data.error || 'No cached fundamentals yet; refreshing in background...';
+      }
       return;
     }
-    fundamentalsCache.set(symbol, data.data);
-    if (candidates[currentIndex]?.symbol === symbol) {
+    fundamentalsCache.set(normalized, data.data);
+    if (String(candidates[currentIndex]?.symbol || '').trim().toUpperCase() === normalized) {
       renderFundamentalsSnapshot(data.data);
     }
   } catch (err) {
@@ -829,6 +1152,126 @@ async function loadSocialBuzz(symbol) {
     renderSocialBuzz(json.data);
   } catch (err) {
     console.warn('Social buzz fetch failed:', err);
+  }
+}
+
+// ── Thesis Extractor (needle in the haystack) ───────────────────────────────
+// Runs the Market Intelligence thesis extractor on the selected symbol's social
+// corpus: filters bot/co-tag/acronym noise and surfaces the rare real business
+// thesis. Keeps the raw Social Buzz panel above; this is the filtered signal.
+var _thesisCache = {};
+
+function escapeThesisHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function loadThesisExtract(symbol) {
+  var panel = document.getElementById('thesis-extract-panel');
+  var statusEl = document.getElementById('thesis-extract-status');
+  var bodyEl = document.getElementById('thesis-extract-body');
+  if (!panel || !bodyEl || !symbol) return;
+
+  if (_thesisCache[symbol]) {
+    renderThesisExtract(symbol, _thesisCache[symbol]);
+    return;
+  }
+
+  panel.style.display = 'block';
+  if (statusEl) statusEl.textContent = 'analyzing\u2026';
+  bodyEl.innerHTML = '<span style="color:var(--color-text-muted);font-size:12px;">Filtering social noise and extracting a business thesis\u2026</span>';
+
+  try {
+    var res = await fetch(API_URL + '/api/market-intelligence/convergence/' + encodeURIComponent(symbol) + '/catalyst', { headers: { 'Accept': 'application/json' } });
+    var json = await res.json();
+    if (!json.success || !json.data) {
+      if (statusEl) statusEl.textContent = '';
+      bodyEl.innerHTML = '<span style="color:var(--color-text-muted);font-size:12px;">Thesis extraction unavailable.</span>';
+      return;
+    }
+    // Cache definitive results only; allow transient API failures (quota/error)
+    // to be retried on the next selection once billing/credits are restored.
+    if (json.data.narrative_status !== 'error' && json.data.narrative_status !== 'quota') {
+      _thesisCache[symbol] = json.data;
+    }
+    if (candidates[currentIndex] && candidates[currentIndex].symbol === symbol) {
+      renderThesisExtract(symbol, json.data);
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = '';
+    bodyEl.innerHTML = '<span style="color:var(--color-text-muted);font-size:12px;">Thesis extraction failed.</span>';
+    console.warn('Thesis extract fetch failed:', err);
+  }
+}
+
+function renderThesisExtract(symbol, data) {
+  var panel = document.getElementById('thesis-extract-panel');
+  var statusEl = document.getElementById('thesis-extract-status');
+  var bodyEl = document.getElementById('thesis-extract-body');
+  if (!panel || !bodyEl) return;
+  // Guard against a stale async result for a symbol the user already left.
+  if (symbol && candidates[currentIndex] && candidates[currentIndex].symbol !== symbol) return;
+  panel.style.display = 'block';
+  bodyEl.innerHTML = '';
+
+  var theses = Array.isArray(data.theses) ? data.theses : [];
+  if (statusEl) {
+    statusEl.textContent = (typeof data.signal_count === 'number')
+      ? ('signal ' + data.signal_count + ' \u00b7 noise ' + (data.noise_count || 0)) : '';
+  }
+
+  if (data.has_thesis || theses.length || data.narrative) {
+    if (data.classification) {
+      var cls = document.createElement('div');
+      cls.textContent = data.classification;
+      cls.style.cssText = 'display:inline-block;font-size:11px;font-weight:700;color:#c7d2fe;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.4);border-radius:6px;padding:2px 8px;margin-bottom:8px;';
+      bodyEl.appendChild(cls);
+    }
+    if (data.headline) {
+      var hd = document.createElement('div');
+      hd.textContent = data.headline;
+      hd.style.cssText = 'font-size:13px;font-weight:700;color:var(--color-text,#e8e8f0);margin-bottom:8px;';
+      bodyEl.appendChild(hd);
+    }
+    theses.forEach(function (t) {
+      var box = document.createElement('div');
+      box.style.cssText = 'border-left:2px solid rgba(99,102,241,0.5);padding:4px 0 4px 10px;margin-bottom:8px;';
+      var dir = t.direction === 'bull' ? '\u25B2 bull' : t.direction === 'bear' ? '\u25BC bear' : '';
+      var dirColor = t.direction === 'bull' ? '#34d399' : t.direction === 'bear' ? '#f87171' : 'var(--color-text-muted)';
+      var claim = document.createElement('div');
+      claim.style.cssText = 'font-size:12px;font-weight:600;color:var(--color-text,#e8e8f0);margin-bottom:2px;';
+      claim.innerHTML = (dir ? '<span style="color:' + dirColor + ';">' + dir + '</span> \u00b7 ' : '') + escapeThesisHtml(t.claim || '');
+      box.appendChild(claim);
+      if (t.driver) { var dv = document.createElement('div'); dv.style.cssText = 'font-size:11px;color:var(--color-text-muted);'; dv.textContent = 'driver: ' + t.driver; box.appendChild(dv); }
+      if (t.mechanism) { var mc = document.createElement('div'); mc.style.cssText = 'font-size:11px;color:var(--color-text-muted);'; mc.textContent = 'mechanism: ' + t.mechanism; box.appendChild(mc); }
+      bodyEl.appendChild(box);
+    });
+    if (data.narrative) {
+      var nar = document.createElement('div');
+      nar.style.cssText = 'font-size:12px;color:var(--color-text-secondary,#b8b8c8);line-height:1.5;margin-top:4px;';
+      nar.textContent = data.narrative;
+      bodyEl.appendChild(nar);
+    }
+  } else {
+    var msgs = {
+      no_evidence: 'No social/forum posts on file for this symbol yet.',
+      no_api_key: 'Thesis extraction unavailable (no API key configured).',
+      no_thesis: 'Only low-substance chatter \u2014 no real business thesis detected.',
+      empty: 'The analyst returned nothing.',
+      quota: 'Model API quota exceeded \u2014 the analyst never ran. Check OpenAI billing/credits.',
+      error: 'Thesis extraction failed (model API error).'
+    };
+    var msg = document.createElement('span');
+    var isErr = data.narrative_status === 'quota' || data.narrative_status === 'error';
+    msg.style.cssText = 'color:' + (isErr ? '#fbbf24' : 'var(--color-text-muted)') + ';font-size:12px;';
+    msg.textContent = msgs[data.narrative_status] || 'No thesis detected.';
+    bodyEl.appendChild(msg);
+    if (isErr && data.narrative_detail) {
+      var det = document.createElement('div');
+      det.style.cssText = 'color:var(--color-text-muted);font-size:11px;margin-top:4px;opacity:0.8;';
+      det.textContent = data.narrative_detail;
+      bodyEl.appendChild(det);
+    }
   }
 }
 
@@ -986,7 +1429,7 @@ function showCandidate(index) {
   if (typeof setChartContext === 'function') {
     const interval = typeof resolveScannerChartInterval === 'function'
       ? resolveScannerChartInterval(candidate)
-      : ({ W: '1wk', D: '1d', '1h': '1h', '4h': '4h', M: '1mo' }[candidate.timeframe] || '1d');
+      : ({ W: '1wk', D: '1d', '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', M: '1mo' }[candidate.timeframe] || '1d');
     const indicatorSelect = document.getElementById('scan-indicator-select');
     const activePluginId = indicatorSelect ? String(indicatorSelect.value || '').trim() : '';
     setChartContext(candidate.symbol, interval, activePluginId || '');
@@ -1829,14 +2272,14 @@ async function quickLoadSymbol(symbol) {
 
   const intervalEl = document.getElementById('scan-interval');
   const interval = intervalEl ? intervalEl.value : '1d';
-  const timeframeMap = { '1h': '1h', '4h': '4h', '1d': 'D', '1wk': 'W', '1mo': 'M' };
+  const timeframeMap = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': 'D', '1wk': 'W', '1mo': 'M' };
   const timeframe = timeframeMap[interval] || 'D';
 
   const statusEl = document.getElementById('scan-status');
   if (statusEl) statusEl.textContent = `Loading ${symbol}...`;
 
   try {
-    const periodMap = { '1h': '730d', '4h': '730d', '1d': 'max', '1wk': 'max', '1mo': 'max' };
+    const periodMap = { '1m': '7d', '5m': '60d', '15m': '60d', '1h': '730d', '4h': '730d', '1d': 'max', '1wk': 'max', '1mo': 'max' };
     const period = periodMap[interval] || '2y';
     const res = await fetch(`${API_URL}/api/chart/ohlcv?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${period}`);
     const data = await res.json();
@@ -1901,6 +2344,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Quick symbol load on Enter key in the symbol input
   const symbolInput = document.getElementById('scan-single-symbol');
   if (symbolInput) {
+    if (!deepLinkSymbol) {
+      symbolInput.value = '';
+    }
     let lastTriggeredSymbol = '';
     let lastTriggeredAt = 0;
     const triggerQuickLoad = () => {
@@ -1954,5 +2400,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const deepLinkInput = document.getElementById('scan-single-symbol');
     if (deepLinkInput) deepLinkInput.value = deepLinkSymbol;
     await quickLoadSymbol(deepLinkSymbol);
+    if (deepLinkInput) deepLinkInput.value = '';
+    try {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete('symbol');
+      nextUrl.searchParams.delete('interval');
+      window.history.replaceState({}, document.title, nextUrl.pathname + nextUrl.search + nextUrl.hash);
+    } catch (_err) {}
   }
 });
