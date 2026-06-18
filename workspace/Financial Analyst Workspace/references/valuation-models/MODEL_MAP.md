@@ -11,7 +11,9 @@ Ledger must select the valuation model before discussing fair value. DCF is the 
 | Company / Situation | Valuation Model | Reference Folder |
 |---|---|---|
 | Normal operating company | Operating-company DCF | `operating-dcf/` |
-| Bank, insurer, lender, broker, asset manager, financial company | ROE / book-value valuation | `financials-roe-book/` |
+| Small / micro-cap operating company (sub-~$300M) or any operating company whose DCF base is not normalizable (tiny, erratic, one-off cash flow) | Relative-multiple & asset-floor valuation | `smallcap-relative-multiples/` |
+| Bank, insurer, lender, balance-sheet broker, credit company | ROE / book-value valuation | `financials-roe-book/` |
+| Capital-light asset manager, alternative asset manager, investment adviser, capital-markets platform | Asset-manager FRE / distributable-earnings valuation | `asset-manager-fre/` |
 | REIT or REIT-like real estate operating structure | AFFO / FFO / NAV valuation | `reit-affo-nav/` |
 | Pre-profit, high-growth, unstable cash-flow company | Revenue scenario valuation | `preprofit-sales-scenario/` |
 | Cyclical industrial, auto, semiconductor, steel, shipping, chemical, homebuilder | Normalized mid-cycle earnings valuation | `cyclical-normalized/` |

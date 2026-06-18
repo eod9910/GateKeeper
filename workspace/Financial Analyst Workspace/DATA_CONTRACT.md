@@ -24,7 +24,7 @@ When the app asks the Financial Analyst workspace to analyze a company, it shoul
 - `analysis_mode`
 - `asof_date`
 - `valuation_engine_class`
-  - expected values: `dcf_operating`, `roe_book_value`, `reit_affo`, `sales_scenario`, or `special_situation`
+  - expected values: `dcf_operating`, `roe_book_value`, `asset_manager_fre`, `reit_affo`, `sales_scenario`, or `special_situation`
 - `company_type`
   - expected values include `operating_company`, `financial_company`, `reit`, `preprofit_growth`, and event-driven/special-situation labels when applicable
 
@@ -56,6 +56,7 @@ Allowed `coverage_tier` values at v0:
   - facts required by the selected valuation engine
   - for `dcf_operating`: revenue, margins, operating cash flow, free cash flow, reinvestment needs, shares, discount rate, terminal growth
   - for `roe_book_value`: book value or tangible book value, normalized ROE, cost of equity, capital adequacy, credit quality, reserves/provisions
+  - for `asset_manager_fre`: fee-related earnings, distributable earnings, management-fee revenue, fee-paying AUM, incentive fees/carry, net flows, FRE margin, share count
   - for `reit_affo`: FFO, AFFO, dividend coverage, NAV, cap rates, occupancy, same-store rent growth, debt maturity ladder, fixed-charge coverage
   - for `sales_scenario`: revenue growth, gross margin, unit economics, runway, dilution, EV/Sales, path to profitability
 - `events`

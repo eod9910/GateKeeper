@@ -54,9 +54,30 @@ Primary anchors:
 
 DCF is appropriate when cash flows are economically meaningful and can be normalized.
 
+### Small / Micro-Cap Or Non-Normalizable Operating Companies
+
+Use `relative_multiples` for small and micro-cap operating companies (roughly sub-$300M
+market cap), and for any operating company whose cash-flow base is too small, lumpy, or
+one-off to support a multi-stage DCF.
+
+Primary anchors:
+
+- EV/Sales and EV/EBITDA versus sector / peer-group medians
+- Price/Book and Price/Tangible-Book versus peers
+- tangible book value / net asset value as a downside floor
+- dilution trajectory (share-count growth, ATM, convertibles, warrants)
+- solvency and cash runway
+
+Do not force these companies into an operating-company DCF. On a tiny, lumpy cash-flow
+base the terminal value dominates and manufactures absurd fair values, while the model
+stays blind to the dilution and solvency risk that make the stock cheap in the first
+place. Value them off peer multiples, bound the result with an asset/NAV floor, apply an
+explicit dilution and solvency haircut, and return a wide, low-confidence band — never a
+precise point. See `references/valuation-models/smallcap-relative-multiples/`.
+
 ### Financial Companies
 
-Use `roe_book_value` for banks, insurers, credit companies, asset managers, mortgage lenders, brokers, and other balance-sheet financials.
+Use `roe_book_value` for banks, insurers, credit companies, mortgage lenders, balance-sheet brokers, and other balance-sheet financials.
 
 Primary anchors:
 
@@ -68,6 +89,24 @@ Primary anchors:
 - reserves, provisions, and regulatory constraints
 
 Do not value these companies with industrial free cash flow. Deposits, leverage, working capital, and cash flow statements do not mean the same thing here.
+
+### Asset Managers And Capital-Light Financial Platforms
+
+Use `asset_manager_fre` for capital-light asset managers, alternative asset managers, investment advisers, private-equity managers, credit managers, infrastructure/real-asset managers, and capital-markets platforms where book value is not the economic capital base.
+
+Primary anchors:
+
+- fee-related earnings (FRE)
+- distributable earnings (DE)
+- management-fee revenue
+- fee-paying AUM
+- base fee rate
+- FRE margin
+- incentive fees / carried interest
+- realization cycle
+- net flows and fundraising cadence
+
+Do not treat these as ordinary banks or insurers. Book value can be a balance-sheet reference, but it is usually not the primary valuation anchor. If true FRE, DE, carry, AUM, or fee-rate data is missing, use the proxy hierarchy in `references/valuation-models/asset-manager-fre/` and keep confidence low.
 
 ### REITs And Real Estate Companies
 

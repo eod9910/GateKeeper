@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "engine_class": "relative_multiples",
+  "valuation_method": "relative_multiple_asset_floor",
+  "small_cap_market_cap_ceiling": 300000000,
+  "unstable_market_cap_ceiling": 2000000000,
+  "sector_ev_sales_bands": {
+    "technology": { "low": 1.5, "mid": 3.0, "high": 6.0 },
+    "communication services": { "low": 1.0, "mid": 2.5, "high": 5.0 },
+    "healthcare": { "low": 1.2, "mid": 2.8, "high": 5.5 },
+    "consumer cyclical": { "low": 0.5, "mid": 1.2, "high": 2.5 },
+    "consumer defensive": { "low": 0.6, "mid": 1.3, "high": 2.5 },
+    "industrials": { "low": 0.7, "mid": 1.5, "high": 3.0 },
+    "basic materials": { "low": 0.5, "mid": 1.2, "high": 2.5 },
+    "energy": { "low": 0.5, "mid": 1.2, "high": 2.5 },
+    "utilities": { "low": 1.0, "mid": 2.0, "high": 3.5 },
+    "real estate": { "low": 1.5, "mid": 3.0, "high": 6.0 },
+    "diversified": { "low": 0.7, "mid": 1.5, "high": 3.0 }
+  },
+  "sector_price_book_bands": {
+    "technology": { "low": 1.2, "mid": 2.5, "high": 4.5 },
+    "communication services": { "low": 0.9, "mid": 1.8, "high": 3.5 },
+    "healthcare": { "low": 1.0, "mid": 2.2, "high": 4.0 },
+    "consumer cyclical": { "low": 0.7, "mid": 1.5, "high": 3.0 },
+    "consumer defensive": { "low": 0.9, "mid": 1.8, "high": 3.2 },
+    "industrials": { "low": 0.8, "mid": 1.6, "high": 3.0 },
+    "basic materials": { "low": 0.6, "mid": 1.3, "high": 2.4 },
+    "energy": { "low": 0.6, "mid": 1.2, "high": 2.2 },
+    "utilities": { "low": 0.8, "mid": 1.4, "high": 2.2 },
+    "real estate": { "low": 0.7, "mid": 1.3, "high": 2.2 },
+    "diversified": { "low": 0.8, "mid": 1.6, "high": 3.0 }
+  },
+  "blend_weights": {
+    "ev_sales": 0.6,
+    "price_book": 0.4
+  },
+  "risk_haircut": {
+    "base_pct": 5,
+    "weak_quality_extra_pct": 15,
+    "mixed_quality_extra_pct": 7,
+    "high_leverage_extra_pct": 10,
+    "negative_fcf_extra_pct": 10,
+    "debt_to_equity_threshold": 150,
+    "max_pct": 40
+  },
+  "required_inputs": [
+    "annual revenue with shares outstanding, or book value per share",
+    "current price"
+  ],
+  "model_limitations": [
+    "This is a relative-multiple and asset-floor proxy for small/micro-cap or non-normalizable operating companies, not a discounted-cash-flow valuation.",
+    "Sector multiple bands are static reference ranges, not live peer-group medians; treat the output as a wide, low-confidence band.",
+    "A risk haircut is applied for weak cash-flow quality, high leverage, and negative free cash flow, but the model cannot fully price going-concern, dilution, or covenant risk.",
+    "EV/EBITDA and P/E cross-checks are not applied when EBITDA or earnings are negative or distorted; EV/Sales and Price/Book carry the estimate."
+  ]
+}

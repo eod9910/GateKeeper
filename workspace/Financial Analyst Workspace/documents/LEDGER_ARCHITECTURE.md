@@ -57,6 +57,7 @@ Valuation math:
   - `runValuationEngine`
   - `resolveValuationEngineClass`
   - `runDcfValuationEngine`
+  - `runRelativeMultiplesValuationEngine`
   - `runReitAffoValuationEngine`
   - `runFinancialCompanyValuationEngine`
   - `runSalesScenarioValuationEngine`
@@ -97,8 +98,10 @@ The intended valuation routing is:
 | Company or situation | Engine class | Backend engine | Primary frame |
 |---|---|---|---|
 | Normal operating company | `dcf_operating` | `runDcfValuationEngine` | Operating DCF |
+| Small / micro-cap or non-normalizable operating company | `relative_multiples` | `runRelativeMultiplesValuationEngine` | EV/Sales + Price/Book band with asset floor |
 | REIT / real estate income structure | `reit_affo` | `runReitAffoValuationEngine` | AFFO / FFO / NAV |
-| Bank, insurer, lender, broker, asset manager | `roe_book_value` | `runFinancialCompanyValuationEngine` | ROE / book value |
+| Bank, insurer, lender, balance-sheet broker | `roe_book_value` | `runFinancialCompanyValuationEngine` | ROE / book value |
+| Capital-light asset manager / alternative asset manager / investment adviser | `asset_manager_fre` | `runAssetManagerFreValuationEngine` | FRE / distributable earnings |
 | Pre-profit or unstable cash-flow growth company | `sales_scenario` | `runSalesScenarioValuationEngine` | Revenue scenario / EV-sales |
 | Bankruptcy, restructuring, signed deal, CVR, liquidation, hard event | `special_situation` | `runSpecialSituationValuationEngine` | Event value / post-reorg equity waterfall |
 

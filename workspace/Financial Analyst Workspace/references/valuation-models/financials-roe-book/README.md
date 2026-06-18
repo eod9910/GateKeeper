@@ -1,6 +1,6 @@
 # Financials ROE / Book-Value Valuation
 
-Use this folder for references that teach Ledger how to value banks, insurers, lenders, brokers, asset managers, and other balance-sheet financial companies.
+Use this folder for references that teach Ledger how to value banks, insurers, lenders, balance-sheet brokers, and other balance-sheet financial companies.
 
 ## Primary Anchors
 
@@ -20,3 +20,5 @@ The business model is built around financial assets, liabilities, credit, insura
 ## Do Not Use
 
 Do not use industrial free cash flow as the primary anchor. Debt, deposits, working capital, and operating cash flow mean something different for financial companies.
+
+Do not use this model for capital-light asset managers, alternative asset managers, investment advisers, or capital-markets platforms where book value is not the economic capital base. Those names route to `asset-manager-fre/`.

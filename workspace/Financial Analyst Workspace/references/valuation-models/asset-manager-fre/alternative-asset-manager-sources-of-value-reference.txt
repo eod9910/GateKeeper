@@ -1,0 +1,181 @@
+The valuation of asset management requires specialized knowledge and the application of tailored valuation models. While the core principles of corporate valuation apply to asset management firms, the variation in the corporate structures and business models within the asset management sector make the valuation exercise more difficult. This is particularly applicable to alternative asset management platforms that invest in assets outside of traditional liquid stocks and bonds. Stakeholders in alternative asset management firms receive returns from a combination of reasonably predictable management fees and often highly variable incentive fees tied to the performance of managed assets and fund vehicles. In this research note, we outline the main sources of earnings for alternative asset management companies and discuss techniques for measuring value.
+
+Identifying Earnings Streams for the Management Company
+Given the increasing complexity and diversity of fee structures employed in the alternative asset management industry, valuations of stakes in alternative asset management firms require a commensurate level of discretion in determining the appropriate valuation methodology. In practice, this often requires practitioners to bifurcate the value of the different earnings streams of the business.
+
+Delineating the value attributable to incentive fees and management fees is the recommended approach for typical independent valuation engagements such as estate planning and corporate financial reporting. Additionally, this framework is beneficial for pricing and evaluating market transactions, as it provides a more flexible and robust analysis that enables comparisons across different alternative asset management platforms.
+
+Alternative asset managers have two primary sources of revenue and earnings: 1) revenue and earnings attributable to management fees generated on fee-paying assets under management (AUM), and 2) incentive fees resulting from the performance of the assets managed by the enterprise. We use the term “incentive fees” as a general term for carried interest, incentive allocations, promote structures, or other performance-based payments made to asset managers, and we use the term “fund” as a generalization for any legal entity or investment vehicle that pays fees to the manager. Because the risk-return profiles of management fee and incentive fee earnings can be dramatically different — as incentive fee cash flows are inherently riskier — it is often crucial to determine the relative value contribution separately to derive the value of the asset management enterprise.
+
+Framework for Analyzing Management and Incentive Fee Income
+The starting point for the valuation of an alternative asset manager usually relates to analyzing current and projected revenue streams in the form of management and incentive fees for each underlying fund managed by the enterprise. The strategy, product, and stage of an alternative asset manager’s underlying funds are the primary determinant of the relevant approach. In many cases, expected incentive fees from a fund managed by the asset manager will be either deeply in or out of the money.
+
+For example, a fund at the beginning of its life in the case of a private equity vehicle or a hedge fund with negative historical returns would have out-of-the-money incentive fees. In contrast, a private equity fund that’s already achieved a significant internal rate of return (IRR) over its life or a hedge fund with high annual returns would have in-the-money incentive fees.
+
+The “moneyness” of incentive fees is often a key consideration in terms of the appropriate valuation framework. Similarly, the term to liquidation and expected capital outlay of a fund managed by the enterprise directly influences expected management and incentive fees. For operating alternative investment vehicles with no explicit term to liquidation, or those in early stages, the most appropriate valuation methodology is the discounted cash flow method (DCF method) whereby the expected cash flows of the fund are projected either deterministically or stochastically. The discounted cash flow model inputs are derived from a forecast of performance of the underlying managed funds.
+
+This forecast includes assumptions for seasoned funds, early-stage funds, and potentially funds that are reasonably expected to close or be raised by the asset management platform in future periods. Conversely, a known liquidation horizon in the near-term future may be most appropriately contemplated by an assessment of the net asset value — particularly in the case of accrued incentive fees — attributable to the asset management company.
+
+The table below summarizes the approaches for preparing revenue projections for each underlying fund type managed by an asset management enterprise. 
+
+Strategy
+Private Equity, Private Credit, and Venture Capital Funds
+Hedge Funds
+Product
+Equity
+Debt
+Equity
+Debt
+Incentive Fee Moneyness and Fund Stage
+CONSIDERABLY ITM, LATE STAGE
+
+EARLY-MID STAGE OR OTM
+
+CONSIDERABLY ITM, LATE STAGE
+
+EARLY-MID STAGE OR OTM
+
+ANY MONEYNESS AND STAGE [A]
+
+Incentive Fee Projection Methodology
+Often not necessary if term to liquidation is very short
+Discrete projection of remaining expected management and incentive fees
+Monte Carlo simulation of current/anticipated fund holdings
+Simulation framework captures optionality of incentive fee structure
+Often not necessary if term to liquidation is very short
+Discrete projection of remaining expected management and incentive fees
+Vectorized asset-level cash flow projections with deterministic framework
+Fixed-income cash flows can be simulated, but static income approaches are more often applied given capped returns
+Monte Carlo simulation of fund returns, with correlated redemptions and subscriptions driving fund AUM
+Simulation framework captures upside potential for equity returns
+Vectorized asset-level cash flow projections with deterministic framework
+Fixed income cash flows can be simulated, but static income approaches are more often applied given capped returns
+Management Fee Value
+Often de minimis in comparison to incentive fee value
+Small remaining cash flow stream
+DCF method most applicable
+Driven by assumed capital deployment and fund expense load
+DCF method or application of market multiple
+Often de minimis in comparison to incentive fee value
+Small remaining cash flow stream
+DCF method most applicable
+Driven by assumed capital deployment and fund expense load
+DCF method or application of market multiple
+Driven by assumed capital deployment and fund expense load
+DCF method or application of market multiple
+Driven by assumed capital deployment and fund expense load
+DCF method or application of market multiple
+Incentive Fee Value
+NAV analysis most applicable
+Driven by average returns of holdings of the fund
+DCF method or application of market multiple
+NAV analysis most applicable
+DCF method also appropriate depending on circumstance
+Driven by average returns of holdings of the fund
+DCF method or application of market multiple
+Driven by average returns of holdings of the fund
+DCF method or application of market multiple
+Driven by average returns of holdings of the fund
+DCF method or application of market multiple
+ITM = In-the-Money; OTM = Out-of-the-Money; [A] With the exception of a known liquidation of the fund in questions, moneyness of the incentive fees of a fund does not typically change the applied valuation methodology of a hedge fund strategy.
+
+ 
+
+Sources of Value
+As with most going-concern enterprises, it is necessary to analyze the earnings potential of an alternative asset manager to derive the present value of future cash flows allocable to the equity holders of the business. In general, the separate earnings streams of the business in question can be analyzed by allocating certain expense items to management fee income and incentive fee income separately.
+
+In the case of asset managers with multiple fund products, or those expecting to launch new fund products to grow AUM, it may be necessary to make assumptions regarding the timing and the nature of growth of AUM (prospects for raising and managing new funds).
+
+The chart below provides a general approach for allocating cash flow and business value between the management fee and incentive fee components of an alternative asset manager.
+
+Management Fee Revenue
++
+Incentive Fee Revenue
+=
+Total Revenues
+Drivers
+
+Fund count and type
+Fee-paying AUM
+Ability to raise new fund vehicles
+ 
+
+Profit-sharing structure
+Fund performance
+Asset liquidation/exit
+ 
+
+ 
+
+Expenses Attributable to Management Fees
++
+Expenses Attributable to Incentive Fees
+=
+Total Expenses
+Base compensation and non-incentive bonuses
+Variable costs (e.g., trading expenses, deal fees)
+Other overhead
+ 
+
+Incentive fees allocated to firm employees
+Often 40-70% of fee income for established managers, but heavily facts and circumstances
+ 
+
+ 
+
+Net Management Fee Earnings
++
+Net Inventive Fee Earnings
+=
+Total Net Earnings (EBITDA)
+Earnings allocable to the asset manager's equity holders
+Typically less profitable than blended firm margin
+ 
+
+Earnings allocable to the asset manager's equity holders
+Typically more profitable than blended firm margin
+ 
+
+Blended profitability typically ranging from 25-50%
+Management Fee EV Determination
++
+Incentive Fee EV Determination
+=
+Total EV
+Lower applicable discount rate, higher applicable EV/EBITDA multiple
+Multiple usually applied to LTM (or run-rate) EBITDA
+ 
+
+Higher applicable discount rate, lower applicable EV/EBITDA multiple
+Multiple usually applied to normalized EBITDA or historical average to control for varying returns
+ 
+
+Equal to the sum of the parts
+Total EV/Consolidated EBITDA multiples can also be analyzed, reflecting a blend of the cash flow component risks
+ 
+
+Assessment of Rates of Return and Pricing Multiples
+After determining the expected earnings streams attributable to incentive fees and management fees, these future cash flows should be discounted separately at rates of return commensurate with their risk. In the case of management fees, it is conventional to determine a weighted average cost of capital (WACC) applicable to only the risk of earnings associated with the management fees, utilizing observable inputs for guideline public companies. In this case, the most comparable companies tend to be traditional asset managers that derive most of their revenue from fixed fees as a percentage of AUM.
+
+In selecting comparable companies, additional consideration is given to:
+
+Whether the funds managed by the company are open ended or closed ended (i.e., potential for AUM growth) structures
+Whether the AUM of the company is subject to market fluctuations (e.g., susceptibility to declines in AUM resulting from poor hedge fund performance)
+Diversity of investor base (e.g., limited partner concentration risks)
+Other company-specific factors that increase or decrease risk relative to management fee-only peers
+Due to the inherently riskier nature of incentive fee structures for alternative asset managers, utilizing a traditional WACC build-up is rarely applicable in discounting incentive fee cash flows. For a new fund, incentive fees are typically structured so that the manager must achieve better-than-average or better-than-expected asset returns in order to receive significant performance-based payouts. Incentive fee rates of return are almost always at a premium to the management fee rate of return, as well as the expected return on the underlying assets managed by the company, as they are a derivative on the underlying fund assets.
+
+Of particular importance is to make sure that a discount rate applied to incentive fee income is at least as great as the expected asset level returns that are driving the projected revenue. In no case should the discount rate be lower than the risk of the assets themselves. Appropriately structured incentive fees are therefore similar to out-of-the-money options at initiation, and the management firm is incentivized to deliver returns that are higher than the base case or expected return.
+
+Accordingly, the discount rates applied to incentive fees can be expressed as the sum of 1) asset level expected return and 2) an applicable premium to account for subordination, or relative moneyness, of incentive fees.
+
+In the context of the market approach to value, the applicable market pricing multiples, such as EV/EBITDA, for management fee versus incentive fee income streams also differ due to the applicable risk profiles, with net incentive fee income having a lower multiple due to higher risk. Further, while net management fee income multiples are typically applied to trailing or run-rate results, net incentive fee income multiples may need to be applied to a normalized estimate (e.g., based on a normalized expected rate of return) or a historical average result to account for year-to-year fluctuations.
+
+Lastly, there are many situations wherein incentive fee pricing multiples may not be directly applicable at all, particularly in cases wherein an alternative asset manager is less diversified and may only manage closed-end funds or legacy run-off portfolios. In these cases (typically smaller private equity, private credit, or venture capital managers), the value of net incentive fees is best captured via a discrete income approach that does not ascribe value to the ability to continually raise new funds and maintain AUM fees and performance-based income.
+
+Increasing Demand for Valuations of Alternative Asset Management Firm Stakes
+In this note, we highlighted the specialized approached required to measure the disparate earnings streams for alternative asset management firms. A key step in the valuation process is the projection of incentive fee cash flows, and it requires an understanding of the fund structure and an estimate of the distribution of returns for the underlying assets in each investment vehicle. Fund level returns will therefore vary according to the age of the fund, the historical and future performance of the investment assets, and the structural waterfalls that allocate performance-based payments to the management company. Once the incentive fee cash flows are estimated, these returns must then be discounted at a rate of return which is commensurate with the risks of the underlying assets. Finally, the incentive-based fee income estimates are added to the estimate of the value of projected management fee income, less operating company expenses, to derive the value of the subject alternative asset management firm.
+
+The fair value measurement of alternative asset management companies is increasingly required for multiple stakeholders in these platforms. Specialized funds have developed niche businesses in seeding or providing equity and debt capital to alternative asset management companies. Similarly, institutional investors and other limited partners may request stakes in the asset management company when making an investment in an alternative investment fund. The leadership and portfolio managers of alternative asset management firms often require valuations of management company stakes for management planning, leadership succession, portfolio manager retention and recruitment, and individual financial planning. Lastly, the trend of consolidation is expected to continue for alternative asset managers as gains from scale and product diversification drive increased mergers and acquisitions that require fairness opinions and purchase accounting valuations.
+
+Related Professionals

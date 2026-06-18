@@ -26,6 +26,7 @@ Ledger's active runtime tools are:
 - `dcf-valuation`
   - runtime tool: `run_dcf_valuation`
   - backend engine: valuation dispatcher, usually `dcf_engine`
+  - small/micro-cap or non-normalizable operating companies dispatch to the `relative_multiples` engine (`relative_multiple_asset_floor` method); interpret as a relative-multiple + asset-floor band, not a DCF. See `references/valuation-models/smallcap-relative-multiples/`.
 - `reit-affo-nav-valuation`
   - runtime tool: `run_dcf_valuation`
   - backend engine: `reit_affo_valuation_engine`
@@ -177,7 +178,7 @@ Use this when the user asks for:
 - fair value
 - overvalued vs undervalued judgment
 
-This tool should be treated as the runtime entrypoint for the valuation dispatcher. The name is legacy; it can return a normal DCF, REIT AFFO/NAV valuation, financial-company ROE/book valuation, pre-profit sales scenario, or special-situation valuation depending on the company and hard flags.
+This tool should be treated as the runtime entrypoint for the valuation dispatcher. The name is legacy; it can return a normal DCF, REIT AFFO/NAV valuation, financial-company ROE/book valuation, small/micro-cap relative-multiple valuation, pre-profit sales scenario, or special-situation valuation depending on the company and hard flags.
 
 For REITs, the same runtime tool dispatches to `reit_affo_valuation_engine` and should be interpreted through the `reit-affo-nav-valuation` skill, not as a normal operating-company DCF.
 

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "engine_class": "asset_manager_fre",
+  "valuation_method": "asset_manager_fre_distributable_earnings",
+  "fre_multiple_bands": {
+    "traditional_asset_manager": { "low": 9, "mid": 12, "high": 16 },
+    "alternative_asset_manager": { "low": 14, "mid": 19, "high": 24 },
+    "private_credit_manager": { "low": 13, "mid": 18, "high": 23 },
+    "capital_markets_platform": { "low": 8, "mid": 11, "high": 15 },
+    "diversified": { "low": 12, "mid": 16, "high": 21 }
+  },
+  "carry_multiple_bands": {
+    "traditional_asset_manager": { "low": 1, "mid": 2, "high": 3 },
+    "alternative_asset_manager": { "low": 4, "mid": 7, "high": 10 },
+    "private_credit_manager": { "low": 3, "mid": 5, "high": 8 },
+    "capital_markets_platform": { "low": 1, "mid": 2, "high": 4 },
+    "diversified": { "low": 3, "mid": 5, "high": 8 }
+  },
+  "default_fee_earnings_margin_pct": {
+    "traditional_asset_manager": 28,
+    "alternative_asset_manager": 35,
+    "private_credit_manager": 38,
+    "capital_markets_platform": 22,
+    "diversified": 32
+  },
+  "revenue_growth_multiple_adjustment": {
+    "divisor": 4,
+    "min_delta": -3,
+    "max_delta": 4
+  },
+  "quality_premiums": {
+    "high": 2,
+    "good": 1,
+    "mixed": 0,
+    "weak": -2
+  },
+  "proxy_confidence": {
+    "fre_or_de": "medium",
+    "adjusted_net_income": "medium",
+    "free_cash_flow": "low",
+    "revenue_margin_proxy": "low"
+  },
+  "required_inputs": [
+    "fee-related earnings, distributable earnings, adjusted net income, free cash flow, operating cash flow, or revenue proxy",
+    "shares outstanding",
+    "current price"
+  ],
+  "model_limitations": [
+    "This is a first-pass asset-manager valuation built around fee-related or distributable earnings, not book value.",
+    "When true FRE, distributable earnings, incentive fees, carry, or AUM are missing, the model falls back to generic financial-statement proxies and confidence should stay low.",
+    "Carry and performance fees are cyclical and path-dependent; a static multiple cannot fully value fund marks, realization timing, fundraising cadence, fee-rate compression, or capital-market shutdowns.",
+    "A dedicated peer set and segment-level FRE/carry extraction should replace proxy assumptions once those data points are collected."
+  ]
+}
