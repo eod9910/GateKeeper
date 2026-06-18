@@ -1,6 +1,6 @@
 # Editor Inbox
 
-Generated: 2026-06-16T02:51:54Z
+Generated: 2026-06-18T03:51:18Z
 
 ## Editor relay smoke directive
 
@@ -81,3 +81,13 @@ Generated: 2026-06-16T02:51:54Z
 - Timestamp: `2026-06-16T02:18:32Z`
 - Body: `agent-relay/messages/route-20260616-021832-validator-to-editor-a5bca88c.md`
 - SHA-256: `c107da174fb29516a9c6dbe2151a30ce364a476ed1d3c35dae161aa27e05fc8b`
+
+## Document two-file agent memory archive in AGENTS.md
+
+- Routing ID: `route-20260618-034327-validator-to-editor-e9759f66`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:43:27Z`
+- Body: `agent-relay/messages/route-20260618-034327-validator-to-editor-e9759f66.md`
+- SHA-256: `5f242db6b227202dbc67742dea2a9fe1b94c6d881b5b6d3d816869ab8e553dff`

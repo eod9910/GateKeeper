@@ -5,11 +5,58 @@ When a new agent instance starts work in this repo, read in this order:
 1. `TRI_AGENT_CODING_CONTRACT.md` - establishes Validator/Builder/Editor roles, relay expectations, and conversation framing.
 2. `AGENTS.md` - routes the agent to the correct repo contracts, policies, and folders for the task.
 3. `memory-bank/CODEX_MEMORY_POLICY.md` - explains which memory files are active, trackable, local-only, or read-on-demand.
-4. `memory-bank/CODEX_CONTINUITY.md` - compact current-state bridge for recent goals, directives, open questions, and likely next steps.
-5. Recent transcript window - use `memory-bank/transcripts/codex-session-live.md`, then `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md` for today and the prior one or two days when present.
+4. Continuity bridges - read BOTH `memory-bank/CODEX_CONTINUITY.md` and `memory-bank/CURSOR_CONTINUITY.md` so each agent sees recent goals, directives, open questions, and likely next steps from Codex AND Cursor/Claude work.
+5. Recent transcript windows - use BOTH agent windows so each agent sees what the other did:
+   - Codex: `memory-bank/transcripts/codex-session-live.md`, then `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md` for today and the prior one or two days when present.
+   - Cursor/Claude: `memory-bank/transcripts/cursor-session-live.md`, then `memory-bank/transcripts/cursor/YYYY-MM-DD/latest.md` for today and the prior one or two days when present.
 6. Task-specific contract - read the relevant file below based on the user request.
 
 Do not preload large historical transcript archives by default. Search or open them only for targeted recall.
+
+## Agent Transcript Mirror Startup
+
+Immediately after reading this file, ensure BOTH transcript mirrors are running.
+This is the first action every agent (Codex and Cursor/Claude) takes on boot.
+Use the idempotent launchers below; each checks for an existing PID and starts
+its watcher only when it is not already running, so launching both on every boot
+is safe:
+
+```powershell
+.\tools\start_codex_transcript_mirror.ps1
+.\tools\start_cursor_transcript_mirror.ps1
+```
+
+The Codex mirror keeps `memory-bank/CODEX_CONTINUITY.md`,
+`memory-bank/transcripts/codex-session-live.md`, and the dated latest transcript
+window under `memory-bank/transcripts/codex/YYYY-MM-DD/` current.
+
+The Cursor/Claude mirror keeps `memory-bank/CURSOR_CONTINUITY.md`,
+`memory-bank/transcripts/cursor-session-live.md`, and the dated latest transcript
+window under `memory-bank/transcripts/cursor/YYYY-MM-DD/` current.
+
+Running both keeps the two co-located, source-tagged per-agent archives current,
+so each agent can read what it did AND what the other agent did.
+
+## Agent Memory Archive Layout
+
+Session memory is split across FILES (plural), not one merged file. There are two
+parallel, source-tagged per-agent archives:
+
+- Codex: `memory-bank/CODEX_CONTINUITY.md`,
+  `memory-bank/transcripts/codex-session-live.md`,
+  `memory-bank/transcripts/codex/YYYY-MM-DD/...`
+- Cursor/Claude: `memory-bank/CURSOR_CONTINUITY.md`,
+  `memory-bank/transcripts/cursor-session-live.md`,
+  `memory-bank/transcripts/cursor/YYYY-MM-DD/...`
+
+Each agent's mirror writes ONLY its own archive (one writer per file). They are
+intentionally NOT a single shared file, to avoid concurrent-writer corruption.
+Every agent MUST read BOTH archives at startup so Codex sees Cursor/Claude work
+and vice versa — see the "read BOTH" steps in "Startup Read Order" above.
+
+These per-agent session-memory mirrors are separate from
+`agent-relay/transcripts/all.md`, which is the single merged timeline for
+ROLE/governance handoffs (Validator/Builder/Editor) only.
 
 ## Planning Conventions
 
@@ -28,11 +75,12 @@ Do not preload large historical transcript archives by default. Search or open t
 
 - Before running or creating any backtest, research simulation, parameter sweep, or strategy validation, read `AGENT_OPERATING_CONTRACT.md`.
 - For major coding work, core trading/backtest/research/governance changes, or multi-step refactors, read `TRI_AGENT_CODING_CONTRACT.md` and use `ROUTER_ONLY_PROTOCOL.md` / `tools/agent_router.py` when role handoffs need to be recorded.
+- Fast path (Tier 0/1 only): for tiny docs/config/copy fixes or a normal localized bug fix, the single running agent may act as Builder+Editor inline (no subagents, no full relay) if it freezes intent first, independently verifies against the actual files/diff and compile/test output, and records one combined relay entry. Escalate to full relay the moment scope exceeds Tier 1 or touches core trading/backtest/research/governance. See `TRI_AGENT_CODING_CONTRACT.md`.
 - Backtest routing, approved engines, required artifacts, exploratory research storage, and scratch-work rules live in `AGENT_OPERATING_CONTRACT.md`; do not duplicate those tables here.
 
-## Codex Continuity Memory
+## Agent Continuity Memory
 
-- For continuity-sensitive work, read `memory-bank/CODEX_MEMORY_POLICY.md` and `memory-bank/CODEX_CONTINUITY.md`.
+- For continuity-sensitive work, read `memory-bank/CODEX_MEMORY_POLICY.md`, then BOTH `memory-bank/CODEX_CONTINUITY.md` and `memory-bank/CURSOR_CONTINUITY.md`.
 - For memory archive/cleanup decisions, read `memory-bank/MEMORY_ARCHIVE_POLICY.md`.
 - Detailed transcript retention, local-only mirror folders, and sensitive-memory handling rules live in those memory policy files; `AGENTS.md` only routes agents there.
 

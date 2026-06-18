@@ -1,6 +1,6 @@
 # Agent Relay Transcript: All Phases
 
-Generated: 2026-06-16T02:51:54Z
+Generated: 2026-06-18T03:51:18Z
 
 ## 1. Validator -> Builder: Router smoke test
 
@@ -2007,6 +2007,1590 @@ Builder preserved the Planning Conventions section, including the paired naming 
 ## Builder Result
 
 Builder reports that `AGENTS.md` now explicitly routes a newly instantiated agent through the tri-agent contract first, then memory, then recent transcripts, then task-specific files.
+
+
+---
+
+## 40. Builder -> Validator: AGENTS.md Codex mirror startup builder report
+
+- Routing ID: `route-20260616-030240-builder-to-validator-0224c347`
+- Type: `BUILDER REPORT`
+- Phase: `agents-mirror-startup`
+- Timestamp: `2026-06-16T03:02:40Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-16-agents-mirror-startup-builder-report.md`
+- Body: `agent-relay/messages/route-20260616-030240-builder-to-validator-0224c347.md`
+- SHA-256: `9fea49ff17f3fdcb93208136e86a88c1e1005216b7428e1d92bdaf0fd7b3f15a`
+
+# Builder Report: AGENTS.md Codex Mirror Startup
+
+- Date: 2026-06-16
+- Phase: agents-mirror-startup
+- From: Builder
+- To: Validator
+
+## Scope
+
+Builder updated `AGENTS.md` to make Codex transcript mirror startup a visible
+startup-critical instruction.
+
+## Files Changed
+
+- `AGENTS.md`
+
+## Startup Command Added
+
+```powershell
+.\tools\start_codex_transcript_mirror.ps1
+```
+
+## Verification
+
+Builder ran the startup command from the repository root. It reported:
+
+```text
+Codex transcript mirror already running (PID 13760).
+```
+
+This verifies the launcher is idempotent for the current running mirror process.
+
+## Preserved
+
+Builder preserved the Planning Conventions section and the visible paired
+PRD/checklist naming convention.
+
+## Remaining Concerns
+
+Builder reports no implementation blocker. Editor should review whether the new
+startup instruction is placed clearly and does not duplicate memory policy
+details.
+
+
+---
+
+## 41. Editor -> Validator: AGENTS.md Codex mirror startup editor review
+
+- Routing ID: `route-20260616-030257-editor-to-validator-70cd03b4`
+- Type: `EDITOR REVIEW`
+- Phase: `agents-mirror-startup`
+- Timestamp: `2026-06-16T03:02:57Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-16-agents-mirror-startup-editor-review.md`
+- Body: `agent-relay/messages/route-20260616-030257-editor-to-validator-70cd03b4.md`
+- SHA-256: `85f34847cdd63ea97a32717d60f26a9ee3df16093030430f74c46324b81723a4`
+
+# Editor Review: AGENTS.md Codex Mirror Startup
+
+- Date: 2026-06-16
+- Phase: agents-mirror-startup
+- From: Editor
+- To: Validator
+
+## Review Scope
+
+Editor reviewed the `AGENTS.md` addition requiring agents to ensure the Codex
+transcript mirror is running at startup.
+
+## Findings
+
+### Accepted
+
+Editor accepts the placement directly after the Startup Read Order. This makes
+the mirror startup instruction visible before task-specific routing begins.
+
+Editor accepts using the existing launcher:
+
+```powershell
+.\tools\start_codex_transcript_mirror.ps1
+```
+
+The launcher already checks the PID file and exits without starting a duplicate
+when the mirror is running.
+
+Editor accepts the short description of the generated continuity files because
+it explains why the startup command matters without duplicating the full memory
+policy.
+
+### Preserved
+
+Editor verified the Planning Conventions section remains visible after the new
+startup block.
+
+## Review Result
+
+Editor accepts the AGENTS.md Codex mirror startup update.
+
+No Editor blocker remains for this phase.
+
+
+---
+
+## 42. Validator -> Builder: Add Codex mirror startup to AGENTS.md
+
+- Routing ID: `route-20260616-030320-validator-to-builder-fb0b4a6c`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agents-mirror-startup`
+- Timestamp: `2026-06-16T03:03:20Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-16-builder-agents-mirror-startup.md`
+- Body: `agent-relay/messages/route-20260616-030320-validator-to-builder-fb0b4a6c.md`
+- SHA-256: `114c6549f4da8ba1402f5b1db212698c9fc324b4fec3d744780ed3e83174e647`
+
+# Validator Directive: Add Codex Mirror Startup To AGENTS.md
+
+- Date: 2026-06-16
+- Phase: agents-mirror-startup
+- From: Validator
+- To: Builder
+- Work tier: Tier 2 governance/continuity infrastructure
+
+## Mediator Decision
+
+The Mediator directed that `AGENTS.md` must tell every newly instantiated agent
+to ensure the Codex transcript mirror is running immediately after reading the
+startup instructions.
+
+## Required Work
+
+Update `AGENTS.md` so startup instructions explicitly require the agent to:
+
+- check whether the Codex transcript mirror is already running;
+- start it if it is not running;
+- use the existing idempotent launcher:
+
+```powershell
+.\tools\start_codex_transcript_mirror.ps1
+```
+
+The instruction must be startup-critical and visible near the Startup Read
+Order section.
+
+## Constraints
+
+- Do not duplicate transcript retention policy details already owned by
+  `memory-bank/CODEX_MEMORY_POLICY.md`.
+- Do not change mirror implementation behavior.
+- Preserve the planning naming convention visibility in `AGENTS.md`.
+- Keep the edit concise and ASCII-safe.
+
+## Required Builder Report
+
+Report:
+
+- files changed;
+- exact startup command added;
+- verification performed;
+- any remaining concerns for Editor.
+
+
+---
+
+## 43. Validator -> Builder: Create agent memory bootstrap guide
+
+- Routing ID: `route-20260616-030827-validator-to-builder-af80dd05`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:08:27Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-16-builder-agent-memory-bootstrap-guide.md`
+- Body: `agent-relay/messages/route-20260616-030827-validator-to-builder-af80dd05.md`
+- SHA-256: `e6f2b36de5ea30643e7e2c043093f905ddf5303e58dab163477d471bea77a33e`
+
+# Validator Directive: Create Agent Memory Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Validator
+- To: Builder
+- Work tier: Tier 1 documentation/governance portability
+
+## Mediator Request
+
+The Mediator wants a report that tells Codex how to implement this transcript
+memory/startup pattern in other repositories.
+
+## Required Work
+
+Create a new self-contained folder with an implementation guide for other repos.
+The guide must explain, step by step:
+
+- the purpose of the system;
+- what files/folders are necessary;
+- how to add transcript mirror startup to `AGENTS.md`;
+- how to start/check the mirror process;
+- what memory files should be read at startup;
+- what should be tracked versus ignored;
+- how to verify the setup;
+- how to adapt the pattern for repos that do or do not use the Tri-Agent
+  contract.
+
+## Constraints
+
+- Do not modify mirror implementation scripts for this task.
+- Do not move existing memory files.
+- Keep the report portable and direct enough for another Codex instance to
+  follow.
+- Avoid assuming every repo has this repo's exact governance structure.
+
+## Required Builder Report
+
+Report:
+
+- file(s) created;
+- key implementation instructions included;
+- verification performed;
+- any limitations or follow-up recommendations.
+
+
+---
+
+## 44. Builder -> Validator: Agent memory bootstrap guide builder report
+
+- Routing ID: `route-20260616-030832-builder-to-validator-49e354ee`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:08:32Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-16-agent-memory-bootstrap-guide-builder-report.md`
+- Body: `agent-relay/messages/route-20260616-030832-builder-to-validator-49e354ee.md`
+- SHA-256: `25b8cd501958d48fee346cee5b9ddcc8bbf4e2f969e63842f8701f19778b1544`
+
+# Builder Report: Agent Memory Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Builder
+- To: Validator
+
+## Files Created
+
+- `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
+
+## Key Instructions Included
+
+Builder included step-by-step guidance for implementing the Codex transcript
+memory pattern in another repo:
+
+- target startup behavior;
+- required files and folders;
+- tracking policy for compact memory versus raw mirrors;
+- mirror script requirements;
+- `AGENTS.md` startup read order;
+- `AGENTS.md` mirror startup block;
+- memory policy expectations;
+- continuity file expectations;
+- recent transcript window expectations;
+- verification commands;
+- Tri-Agent integration guidance;
+- common failure modes;
+- minimum portable checklist.
+
+## Verification
+
+Builder checked that the guide contains the startup command:
+
+```powershell
+.\tools\start_codex_transcript_mirror.ps1
+```
+
+Builder also checked that the guide includes the required sections for
+`AGENTS.md`, tracking policy, verification, and Tri-Agent integration.
+
+## Remaining Concerns
+
+Builder did not copy the mirror scripts into the new folder. The guide tells
+other repos to copy or implement the launcher trio from the source repo. If the
+Mediator wants a fully portable bundle, a follow-up task should add template
+scripts under `agent-memory-bootstrap/templates/`.
+
+
+---
+
+## 45. Editor -> Validator: Agent memory bootstrap guide editor review
+
+- Routing ID: `route-20260616-030845-editor-to-validator-aac42eaa`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:08:45Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-16-agent-memory-bootstrap-guide-editor-review.md`
+- Body: `agent-relay/messages/route-20260616-030845-editor-to-validator-aac42eaa.md`
+- SHA-256: `d34cf34bd8e8143d9428882b804f37cdf6c2f794ff8ed9a91baab0505e6456ac`
+
+# Editor Review: Agent Memory Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Editor
+- To: Validator
+
+## Review Scope
+
+Editor reviewed `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` as a portable
+implementation report for other repositories.
+
+## Findings
+
+### Accepted
+
+Editor accepts the new folder and single-guide structure. It is easy to copy,
+search, and hand to another Codex instance.
+
+Editor accepts the guide's order:
+
+1. target behavior;
+2. required files;
+3. tracking policy;
+4. mirror scripts;
+5. `AGENTS.md` startup blocks;
+6. memory/continuity files;
+7. verification;
+8. Tri-Agent adaptation.
+
+Editor accepts the distinction between repos that use Tri-Agent governance and
+repos that only need the practical startup/memory pattern.
+
+### Non-Blocking Follow-Up
+
+The guide currently tells other repos to copy or implement the mirror script
+trio, but it does not include template scripts inside
+`agent-memory-bootstrap/templates/`. That is acceptable for a report, but a
+future portability pass could add templates.
+
+## Review Result
+
+Editor accepts the guide.
+
+No Editor blocker remains for this phase.
+
+
+---
+
+## 46. Validator -> Builder: Add router copy to memory bootstrap guide
+
+- Routing ID: `route-20260616-031253-validator-to-builder-0ce6c4b7`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:12:53Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-16-builder-add-router-copy-to-memory-guide.md`
+- Body: `agent-relay/messages/route-20260616-031253-validator-to-builder-0ce6c4b7.md`
+- SHA-256: `66bd62011d526a38acf6fddfeac83e3014870c65d07de5affae71c2be3e58046`
+
+# Validator Directive: Add Router Copy To Memory Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Validator
+- To: Builder
+- Work tier: Tier 1 documentation/governance portability
+
+## Mediator Request
+
+The Mediator noted that the bootstrap guide must include the router itself, not
+only mention that a router is needed.
+
+## Required Work
+
+Update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` so it contains a
+portable copy of the Agent Relay router that another Codex instance can place at
+`tools/agent_router.py`.
+
+The guide must also explain:
+
+- where to put the router file;
+- what relay folders it expects;
+- the core commands to route, verify, regenerate, and create transcripts;
+- that route commands should not be run in parallel.
+
+## Constraints
+
+- Keep the router copy inside the guide file.
+- Do not modify the live `tools/agent_router.py` implementation for this task.
+- Keep the guide portable for repos that do not use Pattern Detector's exact
+  folder layout.
+
+## Required Builder Report
+
+Report:
+
+- guide section added;
+- commands documented;
+- checklist updates;
+- verification performed.
+
+
+---
+
+## 47. Builder -> Validator: Router copy added to memory bootstrap guide
+
+- Routing ID: `route-20260616-031300-builder-to-validator-f0607cbe`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:13:00Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-16-agent-memory-bootstrap-router-copy-builder-report.md`
+- Body: `agent-relay/messages/route-20260616-031300-builder-to-validator-f0607cbe.md`
+- SHA-256: `119b189a13dbdd86cfce425d0b8a42c36946c2037c90bb954bbcbbcc6a805749`
+
+# Builder Report: Add Router Copy To Memory Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Builder
+- To: Validator
+
+## File Updated
+
+- `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
+
+## Guide Section Added
+
+Builder added `## 11. Portable Router Copy`.
+
+The new section includes:
+
+- where to place the router: `tools/agent_router.py`;
+- the relay folder structure expected by the router;
+- core router commands for `routes`, `route`, `inbox`, `verify`,
+  `regenerate`, and `transcript`;
+- an explicit warning not to route messages in parallel;
+- a drop-in Python router implementation inside the guide.
+
+## Checklist Updates
+
+Builder updated the minimum portable checklist so Tri-Agent repos must add
+`tools/agent_router.py` from the guide's portable router copy.
+
+## Verification
+
+Builder checked:
+
+- the guide contains the new `Portable Router Copy` section;
+- the guide documents `tools/agent_router.py`;
+- the guide includes router commands;
+- the guide includes the non-parallel route warning;
+- the Python code fence closes before the Common Failure Modes section.
+
+## Remaining Concerns
+
+Builder reports no blocker. Editor should review whether embedding the router
+in the guide is clear enough for another Codex instance to implement.
+
+
+---
+
+## 48. Editor -> Validator: Router copy in memory bootstrap guide editor review
+
+- Routing ID: `route-20260616-031313-editor-to-validator-52ed582f`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:13:13Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-16-agent-memory-bootstrap-router-copy-editor-review.md`
+- Body: `agent-relay/messages/route-20260616-031313-editor-to-validator-52ed582f.md`
+- SHA-256: `76d63aaf28af2045cfcb2527521ff4d28d4fd349b84c64fcdeea4d2f9ec2e3df`
+
+# Editor Review: Router Copy In Memory Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Editor
+- To: Validator
+
+## Review Scope
+
+Editor reviewed the updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
+after Builder embedded a portable router copy.
+
+## Findings
+
+### Accepted
+
+Editor accepts adding `## 11. Portable Router Copy`. The guide now gives another
+Codex instance enough material to create `tools/agent_router.py` instead of only
+mentioning that a router exists.
+
+Editor accepts the documented relay folder layout and command list.
+
+Editor accepts the explicit warning not to route messages in parallel. That
+warning is important because the router appends to a JSONL route log and
+regenerates derived views after each route.
+
+Editor accepts the checklist update requiring Tri-Agent repos to add
+`tools/agent_router.py` from the guide.
+
+## Review Result
+
+Editor accepts the router-copy update.
+
+No Editor blocker remains for this phase.
+
+
+---
+
+## 49. Validator -> Builder: Add transcript mirror scripts to bootstrap guide
+
+- Routing ID: `route-20260616-032041-validator-to-builder-9be4376a`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:20:41Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-16-builder-add-transcript-scripts-to-memory-guide.md`
+- Body: `agent-relay/messages/route-20260616-032041-validator-to-builder-9be4376a.md`
+- SHA-256: `4cd3c126c6f79e709acf5dd65084f9da2546810e6c5ccb2ef01c8dc4428387f6`
+
+# Validator Directive: Add Transcript Mirror Scripts To Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Validator
+- To: Builder
+- Work tier: Tier 1 documentation/governance portability
+
+## Mediator Request
+
+The Mediator wants the bootstrap package to include the scripts necessary to
+record transcript memory, not only instructions that such scripts exist.
+
+## Required Work
+
+Update the `agent-memory-bootstrap` package so it includes portable copies of
+the Codex transcript mirror scripts:
+
+- `codex_transcript_mirror.py`
+- `codex_transcript_memory.py`
+- `start_codex_transcript_mirror.ps1`
+- `stop_codex_transcript_mirror.ps1`
+
+Update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` to explain:
+
+- where to copy these scripts in a target repo;
+- how to run a one-shot transcript recording pass;
+- how to start continuous transcript recording;
+- how to stop continuous transcript recording;
+- which memory files the scripts generate;
+- how to verify transcripts are being recorded.
+
+## Constraints
+
+- Do not modify the live mirror implementation in `tools/`.
+- Keep copied scripts under the bootstrap folder as templates.
+- Keep instructions clear for a new Codex instance implementing this in another
+  repo.
+
+## Required Builder Report
+
+Report:
+
+- template files added;
+- guide sections updated;
+- verification performed;
+- any limitations or assumptions.
+
+
+---
+
+## 50. Builder -> Validator: Transcript mirror scripts added to bootstrap guide
+
+- Routing ID: `route-20260616-032045-builder-to-validator-7276491f`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:20:45Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-16-agent-memory-bootstrap-transcript-scripts-builder-report.md`
+- Body: `agent-relay/messages/route-20260616-032045-builder-to-validator-7276491f.md`
+- SHA-256: `c23e181fbda26e5108f84dcfc6418a7fa05b0383210943494305c4500b29ec89`
+
+# Builder Report: Add Transcript Mirror Scripts To Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Builder
+- To: Validator
+
+## Template Files Added
+
+Builder added portable transcript recording templates under:
+
+```text
+agent-memory-bootstrap/templates/tools/
+```
+
+Files added:
+
+- `agent-memory-bootstrap/templates/tools/codex_transcript_memory.py`
+- `agent-memory-bootstrap/templates/tools/codex_transcript_mirror.py`
+- `agent-memory-bootstrap/templates/tools/start_codex_transcript_mirror.ps1`
+- `agent-memory-bootstrap/templates/tools/stop_codex_transcript_mirror.ps1`
+
+## Guide Updates
+
+Builder updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` with:
+
+- source and destination paths for the transcript mirror scripts;
+- a one-shot transcript recording command;
+- continuous watcher start and stop commands;
+- the generated memory/transcript file list;
+- verification expectations for one-shot and watched recording;
+- checklist items for `codex_transcript_memory.py` and the one-shot recording
+  verification.
+
+## Verification
+
+Builder ran:
+
+```powershell
+python -m py_compile agent-memory-bootstrap\templates\tools\codex_transcript_memory.py agent-memory-bootstrap\templates\tools\codex_transcript_mirror.py
+```
+
+The Python templates compiled successfully. Builder removed the generated
+`__pycache__` folder after verification so the bootstrap package contains only
+intentional template files.
+
+## Remaining Concerns
+
+Builder reports no blocker. Editor should review whether the transcript
+recording instructions are clear enough for another Codex instance to install
+and verify in a different repository.
+
+
+---
+
+## 51. Editor -> Validator: Transcript scripts in memory bootstrap guide editor review
+
+- Routing ID: `route-20260616-032058-editor-to-validator-42b690b3`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:20:58Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-16-agent-memory-bootstrap-transcript-scripts-editor-review.md`
+- Body: `agent-relay/messages/route-20260616-032058-editor-to-validator-42b690b3.md`
+- SHA-256: `65565d215e6ae465732fc14f660dd9752cf64f0a338c3fb72896e7e9f7672f46`
+
+# Editor Review: Transcript Scripts In Memory Bootstrap Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Editor
+- To: Validator
+
+## Review Scope
+
+Editor reviewed the bootstrap guide and template script additions for transcript
+recording portability.
+
+## Findings
+
+### Accepted
+
+Editor accepts adding `agent-memory-bootstrap/templates/tools/` with:
+
+- `codex_transcript_memory.py`
+- `codex_transcript_mirror.py`
+- `start_codex_transcript_mirror.ps1`
+- `stop_codex_transcript_mirror.ps1`
+
+Editor accepts the guide's new `Recording Transcript Memory` section. It now
+documents one-shot recording, continuous recording, stopping the watcher,
+generated output files, and verification expectations.
+
+Editor accepts documenting `codex_transcript_memory.py` as required. Without it,
+the mirror script would fail on import.
+
+Editor accepts the checklist update requiring one-shot recording verification.
+
+## Review Result
+
+Editor accepts the transcript script additions.
+
+No Editor blocker remains for this phase.
+
+
+---
+
+## 52. Validator -> Builder: Add router workflow guide
+
+- Routing ID: `route-20260616-042943-validator-to-builder-3a9a83d0`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T04:29:43Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-16-builder-add-router-workflow-guide.md`
+- Body: `agent-relay/messages/route-20260616-042943-validator-to-builder-3a9a83d0.md`
+- SHA-256: `ae713ce08d546410d167abf5eb16f193b3d46cb340e503fffe6cdf0010c1d32b`
+
+# Validator Directive: Add Router Workflow Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Validator
+- To: Builder
+- Work tier: Tier 1 documentation/governance portability
+
+## Mediator Request
+
+The Mediator wants the new repo to know exactly how Pattern Detector generates
+`agent-relay/transcripts/all.md` and the per-phase relay transcripts.
+
+## Required Work
+
+Create a dedicated guide under `agent-memory-bootstrap/` that explains:
+
+- all files and folders required for router-based conversations;
+- how role source files become routed message copies;
+- how `routes.jsonl` drives `INBOX.md`, per-phase transcripts, and `all.md`;
+- exact commands for Validator directives, Builder reports, and Editor reviews;
+- how to regenerate and verify;
+- how to debug missing `all.md` output;
+- what files the Mediator should copy into another repo.
+
+Also update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` to point to the
+new router workflow guide.
+
+## Constraints
+
+- Keep the guide usable by a fresh Codex instance in a different repository.
+- Do not assume the target repo already has working relay folders.
+- Mention that route commands must be run one at a time.
+
+## Required Builder Report
+
+Report:
+
+- files created or updated;
+- key setup instructions added;
+- verification performed;
+- remaining concerns.
+
+
+---
+
+## 53. Builder -> Validator: Router workflow guide builder report
+
+- Routing ID: `route-20260616-042948-builder-to-validator-a3797a08`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T04:29:48Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-16-router-workflow-guide-builder-report.md`
+- Body: `agent-relay/messages/route-20260616-042948-builder-to-validator-a3797a08.md`
+- SHA-256: `b7ed0e654a1f40f0e441aa09ac46431823dcd74d433120987507d2ffa8e3702a`
+
+# Builder Report: Router Workflow Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Builder
+- To: Validator
+
+## Files Created Or Updated
+
+- Created `agent-memory-bootstrap/ROUTER_WORKFLOW.md`
+- Updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
+- Repaired `tools/agent_router.py` line 1 so the live router runs again
+
+## Key Setup Instructions Added
+
+Builder documented:
+
+- files and folders required in a new repo;
+- how role source files become routed message copies;
+- how `agent-relay/router/routes.jsonl` drives role inboxes, phase transcripts,
+  and `agent-relay/transcripts/all.md`;
+- exact route commands for Validator directives, Builder reports, Editor
+  reviews, and optional Validator rulings;
+- `regenerate`, `transcript`, `inbox`, and `verify` commands;
+- how to debug missing or incomplete `all.md`;
+- the distinction between Agent Relay conversations and Codex transcript memory.
+
+## Verification
+
+Builder verified:
+
+- `python tools\agent_router.py --help` works after repairing line 1;
+- `python -m py_compile tools\agent_router.py` passes;
+- `agent-memory-bootstrap/ROUTER_WORKFLOW.md` contains `all.md`, `routes.jsonl`,
+  `agent-relay/messages/`, `route --phase`, `regenerate`, and `verify`
+  instructions;
+- the main implementation guide points to `agent-memory-bootstrap/ROUTER_WORKFLOW.md`.
+
+## Remaining Concerns
+
+Builder reports no blocker. Editor should review whether the new guide is clear
+enough for a fresh Codex instance to make `all.md` work in another repo.
+
+
+---
+
+## 54. Editor -> Validator: Router workflow guide editor review
+
+- Routing ID: `route-20260616-043004-editor-to-validator-b59a444f`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T04:30:04Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-16-router-workflow-guide-editor-review.md`
+- Body: `agent-relay/messages/route-20260616-043004-editor-to-validator-b59a444f.md`
+- SHA-256: `ad9ca93f963d3ee070d217e800b3a296b417ca3dacc5aade967cfa5ef0bbf4c0`
+
+# Editor Review: Router Workflow Guide
+
+- Date: 2026-06-16
+- Phase: agent-memory-bootstrap-guide
+- From: Editor
+- To: Validator
+
+## Review Scope
+
+Editor reviewed `agent-memory-bootstrap/ROUTER_WORKFLOW.md` and the pointer
+added to `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`.
+
+## Findings
+
+### Accepted
+
+Editor accepts the new dedicated router workflow guide. It clearly explains
+that `all.md` is generated from routed role messages, not ordinary chat
+transcripts.
+
+Editor accepts the required file/folder list for a new repo.
+
+Editor accepts the exact command sequence for:
+
+- Validator directives;
+- Builder reports;
+- Editor reviews;
+- optional Validator rulings;
+- `regenerate`;
+- `transcript`;
+- `verify`.
+
+Editor accepts the debugging section for incomplete `all.md`, especially the
+checks for `routes.jsonl`, copied message bodies, and hash verification.
+
+Editor accepts the warning not to route messages in parallel.
+
+## Review Result
+
+Editor accepts the router workflow guide.
+
+No Editor blocker remains for this phase.
+
+
+---
+
+## 55. Validator -> Builder: Unify agent transcript mirrors + AGENTS.md startup
+
+- Routing ID: `route-20260618-031504-validator-to-builder-8c846aa2`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:15:04Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-17-mirror-unification.md`
+- Body: `agent-relay/messages/route-20260618-031504-validator-to-builder-8c846aa2.md`
+- SHA-256: `8a48e9d4ffb22f224d2a8de978b08a83a0f65eb9cad6bab29024d066f37bb448`
+
+# Validator Directive — Unify Agent Transcript Mirrors + AGENTS.md Startup
+
+- Date: 2026-06-17
+- Phase: agent-memory-mirror-unification
+- From: Validator
+- To: Builder
+- Tier: 2 (governance + tooling, multi-step)
+- Type: EXECUTION DIRECTIVE
+
+## Goal (User/Mediator)
+
+Make every agent (Codex and Cursor/Claude) boot from one synchronized governance
+file, spin up BOTH transcript mirrors first thing, and write their transcripts
+into one shared, source-tagged archive so each agent can read what it did AND
+what the other agent did.
+
+## Frozen Requirements
+
+R1. Single startup source of truth.
+- Every agent bootstrap file (`CLAUDE.md`, and any Cursor/Codex-specific
+  startup file if one exists) must be a thin router to `AGENTS.md`.
+- No duplicated governance content in bootstrap files. Confirm `CLAUDE.md`
+  already routes; fix any bootstrap that does not.
+
+R2. Mirrors spin first, for every agent.
+- `AGENTS.md` "Codex Transcript Mirror Startup" section must be generalized so
+  startup idempotently launches BOTH mirrors as the first action:
+  - `tools/start_codex_transcript_mirror.ps1`
+  - `tools/start_cursor_transcript_mirror.ps1`
+- Both launchers are already idempotent (PID-guarded); starting both on every
+  boot is safe.
+
+R3. One shared, source-tagged transcript store.
+- The Cursor/Claude mirror must write durable outputs into the SAME tracked
+  layout under `memory-bank/transcripts/` that Codex uses, tagged source=cursor:
+  - `memory-bank/transcripts/cursor/YYYY-MM-DD/latest.md`
+  - `memory-bank/transcripts/cursor/YYYY-MM-DD/YYYY-MM-DD-HHMMSS-<thread>.md`
+  - `memory-bank/transcripts/cursor/YYYY-MM-DD/.snapshot-manifest.json`
+  - keep `memory-bank/CURSOR_CONTINUITY.md` and
+    `memory-bank/transcripts/cursor-session-live.md` current.
+- Use `tools/codex_transcript_mirror.py` as the reference implementation for
+  layout, naming, and durable-snapshot cadence. Mirror its structure; do not
+  invent a new scheme.
+
+R4. Cross-agent visibility in the startup read order.
+- `AGENTS.md` startup read order must have each agent read BOTH continuity files
+  (`CODEX_CONTINUITY.md` and `CURSOR_CONTINUITY.md`) and both recent transcript
+  windows (codex + cursor), so Codex sees Cursor's work and vice versa.
+
+R5. Memory policy coverage.
+- Update `memory-bank/CODEX_MEMORY_POLICY.md` (or add a parallel section) so the
+  new cursor dated snapshots are covered by the same trackable/naming/sensitive
+  handling rules already applied to the codex snapshots.
+
+R6. No regressions.
+- Do not change existing Codex mirror behavior or output.
+- Preserve `.gitignore` rules for `offline-*-transcripts-*/` raw mirrors.
+
+## Process Constraints
+
+- GitNexus: run impact analysis before editing any indexed symbol; note if a
+  tool/script is not indexed.
+- Builder writes a report to
+  `agent-relay/roles/Builder/reports/2026-06-17-mirror-unification-builder-report.md`
+  listing every file changed, assumptions, and limitations. Builder does NOT
+  certify its own work.
+- Editor then reviews for duplication/clarity/behavior drift and writes
+  `agent-relay/roles/Editor/reports/2026-06-17-mirror-unification-editor-review.md`.
+- Validator verifies scope (git status / gitnexus detect_changes), routes all
+  messages through `tools/agent_router.py` one at a time, and returns the
+  decision to the User/Mediator.
+
+## Acceptance Criteria
+
+- `CLAUDE.md` (and peers) route to `AGENTS.md`; no duplicate governance.
+- `AGENTS.md` startup starts both mirrors idempotently, first.
+- Cursor dated snapshots appear under `memory-bank/transcripts/cursor/`.
+- Startup read order references both continuity files + both transcript windows.
+- Memory policy covers cursor snapshots.
+- Codex mirror behavior unchanged; offline raw mirrors still git-ignored.
+
+
+---
+
+## 56. Builder -> Validator: Mirror unification builder report
+
+- Routing ID: `route-20260618-032050-builder-to-validator-4fdf8daf`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:20:50Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-17-mirror-unification-builder-report.md`
+- Body: `agent-relay/messages/route-20260618-032050-builder-to-validator-4fdf8daf.md`
+- SHA-256: `9d3e551ae272eb0c8634dd97cb83d6c90274b4b81d330a41b86bcd6345721e3e`
+
+# Builder Report — Mirror Unification + AGENTS.md Startup
+
+- Date: 2026-06-17
+- Phase: agent-memory-mirror-unification
+- From: Builder
+- To: Validator (for routing) / Editor (for review)
+- Directive: `agent-relay/roles/Validator/directives/2026-06-17-mirror-unification.md`
+- Tier: 2 (governance + tooling, multi-step)
+
+> I am NOT certifying this work. The Editor and Validator review and decide.
+
+## Files Changed
+
+1. `tools/cursor_transcript_mirror.py` — (R3) Cursor mirror now also writes durable,
+   source-tagged dated snapshots into the same tracked layout Codex uses:
+   `memory-bank/transcripts/cursor/YYYY-MM-DD/latest.md`,
+   `.../YYYY-MM-DD-HHMMSS-<thread>.md`, and `.../.snapshot-manifest.json`. Added the
+   `datetime` import, snapshot cadence constants, and helpers ported from
+   `codex_transcript_mirror.py` (`write_text_if_changed`, `sanitize_filename`,
+   `should_write_dated_snapshot`, `update_snapshot_manifest`) plus cursor-specific
+   `epoch_ms_to_datetime` and `cursor_snapshot_identity`. The existing
+   `memory-bank/CURSOR_CONTINUITY.md` and `memory-bank/transcripts/cursor-session-live.md`
+   writes are preserved unchanged in behavior.
+
+2. `AGENTS.md` — (R2) Renamed/generalized the "Codex Transcript Mirror Startup" section to
+   "Agent Transcript Mirror Startup"; the documented first boot action now idempotently
+   launches BOTH `tools/start_codex_transcript_mirror.ps1` AND
+   `tools/start_cursor_transcript_mirror.ps1` (both launchers are PID-guarded).
+   (R4) Startup Read Order now has each agent read BOTH continuity files
+   (`CODEX_CONTINUITY.md` + `CURSOR_CONTINUITY.md`) and BOTH recent transcript windows
+   (codex + cursor live + dated `latest.md`). Also generalized the "Codex Continuity Memory"
+   routing section to "Agent Continuity Memory" pointing at both continuity files.
+
+3. `memory-bank/CODEX_MEMORY_POLICY.md` — (R5) Trackable Memory, Naming Convention, and
+   Handling Rules now cover the new cursor dated snapshots
+   (`memory-bank/transcripts/cursor/YYYY-MM-DD/...`) under the same trackable/naming/
+   sensitive-handling rules as the codex snapshots. Notes the two mirrors share identical
+   layout/cadence, differing only by the source-tagged `codex/` vs `cursor/` subfolder.
+
+## What I Verified
+
+- `python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror.py', doraise=True)"`
+  → `OK cursor`. Codex mirror also re-compiled → `OK codex`. Exit code 0.
+- Editor/IDE linter on `tools/cursor_transcript_mirror.py` → no linter errors.
+- Did NOT run the mirrors or any watcher (per constraints). No runtime/output verification of
+  produced snapshot files was performed.
+
+## R1 Finding (no change made)
+
+- `CLAUDE.md` is already a thin router to `AGENTS.md` with no duplicated governance — left as-is
+  (no gratuitous rewrite). No other agent bootstrap files were found
+  (`.cursorrules`, `CODEX.md`, `CURSOR.md`, `.github/copilot-instructions.md` — none exist).
+
+## R6 Finding (no change needed)
+
+- `.gitignore` already ignores `offline-cursor-transcripts-*/` and `offline-codex-transcripts-*/`
+  (lines 17–18). Left unchanged.
+- `tools/codex_transcript_mirror.py` was NOT modified; codex behavior/output is preserved.
+
+## Assumptions Made
+
+- For the cursor dated-snapshot identity I reused the active Cursor composer: filename slug from
+  the composer `name` (sanitized), and the manifest key base from `composerId` (falling back to the
+  workspace path string when no composer is found). Codex keys snapshots by session id; Cursor has no
+  session-id equivalent, so composerId is the closest stable analog.
+- The snapshot timestamp/date uses `mirror-metadata.json`'s `mirrored_at_epoch_ms` when present,
+  else `datetime.now()`. This determines the `YYYY-MM-DD` folder and the `HHMMSS` stamp.
+- The dated snapshot content is the same `cursor-session-live.md` transcript text (parallel to how
+  the codex mirror writes the same `snapshot_text` to both the live file and the dated snapshot).
+- Snapshot cadence constants match codex exactly (6h min interval / 100k char delta).
+
+## Limitations / Risks (for the Editor to focus on)
+
+- Helper duplication: the cadence helpers are copied into `cursor_transcript_mirror.py` rather than
+  shared. Codex imports its summary helpers from `codex_transcript_memory.py`; the cursor mirror keeps
+  its own inline copies (pre-existing pattern). A shared module would reduce duplication but would be
+  a larger refactor and risks touching the codex path — intentionally avoided to honor R6.
+- Behavior parity is verified only by compile + lint, not by an actual mirror run. Snapshot key/slug
+  derivation from composer data is unverified against live Cursor storage shape.
+- I used `epoch_ms_to_datetime` for the snapshot date; if `mirrored_at_epoch_ms` is missing the folder
+  date falls back to the local run time, which can differ from the conversation's actual day (codex
+  derives its date from the session `updated_at`).
+- I did not change `write_memory_bank_views`'s existing continuity/live writes to use
+  `write_text_if_changed`; they still use direct `write_text` to avoid behavior drift. The new dated
+  snapshots do use `write_text_if_changed` (matching codex).
+
+## Intentionally NOT Done
+
+- Did not rewrite `CLAUDE.md` (already compliant).
+- Did not modify `tools/codex_transcript_mirror.py`, `codex_transcript_memory.py`, or the codex
+  output layout.
+- Did not modify `.gitignore` (offline raw-mirror ignores already present).
+- Did not run mirrors/watchers, did not commit, did not route relay messages.
+- GitNexus: these are Python tooling/mirror scripts and the edited docs are governance markdown; they
+  are not application symbols in the indexed call graph, so no `gitnexus_impact` was run. If the
+  Validator wants, `gitnexus_detect_changes` can confirm scope at review time.
+
+## Certification
+
+I am the Builder. I do NOT certify this work. Editor reviews for duplication/clarity/behavior drift;
+Validator verifies scope and routes the decision.
+
+
+---
+
+## 57. Editor -> Validator: Mirror unification editor review
+
+- Routing ID: `route-20260618-032606-editor-to-validator-fa191665`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:26:06Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-17-mirror-unification-editor-review.md`
+- Body: `agent-relay/messages/route-20260618-032606-editor-to-validator-fa191665.md`
+- SHA-256: `5965686c7a615e4cdfe509bb2d9c2937b2809146c03fa76dd51c080295b03a7c`
+
+# Editor Review — Mirror Unification + AGENTS.md Startup
+
+- Date: 2026-06-17
+- Phase: agent-memory-mirror-unification
+- From: Editor
+- To: Validator
+- Directive: `agent-relay/roles/Validator/directives/2026-06-17-mirror-unification.md`
+- Builder report: `agent-relay/roles/Builder/reports/2026-06-17-mirror-unification-builder-report.md`
+- Tier: 2 (governance + tooling, multi-step)
+
+> I am the Editor. I review for readability/modularity/maintainability and
+> behavior drift, and may perform structure-only, behavior-preserving refactors.
+> I do NOT add product behavior and I do NOT certify that any refactor preserved
+> behavior — that is the Validator's call.
+
+## What I Reviewed
+
+- `tools/cursor_transcript_mirror.py` — the main change (new dated-snapshot logic + ported helpers).
+- `tools/codex_transcript_mirror.py` — read as the reference implementation only; not modified.
+- `AGENTS.md` — startup read order, new "Agent Transcript Mirror Startup" section, "Agent Continuity Memory" rename.
+- `memory-bank/CODEX_MEMORY_POLICY.md` — cursor snapshot coverage.
+- `CLAUDE.md` — router compliance (R1).
+- `git diff` and `git status --porcelain` for the five files to confirm scope.
+
+## Refactor Decision: LEFT AS-IS (no code change)
+
+I performed **no** refactor. The one structural improvement on the table —
+extracting the duplicated cadence helpers into a shared module
+(`tools/_transcript_mirror_common.py`) imported by BOTH mirrors — is **not**
+available without violating the directive:
+
+- To actually remove the duplication, `tools/codex_transcript_mirror.py` would
+  have to stop defining `write_text_if_changed`, `sanitize_filename`,
+  `should_write_dated_snapshot`, `update_snapshot_manifest`, and the
+  `SNAPSHOT_*` constants locally and import them from the shared module instead.
+  That edits the codex file, which the directive (R6 and the explicit
+  "codex path must stay untouched" constraint) prohibits.
+- Extracting a shared module and importing it from cursor **only** would not
+  reduce duplication — codex would still keep its own copies — it would just add
+  a third home for the same code. That is strictly worse.
+
+Therefore the only behavior-preserving, codex-safe option is to leave the
+duplication and record it as a non-blocking tech-debt note (below). This is also
+consistent with the file's pre-existing pattern: `cursor_transcript_mirror.py`
+already carried its own private copies of `write_json` / `load_json_file` /
+`copy_if_exists` before this change.
+
+Independent compile check (mine, not a behavior certification):
+
+```
+python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror.py', doraise=True)"
+→ OK cursor (exit 0)
+```
+
+## Behavior-Drift Review
+
+- **Existing cursor continuity / live writes preserved.** The only change to
+  existing logic in `write_memory_bank_views` is hoisting
+  `"\n".join(transcript_lines)` into a local `snapshot_text` variable and writing
+  that same string. `CURSOR_CONTINUITY.md` and `cursor-session-live.md` are still
+  written with direct `write_text` to the same paths with identical content. No
+  observable drift in those two files.
+- **New work is additive and runs last.** The dated-snapshot block executes
+  *after* the continuity and live files are already written, so the critical
+  startup files are produced even if the new block were to fail. Good ordering.
+- **Codex path untouched.** `tools/codex_transcript_mirror.py` and
+  `codex_transcript_memory.py` do not appear in `git diff`/`git status`. Scope is
+  exactly `AGENTS.md`, `memory-bank/CODEX_MEMORY_POLICY.md`,
+  `tools/cursor_transcript_mirror.py`. Codex behavior/output is unchanged.
+- **Docs match intent.** AGENTS.md startup now reads both continuity files and
+  both transcript windows (R4); the mirror-startup section launches both
+  PID-guarded launchers first (R2); `CLAUDE.md` is already a thin router (R1);
+  the memory policy now covers the cursor dated snapshots under the same
+  trackable/naming/sensitive rules (R5).
+
+I confirm I found no behavior drift I introduced (I introduced none), and no
+sign that the Builder change altered the two existing cursor output files'
+content. I do not certify Builder's new snapshot behavior is correct — that is
+the Validator's call.
+
+## Correctness Smells in the New Snapshot Code (reviewed, none blocking)
+
+- **Date-folder derivation.** `snapshot_dt = epoch_ms_to_datetime(metadata.get("mirrored_at_epoch_ms")) or datetime.now()`.
+  Note `write_memory_bank_views` runs *before* `write_metadata` in `mirror_once`,
+  so `mirrored_at_epoch_ms` is the *previous* run's timestamp (or absent on the
+  first run, falling back to `datetime.now()`). In practice this is ~one interval
+  stale and rarely crosses a day boundary, so the `YYYY-MM-DD` folder and
+  `HHMMSS` stamp are effectively "now-ish". This differs from codex, which dates
+  by the conversation's `updated_at`; for old/idle composers the cursor folder
+  date can land on the mirror day rather than the conversation day. Acceptable
+  given Cursor exposes no reliable per-conversation timestamp. Non-blocking;
+  already flagged by Builder.
+- **Slug / manifest-key choice.** `cursor_snapshot_identity` returns a filename
+  slug from the composer `name` and a manifest key base from `composerId`
+  (falling back to name, then workspace path). `snapshot_key = f"{date_part}:{base}"`
+  parallels codex's `f"{date_part}:{record.id}"`. `composerId` is the closest
+  stable per-conversation analog to a codex session id; the key is stable across
+  runs. Reasonable. The slug, even if derived from a UUID, is capped at 120 chars
+  by `sanitize_filename`, so no oversized/binary filenames. Non-blocking.
+- **Cadence gating.** `should_write_dated_snapshot` / `update_snapshot_manifest`
+  and the `SNAPSHOT_MIN_SECONDS` (6h) / `SNAPSHOT_MIN_CHAR_DELTA` (100k) constants
+  are byte-identical to codex, and `latest.md` is written every run via
+  `write_text_if_changed` while the timestamped checkpoint is gated by the
+  manifest. Matches the reference. No smell.
+
+## Clarity Review
+
+- Naming is clear and intent-revealing (`cursor_snapshot_identity`,
+  `epoch_ms_to_datetime`, `snapshot_text`, `snapshot_key_base`).
+- Comments explain intent, not mechanics (e.g. "Durable, source-tagged dated
+  snapshots in the same tracked layout Codex uses ... mirroring
+  codex_transcript_mirror.py"). No narration-style noise.
+- No dead code introduced. The `datetime` import is now used.
+- AGENTS.md reads cleanly. Minor, acceptable redundancy: the new "Agent
+  Transcript Mirror Startup" section restates which files each mirror keeps
+  current, which overlaps slightly with the memory policy; this is appropriate
+  for a routing doc and not worth a change.
+
+## Non-Blocking Concerns (tech debt)
+
+1. **Helper duplication (tracked).** `write_text_if_changed`,
+   `sanitize_filename`, `should_write_dated_snapshot`,
+   `update_snapshot_manifest`, and the `SNAPSHOT_*` constants are duplicated
+   between `cursor_transcript_mirror.py` and `codex_transcript_mirror.py`.
+   Intentionally left as-is because de-duplicating requires editing the codex
+   file, which is out of scope for this directive. Recommend a *separate,
+   codex-inclusive* refactor ticket: extract a `tools/_transcript_mirror_common.py`
+   and migrate both mirrors together, validated end-to-end. Do not attempt it
+   piecemeal.
+2. **Snapshot date can lag the conversation day** for idle composers (see "Date-
+   folder derivation"). If exact conversation-day bucketing ever matters, source
+   a per-composer `lastUpdatedAt` for the date instead of mirror time.
+3. **Behavior parity is compile/lint-verified only.** Neither Builder nor Editor
+   ran the mirror, so the composer-derived slug/key and the produced snapshot
+   files are unverified against live Cursor storage shape. Flagging for the
+   Validator's verification plan, not as a defect.
+
+## Editor Blocker
+
+**Editor found no blocker.**
+
+## Certification
+
+I am the Editor. I made no code changes, so there is nothing of mine to
+certify. I do not certify that Builder's new snapshot behavior preserves prior
+behavior or is functionally correct — that determination belongs to the
+Validator.
+
+
+---
+
+## 58. Validator -> Builder: Cursor mirror resilience to malformed source DB
+
+- Routing ID: `route-20260618-032915-validator-to-builder-62ef62b7`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:29:15Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-17-cursor-mirror-resilience.md`
+- Body: `agent-relay/messages/route-20260618-032915-validator-to-builder-62ef62b7.md`
+- SHA-256: `162186f4c70af4029bca79821dda6ab3638fc94471ba8beb7e54a5d41ba87141`
+
+# Validator Directive — Cursor Mirror Resilience to Malformed/Locked Source DB
+
+- Date: 2026-06-17
+- Phase: agent-memory-mirror-unification
+- From: Validator
+- To: Builder
+- Tier: 1 (defensive bug fix)
+- Type: EXECUTION DIRECTIVE
+
+## Problem (found during Validator verification)
+
+The Cursor mirror crashes on startup:
+
+```
+sqlite3.DatabaseError: database disk image is malformed
+  tools/cursor_transcript_mirror.py: export_decoded_views -> read_itemtable_value(global_db, "openai.chatgpt")
+```
+
+`read_itemtable_value` (around line 267) opens a copied Cursor `state.vscdb`
+read-only and queries `ItemTable` with NO error handling. When the copied DB
+image is malformed (the global state.vscdb is copied while Cursor is mid-write in
+WAL mode, in the OneDrive sync tree), the uncaught exception kills the entire
+mirror loop. This is why `CURSOR_CONTINUITY.md` has been frozen since ~March and
+why this session is currently not being captured.
+
+## Frozen Requirements
+
+R1. `read_itemtable_value` must never crash the mirror. Catch `sqlite3.Error`
+    (covers `DatabaseError`/`OperationalError`) and any DB-open failure, and
+    return `None` on failure instead of raising. Ensure the connection is always
+    closed.
+
+R2. `export_decoded_views` must degrade gracefully. If a given DB is
+    unreadable/malformed, it should still write the decoded JSON with whatever
+    keys were readable (null for the failed ones) and must not abort
+    `mirror_once`.
+
+R3. `mirror_once` / `run` must survive a single bad cycle. A failure in
+    `export_decoded_views` must not prevent `write_memory_bank_views` and the new
+    cursor dated-snapshot writing from running, and must not kill the watch loop.
+    Log a concise warning to stderr and continue.
+
+R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
+    mirror. Do not change output paths/layout established in the prior directive.
+
+## Acceptance Criteria
+
+- Restarting the cursor mirror with a malformed global `state.vscdb` does NOT
+  crash; the process stays alive.
+- `memory-bank/CURSOR_CONTINUITY.md`, `memory-bank/transcripts/cursor-session-live.md`,
+  and `memory-bank/transcripts/cursor/YYYY-MM-DD/` are produced/updated from
+  whatever data is readable.
+- A concise stderr warning is emitted when a DB read is skipped.
+
+## Process
+
+- Builder writes report to
+  `agent-relay/roles/Builder/reports/2026-06-17-cursor-mirror-resilience-builder-report.md`,
+  does not certify own work, does not run the long watcher (a single
+  `mirror_once`/`--once` style invocation or py_compile is fine), does not commit
+  or route. Validator verifies by restarting the mirror and confirming it stays
+  alive and emits output.
+
+
+---
+
+## 59. Builder -> Validator: Cursor mirror resilience builder report
+
+- Routing ID: `route-20260618-033810-builder-to-validator-cc4dc983`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:38:10Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-17-cursor-mirror-resilience-builder-report.md`
+- Body: `agent-relay/messages/route-20260618-033810-builder-to-validator-cc4dc983.md`
+- SHA-256: `9e8730077563abc77c22bfed34444808dfffc4309e1dd612120b0c275596cb2b`
+
+# Builder Report — Cursor Mirror Resilience to Malformed/Locked Source DB
+
+- Date: 2026-06-17
+- Phase: agent-memory-mirror-unification
+- From: Builder
+- To: Validator
+- Tier: 1 (defensive bug fix)
+- Directive: `agent-relay/roles/Validator/directives/2026-06-17-cursor-mirror-resilience.md` (R1–R4)
+- File changed: `tools/cursor_transcript_mirror.py` (only this file)
+
+> I am NOT certifying this work. The Validator owns verification (live restart
+> against a malformed `state.vscdb`).
+
+## Summary of changes
+
+All edits are confined to `tools/cursor_transcript_mirror.py`. `tools/codex_transcript_mirror.py`
+was not touched. No output paths/layout were changed.
+
+### R1 — `read_itemtable_value` (was ~line 267)
+
+- Moved `sqlite3.connect(...)` inside the `try` block and initialized `conn = None`
+  before it, so a failed connect cannot leave the `finally` referencing an
+  undefined/half-open handle.
+- Added `except Exception as exc:` around the connect + query. This covers
+  `sqlite3.Error` (and its subclasses `DatabaseError`/`OperationalError`, e.g.
+  "database disk image is malformed") as well as any other open/decode failure.
+  On failure it now returns `None` instead of raising.
+- Emits the required concise stderr warning on failure:
+  `[cursor-mirror] skipping unreadable DB <path> key <key>: <err>`.
+- `finally` now closes the connection only when `conn is not None`, and the
+  `conn.close()` itself is guarded by try/except so a close failure cannot raise.
+
+### R2 — `export_decoded_views` (was ~line 773)
+
+- Wrapped the global-DB block (build `global_payload` + `write_json` of
+  `global-chat-state.json`) in its own try/except.
+- Wrapped the workspace-DB block (build `workspace_payload` + `write_json` of
+  `workspace-chat-state.json`) in its own separate try/except.
+- Result: a bad global DB cannot stop the workspace export and vice versa. Each
+  block logs `[cursor-mirror] failed exporting global/workspace decoded view: <err>`
+  on failure. Because R1 returns `None` per unreadable key, the JSON is still
+  written with null values for the keys that failed (when `write_json` itself
+  succeeds).
+
+### R3 — `mirror_once` (was ~line 794) and the watch loop in `main`/`run` (was ~line 851)
+
+- In `mirror_once`, wrapped the `export_decoded_views(...)` call in try/except so
+  its failure logs `[cursor-mirror] export_decoded_views failed, continuing: <err>`
+  and execution still falls through to `write_memory_bank_views(...)` (which
+  includes the dated `transcripts/cursor/YYYY-MM-DD/` snapshot writing) and the
+  metadata write.
+- Hardened the `--watch` loop: each `run()` call is now wrapped in try/except
+  that logs `[cursor-mirror] mirror cycle failed, continuing: <err>` and then
+  proceeds to `time.sleep(args.interval)` and loops again. Previously the loop
+  only caught `KeyboardInterrupt`, so any per-cycle exception killed the watcher.
+  `KeyboardInterrupt` handling is unchanged.
+
+### R4 — Behavior preservation
+
+- On healthy DBs, control flow is identical to before: the new `try` blocks
+  simply pass through and return the same values / write the same files.
+- No changes to `codex_transcript_mirror.py`.
+- No changes to output filenames, directories, or JSON structure.
+
+## Verification (performed by Builder; not certification)
+
+- `python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror.py', doraise=True)"`
+  → **PASS** (`py_compile OK`, exit 0).
+- Linter (editor diagnostics) on the file → **no errors**.
+- One-shot run: the script has no explicit `--once` flag, but invoking it
+  WITHOUT `--watch` is a genuine one-shot mode (runs `mirror_once` once and
+  exits). I did NOT start the long watcher and did NOT add a new flag.
+  - Command: `python tools/cursor_transcript_mirror.py --output offline-cursor-transcripts`
+  - Result: exited cleanly with **exit code 0** and printed
+    `[cursor_transcript_mirror] mirrored to ... (workspace storage: ...)`.
+  - The live source DB was healthy this run, so no `[cursor-mirror] skipping...`
+    warning was emitted — this confirms R4 (healthy path unchanged) but does NOT
+    exercise the malformed-DB path via the full flow.
+- Direct malformed-DB unit check (re-verification, 2026-06-17 second Builder
+  pass): wrote a deliberately corrupt file (`SQLite format 3\0` header + junk
+  bytes) to a temp path and called `read_itemtable_value(p, "openai.chatgpt")`
+  directly. Result: it emitted exactly
+  `[cursor-mirror] skipping unreadable DB <temp>\malformed_state.vscdb key openai.chatgpt: file is not a database`
+  to stderr and **returned `None`** without raising. This exercises the R1
+  failure path end-to-end (catch → warn → return None → no crash) that the prior
+  pass could only establish by inspection.
+
+### Re-verification note (current Builder pass)
+
+The R1–R4 changes were already present, uncommitted, in the working tree from the
+prior Builder pass (this report's original body). The current pass made **no
+additional code edits** — it re-read the directive, confirmed each requirement is
+satisfied in `tools/cursor_transcript_mirror.py`, re-ran `py_compile` (PASS), ran
+the no-`--watch` one-shot (exit 0, clean), and added the direct malformed-DB test
+above. `git diff HEAD` for the file matches the change set described in R1–R4.
+
+## Assumptions
+
+- "Catch `sqlite3.Error` and any DB-open failure" is satisfied by a single
+  `except Exception`, since `sqlite3.Error` is a subclass of `Exception`; this
+  also catches non-sqlite failures (e.g. decode/URI/open errors) per R1's intent.
+- The default no-`--watch` invocation is the intended "one-shot" mode; I treated
+  it as such rather than adding a `--once` flag (directive said not to add one).
+- The malformed-DB warning path was not triggered live (DB was healthy at run
+  time); correctness of that path is established by code inspection only.
+
+## Limitations / risk
+
+- The R1 failure path is now confirmed by a direct malformed-DB unit check (see
+  Verification), but the malformed condition was not reproduced through the full
+  `mirror_once` flow against a live corrupt `state.vscdb`. The Validator's planned
+  restart test against a malformed global `state.vscdb` remains the authoritative
+  check for the acceptance criteria.
+- `write_json` failures (e.g. disk/permission) inside the R2 blocks are now
+  swallowed with a warning rather than raising; this is intended per R2/R3 but
+  means a persistent write failure would degrade silently (logged to stderr only).
+- No commit was made and no relay messages were routed, per directive.
+
+
+---
+
+## 60. Validator -> Editor: Document two-file agent memory archive in AGENTS.md
+
+- Routing ID: `route-20260618-034327-validator-to-editor-e9759f66`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:43:27Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-17-agents-md-archive-layout.md`
+- Body: `agent-relay/messages/route-20260618-034327-validator-to-editor-e9759f66.md`
+- SHA-256: `5f242db6b227202dbc67742dea2a9fe1b94c6d881b5b6d3d816869ab8e553dff`
+
+# Validator Directive — Document the Two-File Agent Memory Archive in AGENTS.md
+
+- Date: 2026-06-17
+- Phase: agent-memory-mirror-unification
+- From: Validator
+- To: Editor
+- Tier: 0 (documentation/clarity, no behavior change)
+- Type: EXECUTION DIRECTIVE
+
+## Goal (User/Mediator)
+
+Amend `AGENTS.md` so any agent clearly understands the memory archive is split
+across FILES (plural): two parallel, source-tagged, co-located per-agent
+archives that every agent must read — not one merged file.
+
+## Frozen Requirements
+
+R1. Add a concise subsection to `AGENTS.md` (suggested heading
+    "## Agent Memory Archive Layout"), placed near the existing "Agent Transcript
+    Mirror Startup" / "Startup Read Order" content, that states plainly:
+    - There are TWO parallel agent memory archives, tagged by source:
+      - Codex: `memory-bank/CODEX_CONTINUITY.md`,
+        `memory-bank/transcripts/codex-session-live.md`,
+        `memory-bank/transcripts/codex/YYYY-MM-DD/...`
+      - Cursor/Claude: `memory-bank/CURSOR_CONTINUITY.md`,
+        `memory-bank/transcripts/cursor-session-live.md`,
+        `memory-bank/transcripts/cursor/YYYY-MM-DD/...`
+    - Each agent's mirror writes ONLY its own archive (one writer per file; they
+      are intentionally NOT a single shared file, to avoid concurrent-writer
+      corruption).
+    - Every agent MUST read BOTH archives at startup so Codex sees Cursor/Claude
+      work and vice versa.
+    - The single merged timeline is `agent-relay/transcripts/all.md`, and it
+      covers ROLE/governance handoffs (Validator/Builder/Editor) only — it is a
+      separate system from the session-memory mirrors.
+
+R2. Keep it short and non-duplicative. Reconcile with the existing Startup Read
+    Order (steps that already say "read BOTH") so the document does not repeat
+    itself; cross-reference instead of restating.
+
+R3. Documentation only. Do NOT change any tooling, paths, or behavior. Do not
+    touch the codex mirror or cursor mirror code.
+
+## Acceptance Criteria
+
+- `AGENTS.md` contains an explicit, plain-language statement that there are two
+  per-agent archives, who writes each, that both must be read, and that
+  `all.md` is a separate single governance timeline.
+- No duplication bloat; existing read-order steps remain consistent.
+
+## Process
+
+- Editor edits `AGENTS.md` and writes a report to
+  `agent-relay/roles/Editor/reports/2026-06-17-agents-md-archive-layout-editor-report.md`.
+  Editor does not certify its own doc as accepted; Validator verifies and
+  returns the decision to the User/Mediator.
+
+
+---
+
+## 61. Editor -> Validator: AGENTS.md archive layout editor report
+
+- Routing ID: `route-20260618-034554-editor-to-validator-89d619fb`
+- Type: `EDITOR REPORT`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:45:54Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-17-agents-md-archive-layout-editor-report.md`
+- Body: `agent-relay/messages/route-20260618-034554-editor-to-validator-89d619fb.md`
+- SHA-256: `37c9e572fbc98557ac55bf9407a79abbfe548a4f97faacafd564f38104a9f2d1`
+
+# Editor Report — Document the Two-File Agent Memory Archive in AGENTS.md
+
+- Date: 2026-06-17
+- Phase: agent-memory-mirror-unification
+- From: Editor
+- To: Validator
+- Tier: 0 (documentation/clarity, no behavior change)
+- Type: EXECUTION REPORT
+- Directive: `agent-relay/roles/Validator/directives/2026-06-17-agents-md-archive-layout.md` (R1–R3)
+
+## What I Changed
+
+Amended `AGENTS.md` only. Added one new subsection, `## Agent Memory Archive
+Layout`, placed immediately after the existing "Agent Transcript Mirror Startup"
+section and before "Planning Conventions" (i.e., adjacent to the Startup Read
+Order / Mirror Startup content, as R1 requested).
+
+The new subsection states plainly:
+
+- Session memory is split across two parallel, source-tagged per-agent archives
+  (not one merged file):
+  - Codex: `memory-bank/CODEX_CONTINUITY.md`,
+    `memory-bank/transcripts/codex-session-live.md`,
+    `memory-bank/transcripts/codex/YYYY-MM-DD/...`
+  - Cursor/Claude: `memory-bank/CURSOR_CONTINUITY.md`,
+    `memory-bank/transcripts/cursor-session-live.md`,
+    `memory-bank/transcripts/cursor/YYYY-MM-DD/...`
+- Each agent's mirror writes ONLY its own archive (one writer per file),
+  intentionally NOT a single shared file, to avoid concurrent-writer corruption.
+- Every agent MUST read BOTH archives at startup so Codex sees Cursor/Claude work
+  and vice versa.
+- `agent-relay/transcripts/all.md` is a separate single merged timeline covering
+  ROLE/governance handoffs (Validator/Builder/Editor) only.
+
+## Non-Duplication Handling (R2)
+
+To avoid restating existing content, the new subsection cross-references the
+"read BOTH" steps already present in "Startup Read Order" rather than repeating
+the read instructions. The file paths are listed once in the new layout section
+because this is the canonical place that names the two-archive layout.
+
+## Scope / Behavior (R3)
+
+- Documentation only. No tooling, paths, code, or behavior changed.
+- Only `AGENTS.md` was edited (plus this report file under the Editor reports
+  folder, which is the required output artifact).
+- No commit made; no relay messages routed.
+
+## Non-Blocking Note
+
+The pre-existing line in "Agent Transcript Mirror Startup" reads "Running both
+keeps one shared, source-tagged archive...". The phrase "one shared ... archive"
+can read as if there is a single file, whereas the layout is two co-located
+per-agent files. I left that line unchanged (out of this directive's scope), but
+the new "Agent Memory Archive Layout" subsection clarifies the two-file reality.
+Validator may wish to reconcile that wording in a follow-up.
+
+## R2 Reconciliation Follow-up (2026-06-17)
+
+Per Validator follow-up, edited the single flagged sentence in "Agent Transcript
+Mirror Startup" to remove the "one shared ... archive" wording; it now reads
+"Running both keeps the two co-located, source-tagged per-agent archives current,
+so each agent can read what it did AND what the other agent did." AGENTS.md only,
+documentation-only, no behavior change.
+
+## Status
+
+Editor work complete. Not self-certified as accepted — Validator to verify and
+return the decision to the User/Mediator.
 
 
 ---

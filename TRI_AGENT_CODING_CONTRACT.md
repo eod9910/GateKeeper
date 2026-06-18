@@ -53,12 +53,60 @@ Artifact weight scales with risk.
 | 2 | Feature/refactor/framework | Validator requirements -> Builder -> Validator -> Editor -> Validator |
 | 3 | Core trading/backtest/research/governance system | Full relay with frozen requirements, validation report, anti-spaghetti review, and user approval |
 
+## Planning Documents Are Tier 2 (Minimum)
+
+Any work that carries a planning document — a PRD or a checklist — is
+automatically Tier 2 at minimum and runs the full relay. It is NEVER eligible for
+the fast path, regardless of how small an individual checklist item looks.
+
+Required flow for PRD/checklist work:
+
+1. Validator authors the PRD and the paired checklist (per
+   `.planning/plans/PLAN_CONVENTIONS.md`: `<slug>-prd.md` + `<slug>-checklist.md`).
+2. Validator routes the PRD/checklist to the Builder.
+3. Builder performs the work against the checklist and reports what changed.
+4. Editor does a second pass to clean up the Builder's work.
+5. Validator independently verifies that EVERY checklist item is actually done —
+   against the files/diff and compile/test output, not against the report — before
+   accepting and returning the decision to the User/Mediator.
+
+If the underlying system is core trading/backtest/research/governance, escalate
+to Tier 3.
+
+## Fast Path (Tier 0 / Tier 1)
+
+Light work must not pay heavy-process overhead. For Tier 0 and Tier 1 ONLY, the
+single running agent MAY act as Builder and Editor inline (no separate subagents,
+no full relay), provided ALL of the following hold:
+
+- The change is genuinely Tier 0/1 (tiny docs/config/copy, or a normal localized
+  bug fix). If scope grows past Tier 1, STOP and escalate to the full flow.
+- The work has NO PRD or checklist. Any PRD/checklist work is Tier 2 minimum and
+  is never eligible for the fast path (see "Planning Documents Are Tier 2").
+- Validator freezes the intent in one or two sentences before editing.
+- Validator independently VERIFIES the result against the actual files/diff and
+  compile/test output — not against a self-claim.
+- The outcome is recorded in the relay as a single combined entry (one route),
+  not as separate Builder/Editor/Validator messages.
+
+Full subagent relay (separate Builder, then Editor) remains REQUIRED for Tier 2
+and Tier 3 work, and for anything touching core
+trading/backtest/research/governance systems.
+
+Rationale: independent Validator verification — not role headcount — is what
+catches bad work. The fast path keeps that check while removing ceremony that
+burns budget on trivial changes.
+
 ## No Self-Certification
 
 - Builder cannot certify the build.
 - Validator cannot rewrite requirements and then approve them as if unchanged.
 - Editor cannot certify that its own refactor preserved behavior.
 - User/Mediator has final authority.
+- Implementer reports are UNTRUSTED. The Validator must verify against the actual
+  files, diff, and compile/test output, never against the report's claims. A
+  report that says "no change needed" or "already present" must be confirmed by
+  reading the code/diff before acceptance.
 
 ## Repository Relay
 

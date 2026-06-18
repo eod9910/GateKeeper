@@ -1,6 +1,6 @@
 # Builder Inbox
 
-Generated: 2026-06-16T02:51:54Z
+Generated: 2026-06-18T03:51:18Z
 
 ## Router smoke test
 
@@ -71,3 +71,73 @@ Generated: 2026-06-16T02:51:54Z
 - Timestamp: `2026-06-16T02:18:31Z`
 - Body: `agent-relay/messages/route-20260616-021831-validator-to-builder-cccbb691.md`
 - SHA-256: `ae80a860ee8168723deb7009ff1a8e12fabb6375dcb66c9e99cfee73485e5650`
+
+## Add Codex mirror startup to AGENTS.md
+
+- Routing ID: `route-20260616-030320-validator-to-builder-fb0b4a6c`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agents-mirror-startup`
+- Timestamp: `2026-06-16T03:03:20Z`
+- Body: `agent-relay/messages/route-20260616-030320-validator-to-builder-fb0b4a6c.md`
+- SHA-256: `114c6549f4da8ba1402f5b1db212698c9fc324b4fec3d744780ed3e83174e647`
+
+## Create agent memory bootstrap guide
+
+- Routing ID: `route-20260616-030827-validator-to-builder-af80dd05`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:08:27Z`
+- Body: `agent-relay/messages/route-20260616-030827-validator-to-builder-af80dd05.md`
+- SHA-256: `e6f2b36de5ea30643e7e2c043093f905ddf5303e58dab163477d471bea77a33e`
+
+## Add router copy to memory bootstrap guide
+
+- Routing ID: `route-20260616-031253-validator-to-builder-0ce6c4b7`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:12:53Z`
+- Body: `agent-relay/messages/route-20260616-031253-validator-to-builder-0ce6c4b7.md`
+- SHA-256: `66bd62011d526a38acf6fddfeac83e3014870c65d07de5affae71c2be3e58046`
+
+## Add transcript mirror scripts to bootstrap guide
+
+- Routing ID: `route-20260616-032041-validator-to-builder-9be4376a`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:20:41Z`
+- Body: `agent-relay/messages/route-20260616-032041-validator-to-builder-9be4376a.md`
+- SHA-256: `4cd3c126c6f79e709acf5dd65084f9da2546810e6c5ccb2ef01c8dc4428387f6`
+
+## Add router workflow guide
+
+- Routing ID: `route-20260616-042943-validator-to-builder-3a9a83d0`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T04:29:43Z`
+- Body: `agent-relay/messages/route-20260616-042943-validator-to-builder-3a9a83d0.md`
+- SHA-256: `ae713ce08d546410d167abf5eb16f193b3d46cb340e503fffe6cdf0010c1d32b`
+
+## Unify agent transcript mirrors + AGENTS.md startup
+
+- Routing ID: `route-20260618-031504-validator-to-builder-8c846aa2`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:15:04Z`
+- Body: `agent-relay/messages/route-20260618-031504-validator-to-builder-8c846aa2.md`
+- SHA-256: `8a48e9d4ffb22f224d2a8de978b08a83a0f65eb9cad6bab29024d066f37bb448`
+
+## Cursor mirror resilience to malformed source DB
+
+- Routing ID: `route-20260618-032915-validator-to-builder-62ef62b7`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:29:15Z`
+- Body: `agent-relay/messages/route-20260618-032915-validator-to-builder-62ef62b7.md`
+- SHA-256: `162186f4c70af4029bca79821dda6ab3638fc94471ba8beb7e54a5d41ba87141`

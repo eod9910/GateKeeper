@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-16T02:51:54Z
+Generated: 2026-06-18T03:51:18Z
 
 ## Builder relay smoke report
 
@@ -241,3 +241,143 @@ Generated: 2026-06-16T02:51:54Z
 - Timestamp: `2026-06-16T02:51:54Z`
 - Body: `agent-relay/messages/route-20260616-025154-builder-to-validator-932b5b17.md`
 - SHA-256: `19e902ffab4250be512c85bf8d13d6f09229fa2dff8b210b48a19b0dd113539d`
+
+## AGENTS.md Codex mirror startup builder report
+
+- Routing ID: `route-20260616-030240-builder-to-validator-0224c347`
+- From: `Builder`
+- Type: `BUILDER REPORT`
+- Phase: `agents-mirror-startup`
+- Timestamp: `2026-06-16T03:02:40Z`
+- Body: `agent-relay/messages/route-20260616-030240-builder-to-validator-0224c347.md`
+- SHA-256: `9fea49ff17f3fdcb93208136e86a88c1e1005216b7428e1d92bdaf0fd7b3f15a`
+
+## AGENTS.md Codex mirror startup editor review
+
+- Routing ID: `route-20260616-030257-editor-to-validator-70cd03b4`
+- From: `Editor`
+- Type: `EDITOR REVIEW`
+- Phase: `agents-mirror-startup`
+- Timestamp: `2026-06-16T03:02:57Z`
+- Body: `agent-relay/messages/route-20260616-030257-editor-to-validator-70cd03b4.md`
+- SHA-256: `85f34847cdd63ea97a32717d60f26a9ee3df16093030430f74c46324b81723a4`
+
+## Agent memory bootstrap guide builder report
+
+- Routing ID: `route-20260616-030832-builder-to-validator-49e354ee`
+- From: `Builder`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:08:32Z`
+- Body: `agent-relay/messages/route-20260616-030832-builder-to-validator-49e354ee.md`
+- SHA-256: `25b8cd501958d48fee346cee5b9ddcc8bbf4e2f969e63842f8701f19778b1544`
+
+## Agent memory bootstrap guide editor review
+
+- Routing ID: `route-20260616-030845-editor-to-validator-aac42eaa`
+- From: `Editor`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:08:45Z`
+- Body: `agent-relay/messages/route-20260616-030845-editor-to-validator-aac42eaa.md`
+- SHA-256: `d34cf34bd8e8143d9428882b804f37cdf6c2f794ff8ed9a91baab0505e6456ac`
+
+## Router copy added to memory bootstrap guide
+
+- Routing ID: `route-20260616-031300-builder-to-validator-f0607cbe`
+- From: `Builder`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:13:00Z`
+- Body: `agent-relay/messages/route-20260616-031300-builder-to-validator-f0607cbe.md`
+- SHA-256: `119b189a13dbdd86cfce425d0b8a42c36946c2037c90bb954bbcbbcc6a805749`
+
+## Router copy in memory bootstrap guide editor review
+
+- Routing ID: `route-20260616-031313-editor-to-validator-52ed582f`
+- From: `Editor`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:13:13Z`
+- Body: `agent-relay/messages/route-20260616-031313-editor-to-validator-52ed582f.md`
+- SHA-256: `76d63aaf28af2045cfcb2527521ff4d28d4fd349b84c64fcdeea4d2f9ec2e3df`
+
+## Transcript mirror scripts added to bootstrap guide
+
+- Routing ID: `route-20260616-032045-builder-to-validator-7276491f`
+- From: `Builder`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:20:45Z`
+- Body: `agent-relay/messages/route-20260616-032045-builder-to-validator-7276491f.md`
+- SHA-256: `c23e181fbda26e5108f84dcfc6418a7fa05b0383210943494305c4500b29ec89`
+
+## Transcript scripts in memory bootstrap guide editor review
+
+- Routing ID: `route-20260616-032058-editor-to-validator-42b690b3`
+- From: `Editor`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T03:20:58Z`
+- Body: `agent-relay/messages/route-20260616-032058-editor-to-validator-42b690b3.md`
+- SHA-256: `65565d215e6ae465732fc14f660dd9752cf64f0a338c3fb72896e7e9f7672f46`
+
+## Router workflow guide builder report
+
+- Routing ID: `route-20260616-042948-builder-to-validator-a3797a08`
+- From: `Builder`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T04:29:48Z`
+- Body: `agent-relay/messages/route-20260616-042948-builder-to-validator-a3797a08.md`
+- SHA-256: `b7ed0e654a1f40f0e441aa09ac46431823dcd74d433120987507d2ffa8e3702a`
+
+## Router workflow guide editor review
+
+- Routing ID: `route-20260616-043004-editor-to-validator-b59a444f`
+- From: `Editor`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-bootstrap-guide`
+- Timestamp: `2026-06-16T04:30:04Z`
+- Body: `agent-relay/messages/route-20260616-043004-editor-to-validator-b59a444f.md`
+- SHA-256: `ad9ca93f963d3ee070d217e800b3a296b417ca3dacc5aade967cfa5ef0bbf4c0`
+
+## Mirror unification builder report
+
+- Routing ID: `route-20260618-032050-builder-to-validator-4fdf8daf`
+- From: `Builder`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:20:50Z`
+- Body: `agent-relay/messages/route-20260618-032050-builder-to-validator-4fdf8daf.md`
+- SHA-256: `9d3e551ae272eb0c8634dd97cb83d6c90274b4b81d330a41b86bcd6345721e3e`
+
+## Mirror unification editor review
+
+- Routing ID: `route-20260618-032606-editor-to-validator-fa191665`
+- From: `Editor`
+- Type: `EDITOR REVIEW`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:26:06Z`
+- Body: `agent-relay/messages/route-20260618-032606-editor-to-validator-fa191665.md`
+- SHA-256: `5965686c7a615e4cdfe509bb2d9c2937b2809146c03fa76dd51c080295b03a7c`
+
+## Cursor mirror resilience builder report
+
+- Routing ID: `route-20260618-033810-builder-to-validator-cc4dc983`
+- From: `Builder`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:38:10Z`
+- Body: `agent-relay/messages/route-20260618-033810-builder-to-validator-cc4dc983.md`
+- SHA-256: `9e8730077563abc77c22bfed34444808dfffc4309e1dd612120b0c275596cb2b`
+
+## AGENTS.md archive layout editor report
+
+- Routing ID: `route-20260618-034554-editor-to-validator-89d619fb`
+- From: `Editor`
+- Type: `EDITOR REPORT`
+- Phase: `agent-memory-mirror-unification`
+- Timestamp: `2026-06-18T03:45:54Z`
+- Body: `agent-relay/messages/route-20260618-034554-editor-to-validator-89d619fb.md`
+- SHA-256: `37c9e572fbc98557ac55bf9407a79abbfe548a4f97faacafd564f38104a9f2d1`
