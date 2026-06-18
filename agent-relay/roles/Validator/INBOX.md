@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-18T03:51:18Z
+Generated: 2026-06-18T04:28:20Z
 
 ## Builder relay smoke report
 
@@ -381,3 +381,33 @@ Generated: 2026-06-18T03:51:18Z
 - Timestamp: `2026-06-18T03:45:54Z`
 - Body: `agent-relay/messages/route-20260618-034554-editor-to-validator-89d619fb.md`
 - SHA-256: `37c9e572fbc98557ac55bf9407a79abbfe548a4f97faacafd564f38104a9f2d1`
+
+## Transcript retention and archival build
+
+- Routing ID: `route-20260618-041420-builder-to-validator-8e4457cc`
+- From: `Builder`
+- Type: `REPORT`
+- Phase: `transcript-retention-archival`
+- Timestamp: `2026-06-18T04:14:20Z`
+- Body: `agent-relay/messages/route-20260618-041420-builder-to-validator-8e4457cc.md`
+- SHA-256: `e02bc1d5f2121adfbe51d034d982770ad581668a27ccf7e68528147b74567ff8`
+
+## Transcript retention and archival build
+
+- Routing ID: `route-20260618-042124-builder-to-validator-df15f55d`
+- From: `Builder`
+- Type: `REPORT`
+- Phase: `transcript-retention-archival`
+- Timestamp: `2026-06-18T04:21:24Z`
+- Body: `agent-relay/messages/route-20260618-042124-builder-to-validator-df15f55d.md`
+- SHA-256: `7b573e11380451260ec27396042600a2d589f85a4de30f12e8a06c0274ec5e51`
+
+## Editor review: transcript retention build
+
+- Routing ID: `route-20260618-042820-editor-to-validator-3fd6cb2f`
+- From: `Editor`
+- Type: `REVIEW`
+- Phase: `transcript-retention-archival`
+- Timestamp: `2026-06-18T04:28:20Z`
+- Body: `agent-relay/messages/route-20260618-042820-editor-to-validator-3fd6cb2f.md`
+- SHA-256: `6363959931399a141411baa5f89ee2ffbe28cd615a52257143796b629904b998`

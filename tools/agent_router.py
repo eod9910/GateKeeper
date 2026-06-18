@@ -12,8 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -25,7 +24,14 @@ ROLES_DIR = RELAY_DIR / "roles"
 ROUTER_DIR = RELAY_DIR / "router"
 EXPORTS_DIR = RELAY_DIR / "exports"
 TRANSCRIPTS_DIR = RELAY_DIR / "transcripts"
+ARCHIVE_DIR = TRANSCRIPTS_DIR / "archive"
 ROUTE_LOG = ROUTER_DIR / "routes.jsonl"
+
+# Retention window for the hot agent-relay/transcripts/all.md. Routes older than
+# this are rolled into tracked monthly archive files. The cold archive files are
+# DERIVED views of routes.jsonl (the immutable source of truth); regenerating
+# them never trims, rewrites, or reorders the log.
+HOT_WINDOW_DAYS = 30
 
 ROLES = ("Builder", "Validator", "Editor", "User", "Router")
 ALLOWED_ROUTES = {
@@ -165,7 +171,11 @@ def regenerate_inboxes() -> None:
         inbox_path.write_text(render_inbox(role, records), encoding="utf-8")
 
 
-def render_transcript(records: List[Dict[str, object]], title: str) -> str:
+def render_transcript(
+    records: List[Dict[str, object]],
+    title: str,
+    header_note: Optional[str] = None,
+) -> str:
     records.sort(key=lambda r: str(r.get("timestamp", "")))
     lines = [
         f"# Agent Relay Transcript: {title}",
@@ -173,6 +183,8 @@ def render_transcript(records: List[Dict[str, object]], title: str) -> str:
         f"Generated: {utc_now()}",
         "",
     ]
+    if header_note:
+        lines.extend([header_note, ""])
     if not records:
         lines.append("No routed messages.")
         lines.append("")
@@ -213,10 +225,106 @@ def write_transcript(phase: str | None, output: Path | None = None) -> Path:
     return target
 
 
+def parse_route_timestamp(value: object) -> Optional[datetime]:
+    """Parse an ISO-8601 UTC route timestamp like '2026-06-18T04:08:10Z'.
+
+    Returns a timezone-aware datetime, or None if the value is missing or
+    unparseable. Unparseable timestamps are intentionally treated as "hot" by the
+    caller so a malformed record is never dropped from the visible transcript.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def split_hot_archive(
+    records: List[Dict[str, object]],
+) -> Tuple[List[Dict[str, object]], Dict[str, List[Dict[str, object]]]]:
+    """Split routes into the hot 30-day window and per-month archive buckets.
+
+    The window is computed relative to the most recent route timestamp in the log
+    (NOT wall-clock), so regeneration is deterministic and testable: the same
+    routes.jsonl always yields the same hot/archive split regardless of when it
+    runs. Routes with an unparseable timestamp are kept hot to avoid data loss.
+
+    Together the returned hot list and the union of the archive buckets equal the
+    input records exactly, with no loss and no duplication.
+    """
+    parsed: List[Tuple[Dict[str, object], Optional[datetime]]] = [
+        (record, parse_route_timestamp(record.get("timestamp"))) for record in records
+    ]
+    known = [dt for _, dt in parsed if dt is not None]
+    if not known:
+        return list(records), {}
+
+    cutoff = max(known) - timedelta(days=HOT_WINDOW_DAYS)
+    hot: List[Dict[str, object]] = []
+    archive: Dict[str, List[Dict[str, object]]] = {}
+    for record, dt in parsed:
+        if dt is None or dt >= cutoff:
+            hot.append(record)
+            continue
+        month_key = dt.strftime("%Y-%m")
+        archive.setdefault(month_key, []).append(record)
+    return hot, archive
+
+
+def regenerate_relay_timeline(records: Optional[List[Dict[str, object]]] = None) -> Path:
+    """Regenerate the windowed hot all.md plus tracked monthly archive files.
+
+    Both the hot file and the archive files are derived deterministically from
+    routes.jsonl. The log itself is never modified.
+    """
+    if records is None:
+        records = read_log()
+    hot, archive = split_hot_archive(records)
+
+    hot_note = (
+        "> Retention: this hot timeline shows only routes from the last "
+        f"{HOT_WINDOW_DAYS} days (relative to the newest route in routes.jsonl). "
+        "Older routes are archived by month under "
+        "`agent-relay/transcripts/archive/all-YYYY-MM.md`. The immutable source "
+        "of truth is `agent-relay/router/routes.jsonl`."
+    )
+    all_path = TRANSCRIPTS_DIR / "all.md"
+    all_path.parent.mkdir(parents=True, exist_ok=True)
+    all_path.write_text(
+        render_transcript(hot, "All Phases (last 30 days)", header_note=hot_note),
+        encoding="utf-8",
+    )
+
+    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    for month_key, month_records in archive.items():
+        archive_note = (
+            f"> Archived monthly view for {month_key}, derived from "
+            "`agent-relay/router/routes.jsonl`. The hot window lives in "
+            "`agent-relay/transcripts/all.md`."
+        )
+        archive_path = ARCHIVE_DIR / f"all-{month_key}.md"
+        archive_path.write_text(
+            render_transcript(
+                month_records,
+                f"Archive {month_key}",
+                header_note=archive_note,
+            ),
+            encoding="utf-8",
+        )
+    return all_path
+
+
 def regenerate_transcripts() -> None:
     records = read_log()
     phases = sorted({str(record.get("phase", "")) for record in records if record.get("phase")})
-    write_transcript(None, TRANSCRIPTS_DIR / "all.md")
+    regenerate_relay_timeline(records)
     for phase in phases:
         write_transcript(phase)
 
@@ -323,6 +431,12 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 def cmd_transcript(args: argparse.Namespace) -> int:
     ensure_dirs()
+    # The default all-phases transcript is the windowed hot timeline, so writing
+    # it from this subcommand stays consistent with `regenerate`.
+    if not args.phase and not args.output:
+        path = regenerate_relay_timeline()
+        print(rel(path))
+        return 0
     output = Path(args.output) if args.output else None
     path = write_transcript(args.phase, output)
     print(rel(path))

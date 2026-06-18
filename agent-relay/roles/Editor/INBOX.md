@@ -1,6 +1,6 @@
 # Editor Inbox
 
-Generated: 2026-06-18T03:51:18Z
+Generated: 2026-06-18T04:28:20Z
 
 ## Editor relay smoke directive
 
@@ -91,3 +91,13 @@ Generated: 2026-06-18T03:51:18Z
 - Timestamp: `2026-06-18T03:43:27Z`
 - Body: `agent-relay/messages/route-20260618-034327-validator-to-editor-e9759f66.md`
 - SHA-256: `5f242db6b227202dbc67742dea2a9fe1b94c6d881b5b6d3d816869ab8e553dff`
+
+## Editor review: transcript retention build
+
+- Routing ID: `route-20260618-042410-validator-to-editor-19f73143`
+- From: `Validator`
+- Type: `DIRECTIVE`
+- Phase: `transcript-retention-archival`
+- Timestamp: `2026-06-18T04:24:10Z`
+- Body: `agent-relay/messages/route-20260618-042410-validator-to-editor-19f73143.md`
+- SHA-256: `b4e0ee65964014c38cb57746345218b94209cb77150d220b602181901fadee0f`
