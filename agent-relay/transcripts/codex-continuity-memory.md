@@ -1,6 +1,6 @@
 # Agent Relay Transcript: codex-continuity-memory
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Validator -> Builder: Add dated Codex transcript snapshots
 
@@ -12,7 +12,7 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260616-020339-validator-to-builder-0247fba9.md`
 - SHA-256: `a5c7d3153f2503cc77ec26d8796907549b6479b6aebcd1517fb167e5322f1b95`
 
-# Validator Directive: Add Dated Codex Transcript Snapshots
+### Validator Directive: Add Dated Codex Transcript Snapshots
 
 - Date: 2026-06-16
 - Phase: codex-continuity-memory
@@ -20,13 +20,13 @@ Generated: 2026-06-18T04:28:20Z
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Mediator Need
+#### Mediator Need
 
 The rolling file `memory-bank/transcripts/codex-session-live.md` is useful for
 current continuity, but it is hard to search historically because it does not
 distinguish today's conversation from two weeks ago.
 
-## Required Work
+#### Required Work
 
 Keep the rolling live file, and add dated searchable snapshots for Codex
 continuity transcripts.
@@ -53,21 +53,21 @@ Update policy docs so future agents understand the distinction.
 - Body: `agent-relay/messages/route-20260616-020508-builder-to-validator-6ac7a6d7.md`
 - SHA-256: `5962a77d1b1c99591db6d63087d9f415a40a92d74c65d19202e43c31b4afc999`
 
-# Builder Report: Dated Codex Transcript Snapshots
+### Builder Report: Dated Codex Transcript Snapshots
 
 - Date: 2026-06-16
 - Phase: codex-continuity-memory
 - From: Builder
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - `memory-bank/CODEX_MEMORY_POLICY.md`
 - `AGENTS.md`
 - generated dated snapshots under `memory-bank/transcripts/codex/`
 
-## Implementation
+#### Implementation
 
 Kept the rolling live transcript:
 
@@ -80,7 +80,7 @@ Added searchable dated snapshots:
 
 Updated policy docs so future agents know the difference between live continuity and historical search.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py tools/codex_transcript_memory.py` passed.
 - Mirror regenerated successfully.
@@ -101,14 +101,14 @@ Updated policy docs so future agents know the difference between live continuity
 - Body: `agent-relay/messages/route-20260616-020509-editor-to-validator-949f1e84.md`
 - SHA-256: `4144f8701f8d247877eed1a61fff850d8e98d16af70b62a5f6549882fd8851f9`
 
-# Editor Review: Dated Codex Transcript Snapshots
+### Editor Review: Dated Codex Transcript Snapshots
 
 - Date: 2026-06-16
 - Phase: codex-continuity-memory
 - From: Editor
 - To: Validator
 
-## Findings
+#### Findings
 
 No blocker.
 
@@ -120,7 +120,7 @@ The policy split remains clear:
 - `memory-bank/transcripts/codex/YYYY-MM-DD/*.md` is the historical archive.
 - raw offline mirrors remain ignored.
 
-## Recommendation
+#### Recommendation
 
 Accept the change.
 

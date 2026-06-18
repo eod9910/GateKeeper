@@ -1,6 +1,6 @@
 # Agent Relay Transcript: agent-memory-bootstrap-guide
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Validator -> Builder: Create agent memory bootstrap guide
 
@@ -12,7 +12,7 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260616-030827-validator-to-builder-af80dd05.md`
 - SHA-256: `e6f2b36de5ea30643e7e2c043093f905ddf5303e58dab163477d471bea77a33e`
 
-# Validator Directive: Create Agent Memory Bootstrap Guide
+### Validator Directive: Create Agent Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -20,12 +20,12 @@ Generated: 2026-06-18T04:28:20Z
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator wants a report that tells Codex how to implement this transcript
 memory/startup pattern in other repositories.
 
-## Required Work
+#### Required Work
 
 Create a new self-contained folder with an implementation guide for other repos.
 The guide must explain, step by step:
@@ -40,7 +40,7 @@ The guide must explain, step by step:
 - how to adapt the pattern for repos that do or do not use the Tri-Agent
   contract.
 
-## Constraints
+#### Constraints
 
 - Do not modify mirror implementation scripts for this task.
 - Do not move existing memory files.
@@ -48,7 +48,7 @@ The guide must explain, step by step:
   follow.
 - Avoid assuming every repo has this repo's exact governance structure.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -70,18 +70,18 @@ Report:
 - Body: `agent-relay/messages/route-20260616-030832-builder-to-validator-49e354ee.md`
 - SHA-256: `25b8cd501958d48fee346cee5b9ddcc8bbf4e2f969e63842f8701f19778b1544`
 
-# Builder Report: Agent Memory Bootstrap Guide
+### Builder Report: Agent Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## Files Created
+#### Files Created
 
 - `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 
-## Key Instructions Included
+#### Key Instructions Included
 
 Builder included step-by-step guidance for implementing the Codex transcript
 memory pattern in another repo:
@@ -100,7 +100,7 @@ memory pattern in another repo:
 - common failure modes;
 - minimum portable checklist.
 
-## Verification
+#### Verification
 
 Builder checked that the guide contains the startup command:
 
@@ -111,7 +111,7 @@ Builder checked that the guide contains the startup command:
 Builder also checked that the guide includes the required sections for
 `AGENTS.md`, tracking policy, verification, and Tri-Agent integration.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder did not copy the mirror scripts into the new folder. The guide tells
 other repos to copy or implement the launcher trio from the source repo. If the
@@ -131,21 +131,21 @@ scripts under `agent-memory-bootstrap/templates/`.
 - Body: `agent-relay/messages/route-20260616-030845-editor-to-validator-aac42eaa.md`
 - SHA-256: `d34cf34bd8e8143d9428882b804f37cdf6c2f794ff8ed9a91baab0505e6456ac`
 
-# Editor Review: Agent Memory Bootstrap Guide
+### Editor Review: Agent Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` as a portable
 implementation report for other repositories.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts the new folder and single-guide structure. It is easy to copy,
 search, and hand to another Codex instance.
@@ -164,14 +164,14 @@ Editor accepts the guide's order:
 Editor accepts the distinction between repos that use Tri-Agent governance and
 repos that only need the practical startup/memory pattern.
 
-### Non-Blocking Follow-Up
+##### Non-Blocking Follow-Up
 
 The guide currently tells other repos to copy or implement the mirror script
 trio, but it does not include template scripts inside
 `agent-memory-bootstrap/templates/`. That is acceptable for a report, but a
 future portability pass could add templates.
 
-## Review Result
+#### Review Result
 
 Editor accepts the guide.
 
@@ -190,7 +190,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-031253-validator-to-builder-0ce6c4b7.md`
 - SHA-256: `66bd62011d526a38acf6fddfeac83e3014870c65d07de5affae71c2be3e58046`
 
-# Validator Directive: Add Router Copy To Memory Bootstrap Guide
+### Validator Directive: Add Router Copy To Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -198,12 +198,12 @@ No Editor blocker remains for this phase.
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator noted that the bootstrap guide must include the router itself, not
 only mention that a router is needed.
 
-## Required Work
+#### Required Work
 
 Update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` so it contains a
 portable copy of the Agent Relay router that another Codex instance can place at
@@ -216,14 +216,14 @@ The guide must also explain:
 - the core commands to route, verify, regenerate, and create transcripts;
 - that route commands should not be run in parallel.
 
-## Constraints
+#### Constraints
 
 - Keep the router copy inside the guide file.
 - Do not modify the live `tools/agent_router.py` implementation for this task.
 - Keep the guide portable for repos that do not use Pattern Detector's exact
   folder layout.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -245,18 +245,18 @@ Report:
 - Body: `agent-relay/messages/route-20260616-031300-builder-to-validator-f0607cbe.md`
 - SHA-256: `119b189a13dbdd86cfce425d0b8a42c36946c2037c90bb954bbcbbcc6a805749`
 
-# Builder Report: Add Router Copy To Memory Bootstrap Guide
+### Builder Report: Add Router Copy To Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## File Updated
+#### File Updated
 
 - `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 
-## Guide Section Added
+#### Guide Section Added
 
 Builder added `## 11. Portable Router Copy`.
 
@@ -269,12 +269,12 @@ The new section includes:
 - an explicit warning not to route messages in parallel;
 - a drop-in Python router implementation inside the guide.
 
-## Checklist Updates
+#### Checklist Updates
 
 Builder updated the minimum portable checklist so Tri-Agent repos must add
 `tools/agent_router.py` from the guide's portable router copy.
 
-## Verification
+#### Verification
 
 Builder checked:
 
@@ -284,7 +284,7 @@ Builder checked:
 - the guide includes the non-parallel route warning;
 - the Python code fence closes before the Common Failure Modes section.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder reports no blocker. Editor should review whether embedding the router
 in the guide is clear enough for another Codex instance to implement.
@@ -302,21 +302,21 @@ in the guide is clear enough for another Codex instance to implement.
 - Body: `agent-relay/messages/route-20260616-031313-editor-to-validator-52ed582f.md`
 - SHA-256: `76d63aaf28af2045cfcb2527521ff4d28d4fd349b84c64fcdeea4d2f9ec2e3df`
 
-# Editor Review: Router Copy In Memory Bootstrap Guide
+### Editor Review: Router Copy In Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 after Builder embedded a portable router copy.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts adding `## 11. Portable Router Copy`. The guide now gives another
 Codex instance enough material to create `tools/agent_router.py` instead of only
@@ -331,7 +331,7 @@ regenerates derived views after each route.
 Editor accepts the checklist update requiring Tri-Agent repos to add
 `tools/agent_router.py` from the guide.
 
-## Review Result
+#### Review Result
 
 Editor accepts the router-copy update.
 
@@ -350,7 +350,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-032041-validator-to-builder-9be4376a.md`
 - SHA-256: `4cd3c126c6f79e709acf5dd65084f9da2546810e6c5ccb2ef01c8dc4428387f6`
 
-# Validator Directive: Add Transcript Mirror Scripts To Bootstrap Guide
+### Validator Directive: Add Transcript Mirror Scripts To Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -358,12 +358,12 @@ No Editor blocker remains for this phase.
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator wants the bootstrap package to include the scripts necessary to
 record transcript memory, not only instructions that such scripts exist.
 
-## Required Work
+#### Required Work
 
 Update the `agent-memory-bootstrap` package so it includes portable copies of
 the Codex transcript mirror scripts:
@@ -382,14 +382,14 @@ Update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` to explain:
 - which memory files the scripts generate;
 - how to verify transcripts are being recorded.
 
-## Constraints
+#### Constraints
 
 - Do not modify the live mirror implementation in `tools/`.
 - Keep copied scripts under the bootstrap folder as templates.
 - Keep instructions clear for a new Codex instance implementing this in another
   repo.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -411,14 +411,14 @@ Report:
 - Body: `agent-relay/messages/route-20260616-032045-builder-to-validator-7276491f.md`
 - SHA-256: `c23e181fbda26e5108f84dcfc6418a7fa05b0383210943494305c4500b29ec89`
 
-# Builder Report: Add Transcript Mirror Scripts To Bootstrap Guide
+### Builder Report: Add Transcript Mirror Scripts To Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## Template Files Added
+#### Template Files Added
 
 Builder added portable transcript recording templates under:
 
@@ -433,7 +433,7 @@ Files added:
 - `agent-memory-bootstrap/templates/tools/start_codex_transcript_mirror.ps1`
 - `agent-memory-bootstrap/templates/tools/stop_codex_transcript_mirror.ps1`
 
-## Guide Updates
+#### Guide Updates
 
 Builder updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` with:
 
@@ -445,7 +445,7 @@ Builder updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` with:
 - checklist items for `codex_transcript_memory.py` and the one-shot recording
   verification.
 
-## Verification
+#### Verification
 
 Builder ran:
 
@@ -457,7 +457,7 @@ The Python templates compiled successfully. Builder removed the generated
 `__pycache__` folder after verification so the bootstrap package contains only
 intentional template files.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder reports no blocker. Editor should review whether the transcript
 recording instructions are clear enough for another Codex instance to install
@@ -476,21 +476,21 @@ and verify in a different repository.
 - Body: `agent-relay/messages/route-20260616-032058-editor-to-validator-42b690b3.md`
 - SHA-256: `65565d215e6ae465732fc14f660dd9752cf64f0a338c3fb72896e7e9f7672f46`
 
-# Editor Review: Transcript Scripts In Memory Bootstrap Guide
+### Editor Review: Transcript Scripts In Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the bootstrap guide and template script additions for transcript
 recording portability.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts adding `agent-memory-bootstrap/templates/tools/` with:
 
@@ -508,7 +508,7 @@ the mirror script would fail on import.
 
 Editor accepts the checklist update requiring one-shot recording verification.
 
-## Review Result
+#### Review Result
 
 Editor accepts the transcript script additions.
 
@@ -527,7 +527,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-042943-validator-to-builder-3a9a83d0.md`
 - SHA-256: `ae713ce08d546410d167abf5eb16f193b3d46cb340e503fffe6cdf0010c1d32b`
 
-# Validator Directive: Add Router Workflow Guide
+### Validator Directive: Add Router Workflow Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -535,12 +535,12 @@ No Editor blocker remains for this phase.
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator wants the new repo to know exactly how Pattern Detector generates
 `agent-relay/transcripts/all.md` and the per-phase relay transcripts.
 
-## Required Work
+#### Required Work
 
 Create a dedicated guide under `agent-memory-bootstrap/` that explains:
 
@@ -555,13 +555,13 @@ Create a dedicated guide under `agent-memory-bootstrap/` that explains:
 Also update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` to point to the
 new router workflow guide.
 
-## Constraints
+#### Constraints
 
 - Keep the guide usable by a fresh Codex instance in a different repository.
 - Do not assume the target repo already has working relay folders.
 - Mention that route commands must be run one at a time.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -583,20 +583,20 @@ Report:
 - Body: `agent-relay/messages/route-20260616-042948-builder-to-validator-a3797a08.md`
 - SHA-256: `b7ed0e654a1f40f0e441aa09ac46431823dcd74d433120987507d2ffa8e3702a`
 
-# Builder Report: Router Workflow Guide
+### Builder Report: Router Workflow Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## Files Created Or Updated
+#### Files Created Or Updated
 
 - Created `agent-memory-bootstrap/ROUTER_WORKFLOW.md`
 - Updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 - Repaired `tools/agent_router.py` line 1 so the live router runs again
 
-## Key Setup Instructions Added
+#### Key Setup Instructions Added
 
 Builder documented:
 
@@ -610,7 +610,7 @@ Builder documented:
 - how to debug missing or incomplete `all.md`;
 - the distinction between Agent Relay conversations and Codex transcript memory.
 
-## Verification
+#### Verification
 
 Builder verified:
 
@@ -621,7 +621,7 @@ Builder verified:
   instructions;
 - the main implementation guide points to `agent-memory-bootstrap/ROUTER_WORKFLOW.md`.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder reports no blocker. Editor should review whether the new guide is clear
 enough for a fresh Codex instance to make `all.md` work in another repo.
@@ -639,21 +639,21 @@ enough for a fresh Codex instance to make `all.md` work in another repo.
 - Body: `agent-relay/messages/route-20260616-043004-editor-to-validator-b59a444f.md`
 - SHA-256: `ad9ca93f963d3ee070d217e800b3a296b417ca3dacc5aade967cfa5ef0bbf4c0`
 
-# Editor Review: Router Workflow Guide
+### Editor Review: Router Workflow Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed `agent-memory-bootstrap/ROUTER_WORKFLOW.md` and the pointer
 added to `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts the new dedicated router workflow guide. It clearly explains
 that `all.md` is generated from routed role messages, not ordinary chat
@@ -676,7 +676,7 @@ checks for `routes.jsonl`, copied message bodies, and hash verification.
 
 Editor accepts the warning not to route messages in parallel.
 
-## Review Result
+#### Review Result
 
 Editor accepts the router workflow guide.
 

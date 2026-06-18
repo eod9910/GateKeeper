@@ -1,6 +1,6 @@
 # Agent Relay Transcript: transcript-retention-archival
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Validator -> Builder: Transcript retention and archival (Tier 2)
 
@@ -12,7 +12,7 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260618-040810-validator-to-builder-e37efc95.md`
 - SHA-256: `88154f5559d3e2cbfcd482b170aad68c4bb74f559a3210bf87c873222f02f46b`
 
-# Validator Directive — Transcript Retention and Archival
+### Validator Directive — Transcript Retention and Archival
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -20,7 +20,7 @@ Generated: 2026-06-18T04:28:20Z
 - To: Builder
 - Tier: 2 (PRD + checklist; full relay)
 
-## Frozen requirements
+#### Frozen requirements
 
 Implement the workstream defined in:
 
@@ -35,7 +35,7 @@ Build to the checklist, in order, honoring these confirmed decisions:
    gated by the Destructive Cleanup process; not run at startup.
 4. 30-day hot window.
 
-## Hard constraints
+#### Hard constraints
 
 - `routes.jsonl` is the immutable source of truth. Archives are DERIVED views;
   never trim, rewrite, or reorder the log.
@@ -45,7 +45,7 @@ Build to the checklist, in order, honoring these confirmed decisions:
 - Hot `all.md` + monthly archive files must reconstruct exactly to the full route
   set (no loss, no duplication).
 
-## Report back
+#### Report back
 
 Builder report must list every file created/modified, show the dry-run
 affected-path output, and state any assumptions or limitations. Do NOT mark the
@@ -69,7 +69,7 @@ ABOUT: Transcript Retention and Archival (Tier 2) build
 ACTION: Verify against files/diff and script output; do not treat as accepted.
 TYPE: FACTUAL REPORT
 
-# Transcript Retention and Archival - Builder Report
+### Transcript Retention and Archival - Builder Report
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -83,14 +83,14 @@ honoring the four confirmed decisions (tracked `archive/` subfolders, monthly
 granularity, manual dry-run-default script, 30-day hot window) and all hard
 constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 
-## Files created
+#### Files created
 
 - `tools/archive_transcripts.py`
   Standalone manual maintenance script (dry-run default).
 - `agent-relay/roles/Builder/reports/2026-06-17-transcript-archival-dryrun-report.md`
   Affected-path report emitted by the dry-run (also reproduced below).
 
-## Files modified
+#### Files modified
 
 - `memory-bank/MEMORY_ARCHIVE_POLICY.md`
   Added a "Transcript Retention and Archival (30-Day Hot Window)" section:
@@ -109,7 +109,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - `tools/agent_router.py`
   Phase 2 relay windowing (details below).
 
-## Phase 2 implementation choices (tools/agent_router.py)
+#### Phase 2 implementation choices (tools/agent_router.py)
 
 - Added `HOT_WINDOW_DAYS = 30` and `ARCHIVE_DIR = TRANSCRIPTS_DIR / "archive"`.
 - Added `parse_route_timestamp()` to parse ISO-8601 UTC route timestamps
@@ -140,7 +140,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
   `*-session-live.md` transcripts are behaviorally unchanged. The log is never
   trimmed, rewritten, or reordered; the views are derived and rebuildable.
 
-## Phase 3 implementation choices (tools/archive_transcripts.py)
+#### Phase 3 implementation choices (tools/archive_transcripts.py)
 
 - Scans `memory-bank/transcripts/<agent>/YYYY-MM-DD/` for `<agent>` in
   `{codex, cursor}`, skipping the `archive/` subfolder and any non-date-named
@@ -160,7 +160,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
   `agent-relay/roles/Builder/reports/2026-06-17-transcript-archival-dryrun-report.md`
   and prints it to stdout.
 
-## Validation performed (local)
+#### Validation performed (local)
 
 - `python tools/agent_router.py verify` -> `{"ok": true, "checked": 62}`.
 - `python -c "ast.parse(...)"` on both `tools/archive_transcripts.py` and
@@ -178,7 +178,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
   - ARCHIVE: `2026-01` -> `old-jan`, `2026-02` -> `old-feb`
   - union == all inputs (5 of 5), confirming no loss and no duplication.
 
-## Dry-run affected-path output
+#### Dry-run affected-path output
 
 ```
 # Transcript Archival Report
@@ -207,7 +207,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - Files to move: `3`
 ```
 
-## Assumptions
+#### Assumptions
 
 - "Older than 30 days" for snapshot folders uses `> 30` days relative to today's
   date (`date.today()`); for relay windowing it uses `>= cutoff` where
@@ -219,7 +219,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - The `.snapshot-manifest.json` inside a day-folder is moved along with the
   folder (it is part of that day's snapshot record).
 
-## Limitations / not done by Builder
+#### Limitations / not done by Builder
 
 - No real `--apply` archival move was performed; only the dry-run was run. The
   first real move must go through the Destructive Cleanup Gate (Validator
@@ -245,7 +245,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - Body: `agent-relay/messages/route-20260618-042124-builder-to-validator-df15f55d.md`
 - SHA-256: `7b573e11380451260ec27396042600a2d589f85a4de30f12e8a06c0274ec5e51`
 
-# Builder Report — Transcript Retention and Archival
+### Builder Report — Transcript Retention and Archival
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -254,7 +254,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - Tier: 2 (PRD + checklist; full relay)
 - Status: implemented; NOT self-certified. Validator verifies, Editor reviews.
 
-## Summary
+#### Summary
 
 Implemented the Tier 2 "Transcript Retention and Archival" workstream: a 30-day
 hot window for both unbounded transcript stores, with tracked monthly cold
@@ -266,7 +266,7 @@ present in the working tree from prior uncommitted work; I verified them against
 the PRD/checklist and the hard constraints. Phase 3 (`tools/archive_transcripts.py`)
 is new in this build. No git commit was made.
 
-## Files created / modified
+#### Files created / modified
 
 Created:
 
@@ -301,7 +301,7 @@ Untouched (by design):
 - The size-capped `*-session-live.md` transcripts and `MAX_TRANSCRIPT_CHARS`
   behavior in the mirrors are untouched.
 
-## Key implementation choices
+#### Key implementation choices
 
 - **Deterministic relay window:** `split_hot_archive` computes the 30-day cutoff
   relative to the most recent route timestamp in `routes.jsonl` (not wall-clock),
@@ -327,7 +327,7 @@ Untouched (by design):
   Phase 2 relay rollover so a single invocation handles both the relay timeline
   and the snapshot day-folders.
 
-## Validation performed
+#### Validation performed
 
 - `python tools/agent_router.py verify` -> `{"ok": true, "checked": 63}`.
 - `python -c "import ast,pathlib; ast.parse(...)"` on both `tools/archive_transcripts.py`
@@ -346,7 +346,7 @@ Untouched (by design):
   hot = `[r3(Jun), r4(Jun), r5(bad-ts)]`, archive = `{2026-01:[r1], 2026-02:[r2]}`,
   and the hot+archive union equaled the input exactly (no loss, no duplication).
 
-## Dry-run affected-path output
+#### Dry-run affected-path output
 
 ```
 ## Snapshot day-folder moves
@@ -366,7 +366,7 @@ Untouched (by design):
 Full report at
 `agent-relay/roles/Builder/reports/2026-06-17-transcript-archival-dryrun-report.md`.
 
-## Assumptions
+#### Assumptions
 
 - Treated the prior uncommitted Phase 1/Phase 2 changes as part of this
   workstream and verified them rather than rewriting; they match the PRD,
@@ -377,7 +377,7 @@ Full report at
   treated as in-scope cleanup, not a "delete" of historical memory (no files are
   removed except byte-identical duplicates already present at the destination).
 
-## Limitations / not done
+#### Limitations / not done
 
 - No `--apply` run was performed. Phase 4's first real archival move must go
   through the Destructive Cleanup Gate (Validator approval, this Builder report,
@@ -400,7 +400,7 @@ Full report at
 - Body: `agent-relay/messages/route-20260618-042410-validator-to-editor-19f73143.md`
 - SHA-256: `b4e0ee65964014c38cb57746345218b94209cb77150d220b602181901fadee0f`
 
-# Validator Directive — Editor Review: Transcript Retention and Archival
+### Validator Directive — Editor Review: Transcript Retention and Archival
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -408,7 +408,7 @@ Full report at
 - To: Editor
 - Tier: 2
 
-## Validator verification (passed)
+#### Validator verification (passed)
 
 Independently verified against files/diff/command output (not the Builder report):
 
@@ -419,7 +419,7 @@ Independently verified against files/diff/command output (not the Builder report
 - `all.md` renders "last 30 days" with archive pointer; `verify` ok (64 routes).
 - Dry-run isolates the single 99-day folder and moves nothing.
 
-## Editor task (structure-only, no behavior change)
+#### Editor task (structure-only, no behavior change)
 
 Anti-spaghetti review of:
 
@@ -446,7 +446,7 @@ than fixing it yourself. Report findings; do not certify your own changes.
 - Body: `agent-relay/messages/route-20260618-042820-editor-to-validator-3fd6cb2f.md`
 - SHA-256: `6363959931399a141411baa5f89ee2ffbe28cd615a52257143796b629904b998`
 
-# Editor Review — Transcript Retention and Archival (structure-only)
+### Editor Review — Transcript Retention and Archival (structure-only)
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -457,7 +457,7 @@ than fixing it yourself. Report findings; do not certify your own changes.
   (30-day windowing semantics, dry-run/--apply gating, output formats, control
   flow all unchanged).
 
-## What I reviewed
+#### What I reviewed
 
 - `tools/agent_router.py` — new `parse_route_timestamp`, `split_hot_archive`,
   `regenerate_relay_timeline`, the `HOT_WINDOW_DAYS` / `ARCHIVE_DIR` constants,
@@ -474,7 +474,7 @@ than fixing it yourself. Report findings; do not certify your own changes.
   — checked the documented 30-day window, monthly archive layout, and
   manual-under-gate language against the actual code paths.
 
-## Structural assessment
+#### Structural assessment
 
 The build is clean and readable. Functions are well-sized and single-purpose,
 docstrings accurately describe intent, the hot/archive split is deterministic
@@ -490,7 +490,7 @@ Doc/code agreement is correct:
   snapshot-relative-to-today distinction, manual-under-gate, and
   move-never-delete statements all match actual behavior.
 
-## Structural edits I made
+#### Structural edits I made
 
 1. `tools/agent_router.py`: removed the unused `import shutil`. It was
    pre-existing dead code (introduced in commit `0a4e40533`, never referenced)
@@ -508,7 +508,7 @@ Doc/code agreement is correct:
 Rationale: both edits reduce duplication / dead code (anti-spaghetti) without
 touching control flow, the windowing math, the gating, or any emitted format.
 
-## Verification after edits (all green, identical to pre-edit baseline)
+#### Verification after edits (all green, identical to pre-edit baseline)
 
 - `python tools/agent_router.py verify` → `{"ok": true, "checked": 65}`.
 - `python tools/agent_router.py regenerate` → succeeds; `all.md` re-renders with
@@ -520,7 +520,7 @@ touching control flow, the windowing math, the gating, or any emitted format.
 - No linter errors on either file.
 - Did NOT run with `--apply`; did NOT git commit.
 
-## Non-blocking observations (left as-is, for awareness only)
+#### Non-blocking observations (left as-is, for awareness only)
 
 - `render_transcript` sorts its `records` argument in place
   (`records.sort(...)`). In `regenerate_relay_timeline` the lists passed (`hot`,
@@ -533,7 +533,7 @@ touching control flow, the windowing math, the gating, or any emitted format.
   documented behavior (dry-run wins) matches `main`'s
   `apply = bool(args.apply) and not args.dry_run`.
 
-## Blocker status
+#### Blocker status
 
 NO BLOCKER. Validated behavior is preserved; my edits are purely structural
 (dead-import removal + helper deduplication) and verified to leave verify,

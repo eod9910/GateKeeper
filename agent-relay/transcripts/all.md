@@ -1,6 +1,6 @@
 # Agent Relay Transcript: All Phases (last 30 days)
 
-Generated: 2026-06-18T04:32:46Z
+Generated: 2026-06-18T05:38:58Z
 
 > Retention: this hot timeline shows only routes from the last 30 days (relative to the newest route in routes.jsonl). Older routes are archived by month under `agent-relay/transcripts/archive/all-YYYY-MM.md`. The immutable source of truth is `agent-relay/router/routes.jsonl`.
 
@@ -149,12 +149,12 @@ Editor requests Validator review of this factual report.
 - Body: `agent-relay/messages/route-20260616-012418-builder-to-validator-898815d3.md`
 - SHA-256: `446bc985d7299b01d48343b33832fdf7da496e6634923c21cb58aa19c5d68f30`
 
-# Builder Report: Codex Transcript Mirror
+### Builder Report: Codex Transcript Mirror
 
 - Date: 2026-06-16
 - Source request: Build a Codex equivalent of the Cursor transcript mirror.
 
-## Implemented
+#### Implemented
 
 - Added `tools/codex_transcript_mirror.py`.
 - Added `tools/start_codex_transcript_mirror.ps1`.
@@ -163,20 +163,20 @@ Editor requests Validator review of this factual report.
 - Generated `memory-bank/CODEX_CONTINUITY.md`.
 - Generated `memory-bank/transcripts/codex-session-live.md`.
 
-## Behavior
+#### Behavior
 
 The mirror reads workspace-matching Codex rollout JSONL files from `~/.codex/sessions`, copies raw session files into `offline-codex-transcripts-live/`, exports decoded Markdown/JSON views, and writes compact continuity files to `memory-bank/`.
 
 The launcher starts a hidden Python watch process with a 30 second polling interval.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py` passed.
 - One-shot mirror completed and reported 34 mirrored sessions.
 - `memory-bank/CODEX_CONTINUITY.md` identified the current thread and latest user prompt.
 - Live mirror process started as Python PID 40732.
 
-## Known Limitations
+#### Known Limitations
 
 - The watcher reprocesses all matching sessions each cycle.
 - A future hardening pass should make processing incremental by timestamp/checksum.
@@ -196,12 +196,12 @@ The launcher starts a hidden Python watch process with a 30 second polling inter
 - Body: `agent-relay/messages/route-20260616-012419-editor-to-validator-d420ab8a.md`
 - SHA-256: `7102d6d6bfd96366b2c2a977431376221104306f2cae2e0ce8cd955f91eef145`
 
-# Editor Review: Codex Transcript Mirror
+### Editor Review: Codex Transcript Mirror
 
 - Date: 2026-06-16
 - Reviewed artifact class: repo-local continuity tooling and memory output.
 
-## Findings
+#### Findings
 
 The implementation follows the right architectural boundary: it reads Codex's structured session rollout files instead of scraping unrelated global SQLite state, avoids copying credentials, and keeps raw transcript mirrors ignored through `.gitignore`.
 
@@ -209,7 +209,7 @@ The main maintainability concern is that the watch loop regenerates decoded view
 
 The main privacy concern is not the ignored raw mirror; it is the visible memory-bank summaries. They are useful for startup continuity, but they can include sensitive user prompts. Treat them as local memory unless the Mediator explicitly decides to commit them.
 
-## Recommendations
+#### Recommendations
 
 - Add incremental processing before expanding usage.
 - Keep raw mirror folders ignored.
@@ -230,7 +230,7 @@ The main privacy concern is not the ignored raw mirror; it is the visible memory
 - Body: `agent-relay/messages/route-20260616-012656-validator-to-editor-2f69319d.md`
 - SHA-256: `5d68cd909e5a3fa5e9decfe79188d7609c329c9d9118b1265fc04d540f36b598`
 
-# Validator Directive: Review Codex Transcript Mirror
+### Validator Directive: Review Codex Transcript Mirror
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror
@@ -238,11 +238,11 @@ The main privacy concern is not the ignored raw mirror; it is the visible memory
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Review the Codex transcript mirror work for compliance with the Tri-Agent Coding Contract, especially the anti-spaghetti standard.
 
-## Artifacts To Review
+#### Artifacts To Review
 
 - `tools/codex_transcript_mirror.py`
 - `tools/start_codex_transcript_mirror.ps1`
@@ -251,7 +251,7 @@ Review the Codex transcript mirror work for compliance with the Tri-Agent Coding
 - `memory-bank/CODEX_CONTINUITY.md`
 - `memory-bank/transcripts/codex-session-live.md`
 
-## Review Scope
+#### Review Scope
 
 Check for:
 
@@ -263,7 +263,7 @@ Check for:
 - whether generated memory-bank files should be tracked or ignored;
 - whether the implementation creates a parallel system that should instead reuse existing repo memory/relay conventions.
 
-## Required Output
+#### Required Output
 
 Return an Editor report to Validator with:
 
@@ -288,7 +288,7 @@ Do not modify files in this review pass unless Validator separately authorizes a
 - Body: `agent-relay/messages/route-20260616-012750-editor-to-validator-534a5e18.md`
 - SHA-256: `52766e68bc41d32f6f3a9e885943ab506d1344339c4dc72a8e1327cd5175d4b3`
 
-# Editor Report: Codex Transcript Mirror Contract Review
+### Editor Report: Codex Transcript Mirror Contract Review
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror
@@ -296,9 +296,9 @@ Do not modify files in this review pass unless Validator separately authorizes a
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-editor-review-codex-transcript-mirror.md`
 
-## Findings
+#### Findings
 
-### High: Generated memory-bank transcript files may be commit-visible
+##### High: Generated memory-bank transcript files may be commit-visible
 
 `memory-bank/CODEX_CONTINUITY.md` and `memory-bank/transcripts/codex-session-live.md` are generated from user/assistant transcript content and are currently visible as untracked files. They may contain sensitive prompts, private reasoning context, repo state, or market/trading discussion.
 
@@ -306,7 +306,7 @@ Raw mirror output is correctly ignored via `offline-codex-transcripts-*/`, but t
 
 Recommended owner: Validator decides policy with Mediator. Builder implements ignore/output changes if required.
 
-### Medium: Mirror script is monolithic and largely duplicates Cursor mirror concepts
+##### Medium: Mirror script is monolithic and largely duplicates Cursor mirror concepts
 
 `tools/codex_transcript_mirror.py` is about 754 lines. That is manageable for a v1 utility, but it bundles discovery, parsing, classification, rendering, file copying, memory-bank writing, and watch behavior into one file.
 
@@ -314,25 +314,25 @@ This does not violate behavior correctness, but it does create future maintenanc
 
 Recommended owner: Editor can refactor structure only after Validator authorization. Builder should handle behavior changes.
 
-### Medium: Watch mode reprocesses every matching session on every interval
+##### Medium: Watch mode reprocesses every matching session on every interval
 
 The watcher runs every 30 seconds and regenerates decoded outputs for all matching sessions. On this repo it mirrored 34 sessions and took roughly 30 seconds in a one-shot run, which means watch cycles may overlap in practice only because the loop sleeps after each run, but it still creates heavy OneDrive churn.
 
 Recommended owner: Builder should implement incremental processing by mtime/checksum if this is intended to stay always-on.
 
-### Low: Current code intentionally avoids high-risk Codex state
+##### Low: Current code intentionally avoids high-risk Codex state
 
 The script reads `~/.codex/sessions` and `session_index.jsonl`. It does not copy `auth.json`, SQLite logs, plugin caches, memories DBs, or credential-like files. That boundary is correct.
 
 Recommended owner: no correction required.
 
-### Low: PowerShell process controls are conventional
+##### Low: PowerShell process controls are conventional
 
 The start/stop scripts use PID files and hidden `Start-Process`. They are consistent with the existing Cursor mirror launcher style.
 
 Recommended owner: no correction required.
 
-## Acceptance Recommendation
+#### Acceptance Recommendation
 
 Do not fully accept this as final until the memory-bank tracking policy is resolved.
 
@@ -342,7 +342,7 @@ Acceptable as a v1 local experiment if:
 - generated memory-bank transcript files are either ignored or explicitly approved as tracked local governance artifacts;
 - the live watcher is understood to be a temporary v1 and not permanent infrastructure.
 
-## Recommended Next Directive
+#### Recommended Next Directive
 
 Validator should issue a Builder directive to fix the privacy/tracking policy first. If the Mediator wants the mirror to become durable infrastructure, Validator should then issue a separate Builder directive for incremental processing. After that, Editor can perform an authorized refactor pass to reduce script size and duplication without changing behavior.
 
@@ -360,7 +360,7 @@ Validator should issue a Builder directive to fix the privacy/tracking policy fi
 - Body: `agent-relay/messages/route-20260616-013015-validator-to-builder-e2344ea0.md`
 - SHA-256: `d5d75f1ea5de9b3cbf1479e948a26766d9f55337ded0e4ddd4907d34c9e4acb2`
 
-# Validator Directive: Fix Codex Memory Tracking Policy
+### Validator Directive: Fix Codex Memory Tracking Policy
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror
@@ -368,13 +368,13 @@ Validator should issue a Builder directive to fix the privacy/tracking policy fi
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Mediator Decision
+#### Mediator Decision
 
 The Mediator accepts tracking the compact Codex memory artifacts in git. The rationale is catastrophic recovery: the repository should preserve not only code, but also the conversation trail and decisions that led to the code.
 
 Raw transcript mirrors must remain ignored and local.
 
-## Required Work
+#### Required Work
 
 Implement the tracking policy so future agents understand the split:
 
@@ -383,7 +383,7 @@ Implement the tracking policy so future agents understand the split:
 - tracked memory files are marked as generated continuity artifacts and should be treated as sensitive repo memory;
 - future agents can discover the policy without guessing.
 
-## Artifacts In Scope
+#### Artifacts In Scope
 
 - `.gitignore`
 - `memory-bank/CODEX_CONTINUITY.md`
@@ -391,7 +391,7 @@ Implement the tracking policy so future agents understand the split:
 - optional repo-local policy docs if needed
 - no application behavior changes
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -414,7 +414,7 @@ Report:
 - Body: `agent-relay/messages/route-20260616-013228-builder-to-validator-358034b6.md`
 - SHA-256: `628f6b065f9deab120af2a6bcc44e512db4fd32f2b8e37aa9c7dcba01ec70ac2`
 
-# Builder Report: Codex Memory Tracking Policy
+### Builder Report: Codex Memory Tracking Policy
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror
@@ -422,7 +422,7 @@ Report:
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-builder-fix-codex-memory-tracking.md`
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - `memory-bank/CODEX_MEMORY_POLICY.md`
@@ -430,7 +430,7 @@ Report:
 - `memory-bank/transcripts/codex-session-live.md`
 - `AGENTS.md`
 
-## Policy Implemented
+#### Policy Implemented
 
 The compact Codex continuity files are intentionally trackable in git for catastrophic recovery:
 
@@ -446,13 +446,13 @@ The generated Markdown headers now mark the compact memory files as sensitive re
 
 `AGENTS.md` now points future agents to the Codex memory policy and continuity file for continuity-sensitive work.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py` passed.
 - One-shot mirror regenerated 34 Codex sessions.
 - Generated memory files contain the new tracking policy headers.
 
-## Remaining Concerns For Editor
+#### Remaining Concerns For Editor
 
 - The mirror script is still monolithic.
 - Watch mode still reprocesses every matching session each cycle.
@@ -472,7 +472,7 @@ The generated Markdown headers now mark the compact memory files as sensitive re
 - Body: `agent-relay/messages/route-20260616-013303-validator-to-editor-dd657469.md`
 - SHA-256: `ccdf1222886933827fc7e56621e792b5ad95b8670475fb1eb104d118f7eb6289`
 
-# Validator Directive: Review Codex Memory Tracking Fix
+### Validator Directive: Review Codex Memory Tracking Fix
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror
@@ -480,11 +480,11 @@ The generated Markdown headers now mark the compact memory files as sensitive re
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Review the Builder's Codex memory tracking fix.
 
-## Inputs
+#### Inputs
 
 - Builder report: `agent-relay/roles/Builder/reports/2026-06-16-codex-memory-tracking-builder-report.md`
 - Policy doc: `memory-bank/CODEX_MEMORY_POLICY.md`
@@ -494,7 +494,7 @@ Review the Builder's Codex memory tracking fix.
   - `memory-bank/CODEX_CONTINUITY.md`
   - `memory-bank/transcripts/codex-session-live.md`
 
-## Review Questions
+#### Review Questions
 
 - Does the implementation match the Mediator decision to track compact memory artifacts?
 - Are raw transcript mirrors still protected from git?
@@ -518,7 +518,7 @@ Do not modify files in this review pass.
 - Body: `agent-relay/messages/route-20260616-013335-editor-to-validator-46a89043.md`
 - SHA-256: `a1a52614aff016e7a91b95b3f1700beff57c27d3b5b29dc0807a90a30695f676`
 
-# Editor Report: Codex Memory Tracking Fix Review
+### Editor Report: Codex Memory Tracking Fix Review
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror
@@ -526,9 +526,9 @@ Do not modify files in this review pass.
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-editor-review-codex-memory-tracking-fix.md`
 
-## Findings
+#### Findings
 
-### No acceptance blocker: Mediator tracking decision is implemented
+##### No acceptance blocker: Mediator tracking decision is implemented
 
 The compact memory artifacts are intentionally git-visible:
 
@@ -537,7 +537,7 @@ The compact memory artifacts are intentionally git-visible:
 
 They now contain generated headers stating that they are git-trackable for catastrophic recovery and sensitive repo memory.
 
-### No acceptance blocker: raw mirrors remain ignored
+##### No acceptance blocker: raw mirrors remain ignored
 
 `git check-ignore` confirms that raw/offline mirror outputs are ignored by `.gitignore`:
 
@@ -547,7 +547,7 @@ They now contain generated headers stating that they are git-trackable for catas
 
 This matches the policy split.
 
-### No acceptance blocker: future-agent discoverability is improved
+##### No acceptance blocker: future-agent discoverability is improved
 
 `AGENTS.md` now has a `Codex Continuity Memory` section pointing future agents to:
 
@@ -556,19 +556,19 @@ This matches the policy split.
 
 `memory-bank/CODEX_MEMORY_POLICY.md` explains the tracked/local split.
 
-### Remaining non-blocking concern: monolithic mirror utility
+##### Remaining non-blocking concern: monolithic mirror utility
 
 `tools/codex_transcript_mirror.py` remains large and combines parsing, summarization, rendering, output policy, and watch behavior. This is not a blocker for the memory-tracking fix, but it remains an Editor refactor candidate.
 
 Recommended owner: Editor, only after Validator authorizes a behavior-preserving refactor.
 
-### Remaining non-blocking concern: watcher cost
+##### Remaining non-blocking concern: watcher cost
 
 Watch mode still reprocesses every matching session each interval. This is not a correctness blocker for the tracking policy, but it should be improved before treating the watcher as permanent always-on infrastructure.
 
 Recommended owner: Builder, because incremental processing changes behavior/performance semantics.
 
-## Recommendation
+#### Recommendation
 
 Validator may accept the memory-tracking policy fix as complete.
 
@@ -588,7 +588,7 @@ Before committing, stage only the scoped governance/continuity files and do not 
 - Body: `agent-relay/messages/route-20260616-013934-validator-to-builder-f1c84862.md`
 - SHA-256: `a3abb8ef7f5db47f9c0f4116b0511e9576b9ed4787a5c1678d75fb0e7c1437fc`
 
-# Validator Directive: Make Codex Mirror Incremental
+### Validator Directive: Make Codex Mirror Incremental
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -596,11 +596,11 @@ Before committing, stage only the scoped governance/continuity files and do not 
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Trigger
+#### Trigger
 
 Editor identified that watch mode reprocesses every matching Codex session each interval. The Mediator directed that Editor problems should be fixed as they come so the code stays clean.
 
-## Required Work
+#### Required Work
 
 Improve `tools/codex_transcript_mirror.py` so watch mode avoids reparsing and rewriting unchanged session files.
 
@@ -611,7 +611,7 @@ Keep behavior equivalent:
 - current continuity views still update when the active Codex session changes;
 - generated output still includes session summaries and latest-session Markdown.
 
-## Constraints
+#### Constraints
 
 - Do not change app behavior.
 - Do not weaken the memory tracking policy.
@@ -632,7 +632,7 @@ Keep behavior equivalent:
 - Body: `agent-relay/messages/route-20260616-014236-builder-to-validator-33698957.md`
 - SHA-256: `1b61ae4ce48209b86e784c4c01ffcf9daed6400fc782cf758ed6b1fa26b677b9`
 
-# Builder Report: Incremental Codex Mirror
+### Builder Report: Incremental Codex Mirror
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -640,14 +640,14 @@ Keep behavior equivalent:
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-builder-incremental-codex-mirror.md`
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - Generated compact memory refresh:
   - `memory-bank/CODEX_CONTINUITY.md`
   - `memory-bank/transcripts/codex-session-live.md`
 
-## Implementation
+#### Implementation
 
 Added a local ignored session cache under the offline mirror output:
 
@@ -657,7 +657,7 @@ The cache stores parsed Codex rollout records keyed by source path plus file sig
 
 Also added change-aware text writes and raw-copy skipping so unchanged raw and decoded session outputs are not rewritten just because watch mode wakes up.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py` passed.
 - First mirror run completed and populated the cache.
@@ -668,11 +668,11 @@ Also added change-aware text writes and raw-copy skipping so unchanged raw and d
   - `skipped: 0`
 - The active session still updated the compact memory files.
 
-## GitNexus Note
+#### GitNexus Note
 
 GitNexus impact lookup for `mirror_once` resolves to the older Cursor mirror because both tools use the same function name. A file-path context lookup for the Codex mirror did not resolve the new symbol. The available impact result for the same-name Cursor function showed low risk and no affected execution flows. This Codex change is confined to the standalone mirror utility.
 
-## Remaining Concern For Editor
+#### Remaining Concern For Editor
 
 The mirror utility is still monolithic. The performance problem is fixed, but Editor should decide whether a behavior-preserving structural refactor is required before acceptance.
 
@@ -690,7 +690,7 @@ The mirror utility is still monolithic. The performance problem is fixed, but Ed
 - Body: `agent-relay/messages/route-20260616-014250-validator-to-editor-e8f00062.md`
 - SHA-256: `a515a1a9a7036c111bf9237e67fe3c7d13eae935d8066851680d20ac92b25a1b`
 
-# Validator Directive: Review Incremental Codex Mirror
+### Validator Directive: Review Incremental Codex Mirror
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -698,11 +698,11 @@ The mirror utility is still monolithic. The performance problem is fixed, but Ed
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Review the Builder's incremental Codex mirror fix and decide whether the remaining monolithic script concern is an acceptance blocker or a follow-up refactor.
 
-## Inputs
+#### Inputs
 
 - Builder report: `agent-relay/roles/Builder/reports/2026-06-16-incremental-codex-mirror-builder-report.md`
 - Implementation: `tools/codex_transcript_mirror.py`
@@ -710,7 +710,7 @@ Review the Builder's incremental Codex mirror fix and decide whether the remaini
   - `memory-bank/CODEX_CONTINUITY.md`
   - `memory-bank/transcripts/codex-session-live.md`
 
-## Review Questions
+#### Review Questions
 
 - Does the incremental cache fix preserve behavior?
 - Does it solve the watch-mode churn problem enough for acceptance?
@@ -734,7 +734,7 @@ Do not modify files in this review pass.
 - Body: `agent-relay/messages/route-20260616-014331-editor-to-validator-7734faff.md`
 - SHA-256: `a008ee33ed5194c9d2ef811371aabc27bc5b991c4aff2e3bfa31a0a0d3defc25`
 
-# Editor Report: Incremental Codex Mirror Review
+### Editor Report: Incremental Codex Mirror Review
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -742,9 +742,9 @@ Do not modify files in this review pass.
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-editor-review-incremental-codex-mirror.md`
 
-## Findings
+#### Findings
 
-### Fixed: watch-mode churn is no longer an acceptance blocker
+##### Fixed: watch-mode churn is no longer an acceptance blocker
 
 The Builder added a local session cache at:
 
@@ -760,11 +760,11 @@ Verification showed the second mirror run completed in about 2.15 seconds with c
 
 This materially fixes the watch-mode churn problem.
 
-### Acceptable: behavior appears preserved
+##### Acceptable: behavior appears preserved
 
 The mirror still updates the compact memory files under `memory-bank/`, still writes decoded latest-session output under the offline mirror, and still keeps raw mirror data local-only.
 
-### Remaining concern: the mirror script is large
+##### Remaining concern: the mirror script is large
 
 `tools/codex_transcript_mirror.py` is now 896 lines. The added cache logic is readable and grouped, but the file combines:
 
@@ -779,7 +779,7 @@ The mirror still updates the compact memory files under `memory-bank/`, still wr
 
 This is not an immediate correctness blocker, but it is a maintainability problem that should be fixed soon.
 
-## Recommendation
+#### Recommendation
 
 Accept the Builder incremental fix.
 
@@ -799,7 +799,7 @@ Open a separate Editor refactor directive to split the mirror into smaller behav
 - Body: `agent-relay/messages/route-20260616-014400-validator-to-editor-161a4229.md`
 - SHA-256: `d6b3c9f80c1dabf060efae4a2bf65335ef74cb1dbe803f3fe1c7df88370b75d9`
 
-# Validator Directive: Refactor Codex Mirror Structure
+### Validator Directive: Refactor Codex Mirror Structure
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -807,11 +807,11 @@ Open a separate Editor refactor directive to split the mirror into smaller behav
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Perform a behavior-preserving anti-spaghetti refactor of `tools/codex_transcript_mirror.py`.
 
-## Scope
+#### Scope
 
 Allowed:
 
@@ -828,7 +828,7 @@ Forbidden:
 - changing CLI arguments;
 - adding app behavior.
 
-## Required Verification
+#### Required Verification
 
 - `python -m py_compile` for affected Python files.
 - At least two mirror runs showing cache behavior still works.
@@ -849,7 +849,7 @@ Forbidden:
 - Body: `agent-relay/messages/route-20260616-014650-editor-to-validator-728241f4.md`
 - SHA-256: `7e589ac5822fa9d072af4124567360e74b04ae4a83f77b54251a271fb91f53bf`
 
-# Editor Report: Codex Mirror Refactor
+### Editor Report: Codex Mirror Refactor
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -857,7 +857,7 @@ Forbidden:
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-editor-refactor-codex-mirror.md`
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - `tools/codex_transcript_memory.py`
@@ -865,7 +865,7 @@ Forbidden:
   - `memory-bank/CODEX_CONTINUITY.md`
   - `memory-bank/transcripts/codex-session-live.md`
 
-## Refactor Summary
+#### Refactor Summary
 
 Moved prompt/topic/memory summarization logic out of the mirror driver and into:
 
@@ -873,16 +873,16 @@ Moved prompt/topic/memory summarization logic out of the mirror driver and into:
 
 This separates memory classification/rendering helpers from session mirroring, caching, filesystem output, and watch-loop behavior.
 
-## Size Change
+#### Size Change
 
 - `tools/codex_transcript_mirror.py`: reduced from 896 lines to 602 lines.
 - `tools/codex_transcript_memory.py`: 319 lines.
 
-## Behavior Preservation
+#### Behavior Preservation
 
 The refactor did not change CLI arguments, memory tracking policy, raw mirror ignore policy, or output locations.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py tools/codex_transcript_memory.py` passed.
 - First post-refactor mirror run completed successfully.
@@ -893,7 +893,7 @@ The refactor did not change CLI arguments, memory tracking policy, raw mirror ig
   - `skipped: 0`
 - Router verification passed with `checked: 18`.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 The mirror driver is still not tiny, but it now has a clearer boundary:
 
@@ -916,7 +916,7 @@ No immediate anti-spaghetti blocker remains.
 - Body: `agent-relay/messages/route-20260616-015041-validator-to-editor-77f56618.md`
 - SHA-256: `5073644073b36c9b62f5b59f0859be3e1f655604bbe815bf173bedfcbf0f3eb0`
 
-# Validator Directive: Add Explicit Editor Blocker Rule
+### Validator Directive: Add Explicit Editor Blocker Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
@@ -924,12 +924,12 @@ No immediate anti-spaghetti blocker remains.
 - To: Editor
 - Work tier: Tier 2 governance infrastructure
 
-## Mediator Decision
+#### Mediator Decision
 
 If Editor records an explicit blocker, the system cannot move on until that
 blocker is fixed or the User/Mediator explicitly overrides it.
 
-## Required Work
+#### Required Work
 
 Update the tri-agent governance documents so future agents understand:
 
@@ -952,19 +952,19 @@ Update the tri-agent governance documents so future agents understand:
 - Body: `agent-relay/messages/route-20260616-015042-editor-to-validator-7040e8fa.md`
 - SHA-256: `9ba9d105b834af1e5ce40ca7ec25878508555eea0a9fd603ea3e74b7004d67a4`
 
-# Editor Report: Explicit Blocker Rule
+### Editor Report: Explicit Blocker Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
 - From: Editor
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `TRI_AGENT_CODING_CONTRACT.md`
 - `agent-relay/roles/Editor/ROLE.md`
 
-## Result
+#### Result
 
 Added an explicit Editor blocker rule. When Editor labels a finding as an
 `EDITOR BLOCKER`, Validator may not accept, commit, or advance the work until
@@ -977,7 +977,7 @@ The rule also requires blocker reports to identify:
 - who should fix it;
 - what evidence clears it.
 
-## Recommendation
+#### Recommendation
 
 Accept this governance update. It directly supports the Mediator's instruction
 to fix Editor problems as they appear and prevents blockers from becoming vague
@@ -996,7 +996,7 @@ follow-up notes.
 - Body: `agent-relay/messages/route-20260616-015721-validator-to-builder-030c58e3.md`
 - SHA-256: `f11ee22b45fb00be9de1ef3582a96f3056c3b923b136149e6a13ac80a0467d79`
 
-# Validator Directive: Add Meta-Conversation Transcripts
+### Validator Directive: Add Meta-Conversation Transcripts
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
@@ -1004,13 +1004,13 @@ follow-up notes.
 - To: Builder
 - Work tier: Tier 2 governance infrastructure
 
-## Mediator Need
+#### Mediator Need
 
 Role-specific files are correct for the framework, but humans also need a
 single readable meta-conversation view showing Validator directives, Builder
 reports, Editor reviews, and Validator follow-up in order.
 
-## Required Work
+#### Required Work
 
 Add a first-class transcript view generated from the existing router log and
 message bodies.
@@ -1042,14 +1042,14 @@ Add:
 - Body: `agent-relay/messages/route-20260616-015721-builder-to-validator-c291f400.md`
 - SHA-256: `4b32c63caed7d4e23ea0d794b5fe76c935dc02c7d5870fabbeb1ec64d975d9ba`
 
-# Builder Report: Meta-Conversation Transcripts
+### Builder Report: Meta-Conversation Transcripts
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
 - From: Builder
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `tools/agent_router.py`
 - `agent-relay/transcripts/all.md`
@@ -1059,7 +1059,7 @@ Add:
 - `agent-relay/transcripts/router-smoke-test.md`
 - `agent-relay/transcripts/tri-agent-governance.md`
 
-## Implementation
+#### Implementation
 
 Added first-class meta-conversation transcript support:
 
@@ -1068,7 +1068,7 @@ Added first-class meta-conversation transcript support:
 
 Route operations now regenerate transcripts after updating inboxes.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/agent_router.py` passed.
 - `python tools/agent_router.py regenerate` created phase transcripts.
@@ -1089,7 +1089,7 @@ Route operations now regenerate transcripts after updating inboxes.
 - Body: `agent-relay/messages/route-20260616-020339-validator-to-builder-0247fba9.md`
 - SHA-256: `a5c7d3153f2503cc77ec26d8796907549b6479b6aebcd1517fb167e5322f1b95`
 
-# Validator Directive: Add Dated Codex Transcript Snapshots
+### Validator Directive: Add Dated Codex Transcript Snapshots
 
 - Date: 2026-06-16
 - Phase: codex-continuity-memory
@@ -1097,13 +1097,13 @@ Route operations now regenerate transcripts after updating inboxes.
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Mediator Need
+#### Mediator Need
 
 The rolling file `memory-bank/transcripts/codex-session-live.md` is useful for
 current continuity, but it is hard to search historically because it does not
 distinguish today's conversation from two weeks ago.
 
-## Required Work
+#### Required Work
 
 Keep the rolling live file, and add dated searchable snapshots for Codex
 continuity transcripts.
@@ -1130,21 +1130,21 @@ Update policy docs so future agents understand the distinction.
 - Body: `agent-relay/messages/route-20260616-020508-builder-to-validator-6ac7a6d7.md`
 - SHA-256: `5962a77d1b1c99591db6d63087d9f415a40a92d74c65d19202e43c31b4afc999`
 
-# Builder Report: Dated Codex Transcript Snapshots
+### Builder Report: Dated Codex Transcript Snapshots
 
 - Date: 2026-06-16
 - Phase: codex-continuity-memory
 - From: Builder
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - `memory-bank/CODEX_MEMORY_POLICY.md`
 - `AGENTS.md`
 - generated dated snapshots under `memory-bank/transcripts/codex/`
 
-## Implementation
+#### Implementation
 
 Kept the rolling live transcript:
 
@@ -1157,7 +1157,7 @@ Added searchable dated snapshots:
 
 Updated policy docs so future agents know the difference between live continuity and historical search.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py tools/codex_transcript_memory.py` passed.
 - Mirror regenerated successfully.
@@ -1178,14 +1178,14 @@ Updated policy docs so future agents know the difference between live continuity
 - Body: `agent-relay/messages/route-20260616-020509-editor-to-validator-949f1e84.md`
 - SHA-256: `4144f8701f8d247877eed1a61fff850d8e98d16af70b62a5f6549882fd8851f9`
 
-# Editor Review: Dated Codex Transcript Snapshots
+### Editor Review: Dated Codex Transcript Snapshots
 
 - Date: 2026-06-16
 - Phase: codex-continuity-memory
 - From: Editor
 - To: Validator
 
-## Findings
+#### Findings
 
 No blocker.
 
@@ -1197,7 +1197,7 @@ The policy split remains clear:
 - `memory-bank/transcripts/codex/YYYY-MM-DD/*.md` is the historical archive.
 - raw offline mirrors remain ignored.
 
-## Recommendation
+#### Recommendation
 
 Accept the change.
 
@@ -1215,7 +1215,7 @@ Accept the change.
 - Body: `agent-relay/messages/route-20260616-021100-validator-to-editor-79f0e283.md`
 - SHA-256: `1544e64df2772ffcaef3cd9692a2827888ddedf05e3819c260510ed27f497446`
 
-# Validator Directive: Add Conversation Framing Rule
+### Validator Directive: Add Conversation Framing Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
@@ -1223,13 +1223,13 @@ Accept the change.
 - To: Editor
 - Work tier: Tier 2 governance infrastructure
 
-## Mediator Decision
+#### Mediator Decision
 
 The Mediator speaks to Validator, not directly to Builder or Editor. Validator
 must frame all status updates with explicit role attribution so role ownership
 is never ambiguous.
 
-## Required Work
+#### Required Work
 
 Update the tri-agent governance contract and Validator role instructions so
 future Validator instances say:
@@ -1257,19 +1257,19 @@ when Builder or Editor performed the work.
 - Body: `agent-relay/messages/route-20260616-021100-editor-to-validator-a88ceef3.md`
 - SHA-256: `5474ed2b551243ee44fba92ab34357bafd473f6b033935840615441aad8bc5eb`
 
-# Editor Report: Conversation Framing Rule
+### Editor Report: Conversation Framing Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
 - From: Editor
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `TRI_AGENT_CODING_CONTRACT.md`
 - `agent-relay/roles/Validator/ROLE.md`
 
-## Result
+#### Result
 
 Added explicit conversation-framing rules. The contract now states that the
 User/Mediator speaks to Validator, and Validator must report Builder and Editor
@@ -1278,7 +1278,7 @@ work with explicit role attribution.
 The Validator role file now forbids ambiguous phrasing such as `I implemented`,
 `I reviewed`, or `we fixed` when Builder or Editor performed that work.
 
-## Recommendation
+#### Recommendation
 
 Accept this governance update. It makes the spoken interaction model match the
 tri-agent contract.
@@ -1296,7 +1296,7 @@ tri-agent contract.
 - Body: `agent-relay/messages/route-20260616-021831-validator-to-builder-cccbb691.md`
 - SHA-256: `ae80a860ee8168723deb7009ff1a8e12fabb6375dcb66c9e99cfee73485e5650`
 
-# Validator Directive: Memory Bank Audit And Cleanup Plan
+### Validator Directive: Memory Bank Audit And Cleanup Plan
 
 - Date: 2026-06-16
 - Phase: memory-bank-audit
@@ -1304,7 +1304,7 @@ tri-agent contract.
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Mediator Intent
+#### Mediator Intent
 
 The Agent Relay and dated Codex transcript system now carry the serious
 auditable continuity trail. The older `memory-bank/` may contain useful context,
@@ -1313,7 +1313,7 @@ but it may also contain stale, duplicated, or misplaced governance material.
 Do not delete or move memory files yet. First produce an inventory and cleanup
 proposal.
 
-## Required Work
+#### Required Work
 
 Audit `memory-bank/` and classify files into these buckets:
 
@@ -1324,7 +1324,7 @@ Audit `memory-bank/` and classify files into these buckets:
 5. Move role conversation records into `agent-relay/`.
 6. Ignore/delete generated or stale junk, only after Validator/User approval.
 
-## Required Output
+#### Required Output
 
 Create a Builder report under:
 
@@ -1341,7 +1341,7 @@ The report must include:
   `AGENT_OPERATING_CONTRACT.md`, or `memory-bank/CODEX_MEMORY_POLICY.md`;
 - a proposed cleanup sequence that avoids data loss.
 
-## Constraints
+#### Constraints
 
 - Do not delete files.
 - Do not move files.
@@ -1363,7 +1363,7 @@ The report must include:
 - Body: `agent-relay/messages/route-20260616-021832-validator-to-editor-a5bca88c.md`
 - SHA-256: `c107da174fb29516a9c6dbe2151a30ce364a476ed1d3c35dae161aa27e05fc8b`
 
-# Validator Directive: Review Memory Bank Audit Criteria
+### Validator Directive: Review Memory Bank Audit Criteria
 
 - Date: 2026-06-16
 - Phase: memory-bank-audit
@@ -1371,11 +1371,11 @@ The report must include:
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Prepare to review Builder's `memory-bank/` audit and cleanup proposal.
 
-## Editor Review Standard
+#### Editor Review Standard
 
 When Builder reports back, check whether the proposal:
 
@@ -1387,7 +1387,7 @@ When Builder reports back, check whether the proposal:
 - avoids deleting or moving ambiguous historical material without approval;
 - clearly distinguishes active startup memory from archived context.
 
-## Blocker Criteria
+#### Blocker Criteria
 
 Record an `EDITOR BLOCKER` if Builder proposes:
 
@@ -1397,7 +1397,7 @@ Record an `EDITOR BLOCKER` if Builder proposes:
 - weakening the Codex memory policy;
 - leaving duplicate contradictory rules in multiple places.
 
-## Required Output
+#### Required Output
 
 After Builder submits the inventory, return an Editor report to Validator with:
 
@@ -1420,22 +1420,22 @@ After Builder submits the inventory, return an Editor report to Validator with:
 - Body: `agent-relay/messages/route-20260616-022142-builder-to-validator-fc1ebdb9.md`
 - SHA-256: `761b0182611fa58bc1e92080166ec1d41ce5210d3b1f2fd6e2e0846926d89410`
 
-# Builder Report: Memory-Bank Audit
+### Builder Report: Memory-Bank Audit
 
 Date: 2026-06-16
 Phase: memory-bank-audit
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder inventoried `memory-bank/` to determine what still belongs in active memory, what should become historical archive material, and what needs cleanup policy before any move or deletion.
 
 Builder did not move, delete, or rewrite memory files during this audit.
 
-## Inventory Summary
+#### Inventory Summary
 
-### Active Startup / Continuity Memory
+##### Active Startup / Continuity Memory
 
 - `memory-bank/CODEX_CONTINUITY.md`
   - Active Codex continuity file.
@@ -1454,7 +1454,7 @@ Builder did not move, delete, or rewrite memory files during this audit.
   - Cursor-specific continuity file.
   - Should remain if Cursor is still part of the workflow, but should not be treated as Codex startup memory unless explicitly referenced by Codex-facing instructions.
 
-### Legacy Catch-All Memory
+##### Legacy Catch-All Memory
 
 - `memory-bank/CHAT_MEMORY.md`
 - `memory-bank/LATEST.md`
@@ -1470,7 +1470,7 @@ Builder classifies these as legacy catch-all memory files. They contain useful h
 
 Builder recommends treating these as read-on-demand historical archive files until a later extraction pass identifies rules that still belong in canonical contracts.
 
-### Reference / Historical Project Memory
+##### Reference / Historical Project Memory
 
 - `memory-bank/BASE_METHOD_TOMBSTONES.md`
 - `memory-bank/GSD_REFERENCE.md`
@@ -1483,7 +1483,7 @@ Builder classifies these as reference/history files, not active agent startup me
 
 Some of these may eventually belong under `.planning/plans/REFERENCE/` or `.planning/plans/ARCHIVE/`, but Builder recommends not moving them during this audit because the planning tree already has substantial unrelated changes.
 
-### Transcript Archive
+##### Transcript Archive
 
 Builder found historical transcript material under `memory-bank/transcripts/`, including:
 
@@ -1497,7 +1497,7 @@ Builder classifies `memory-bank/transcripts/codex-session-live.md` as the active
 
 Builder classifies older transcript exports as historical archive material. They are useful for recall and forensic reconstruction, but they should not be startup-loaded wholesale.
 
-## Issue Found
+#### Issue Found
 
 Builder found that the dated Codex snapshot system is currently too noisy.
 
@@ -1511,7 +1511,7 @@ This creates unnecessary repository churn and storage growth. The likely intende
 
 The current behavior appears to create a new durable checkpoint every mirror pass.
 
-## Builder Recommendation
+#### Builder Recommendation
 
 Builder recommends the next cleanup phase proceed in this order:
 
@@ -1521,7 +1521,7 @@ Builder recommends the next cleanup phase proceed in this order:
 4. Reclassify `CHAT_MEMORY.md` and `LATEST.md` as legacy archive/read-on-demand memory unless a later extraction pass finds current rules that belong in canonical contracts.
 5. Do not delete old transcripts or catch-all memory files until Validator approves an archive policy and Editor reviews it.
 
-## Builder Completion State
+#### Builder Completion State
 
 Builder completed the inventory and found no need for immediate destructive cleanup.
 
@@ -1540,22 +1540,22 @@ Builder reports one cleanup blocker before broader memory-bank reorganization: t
 - Body: `agent-relay/messages/route-20260616-022142-editor-to-validator-a3d04c17.md`
 - SHA-256: `162fb7b8ac764daaaded16e76d39ee6e8437f632751dbf3cff79fa5d71e217a5`
 
-# Editor Review: Memory-Bank Audit
+### Editor Review: Memory-Bank Audit
 
 Date: 2026-06-16
 Phase: memory-bank-audit
 Source: Editor
 Target: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed Builder's memory-bank audit classification and cleanup recommendation.
 
 Editor reviewed this as a governance and repository-hygiene question, not as permission to move or delete memory files.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts Builder's main classification:
 
@@ -1564,7 +1564,7 @@ Editor accepts Builder's main classification:
 - historical transcripts should remain searchable forensic memory, not startup memory.
 - broad cleanup should not happen until the duplicate snapshot behavior is fixed.
 
-### Required Guardrail
+##### Required Guardrail
 
 Editor requires that any future cleanup distinguish between:
 
@@ -1576,7 +1576,7 @@ Editor requires that any future cleanup distinguish between:
 
 These categories should not be collapsed into one folder or one giant memory file.
 
-### Editor Blocker For Cleanup Phase
+##### Editor Blocker For Cleanup Phase
 
 Editor raises a blocker for any cleanup phase that deletes, moves, or rewrites historical memory before the following are true:
 
@@ -1587,11 +1587,11 @@ Editor raises a blocker for any cleanup phase that deletes, moves, or rewrites h
 
 This blocker does not prevent completing the audit report. It only blocks destructive or broad reorganization work.
 
-## Editor Recommendation
+#### Editor Recommendation
 
 Editor recommends that Validator direct Builder next to fix the transcript mirror snapshot cadence, then return to memory-bank archival cleanup after the mirror stops generating near-duplicate durable files.
 
-## Review Result
+#### Review Result
 
 Editor accepts the audit as complete.
 
@@ -1610,20 +1610,20 @@ Editor blocks destructive cleanup until the guardrails above are satisfied.
 - Body: `agent-relay/messages/route-20260616-022511-editor-to-validator-ea1306c1.md`
 - SHA-256: `d528169a9f9ed8232d4cbd9313ee15bfb5b24a83d73e11c6df777bb7e7d75623`
 
-# Editor Review: Codex Mirror Snapshot Cadence Fix
+### Editor Review: Codex Mirror Snapshot Cadence Fix
 
 Date: 2026-06-16
 Phase: codex-transcript-mirror-snapshot-cadence
 Source: Editor
 Target: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed Builder's snapshot-cadence fix for the Codex transcript mirror.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts the design:
 
@@ -1632,17 +1632,17 @@ Editor accepts the design:
 - gate durable dated snapshots with a manifest
 - avoid creating near-duplicate durable files every 30 seconds
 
-### Repository Hygiene
+##### Repository Hygiene
 
 Editor accepts tracking `.snapshot-manifest.json` because it is now part of the cadence state for the generated tracked memory files.
 
 Editor notes that pre-existing duplicate dated snapshots remain in the tree. Editor does not authorize deleting or moving those in this phase.
 
-### Remaining Guardrail
+##### Remaining Guardrail
 
 Editor requires a separate cleanup directive before any old duplicated snapshot files are archived or removed.
 
-## Review Result
+#### Review Result
 
 Editor accepts Builder's fix.
 
@@ -1661,26 +1661,26 @@ Editor clears the snapshot-cadence blocker for future memory-bank cleanup planni
 - Body: `agent-relay/messages/route-20260616-022511-builder-to-validator-68af8a43.md`
 - SHA-256: `9e83ce1e23fa1258615e784423ef8107bd5d031134cb5b45cec1977ee2a90b79`
 
-# Builder Report: Codex Mirror Snapshot Cadence Fix
+### Builder Report: Codex Mirror Snapshot Cadence Fix
 
 Date: 2026-06-16
 Phase: codex-transcript-mirror-snapshot-cadence
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder fixed the Codex transcript mirror behavior identified during the memory-bank audit: durable dated snapshots were being created on every mirror interval.
 
 Builder stopped the live mirror before editing to prevent additional duplicate snapshots during the fix.
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - `memory-bank/CODEX_MEMORY_POLICY.md`
 - `memory-bank/transcripts/codex/2026-06-15/.snapshot-manifest.json`
 
-## Implementation
+#### Implementation
 
 Builder preserved the rolling files:
 
@@ -1695,7 +1695,7 @@ Builder changed durable dated snapshots so they are written only when one of the
 
 Builder added a per-day `.snapshot-manifest.json` to remember the last durable checkpoint written for each session/date.
 
-## Verification
+#### Verification
 
 Builder ran:
 
@@ -1715,7 +1715,7 @@ Delta:  0
 
 Result: immediate repeat runs no longer create new durable dated snapshot files.
 
-## GitNexus
+#### GitNexus
 
 Validator attempted impact analysis for `write_memory_bank_views`.
 
@@ -1723,7 +1723,7 @@ GitNexus initially resolved the same-named symbol in `tools/cursor_transcript_mi
 
 Effective blast radius: low, limited to generated Codex memory output.
 
-## Builder Result
+#### Builder Result
 
 Builder reports the snapshot-cadence blocker is fixed for the Codex mirror implementation.
 
@@ -1742,20 +1742,20 @@ Builder recommends Editor review before restarting the live mirror.
 - Body: `agent-relay/messages/route-20260616-023520-builder-to-validator-95800822.md`
 - SHA-256: `62081969035a0c79a0cc533b2cfda5452c2bb15b3c78c0cad5634f2b54579407`
 
-# Builder Report: Memory Cleanup Implementation
+### Builder Report: Memory Cleanup Implementation
 
 Date: 2026-06-16
 Phase: memory-cleanup
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder implemented the first memory cleanup phase after the Codex mirror snapshot cadence fix.
 
 Builder did not delete transcript content.
 
-## Policy Added
+#### Policy Added
 
 Builder added `memory-bank/MEMORY_ARCHIVE_POLICY.md`.
 
@@ -1770,7 +1770,7 @@ The policy separates:
 
 Builder also updated `memory-bank/CODEX_MEMORY_POLICY.md` to point at the archive policy before moving or deleting generated memory.
 
-## Cleanup Target
+#### Cleanup Target
 
 Builder found that most duplicate durable Codex snapshots under `memory-bank/transcripts/codex/2026-06-15/` were untracked generated files from the old every-interval cadence.
 
@@ -1782,7 +1782,7 @@ Untracked duplicate interval snapshots were moved to:
 
 This folder is ignored by git through the existing `offline-codex-transcripts-*/` ignore rule.
 
-## Expected Result
+#### Expected Result
 
 The primary `memory-bank/transcripts/codex/2026-06-15/` directory should retain:
 
@@ -1792,7 +1792,7 @@ The primary `memory-bank/transcripts/codex/2026-06-15/` directory should retain:
 
 The noisy untracked interval snapshots should no longer appear as untracked files in `memory-bank/`.
 
-## Builder Result
+#### Builder Result
 
 Builder reports this as an archival cleanup, not a deletion.
 
@@ -1811,20 +1811,20 @@ Builder recommends Editor review before commit.
 - Body: `agent-relay/messages/route-20260616-023520-editor-to-validator-6c980c1e.md`
 - SHA-256: `30749c4b2c22f2f8a6fe091a69f486a3038b82939dac6e06b41994d35ed2c6ad`
 
-# Editor Review: Memory Cleanup Implementation
+### Editor Review: Memory Cleanup Implementation
 
 Date: 2026-06-16
 Phase: memory-cleanup
 Source: Editor
 Target: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the memory archive policy and the proposed duplicate snapshot cleanup.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts adding `memory-bank/MEMORY_ARCHIVE_POLICY.md` because it makes memory cleanup governed rather than ad hoc.
 
@@ -1837,13 +1837,13 @@ Editor accepts moving untracked duplicate interval snapshots to the ignored loca
 - the primary memory-bank directory is cleaned up
 - the policy documents where duplicate interval snapshots go
 
-### Remaining Guardrails
+##### Remaining Guardrails
 
 Editor does not authorize deleting archived duplicate snapshots in this phase.
 
 Editor does not authorize moving `CHAT_MEMORY.md` or `LATEST.md` in this phase because both are modified in the working tree and should be handled in a separate extraction/archive pass.
 
-## Review Result
+#### Review Result
 
 Editor accepts the memory cleanup implementation.
 
@@ -1862,20 +1862,20 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-024041-builder-to-validator-ce44828e.md`
 - SHA-256: `d8275f927f89317e7acbc8233d68317c0054689b2fca2cfda929ae4558bce331`
 
-# Builder Report: AGENTS.md Router Cleanup
+### Builder Report: AGENTS.md Router Cleanup
 
 Date: 2026-06-16
 Phase: agents-md-router-cleanup
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder cleaned the hand-authored startup sections of `AGENTS.md` so the file acts as a router instead of duplicating detailed contracts.
 
 Builder preserved the planning PRD/checklist naming convention in `AGENTS.md` because the User/Mediator explicitly identified it as startup-critical.
 
-## Changes
+#### Changes
 
 Builder kept the `Planning Conventions` section visible and added an explicit note that the paired planning naming rule must stay in `AGENTS.md`.
 
@@ -1904,13 +1904,13 @@ Builder reduced `Codex Continuity Memory` to pointers:
 
 Detailed transcript retention and sensitive-memory handling remain in memory policy files.
 
-## Not Changed
+#### Not Changed
 
 Builder did not change the generated GitNexus block in this cleanup.
 
 Builder did not move planning naming conventions out of `AGENTS.md`.
 
-## Builder Result
+#### Builder Result
 
 Builder reports `AGENTS.md` is now closer to a startup routing document while preserving the PRD/checklist naming convention exactly where future agents will see it.
 
@@ -1927,20 +1927,20 @@ Builder reports `AGENTS.md` is now closer to a startup routing document while pr
 - Body: `agent-relay/messages/route-20260616-025154-editor-to-validator-eb171234.md`
 - SHA-256: `31f91cad39fcfd882c42de1106c06b267a7148fb744e26ac535cab7fc6c24c9d`
 
-# Editor Review: AGENTS.md Startup Read Order
+### Editor Review: AGENTS.md Startup Read Order
 
 Date: 2026-06-16
 Phase: agents-startup-order
 Source: Editor
 Target: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the new `AGENTS.md` startup read order.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts putting `TRI_AGENT_CODING_CONTRACT.md` first. That ensures a new agent understands role separation and conversation framing before it interprets repo-specific routing.
 
@@ -1952,11 +1952,11 @@ Editor accepts the memory order:
 
 Editor accepts the guardrail against preloading large historical transcript archives.
 
-### Planning Convention
+##### Planning Convention
 
 Editor verified that the paired PRD/checklist naming convention remains visible in `AGENTS.md`.
 
-## Review Result
+#### Review Result
 
 Editor accepts the startup-order update.
 
@@ -1975,18 +1975,18 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-025154-builder-to-validator-932b5b17.md`
 - SHA-256: `19e902ffab4250be512c85bf8d13d6f09229fa2dff8b210b48a19b0dd113539d`
 
-# Builder Report: AGENTS.md Startup Read Order
+### Builder Report: AGENTS.md Startup Read Order
 
 Date: 2026-06-16
 Phase: agents-startup-order
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder added an explicit startup read order to `AGENTS.md`.
 
-## Startup Order Added
+#### Startup Order Added
 
 The new order is:
 
@@ -1999,14 +1999,14 @@ The new order is:
 
 Builder also added a guardrail not to preload large historical transcript archives by default.
 
-## Preserved
+#### Preserved
 
 Builder preserved the Planning Conventions section, including the paired naming convention:
 
 - `.planning/plans/ACTIVE/<slug>-prd.md`
 - `.planning/plans/ACTIVE/<slug>-checklist.md`
 
-## Builder Result
+#### Builder Result
 
 Builder reports that `AGENTS.md` now explicitly routes a newly instantiated agent through the tri-agent contract first, then memory, then recent transcripts, then task-specific files.
 
@@ -2023,29 +2023,29 @@ Builder reports that `AGENTS.md` now explicitly routes a newly instantiated agen
 - Body: `agent-relay/messages/route-20260616-030240-builder-to-validator-0224c347.md`
 - SHA-256: `9fea49ff17f3fdcb93208136e86a88c1e1005216b7428e1d92bdaf0fd7b3f15a`
 
-# Builder Report: AGENTS.md Codex Mirror Startup
+### Builder Report: AGENTS.md Codex Mirror Startup
 
 - Date: 2026-06-16
 - Phase: agents-mirror-startup
 - From: Builder
 - To: Validator
 
-## Scope
+#### Scope
 
 Builder updated `AGENTS.md` to make Codex transcript mirror startup a visible
 startup-critical instruction.
 
-## Files Changed
+#### Files Changed
 
 - `AGENTS.md`
 
-## Startup Command Added
+#### Startup Command Added
 
 ```powershell
 .\tools\start_codex_transcript_mirror.ps1
 ```
 
-## Verification
+#### Verification
 
 Builder ran the startup command from the repository root. It reported:
 
@@ -2055,12 +2055,12 @@ Codex transcript mirror already running (PID 13760).
 
 This verifies the launcher is idempotent for the current running mirror process.
 
-## Preserved
+#### Preserved
 
 Builder preserved the Planning Conventions section and the visible paired
 PRD/checklist naming convention.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder reports no implementation blocker. Editor should review whether the new
 startup instruction is placed clearly and does not duplicate memory policy
@@ -2079,21 +2079,21 @@ details.
 - Body: `agent-relay/messages/route-20260616-030257-editor-to-validator-70cd03b4.md`
 - SHA-256: `85f34847cdd63ea97a32717d60f26a9ee3df16093030430f74c46324b81723a4`
 
-# Editor Review: AGENTS.md Codex Mirror Startup
+### Editor Review: AGENTS.md Codex Mirror Startup
 
 - Date: 2026-06-16
 - Phase: agents-mirror-startup
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the `AGENTS.md` addition requiring agents to ensure the Codex
 transcript mirror is running at startup.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts the placement directly after the Startup Read Order. This makes
 the mirror startup instruction visible before task-specific routing begins.
@@ -2111,12 +2111,12 @@ Editor accepts the short description of the generated continuity files because
 it explains why the startup command matters without duplicating the full memory
 policy.
 
-### Preserved
+##### Preserved
 
 Editor verified the Planning Conventions section remains visible after the new
 startup block.
 
-## Review Result
+#### Review Result
 
 Editor accepts the AGENTS.md Codex mirror startup update.
 
@@ -2135,7 +2135,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-030320-validator-to-builder-fb0b4a6c.md`
 - SHA-256: `114c6549f4da8ba1402f5b1db212698c9fc324b4fec3d744780ed3e83174e647`
 
-# Validator Directive: Add Codex Mirror Startup To AGENTS.md
+### Validator Directive: Add Codex Mirror Startup To AGENTS.md
 
 - Date: 2026-06-16
 - Phase: agents-mirror-startup
@@ -2143,13 +2143,13 @@ No Editor blocker remains for this phase.
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Mediator Decision
+#### Mediator Decision
 
 The Mediator directed that `AGENTS.md` must tell every newly instantiated agent
 to ensure the Codex transcript mirror is running immediately after reading the
 startup instructions.
 
-## Required Work
+#### Required Work
 
 Update `AGENTS.md` so startup instructions explicitly require the agent to:
 
@@ -2164,7 +2164,7 @@ Update `AGENTS.md` so startup instructions explicitly require the agent to:
 The instruction must be startup-critical and visible near the Startup Read
 Order section.
 
-## Constraints
+#### Constraints
 
 - Do not duplicate transcript retention policy details already owned by
   `memory-bank/CODEX_MEMORY_POLICY.md`.
@@ -2172,7 +2172,7 @@ Order section.
 - Preserve the planning naming convention visibility in `AGENTS.md`.
 - Keep the edit concise and ASCII-safe.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -2194,7 +2194,7 @@ Report:
 - Body: `agent-relay/messages/route-20260616-030827-validator-to-builder-af80dd05.md`
 - SHA-256: `e6f2b36de5ea30643e7e2c043093f905ddf5303e58dab163477d471bea77a33e`
 
-# Validator Directive: Create Agent Memory Bootstrap Guide
+### Validator Directive: Create Agent Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -2202,12 +2202,12 @@ Report:
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator wants a report that tells Codex how to implement this transcript
 memory/startup pattern in other repositories.
 
-## Required Work
+#### Required Work
 
 Create a new self-contained folder with an implementation guide for other repos.
 The guide must explain, step by step:
@@ -2222,7 +2222,7 @@ The guide must explain, step by step:
 - how to adapt the pattern for repos that do or do not use the Tri-Agent
   contract.
 
-## Constraints
+#### Constraints
 
 - Do not modify mirror implementation scripts for this task.
 - Do not move existing memory files.
@@ -2230,7 +2230,7 @@ The guide must explain, step by step:
   follow.
 - Avoid assuming every repo has this repo's exact governance structure.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -2252,18 +2252,18 @@ Report:
 - Body: `agent-relay/messages/route-20260616-030832-builder-to-validator-49e354ee.md`
 - SHA-256: `25b8cd501958d48fee346cee5b9ddcc8bbf4e2f969e63842f8701f19778b1544`
 
-# Builder Report: Agent Memory Bootstrap Guide
+### Builder Report: Agent Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## Files Created
+#### Files Created
 
 - `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 
-## Key Instructions Included
+#### Key Instructions Included
 
 Builder included step-by-step guidance for implementing the Codex transcript
 memory pattern in another repo:
@@ -2282,7 +2282,7 @@ memory pattern in another repo:
 - common failure modes;
 - minimum portable checklist.
 
-## Verification
+#### Verification
 
 Builder checked that the guide contains the startup command:
 
@@ -2293,7 +2293,7 @@ Builder checked that the guide contains the startup command:
 Builder also checked that the guide includes the required sections for
 `AGENTS.md`, tracking policy, verification, and Tri-Agent integration.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder did not copy the mirror scripts into the new folder. The guide tells
 other repos to copy or implement the launcher trio from the source repo. If the
@@ -2313,21 +2313,21 @@ scripts under `agent-memory-bootstrap/templates/`.
 - Body: `agent-relay/messages/route-20260616-030845-editor-to-validator-aac42eaa.md`
 - SHA-256: `d34cf34bd8e8143d9428882b804f37cdf6c2f794ff8ed9a91baab0505e6456ac`
 
-# Editor Review: Agent Memory Bootstrap Guide
+### Editor Review: Agent Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` as a portable
 implementation report for other repositories.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts the new folder and single-guide structure. It is easy to copy,
 search, and hand to another Codex instance.
@@ -2346,14 +2346,14 @@ Editor accepts the guide's order:
 Editor accepts the distinction between repos that use Tri-Agent governance and
 repos that only need the practical startup/memory pattern.
 
-### Non-Blocking Follow-Up
+##### Non-Blocking Follow-Up
 
 The guide currently tells other repos to copy or implement the mirror script
 trio, but it does not include template scripts inside
 `agent-memory-bootstrap/templates/`. That is acceptable for a report, but a
 future portability pass could add templates.
 
-## Review Result
+#### Review Result
 
 Editor accepts the guide.
 
@@ -2372,7 +2372,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-031253-validator-to-builder-0ce6c4b7.md`
 - SHA-256: `66bd62011d526a38acf6fddfeac83e3014870c65d07de5affae71c2be3e58046`
 
-# Validator Directive: Add Router Copy To Memory Bootstrap Guide
+### Validator Directive: Add Router Copy To Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -2380,12 +2380,12 @@ No Editor blocker remains for this phase.
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator noted that the bootstrap guide must include the router itself, not
 only mention that a router is needed.
 
-## Required Work
+#### Required Work
 
 Update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` so it contains a
 portable copy of the Agent Relay router that another Codex instance can place at
@@ -2398,14 +2398,14 @@ The guide must also explain:
 - the core commands to route, verify, regenerate, and create transcripts;
 - that route commands should not be run in parallel.
 
-## Constraints
+#### Constraints
 
 - Keep the router copy inside the guide file.
 - Do not modify the live `tools/agent_router.py` implementation for this task.
 - Keep the guide portable for repos that do not use Pattern Detector's exact
   folder layout.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -2427,18 +2427,18 @@ Report:
 - Body: `agent-relay/messages/route-20260616-031300-builder-to-validator-f0607cbe.md`
 - SHA-256: `119b189a13dbdd86cfce425d0b8a42c36946c2037c90bb954bbcbbcc6a805749`
 
-# Builder Report: Add Router Copy To Memory Bootstrap Guide
+### Builder Report: Add Router Copy To Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## File Updated
+#### File Updated
 
 - `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 
-## Guide Section Added
+#### Guide Section Added
 
 Builder added `## 11. Portable Router Copy`.
 
@@ -2451,12 +2451,12 @@ The new section includes:
 - an explicit warning not to route messages in parallel;
 - a drop-in Python router implementation inside the guide.
 
-## Checklist Updates
+#### Checklist Updates
 
 Builder updated the minimum portable checklist so Tri-Agent repos must add
 `tools/agent_router.py` from the guide's portable router copy.
 
-## Verification
+#### Verification
 
 Builder checked:
 
@@ -2466,7 +2466,7 @@ Builder checked:
 - the guide includes the non-parallel route warning;
 - the Python code fence closes before the Common Failure Modes section.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder reports no blocker. Editor should review whether embedding the router
 in the guide is clear enough for another Codex instance to implement.
@@ -2484,21 +2484,21 @@ in the guide is clear enough for another Codex instance to implement.
 - Body: `agent-relay/messages/route-20260616-031313-editor-to-validator-52ed582f.md`
 - SHA-256: `76d63aaf28af2045cfcb2527521ff4d28d4fd349b84c64fcdeea4d2f9ec2e3df`
 
-# Editor Review: Router Copy In Memory Bootstrap Guide
+### Editor Review: Router Copy In Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 after Builder embedded a portable router copy.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts adding `## 11. Portable Router Copy`. The guide now gives another
 Codex instance enough material to create `tools/agent_router.py` instead of only
@@ -2513,7 +2513,7 @@ regenerates derived views after each route.
 Editor accepts the checklist update requiring Tri-Agent repos to add
 `tools/agent_router.py` from the guide.
 
-## Review Result
+#### Review Result
 
 Editor accepts the router-copy update.
 
@@ -2532,7 +2532,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-032041-validator-to-builder-9be4376a.md`
 - SHA-256: `4cd3c126c6f79e709acf5dd65084f9da2546810e6c5ccb2ef01c8dc4428387f6`
 
-# Validator Directive: Add Transcript Mirror Scripts To Bootstrap Guide
+### Validator Directive: Add Transcript Mirror Scripts To Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -2540,12 +2540,12 @@ No Editor blocker remains for this phase.
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator wants the bootstrap package to include the scripts necessary to
 record transcript memory, not only instructions that such scripts exist.
 
-## Required Work
+#### Required Work
 
 Update the `agent-memory-bootstrap` package so it includes portable copies of
 the Codex transcript mirror scripts:
@@ -2564,14 +2564,14 @@ Update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` to explain:
 - which memory files the scripts generate;
 - how to verify transcripts are being recorded.
 
-## Constraints
+#### Constraints
 
 - Do not modify the live mirror implementation in `tools/`.
 - Keep copied scripts under the bootstrap folder as templates.
 - Keep instructions clear for a new Codex instance implementing this in another
   repo.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -2593,14 +2593,14 @@ Report:
 - Body: `agent-relay/messages/route-20260616-032045-builder-to-validator-7276491f.md`
 - SHA-256: `c23e181fbda26e5108f84dcfc6418a7fa05b0383210943494305c4500b29ec89`
 
-# Builder Report: Add Transcript Mirror Scripts To Bootstrap Guide
+### Builder Report: Add Transcript Mirror Scripts To Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## Template Files Added
+#### Template Files Added
 
 Builder added portable transcript recording templates under:
 
@@ -2615,7 +2615,7 @@ Files added:
 - `agent-memory-bootstrap/templates/tools/start_codex_transcript_mirror.ps1`
 - `agent-memory-bootstrap/templates/tools/stop_codex_transcript_mirror.ps1`
 
-## Guide Updates
+#### Guide Updates
 
 Builder updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` with:
 
@@ -2627,7 +2627,7 @@ Builder updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` with:
 - checklist items for `codex_transcript_memory.py` and the one-shot recording
   verification.
 
-## Verification
+#### Verification
 
 Builder ran:
 
@@ -2639,7 +2639,7 @@ The Python templates compiled successfully. Builder removed the generated
 `__pycache__` folder after verification so the bootstrap package contains only
 intentional template files.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder reports no blocker. Editor should review whether the transcript
 recording instructions are clear enough for another Codex instance to install
@@ -2658,21 +2658,21 @@ and verify in a different repository.
 - Body: `agent-relay/messages/route-20260616-032058-editor-to-validator-42b690b3.md`
 - SHA-256: `65565d215e6ae465732fc14f660dd9752cf64f0a338c3fb72896e7e9f7672f46`
 
-# Editor Review: Transcript Scripts In Memory Bootstrap Guide
+### Editor Review: Transcript Scripts In Memory Bootstrap Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the bootstrap guide and template script additions for transcript
 recording portability.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts adding `agent-memory-bootstrap/templates/tools/` with:
 
@@ -2690,7 +2690,7 @@ the mirror script would fail on import.
 
 Editor accepts the checklist update requiring one-shot recording verification.
 
-## Review Result
+#### Review Result
 
 Editor accepts the transcript script additions.
 
@@ -2709,7 +2709,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260616-042943-validator-to-builder-3a9a83d0.md`
 - SHA-256: `ae713ce08d546410d167abf5eb16f193b3d46cb340e503fffe6cdf0010c1d32b`
 
-# Validator Directive: Add Router Workflow Guide
+### Validator Directive: Add Router Workflow Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
@@ -2717,12 +2717,12 @@ No Editor blocker remains for this phase.
 - To: Builder
 - Work tier: Tier 1 documentation/governance portability
 
-## Mediator Request
+#### Mediator Request
 
 The Mediator wants the new repo to know exactly how Pattern Detector generates
 `agent-relay/transcripts/all.md` and the per-phase relay transcripts.
 
-## Required Work
+#### Required Work
 
 Create a dedicated guide under `agent-memory-bootstrap/` that explains:
 
@@ -2737,13 +2737,13 @@ Create a dedicated guide under `agent-memory-bootstrap/` that explains:
 Also update `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md` to point to the
 new router workflow guide.
 
-## Constraints
+#### Constraints
 
 - Keep the guide usable by a fresh Codex instance in a different repository.
 - Do not assume the target repo already has working relay folders.
 - Mention that route commands must be run one at a time.
 
-## Required Builder Report
+#### Required Builder Report
 
 Report:
 
@@ -2765,20 +2765,20 @@ Report:
 - Body: `agent-relay/messages/route-20260616-042948-builder-to-validator-a3797a08.md`
 - SHA-256: `b7ed0e654a1f40f0e441aa09ac46431823dcd74d433120987507d2ffa8e3702a`
 
-# Builder Report: Router Workflow Guide
+### Builder Report: Router Workflow Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Builder
 - To: Validator
 
-## Files Created Or Updated
+#### Files Created Or Updated
 
 - Created `agent-memory-bootstrap/ROUTER_WORKFLOW.md`
 - Updated `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
 - Repaired `tools/agent_router.py` line 1 so the live router runs again
 
-## Key Setup Instructions Added
+#### Key Setup Instructions Added
 
 Builder documented:
 
@@ -2792,7 +2792,7 @@ Builder documented:
 - how to debug missing or incomplete `all.md`;
 - the distinction between Agent Relay conversations and Codex transcript memory.
 
-## Verification
+#### Verification
 
 Builder verified:
 
@@ -2803,7 +2803,7 @@ Builder verified:
   instructions;
 - the main implementation guide points to `agent-memory-bootstrap/ROUTER_WORKFLOW.md`.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 Builder reports no blocker. Editor should review whether the new guide is clear
 enough for a fresh Codex instance to make `all.md` work in another repo.
@@ -2821,21 +2821,21 @@ enough for a fresh Codex instance to make `all.md` work in another repo.
 - Body: `agent-relay/messages/route-20260616-043004-editor-to-validator-b59a444f.md`
 - SHA-256: `ad9ca93f963d3ee070d217e800b3a296b417ca3dacc5aade967cfa5ef0bbf4c0`
 
-# Editor Review: Router Workflow Guide
+### Editor Review: Router Workflow Guide
 
 - Date: 2026-06-16
 - Phase: agent-memory-bootstrap-guide
 - From: Editor
 - To: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed `agent-memory-bootstrap/ROUTER_WORKFLOW.md` and the pointer
 added to `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts the new dedicated router workflow guide. It clearly explains
 that `all.md` is generated from routed role messages, not ordinary chat
@@ -2858,7 +2858,7 @@ checks for `routes.jsonl`, copied message bodies, and hash verification.
 
 Editor accepts the warning not to route messages in parallel.
 
-## Review Result
+#### Review Result
 
 Editor accepts the router workflow guide.
 
@@ -2877,7 +2877,7 @@ No Editor blocker remains for this phase.
 - Body: `agent-relay/messages/route-20260618-031504-validator-to-builder-8c846aa2.md`
 - SHA-256: `8a48e9d4ffb22f224d2a8de978b08a83a0f65eb9cad6bab29024d066f37bb448`
 
-# Validator Directive — Unify Agent Transcript Mirrors + AGENTS.md Startup
+### Validator Directive — Unify Agent Transcript Mirrors + AGENTS.md Startup
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -2886,14 +2886,14 @@ No Editor blocker remains for this phase.
 - Tier: 2 (governance + tooling, multi-step)
 - Type: EXECUTION DIRECTIVE
 
-## Goal (User/Mediator)
+#### Goal (User/Mediator)
 
 Make every agent (Codex and Cursor/Claude) boot from one synchronized governance
 file, spin up BOTH transcript mirrors first thing, and write their transcripts
 into one shared, source-tagged archive so each agent can read what it did AND
 what the other agent did.
 
-## Frozen Requirements
+#### Frozen Requirements
 
 R1. Single startup source of truth.
 - Every agent bootstrap file (`CLAUDE.md`, and any Cursor/Codex-specific
@@ -2935,7 +2935,7 @@ R6. No regressions.
 - Do not change existing Codex mirror behavior or output.
 - Preserve `.gitignore` rules for `offline-*-transcripts-*/` raw mirrors.
 
-## Process Constraints
+#### Process Constraints
 
 - GitNexus: run impact analysis before editing any indexed symbol; note if a
   tool/script is not indexed.
@@ -2949,7 +2949,7 @@ R6. No regressions.
   messages through `tools/agent_router.py` one at a time, and returns the
   decision to the User/Mediator.
 
-## Acceptance Criteria
+#### Acceptance Criteria
 
 - `CLAUDE.md` (and peers) route to `AGENTS.md`; no duplicate governance.
 - `AGENTS.md` startup starts both mirrors idempotently, first.
@@ -2971,7 +2971,7 @@ R6. No regressions.
 - Body: `agent-relay/messages/route-20260618-032050-builder-to-validator-4fdf8daf.md`
 - SHA-256: `9d3e551ae272eb0c8634dd97cb83d6c90274b4b81d330a41b86bcd6345721e3e`
 
-# Builder Report — Mirror Unification + AGENTS.md Startup
+### Builder Report — Mirror Unification + AGENTS.md Startup
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -2982,7 +2982,7 @@ R6. No regressions.
 
 > I am NOT certifying this work. The Editor and Validator review and decide.
 
-## Files Changed
+#### Files Changed
 
 1. `tools/cursor_transcript_mirror.py` — (R3) Cursor mirror now also writes durable,
    source-tagged dated snapshots into the same tracked layout Codex uses:
@@ -3010,7 +3010,7 @@ R6. No regressions.
    sensitive-handling rules as the codex snapshots. Notes the two mirrors share identical
    layout/cadence, differing only by the source-tagged `codex/` vs `cursor/` subfolder.
 
-## What I Verified
+#### What I Verified
 
 - `python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror.py', doraise=True)"`
   → `OK cursor`. Codex mirror also re-compiled → `OK codex`. Exit code 0.
@@ -3018,19 +3018,19 @@ R6. No regressions.
 - Did NOT run the mirrors or any watcher (per constraints). No runtime/output verification of
   produced snapshot files was performed.
 
-## R1 Finding (no change made)
+#### R1 Finding (no change made)
 
 - `CLAUDE.md` is already a thin router to `AGENTS.md` with no duplicated governance — left as-is
   (no gratuitous rewrite). No other agent bootstrap files were found
   (`.cursorrules`, `CODEX.md`, `CURSOR.md`, `.github/copilot-instructions.md` — none exist).
 
-## R6 Finding (no change needed)
+#### R6 Finding (no change needed)
 
 - `.gitignore` already ignores `offline-cursor-transcripts-*/` and `offline-codex-transcripts-*/`
   (lines 17–18). Left unchanged.
 - `tools/codex_transcript_mirror.py` was NOT modified; codex behavior/output is preserved.
 
-## Assumptions Made
+#### Assumptions Made
 
 - For the cursor dated-snapshot identity I reused the active Cursor composer: filename slug from
   the composer `name` (sanitized), and the manifest key base from `composerId` (falling back to the
@@ -3042,7 +3042,7 @@ R6. No regressions.
   the codex mirror writes the same `snapshot_text` to both the live file and the dated snapshot).
 - Snapshot cadence constants match codex exactly (6h min interval / 100k char delta).
 
-## Limitations / Risks (for the Editor to focus on)
+#### Limitations / Risks (for the Editor to focus on)
 
 - Helper duplication: the cadence helpers are copied into `cursor_transcript_mirror.py` rather than
   shared. Codex imports its summary helpers from `codex_transcript_memory.py`; the cursor mirror keeps
@@ -3057,7 +3057,7 @@ R6. No regressions.
   `write_text_if_changed`; they still use direct `write_text` to avoid behavior drift. The new dated
   snapshots do use `write_text_if_changed` (matching codex).
 
-## Intentionally NOT Done
+#### Intentionally NOT Done
 
 - Did not rewrite `CLAUDE.md` (already compliant).
 - Did not modify `tools/codex_transcript_mirror.py`, `codex_transcript_memory.py`, or the codex
@@ -3068,7 +3068,7 @@ R6. No regressions.
   are not application symbols in the indexed call graph, so no `gitnexus_impact` was run. If the
   Validator wants, `gitnexus_detect_changes` can confirm scope at review time.
 
-## Certification
+#### Certification
 
 I am the Builder. I do NOT certify this work. Editor reviews for duplication/clarity/behavior drift;
 Validator verifies scope and routes the decision.
@@ -3086,7 +3086,7 @@ Validator verifies scope and routes the decision.
 - Body: `agent-relay/messages/route-20260618-032606-editor-to-validator-fa191665.md`
 - SHA-256: `5965686c7a615e4cdfe509bb2d9c2937b2809146c03fa76dd51c080295b03a7c`
 
-# Editor Review — Mirror Unification + AGENTS.md Startup
+### Editor Review — Mirror Unification + AGENTS.md Startup
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -3101,7 +3101,7 @@ Validator verifies scope and routes the decision.
 > I do NOT add product behavior and I do NOT certify that any refactor preserved
 > behavior — that is the Validator's call.
 
-## What I Reviewed
+#### What I Reviewed
 
 - `tools/cursor_transcript_mirror.py` — the main change (new dated-snapshot logic + ported helpers).
 - `tools/codex_transcript_mirror.py` — read as the reference implementation only; not modified.
@@ -3110,7 +3110,7 @@ Validator verifies scope and routes the decision.
 - `CLAUDE.md` — router compliance (R1).
 - `git diff` and `git status --porcelain` for the five files to confirm scope.
 
-## Refactor Decision: LEFT AS-IS (no code change)
+#### Refactor Decision: LEFT AS-IS (no code change)
 
 I performed **no** refactor. The one structural improvement on the table —
 extracting the duplicated cadence helpers into a shared module
@@ -3140,7 +3140,7 @@ python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror
 → OK cursor (exit 0)
 ```
 
-## Behavior-Drift Review
+#### Behavior-Drift Review
 
 - **Existing cursor continuity / live writes preserved.** The only change to
   existing logic in `write_memory_bank_views` is hoisting
@@ -3166,7 +3166,7 @@ sign that the Builder change altered the two existing cursor output files'
 content. I do not certify Builder's new snapshot behavior is correct — that is
 the Validator's call.
 
-## Correctness Smells in the New Snapshot Code (reviewed, none blocking)
+#### Correctness Smells in the New Snapshot Code (reviewed, none blocking)
 
 - **Date-folder derivation.** `snapshot_dt = epoch_ms_to_datetime(metadata.get("mirrored_at_epoch_ms")) or datetime.now()`.
   Note `write_memory_bank_views` runs *before* `write_metadata` in `mirror_once`,
@@ -3191,7 +3191,7 @@ the Validator's call.
   `write_text_if_changed` while the timestamped checkpoint is gated by the
   manifest. Matches the reference. No smell.
 
-## Clarity Review
+#### Clarity Review
 
 - Naming is clear and intent-revealing (`cursor_snapshot_identity`,
   `epoch_ms_to_datetime`, `snapshot_text`, `snapshot_key_base`).
@@ -3204,7 +3204,7 @@ the Validator's call.
   current, which overlaps slightly with the memory policy; this is appropriate
   for a routing doc and not worth a change.
 
-## Non-Blocking Concerns (tech debt)
+#### Non-Blocking Concerns (tech debt)
 
 1. **Helper duplication (tracked).** `write_text_if_changed`,
    `sanitize_filename`, `should_write_dated_snapshot`,
@@ -3223,11 +3223,11 @@ the Validator's call.
    files are unverified against live Cursor storage shape. Flagging for the
    Validator's verification plan, not as a defect.
 
-## Editor Blocker
+#### Editor Blocker
 
 **Editor found no blocker.**
 
-## Certification
+#### Certification
 
 I am the Editor. I made no code changes, so there is nothing of mine to
 certify. I do not certify that Builder's new snapshot behavior preserves prior
@@ -3247,7 +3247,7 @@ Validator.
 - Body: `agent-relay/messages/route-20260618-032915-validator-to-builder-62ef62b7.md`
 - SHA-256: `162186f4c70af4029bca79821dda6ab3638fc94471ba8beb7e54a5d41ba87141`
 
-# Validator Directive — Cursor Mirror Resilience to Malformed/Locked Source DB
+### Validator Directive — Cursor Mirror Resilience to Malformed/Locked Source DB
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -3256,7 +3256,7 @@ Validator.
 - Tier: 1 (defensive bug fix)
 - Type: EXECUTION DIRECTIVE
 
-## Problem (found during Validator verification)
+#### Problem (found during Validator verification)
 
 The Cursor mirror crashes on startup:
 
@@ -3272,7 +3272,7 @@ WAL mode, in the OneDrive sync tree), the uncaught exception kills the entire
 mirror loop. This is why `CURSOR_CONTINUITY.md` has been frozen since ~March and
 why this session is currently not being captured.
 
-## Frozen Requirements
+#### Frozen Requirements
 
 R1. `read_itemtable_value` must never crash the mirror. Catch `sqlite3.Error`
     (covers `DatabaseError`/`OperationalError`) and any DB-open failure, and
@@ -3292,7 +3292,7 @@ R3. `mirror_once` / `run` must survive a single bad cycle. A failure in
 R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
     mirror. Do not change output paths/layout established in the prior directive.
 
-## Acceptance Criteria
+#### Acceptance Criteria
 
 - Restarting the cursor mirror with a malformed global `state.vscdb` does NOT
   crash; the process stays alive.
@@ -3301,7 +3301,7 @@ R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
   whatever data is readable.
 - A concise stderr warning is emitted when a DB read is skipped.
 
-## Process
+#### Process
 
 - Builder writes report to
   `agent-relay/roles/Builder/reports/2026-06-17-cursor-mirror-resilience-builder-report.md`,
@@ -3323,7 +3323,7 @@ R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
 - Body: `agent-relay/messages/route-20260618-033810-builder-to-validator-cc4dc983.md`
 - SHA-256: `9e8730077563abc77c22bfed34444808dfffc4309e1dd612120b0c275596cb2b`
 
-# Builder Report — Cursor Mirror Resilience to Malformed/Locked Source DB
+### Builder Report — Cursor Mirror Resilience to Malformed/Locked Source DB
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -3336,12 +3336,12 @@ R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
 > I am NOT certifying this work. The Validator owns verification (live restart
 > against a malformed `state.vscdb`).
 
-## Summary of changes
+#### Summary of changes
 
 All edits are confined to `tools/cursor_transcript_mirror.py`. `tools/codex_transcript_mirror.py`
 was not touched. No output paths/layout were changed.
 
-### R1 — `read_itemtable_value` (was ~line 267)
+##### R1 — `read_itemtable_value` (was ~line 267)
 
 - Moved `sqlite3.connect(...)` inside the `try` block and initialized `conn = None`
   before it, so a failed connect cannot leave the `finally` referencing an
@@ -3355,7 +3355,7 @@ was not touched. No output paths/layout were changed.
 - `finally` now closes the connection only when `conn is not None`, and the
   `conn.close()` itself is guarded by try/except so a close failure cannot raise.
 
-### R2 — `export_decoded_views` (was ~line 773)
+##### R2 — `export_decoded_views` (was ~line 773)
 
 - Wrapped the global-DB block (build `global_payload` + `write_json` of
   `global-chat-state.json`) in its own try/except.
@@ -3367,7 +3367,7 @@ was not touched. No output paths/layout were changed.
   written with null values for the keys that failed (when `write_json` itself
   succeeds).
 
-### R3 — `mirror_once` (was ~line 794) and the watch loop in `main`/`run` (was ~line 851)
+##### R3 — `mirror_once` (was ~line 794) and the watch loop in `main`/`run` (was ~line 851)
 
 - In `mirror_once`, wrapped the `export_decoded_views(...)` call in try/except so
   its failure logs `[cursor-mirror] export_decoded_views failed, continuing: <err>`
@@ -3380,14 +3380,14 @@ was not touched. No output paths/layout were changed.
   only caught `KeyboardInterrupt`, so any per-cycle exception killed the watcher.
   `KeyboardInterrupt` handling is unchanged.
 
-### R4 — Behavior preservation
+##### R4 — Behavior preservation
 
 - On healthy DBs, control flow is identical to before: the new `try` blocks
   simply pass through and return the same values / write the same files.
 - No changes to `codex_transcript_mirror.py`.
 - No changes to output filenames, directories, or JSON structure.
 
-## Verification (performed by Builder; not certification)
+#### Verification (performed by Builder; not certification)
 
 - `python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror.py', doraise=True)"`
   → **PASS** (`py_compile OK`, exit 0).
@@ -3410,7 +3410,7 @@ was not touched. No output paths/layout were changed.
   failure path end-to-end (catch → warn → return None → no crash) that the prior
   pass could only establish by inspection.
 
-### Re-verification note (current Builder pass)
+##### Re-verification note (current Builder pass)
 
 The R1–R4 changes were already present, uncommitted, in the working tree from the
 prior Builder pass (this report's original body). The current pass made **no
@@ -3419,7 +3419,7 @@ satisfied in `tools/cursor_transcript_mirror.py`, re-ran `py_compile` (PASS), ra
 the no-`--watch` one-shot (exit 0, clean), and added the direct malformed-DB test
 above. `git diff HEAD` for the file matches the change set described in R1–R4.
 
-## Assumptions
+#### Assumptions
 
 - "Catch `sqlite3.Error` and any DB-open failure" is satisfied by a single
   `except Exception`, since `sqlite3.Error` is a subclass of `Exception`; this
@@ -3429,7 +3429,7 @@ above. `git diff HEAD` for the file matches the change set described in R1–R4.
 - The malformed-DB warning path was not triggered live (DB was healthy at run
   time); correctness of that path is established by code inspection only.
 
-## Limitations / risk
+#### Limitations / risk
 
 - The R1 failure path is now confirmed by a direct malformed-DB unit check (see
   Verification), but the malformed condition was not reproduced through the full
@@ -3454,7 +3454,7 @@ above. `git diff HEAD` for the file matches the change set described in R1–R4.
 - Body: `agent-relay/messages/route-20260618-034327-validator-to-editor-e9759f66.md`
 - SHA-256: `5f242db6b227202dbc67742dea2a9fe1b94c6d881b5b6d3d816869ab8e553dff`
 
-# Validator Directive — Document the Two-File Agent Memory Archive in AGENTS.md
+### Validator Directive — Document the Two-File Agent Memory Archive in AGENTS.md
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -3463,13 +3463,13 @@ above. `git diff HEAD` for the file matches the change set described in R1–R4.
 - Tier: 0 (documentation/clarity, no behavior change)
 - Type: EXECUTION DIRECTIVE
 
-## Goal (User/Mediator)
+#### Goal (User/Mediator)
 
 Amend `AGENTS.md` so any agent clearly understands the memory archive is split
 across FILES (plural): two parallel, source-tagged, co-located per-agent
 archives that every agent must read — not one merged file.
 
-## Frozen Requirements
+#### Frozen Requirements
 
 R1. Add a concise subsection to `AGENTS.md` (suggested heading
     "## Agent Memory Archive Layout"), placed near the existing "Agent Transcript
@@ -3497,14 +3497,14 @@ R2. Keep it short and non-duplicative. Reconcile with the existing Startup Read
 R3. Documentation only. Do NOT change any tooling, paths, or behavior. Do not
     touch the codex mirror or cursor mirror code.
 
-## Acceptance Criteria
+#### Acceptance Criteria
 
 - `AGENTS.md` contains an explicit, plain-language statement that there are two
   per-agent archives, who writes each, that both must be read, and that
   `all.md` is a separate single governance timeline.
 - No duplication bloat; existing read-order steps remain consistent.
 
-## Process
+#### Process
 
 - Editor edits `AGENTS.md` and writes a report to
   `agent-relay/roles/Editor/reports/2026-06-17-agents-md-archive-layout-editor-report.md`.
@@ -3524,7 +3524,7 @@ R3. Documentation only. Do NOT change any tooling, paths, or behavior. Do not
 - Body: `agent-relay/messages/route-20260618-034554-editor-to-validator-89d619fb.md`
 - SHA-256: `37c9e572fbc98557ac55bf9407a79abbfe548a4f97faacafd564f38104a9f2d1`
 
-# Editor Report — Document the Two-File Agent Memory Archive in AGENTS.md
+### Editor Report — Document the Two-File Agent Memory Archive in AGENTS.md
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -3534,7 +3534,7 @@ R3. Documentation only. Do NOT change any tooling, paths, or behavior. Do not
 - Type: EXECUTION REPORT
 - Directive: `agent-relay/roles/Validator/directives/2026-06-17-agents-md-archive-layout.md` (R1–R3)
 
-## What I Changed
+#### What I Changed
 
 Amended `AGENTS.md` only. Added one new subsection, `## Agent Memory Archive
 Layout`, placed immediately after the existing "Agent Transcript Mirror Startup"
@@ -3558,21 +3558,21 @@ The new subsection states plainly:
 - `agent-relay/transcripts/all.md` is a separate single merged timeline covering
   ROLE/governance handoffs (Validator/Builder/Editor) only.
 
-## Non-Duplication Handling (R2)
+#### Non-Duplication Handling (R2)
 
 To avoid restating existing content, the new subsection cross-references the
 "read BOTH" steps already present in "Startup Read Order" rather than repeating
 the read instructions. The file paths are listed once in the new layout section
 because this is the canonical place that names the two-archive layout.
 
-## Scope / Behavior (R3)
+#### Scope / Behavior (R3)
 
 - Documentation only. No tooling, paths, code, or behavior changed.
 - Only `AGENTS.md` was edited (plus this report file under the Editor reports
   folder, which is the required output artifact).
 - No commit made; no relay messages routed.
 
-## Non-Blocking Note
+#### Non-Blocking Note
 
 The pre-existing line in "Agent Transcript Mirror Startup" reads "Running both
 keeps one shared, source-tagged archive...". The phrase "one shared ... archive"
@@ -3581,7 +3581,7 @@ per-agent files. I left that line unchanged (out of this directive's scope), but
 the new "Agent Memory Archive Layout" subsection clarifies the two-file reality.
 Validator may wish to reconcile that wording in a follow-up.
 
-## R2 Reconciliation Follow-up (2026-06-17)
+#### R2 Reconciliation Follow-up (2026-06-17)
 
 Per Validator follow-up, edited the single flagged sentence in "Agent Transcript
 Mirror Startup" to remove the "one shared ... archive" wording; it now reads
@@ -3589,7 +3589,7 @@ Mirror Startup" to remove the "one shared ... archive" wording; it now reads
 so each agent can read what it did AND what the other agent did." AGENTS.md only,
 documentation-only, no behavior change.
 
-## Status
+#### Status
 
 Editor work complete. Not self-certified as accepted — Validator to verify and
 return the decision to the User/Mediator.
@@ -3607,7 +3607,7 @@ return the decision to the User/Mediator.
 - Body: `agent-relay/messages/route-20260618-040810-validator-to-builder-e37efc95.md`
 - SHA-256: `88154f5559d3e2cbfcd482b170aad68c4bb74f559a3210bf87c873222f02f46b`
 
-# Validator Directive — Transcript Retention and Archival
+### Validator Directive — Transcript Retention and Archival
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -3615,7 +3615,7 @@ return the decision to the User/Mediator.
 - To: Builder
 - Tier: 2 (PRD + checklist; full relay)
 
-## Frozen requirements
+#### Frozen requirements
 
 Implement the workstream defined in:
 
@@ -3630,7 +3630,7 @@ Build to the checklist, in order, honoring these confirmed decisions:
    gated by the Destructive Cleanup process; not run at startup.
 4. 30-day hot window.
 
-## Hard constraints
+#### Hard constraints
 
 - `routes.jsonl` is the immutable source of truth. Archives are DERIVED views;
   never trim, rewrite, or reorder the log.
@@ -3640,7 +3640,7 @@ Build to the checklist, in order, honoring these confirmed decisions:
 - Hot `all.md` + monthly archive files must reconstruct exactly to the full route
   set (no loss, no duplication).
 
-## Report back
+#### Report back
 
 Builder report must list every file created/modified, show the dry-run
 affected-path output, and state any assumptions or limitations. Do NOT mark the
@@ -3664,7 +3664,7 @@ ABOUT: Transcript Retention and Archival (Tier 2) build
 ACTION: Verify against files/diff and script output; do not treat as accepted.
 TYPE: FACTUAL REPORT
 
-# Transcript Retention and Archival - Builder Report
+### Transcript Retention and Archival - Builder Report
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -3678,14 +3678,14 @@ honoring the four confirmed decisions (tracked `archive/` subfolders, monthly
 granularity, manual dry-run-default script, 30-day hot window) and all hard
 constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 
-## Files created
+#### Files created
 
 - `tools/archive_transcripts.py`
   Standalone manual maintenance script (dry-run default).
 - `agent-relay/roles/Builder/reports/2026-06-17-transcript-archival-dryrun-report.md`
   Affected-path report emitted by the dry-run (also reproduced below).
 
-## Files modified
+#### Files modified
 
 - `memory-bank/MEMORY_ARCHIVE_POLICY.md`
   Added a "Transcript Retention and Archival (30-Day Hot Window)" section:
@@ -3704,7 +3704,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - `tools/agent_router.py`
   Phase 2 relay windowing (details below).
 
-## Phase 2 implementation choices (tools/agent_router.py)
+#### Phase 2 implementation choices (tools/agent_router.py)
 
 - Added `HOT_WINDOW_DAYS = 30` and `ARCHIVE_DIR = TRANSCRIPTS_DIR / "archive"`.
 - Added `parse_route_timestamp()` to parse ISO-8601 UTC route timestamps
@@ -3735,7 +3735,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
   `*-session-live.md` transcripts are behaviorally unchanged. The log is never
   trimmed, rewritten, or reordered; the views are derived and rebuildable.
 
-## Phase 3 implementation choices (tools/archive_transcripts.py)
+#### Phase 3 implementation choices (tools/archive_transcripts.py)
 
 - Scans `memory-bank/transcripts/<agent>/YYYY-MM-DD/` for `<agent>` in
   `{codex, cursor}`, skipping the `archive/` subfolder and any non-date-named
@@ -3755,7 +3755,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
   `agent-relay/roles/Builder/reports/2026-06-17-transcript-archival-dryrun-report.md`
   and prints it to stdout.
 
-## Validation performed (local)
+#### Validation performed (local)
 
 - `python tools/agent_router.py verify` -> `{"ok": true, "checked": 62}`.
 - `python -c "ast.parse(...)"` on both `tools/archive_transcripts.py` and
@@ -3773,7 +3773,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
   - ARCHIVE: `2026-01` -> `old-jan`, `2026-02` -> `old-feb`
   - union == all inputs (5 of 5), confirming no loss and no duplication.
 
-## Dry-run affected-path output
+#### Dry-run affected-path output
 
 ```
 # Transcript Archival Report
@@ -3802,7 +3802,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - Files to move: `3`
 ```
 
-## Assumptions
+#### Assumptions
 
 - "Older than 30 days" for snapshot folders uses `> 30` days relative to today's
   date (`date.today()`); for relay windowing it uses `>= cutoff` where
@@ -3814,7 +3814,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - The `.snapshot-manifest.json` inside a day-folder is moved along with the
   folder (it is part of that day's snapshot record).
 
-## Limitations / not done by Builder
+#### Limitations / not done by Builder
 
 - No real `--apply` archival move was performed; only the dry-run was run. The
   first real move must go through the Destructive Cleanup Gate (Validator
@@ -3840,7 +3840,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - Body: `agent-relay/messages/route-20260618-042124-builder-to-validator-df15f55d.md`
 - SHA-256: `7b573e11380451260ec27396042600a2d589f85a4de30f12e8a06c0274ec5e51`
 
-# Builder Report — Transcript Retention and Archival
+### Builder Report — Transcript Retention and Archival
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -3849,7 +3849,7 @@ constraints. Work is NOT self-certified; Validator verifies and Editor reviews.
 - Tier: 2 (PRD + checklist; full relay)
 - Status: implemented; NOT self-certified. Validator verifies, Editor reviews.
 
-## Summary
+#### Summary
 
 Implemented the Tier 2 "Transcript Retention and Archival" workstream: a 30-day
 hot window for both unbounded transcript stores, with tracked monthly cold
@@ -3861,7 +3861,7 @@ present in the working tree from prior uncommitted work; I verified them against
 the PRD/checklist and the hard constraints. Phase 3 (`tools/archive_transcripts.py`)
 is new in this build. No git commit was made.
 
-## Files created / modified
+#### Files created / modified
 
 Created:
 
@@ -3896,7 +3896,7 @@ Untouched (by design):
 - The size-capped `*-session-live.md` transcripts and `MAX_TRANSCRIPT_CHARS`
   behavior in the mirrors are untouched.
 
-## Key implementation choices
+#### Key implementation choices
 
 - **Deterministic relay window:** `split_hot_archive` computes the 30-day cutoff
   relative to the most recent route timestamp in `routes.jsonl` (not wall-clock),
@@ -3922,7 +3922,7 @@ Untouched (by design):
   Phase 2 relay rollover so a single invocation handles both the relay timeline
   and the snapshot day-folders.
 
-## Validation performed
+#### Validation performed
 
 - `python tools/agent_router.py verify` -> `{"ok": true, "checked": 63}`.
 - `python -c "import ast,pathlib; ast.parse(...)"` on both `tools/archive_transcripts.py`
@@ -3941,7 +3941,7 @@ Untouched (by design):
   hot = `[r3(Jun), r4(Jun), r5(bad-ts)]`, archive = `{2026-01:[r1], 2026-02:[r2]}`,
   and the hot+archive union equaled the input exactly (no loss, no duplication).
 
-## Dry-run affected-path output
+#### Dry-run affected-path output
 
 ```
 ## Snapshot day-folder moves
@@ -3961,7 +3961,7 @@ Untouched (by design):
 Full report at
 `agent-relay/roles/Builder/reports/2026-06-17-transcript-archival-dryrun-report.md`.
 
-## Assumptions
+#### Assumptions
 
 - Treated the prior uncommitted Phase 1/Phase 2 changes as part of this
   workstream and verified them rather than rewriting; they match the PRD,
@@ -3972,7 +3972,7 @@ Full report at
   treated as in-scope cleanup, not a "delete" of historical memory (no files are
   removed except byte-identical duplicates already present at the destination).
 
-## Limitations / not done
+#### Limitations / not done
 
 - No `--apply` run was performed. Phase 4's first real archival move must go
   through the Destructive Cleanup Gate (Validator approval, this Builder report,
@@ -3995,7 +3995,7 @@ Full report at
 - Body: `agent-relay/messages/route-20260618-042410-validator-to-editor-19f73143.md`
 - SHA-256: `b4e0ee65964014c38cb57746345218b94209cb77150d220b602181901fadee0f`
 
-# Validator Directive — Editor Review: Transcript Retention and Archival
+### Validator Directive — Editor Review: Transcript Retention and Archival
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -4003,7 +4003,7 @@ Full report at
 - To: Editor
 - Tier: 2
 
-## Validator verification (passed)
+#### Validator verification (passed)
 
 Independently verified against files/diff/command output (not the Builder report):
 
@@ -4014,7 +4014,7 @@ Independently verified against files/diff/command output (not the Builder report
 - `all.md` renders "last 30 days" with archive pointer; `verify` ok (64 routes).
 - Dry-run isolates the single 99-day folder and moves nothing.
 
-## Editor task (structure-only, no behavior change)
+#### Editor task (structure-only, no behavior change)
 
 Anti-spaghetti review of:
 
@@ -4041,7 +4041,7 @@ than fixing it yourself. Report findings; do not certify your own changes.
 - Body: `agent-relay/messages/route-20260618-042820-editor-to-validator-3fd6cb2f.md`
 - SHA-256: `6363959931399a141411baa5f89ee2ffbe28cd615a52257143796b629904b998`
 
-# Editor Review — Transcript Retention and Archival (structure-only)
+### Editor Review — Transcript Retention and Archival (structure-only)
 
 - Date: 2026-06-17
 - Phase: transcript-retention-archival
@@ -4052,7 +4052,7 @@ than fixing it yourself. Report findings; do not certify your own changes.
   (30-day windowing semantics, dry-run/--apply gating, output formats, control
   flow all unchanged).
 
-## What I reviewed
+#### What I reviewed
 
 - `tools/agent_router.py` — new `parse_route_timestamp`, `split_hot_archive`,
   `regenerate_relay_timeline`, the `HOT_WINDOW_DAYS` / `ARCHIVE_DIR` constants,
@@ -4069,7 +4069,7 @@ than fixing it yourself. Report findings; do not certify your own changes.
   — checked the documented 30-day window, monthly archive layout, and
   manual-under-gate language against the actual code paths.
 
-## Structural assessment
+#### Structural assessment
 
 The build is clean and readable. Functions are well-sized and single-purpose,
 docstrings accurately describe intent, the hot/archive split is deterministic
@@ -4085,7 +4085,7 @@ Doc/code agreement is correct:
   snapshot-relative-to-today distinction, manual-under-gate, and
   move-never-delete statements all match actual behavior.
 
-## Structural edits I made
+#### Structural edits I made
 
 1. `tools/agent_router.py`: removed the unused `import shutil`. It was
    pre-existing dead code (introduced in commit `0a4e40533`, never referenced)
@@ -4103,7 +4103,7 @@ Doc/code agreement is correct:
 Rationale: both edits reduce duplication / dead code (anti-spaghetti) without
 touching control flow, the windowing math, the gating, or any emitted format.
 
-## Verification after edits (all green, identical to pre-edit baseline)
+#### Verification after edits (all green, identical to pre-edit baseline)
 
 - `python tools/agent_router.py verify` → `{"ok": true, "checked": 65}`.
 - `python tools/agent_router.py regenerate` → succeeds; `all.md` re-renders with
@@ -4115,7 +4115,7 @@ touching control flow, the windowing math, the gating, or any emitted format.
 - No linter errors on either file.
 - Did NOT run with `--apply`; did NOT git commit.
 
-## Non-blocking observations (left as-is, for awareness only)
+#### Non-blocking observations (left as-is, for awareness only)
 
 - `render_transcript` sorts its `records` argument in place
   (`records.sort(...)`). In `regenerate_relay_timeline` the lists passed (`hot`,
@@ -4128,7 +4128,7 @@ touching control flow, the windowing math, the gating, or any emitted format.
   documented behavior (dry-run wins) matches `main`'s
   `apply = bool(args.apply) and not args.dry_run`.
 
-## Blocker status
+#### Blocker status
 
 NO BLOCKER. Validated behavior is preserved; my edits are purely structural
 (dead-import removal + helper deduplication) and verified to leave verify,

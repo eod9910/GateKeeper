@@ -1,6 +1,6 @@
 # Agent Relay Transcript: tri-agent-governance
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Validator -> Editor: Add explicit Editor blocker rule
 
@@ -12,7 +12,7 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260616-015041-validator-to-editor-77f56618.md`
 - SHA-256: `5073644073b36c9b62f5b59f0859be3e1f655604bbe815bf173bedfcbf0f3eb0`
 
-# Validator Directive: Add Explicit Editor Blocker Rule
+### Validator Directive: Add Explicit Editor Blocker Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
@@ -20,12 +20,12 @@ Generated: 2026-06-18T04:28:20Z
 - To: Editor
 - Work tier: Tier 2 governance infrastructure
 
-## Mediator Decision
+#### Mediator Decision
 
 If Editor records an explicit blocker, the system cannot move on until that
 blocker is fixed or the User/Mediator explicitly overrides it.
 
-## Required Work
+#### Required Work
 
 Update the tri-agent governance documents so future agents understand:
 
@@ -48,19 +48,19 @@ Update the tri-agent governance documents so future agents understand:
 - Body: `agent-relay/messages/route-20260616-015042-editor-to-validator-7040e8fa.md`
 - SHA-256: `9ba9d105b834af1e5ce40ca7ec25878508555eea0a9fd603ea3e74b7004d67a4`
 
-# Editor Report: Explicit Blocker Rule
+### Editor Report: Explicit Blocker Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
 - From: Editor
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `TRI_AGENT_CODING_CONTRACT.md`
 - `agent-relay/roles/Editor/ROLE.md`
 
-## Result
+#### Result
 
 Added an explicit Editor blocker rule. When Editor labels a finding as an
 `EDITOR BLOCKER`, Validator may not accept, commit, or advance the work until
@@ -73,7 +73,7 @@ The rule also requires blocker reports to identify:
 - who should fix it;
 - what evidence clears it.
 
-## Recommendation
+#### Recommendation
 
 Accept this governance update. It directly supports the Mediator's instruction
 to fix Editor problems as they appear and prevents blockers from becoming vague
@@ -92,7 +92,7 @@ follow-up notes.
 - Body: `agent-relay/messages/route-20260616-015721-validator-to-builder-030c58e3.md`
 - SHA-256: `f11ee22b45fb00be9de1ef3582a96f3056c3b923b136149e6a13ac80a0467d79`
 
-# Validator Directive: Add Meta-Conversation Transcripts
+### Validator Directive: Add Meta-Conversation Transcripts
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
@@ -100,13 +100,13 @@ follow-up notes.
 - To: Builder
 - Work tier: Tier 2 governance infrastructure
 
-## Mediator Need
+#### Mediator Need
 
 Role-specific files are correct for the framework, but humans also need a
 single readable meta-conversation view showing Validator directives, Builder
 reports, Editor reviews, and Validator follow-up in order.
 
-## Required Work
+#### Required Work
 
 Add a first-class transcript view generated from the existing router log and
 message bodies.
@@ -138,14 +138,14 @@ Add:
 - Body: `agent-relay/messages/route-20260616-015721-builder-to-validator-c291f400.md`
 - SHA-256: `4b32c63caed7d4e23ea0d794b5fe76c935dc02c7d5870fabbeb1ec64d975d9ba`
 
-# Builder Report: Meta-Conversation Transcripts
+### Builder Report: Meta-Conversation Transcripts
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
 - From: Builder
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `tools/agent_router.py`
 - `agent-relay/transcripts/all.md`
@@ -155,7 +155,7 @@ Add:
 - `agent-relay/transcripts/router-smoke-test.md`
 - `agent-relay/transcripts/tri-agent-governance.md`
 
-## Implementation
+#### Implementation
 
 Added first-class meta-conversation transcript support:
 
@@ -164,7 +164,7 @@ Added first-class meta-conversation transcript support:
 
 Route operations now regenerate transcripts after updating inboxes.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/agent_router.py` passed.
 - `python tools/agent_router.py regenerate` created phase transcripts.
@@ -185,7 +185,7 @@ Route operations now regenerate transcripts after updating inboxes.
 - Body: `agent-relay/messages/route-20260616-021100-validator-to-editor-79f0e283.md`
 - SHA-256: `1544e64df2772ffcaef3cd9692a2827888ddedf05e3819c260510ed27f497446`
 
-# Validator Directive: Add Conversation Framing Rule
+### Validator Directive: Add Conversation Framing Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
@@ -193,13 +193,13 @@ Route operations now regenerate transcripts after updating inboxes.
 - To: Editor
 - Work tier: Tier 2 governance infrastructure
 
-## Mediator Decision
+#### Mediator Decision
 
 The Mediator speaks to Validator, not directly to Builder or Editor. Validator
 must frame all status updates with explicit role attribution so role ownership
 is never ambiguous.
 
-## Required Work
+#### Required Work
 
 Update the tri-agent governance contract and Validator role instructions so
 future Validator instances say:
@@ -227,19 +227,19 @@ when Builder or Editor performed the work.
 - Body: `agent-relay/messages/route-20260616-021100-editor-to-validator-a88ceef3.md`
 - SHA-256: `5474ed2b551243ee44fba92ab34357bafd473f6b033935840615441aad8bc5eb`
 
-# Editor Report: Conversation Framing Rule
+### Editor Report: Conversation Framing Rule
 
 - Date: 2026-06-16
 - Phase: tri-agent-governance
 - From: Editor
 - To: Validator
 
-## Files Changed
+#### Files Changed
 
 - `TRI_AGENT_CODING_CONTRACT.md`
 - `agent-relay/roles/Validator/ROLE.md`
 
-## Result
+#### Result
 
 Added explicit conversation-framing rules. The contract now states that the
 User/Mediator speaks to Validator, and Validator must report Builder and Editor
@@ -248,7 +248,7 @@ work with explicit role attribution.
 The Validator role file now forbids ambiguous phrasing such as `I implemented`,
 `I reviewed`, or `we fixed` when Builder or Editor performed that work.
 
-## Recommendation
+#### Recommendation
 
 Accept this governance update. It makes the spoken interaction model match the
 tri-agent contract.

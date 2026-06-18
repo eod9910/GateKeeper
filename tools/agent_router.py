@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -171,6 +172,80 @@ def regenerate_inboxes() -> None:
         inbox_path.write_text(render_inbox(role, records), encoding="utf-8")
 
 
+ATX_HEADING = re.compile(r"^(#{1,6})(\s)")
+
+
+def _is_fence(stripped: str) -> Optional[str]:
+    if stripped.startswith("```"):
+        return "```"
+    if stripped.startswith("~~~"):
+        return "~~~"
+    return None
+
+
+def demote_body_headings(body: str, min_target_level: int = 3) -> str:
+    """Demote markdown headings inside an inlined message body.
+
+    Inlined route bodies often carry their own top-level (`#`/`##`) headings,
+    which collide with the level-2 route wrappers and break the transcript's
+    fold hierarchy (some entries fold to their title, others do not). Shifting
+    each body's headings so its shallowest heading sits at level 3 keeps every
+    route a uniform `##` section whose entire body nests beneath it, so
+    "Fold Level 2" collapses every entry to its title.
+
+    Headings inside fenced code blocks (``` or ~~~) are left untouched so code
+    examples and shell comments are not corrupted. Levels are clamped to 6.
+    """
+    lines = body.split("\n")
+
+    levels: List[int] = []
+    in_code = False
+    fence_marker = ""
+    for line in lines:
+        stripped = line.lstrip()
+        if in_code:
+            if stripped.startswith(fence_marker):
+                in_code = False
+            continue
+        marker = _is_fence(stripped)
+        if marker:
+            in_code = True
+            fence_marker = marker
+            continue
+        match = ATX_HEADING.match(line)
+        if match:
+            levels.append(len(match.group(1)))
+
+    if not levels:
+        return body
+    shift = min_target_level - min(levels)
+    if shift <= 0:
+        return body
+
+    out: List[str] = []
+    in_code = False
+    fence_marker = ""
+    for line in lines:
+        stripped = line.lstrip()
+        if in_code:
+            if stripped.startswith(fence_marker):
+                in_code = False
+            out.append(line)
+            continue
+        marker = _is_fence(stripped)
+        if marker:
+            in_code = True
+            fence_marker = marker
+            out.append(line)
+            continue
+        match = ATX_HEADING.match(line)
+        if match:
+            new_level = min(len(match.group(1)) + shift, 6)
+            line = "#" * new_level + line[len(match.group(1)):]
+        out.append(line)
+    return "\n".join(out)
+
+
 def render_transcript(
     records: List[Dict[str, object]],
     title: str,
@@ -205,7 +280,7 @@ def render_transcript(
                 f"- Body: `{record.get('body_path')}`",
                 f"- SHA-256: `{record.get('sha256')}`",
                 "",
-                body,
+                demote_body_headings(body),
                 "",
                 "---",
                 "",

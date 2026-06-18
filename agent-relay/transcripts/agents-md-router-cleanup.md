@@ -1,6 +1,6 @@
 # Agent Relay Transcript: agents-md-router-cleanup
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Builder -> Validator: AGENTS.md router cleanup builder report
 
@@ -12,20 +12,20 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260616-024041-builder-to-validator-ce44828e.md`
 - SHA-256: `d8275f927f89317e7acbc8233d68317c0054689b2fca2cfda929ae4558bce331`
 
-# Builder Report: AGENTS.md Router Cleanup
+### Builder Report: AGENTS.md Router Cleanup
 
 Date: 2026-06-16
 Phase: agents-md-router-cleanup
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder cleaned the hand-authored startup sections of `AGENTS.md` so the file acts as a router instead of duplicating detailed contracts.
 
 Builder preserved the planning PRD/checklist naming convention in `AGENTS.md` because the User/Mediator explicitly identified it as startup-critical.
 
-## Changes
+#### Changes
 
 Builder kept the `Planning Conventions` section visible and added an explicit note that the paired planning naming rule must stay in `AGENTS.md`.
 
@@ -54,13 +54,13 @@ Builder reduced `Codex Continuity Memory` to pointers:
 
 Detailed transcript retention and sensitive-memory handling remain in memory policy files.
 
-## Not Changed
+#### Not Changed
 
 Builder did not change the generated GitNexus block in this cleanup.
 
 Builder did not move planning naming conventions out of `AGENTS.md`.
 
-## Builder Result
+#### Builder Result
 
 Builder reports `AGENTS.md` is now closer to a startup routing document while preserving the PRD/checklist naming convention exactly where future agents will see it.
 

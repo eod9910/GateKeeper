@@ -1,6 +1,6 @@
 # Agent Relay Transcript: memory-bank-audit
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Validator -> Builder: Audit memory-bank before cleanup
 
@@ -12,7 +12,7 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260616-021831-validator-to-builder-cccbb691.md`
 - SHA-256: `ae80a860ee8168723deb7009ff1a8e12fabb6375dcb66c9e99cfee73485e5650`
 
-# Validator Directive: Memory Bank Audit And Cleanup Plan
+### Validator Directive: Memory Bank Audit And Cleanup Plan
 
 - Date: 2026-06-16
 - Phase: memory-bank-audit
@@ -20,7 +20,7 @@ Generated: 2026-06-18T04:28:20Z
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Mediator Intent
+#### Mediator Intent
 
 The Agent Relay and dated Codex transcript system now carry the serious
 auditable continuity trail. The older `memory-bank/` may contain useful context,
@@ -29,7 +29,7 @@ but it may also contain stale, duplicated, or misplaced governance material.
 Do not delete or move memory files yet. First produce an inventory and cleanup
 proposal.
 
-## Required Work
+#### Required Work
 
 Audit `memory-bank/` and classify files into these buckets:
 
@@ -40,7 +40,7 @@ Audit `memory-bank/` and classify files into these buckets:
 5. Move role conversation records into `agent-relay/`.
 6. Ignore/delete generated or stale junk, only after Validator/User approval.
 
-## Required Output
+#### Required Output
 
 Create a Builder report under:
 
@@ -57,7 +57,7 @@ The report must include:
   `AGENT_OPERATING_CONTRACT.md`, or `memory-bank/CODEX_MEMORY_POLICY.md`;
 - a proposed cleanup sequence that avoids data loss.
 
-## Constraints
+#### Constraints
 
 - Do not delete files.
 - Do not move files.
@@ -79,7 +79,7 @@ The report must include:
 - Body: `agent-relay/messages/route-20260616-021832-validator-to-editor-a5bca88c.md`
 - SHA-256: `c107da174fb29516a9c6dbe2151a30ce364a476ed1d3c35dae161aa27e05fc8b`
 
-# Validator Directive: Review Memory Bank Audit Criteria
+### Validator Directive: Review Memory Bank Audit Criteria
 
 - Date: 2026-06-16
 - Phase: memory-bank-audit
@@ -87,11 +87,11 @@ The report must include:
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Prepare to review Builder's `memory-bank/` audit and cleanup proposal.
 
-## Editor Review Standard
+#### Editor Review Standard
 
 When Builder reports back, check whether the proposal:
 
@@ -103,7 +103,7 @@ When Builder reports back, check whether the proposal:
 - avoids deleting or moving ambiguous historical material without approval;
 - clearly distinguishes active startup memory from archived context.
 
-## Blocker Criteria
+#### Blocker Criteria
 
 Record an `EDITOR BLOCKER` if Builder proposes:
 
@@ -113,7 +113,7 @@ Record an `EDITOR BLOCKER` if Builder proposes:
 - weakening the Codex memory policy;
 - leaving duplicate contradictory rules in multiple places.
 
-## Required Output
+#### Required Output
 
 After Builder submits the inventory, return an Editor report to Validator with:
 
@@ -136,22 +136,22 @@ After Builder submits the inventory, return an Editor report to Validator with:
 - Body: `agent-relay/messages/route-20260616-022142-builder-to-validator-fc1ebdb9.md`
 - SHA-256: `761b0182611fa58bc1e92080166ec1d41ce5210d3b1f2fd6e2e0846926d89410`
 
-# Builder Report: Memory-Bank Audit
+### Builder Report: Memory-Bank Audit
 
 Date: 2026-06-16
 Phase: memory-bank-audit
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder inventoried `memory-bank/` to determine what still belongs in active memory, what should become historical archive material, and what needs cleanup policy before any move or deletion.
 
 Builder did not move, delete, or rewrite memory files during this audit.
 
-## Inventory Summary
+#### Inventory Summary
 
-### Active Startup / Continuity Memory
+##### Active Startup / Continuity Memory
 
 - `memory-bank/CODEX_CONTINUITY.md`
   - Active Codex continuity file.
@@ -170,7 +170,7 @@ Builder did not move, delete, or rewrite memory files during this audit.
   - Cursor-specific continuity file.
   - Should remain if Cursor is still part of the workflow, but should not be treated as Codex startup memory unless explicitly referenced by Codex-facing instructions.
 
-### Legacy Catch-All Memory
+##### Legacy Catch-All Memory
 
 - `memory-bank/CHAT_MEMORY.md`
 - `memory-bank/LATEST.md`
@@ -186,7 +186,7 @@ Builder classifies these as legacy catch-all memory files. They contain useful h
 
 Builder recommends treating these as read-on-demand historical archive files until a later extraction pass identifies rules that still belong in canonical contracts.
 
-### Reference / Historical Project Memory
+##### Reference / Historical Project Memory
 
 - `memory-bank/BASE_METHOD_TOMBSTONES.md`
 - `memory-bank/GSD_REFERENCE.md`
@@ -199,7 +199,7 @@ Builder classifies these as reference/history files, not active agent startup me
 
 Some of these may eventually belong under `.planning/plans/REFERENCE/` or `.planning/plans/ARCHIVE/`, but Builder recommends not moving them during this audit because the planning tree already has substantial unrelated changes.
 
-### Transcript Archive
+##### Transcript Archive
 
 Builder found historical transcript material under `memory-bank/transcripts/`, including:
 
@@ -213,7 +213,7 @@ Builder classifies `memory-bank/transcripts/codex-session-live.md` as the active
 
 Builder classifies older transcript exports as historical archive material. They are useful for recall and forensic reconstruction, but they should not be startup-loaded wholesale.
 
-## Issue Found
+#### Issue Found
 
 Builder found that the dated Codex snapshot system is currently too noisy.
 
@@ -227,7 +227,7 @@ This creates unnecessary repository churn and storage growth. The likely intende
 
 The current behavior appears to create a new durable checkpoint every mirror pass.
 
-## Builder Recommendation
+#### Builder Recommendation
 
 Builder recommends the next cleanup phase proceed in this order:
 
@@ -237,7 +237,7 @@ Builder recommends the next cleanup phase proceed in this order:
 4. Reclassify `CHAT_MEMORY.md` and `LATEST.md` as legacy archive/read-on-demand memory unless a later extraction pass finds current rules that belong in canonical contracts.
 5. Do not delete old transcripts or catch-all memory files until Validator approves an archive policy and Editor reviews it.
 
-## Builder Completion State
+#### Builder Completion State
 
 Builder completed the inventory and found no need for immediate destructive cleanup.
 
@@ -256,22 +256,22 @@ Builder reports one cleanup blocker before broader memory-bank reorganization: t
 - Body: `agent-relay/messages/route-20260616-022142-editor-to-validator-a3d04c17.md`
 - SHA-256: `162fb7b8ac764daaaded16e76d39ee6e8437f632751dbf3cff79fa5d71e217a5`
 
-# Editor Review: Memory-Bank Audit
+### Editor Review: Memory-Bank Audit
 
 Date: 2026-06-16
 Phase: memory-bank-audit
 Source: Editor
 Target: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed Builder's memory-bank audit classification and cleanup recommendation.
 
 Editor reviewed this as a governance and repository-hygiene question, not as permission to move or delete memory files.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts Builder's main classification:
 
@@ -280,7 +280,7 @@ Editor accepts Builder's main classification:
 - historical transcripts should remain searchable forensic memory, not startup memory.
 - broad cleanup should not happen until the duplicate snapshot behavior is fixed.
 
-### Required Guardrail
+##### Required Guardrail
 
 Editor requires that any future cleanup distinguish between:
 
@@ -292,7 +292,7 @@ Editor requires that any future cleanup distinguish between:
 
 These categories should not be collapsed into one folder or one giant memory file.
 
-### Editor Blocker For Cleanup Phase
+##### Editor Blocker For Cleanup Phase
 
 Editor raises a blocker for any cleanup phase that deletes, moves, or rewrites historical memory before the following are true:
 
@@ -303,11 +303,11 @@ Editor raises a blocker for any cleanup phase that deletes, moves, or rewrites h
 
 This blocker does not prevent completing the audit report. It only blocks destructive or broad reorganization work.
 
-## Editor Recommendation
+#### Editor Recommendation
 
 Editor recommends that Validator direct Builder next to fix the transcript mirror snapshot cadence, then return to memory-bank archival cleanup after the mirror stops generating near-duplicate durable files.
 
-## Review Result
+#### Review Result
 
 Editor accepts the audit as complete.
 

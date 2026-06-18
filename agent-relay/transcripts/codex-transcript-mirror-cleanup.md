@@ -1,6 +1,6 @@
 # Agent Relay Transcript: codex-transcript-mirror-cleanup
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Validator -> Builder: Make Codex mirror incremental
 
@@ -12,7 +12,7 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260616-013934-validator-to-builder-f1c84862.md`
 - SHA-256: `a3abb8ef7f5db47f9c0f4116b0511e9576b9ed4787a5c1678d75fb0e7c1437fc`
 
-# Validator Directive: Make Codex Mirror Incremental
+### Validator Directive: Make Codex Mirror Incremental
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -20,11 +20,11 @@ Generated: 2026-06-18T04:28:20Z
 - To: Builder
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Trigger
+#### Trigger
 
 Editor identified that watch mode reprocesses every matching Codex session each interval. The Mediator directed that Editor problems should be fixed as they come so the code stays clean.
 
-## Required Work
+#### Required Work
 
 Improve `tools/codex_transcript_mirror.py` so watch mode avoids reparsing and rewriting unchanged session files.
 
@@ -35,7 +35,7 @@ Keep behavior equivalent:
 - current continuity views still update when the active Codex session changes;
 - generated output still includes session summaries and latest-session Markdown.
 
-## Constraints
+#### Constraints
 
 - Do not change app behavior.
 - Do not weaken the memory tracking policy.
@@ -56,7 +56,7 @@ Keep behavior equivalent:
 - Body: `agent-relay/messages/route-20260616-014236-builder-to-validator-33698957.md`
 - SHA-256: `1b61ae4ce48209b86e784c4c01ffcf9daed6400fc782cf758ed6b1fa26b677b9`
 
-# Builder Report: Incremental Codex Mirror
+### Builder Report: Incremental Codex Mirror
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -64,14 +64,14 @@ Keep behavior equivalent:
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-builder-incremental-codex-mirror.md`
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - Generated compact memory refresh:
   - `memory-bank/CODEX_CONTINUITY.md`
   - `memory-bank/transcripts/codex-session-live.md`
 
-## Implementation
+#### Implementation
 
 Added a local ignored session cache under the offline mirror output:
 
@@ -81,7 +81,7 @@ The cache stores parsed Codex rollout records keyed by source path plus file sig
 
 Also added change-aware text writes and raw-copy skipping so unchanged raw and decoded session outputs are not rewritten just because watch mode wakes up.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py` passed.
 - First mirror run completed and populated the cache.
@@ -92,11 +92,11 @@ Also added change-aware text writes and raw-copy skipping so unchanged raw and d
   - `skipped: 0`
 - The active session still updated the compact memory files.
 
-## GitNexus Note
+#### GitNexus Note
 
 GitNexus impact lookup for `mirror_once` resolves to the older Cursor mirror because both tools use the same function name. A file-path context lookup for the Codex mirror did not resolve the new symbol. The available impact result for the same-name Cursor function showed low risk and no affected execution flows. This Codex change is confined to the standalone mirror utility.
 
-## Remaining Concern For Editor
+#### Remaining Concern For Editor
 
 The mirror utility is still monolithic. The performance problem is fixed, but Editor should decide whether a behavior-preserving structural refactor is required before acceptance.
 
@@ -114,7 +114,7 @@ The mirror utility is still monolithic. The performance problem is fixed, but Ed
 - Body: `agent-relay/messages/route-20260616-014250-validator-to-editor-e8f00062.md`
 - SHA-256: `a515a1a9a7036c111bf9237e67fe3c7d13eae935d8066851680d20ac92b25a1b`
 
-# Validator Directive: Review Incremental Codex Mirror
+### Validator Directive: Review Incremental Codex Mirror
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -122,11 +122,11 @@ The mirror utility is still monolithic. The performance problem is fixed, but Ed
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Review the Builder's incremental Codex mirror fix and decide whether the remaining monolithic script concern is an acceptance blocker or a follow-up refactor.
 
-## Inputs
+#### Inputs
 
 - Builder report: `agent-relay/roles/Builder/reports/2026-06-16-incremental-codex-mirror-builder-report.md`
 - Implementation: `tools/codex_transcript_mirror.py`
@@ -134,7 +134,7 @@ Review the Builder's incremental Codex mirror fix and decide whether the remaini
   - `memory-bank/CODEX_CONTINUITY.md`
   - `memory-bank/transcripts/codex-session-live.md`
 
-## Review Questions
+#### Review Questions
 
 - Does the incremental cache fix preserve behavior?
 - Does it solve the watch-mode churn problem enough for acceptance?
@@ -158,7 +158,7 @@ Do not modify files in this review pass.
 - Body: `agent-relay/messages/route-20260616-014331-editor-to-validator-7734faff.md`
 - SHA-256: `a008ee33ed5194c9d2ef811371aabc27bc5b991c4aff2e3bfa31a0a0d3defc25`
 
-# Editor Report: Incremental Codex Mirror Review
+### Editor Report: Incremental Codex Mirror Review
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -166,9 +166,9 @@ Do not modify files in this review pass.
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-editor-review-incremental-codex-mirror.md`
 
-## Findings
+#### Findings
 
-### Fixed: watch-mode churn is no longer an acceptance blocker
+##### Fixed: watch-mode churn is no longer an acceptance blocker
 
 The Builder added a local session cache at:
 
@@ -184,11 +184,11 @@ Verification showed the second mirror run completed in about 2.15 seconds with c
 
 This materially fixes the watch-mode churn problem.
 
-### Acceptable: behavior appears preserved
+##### Acceptable: behavior appears preserved
 
 The mirror still updates the compact memory files under `memory-bank/`, still writes decoded latest-session output under the offline mirror, and still keeps raw mirror data local-only.
 
-### Remaining concern: the mirror script is large
+##### Remaining concern: the mirror script is large
 
 `tools/codex_transcript_mirror.py` is now 896 lines. The added cache logic is readable and grouped, but the file combines:
 
@@ -203,7 +203,7 @@ The mirror still updates the compact memory files under `memory-bank/`, still wr
 
 This is not an immediate correctness blocker, but it is a maintainability problem that should be fixed soon.
 
-## Recommendation
+#### Recommendation
 
 Accept the Builder incremental fix.
 
@@ -223,7 +223,7 @@ Open a separate Editor refactor directive to split the mirror into smaller behav
 - Body: `agent-relay/messages/route-20260616-014400-validator-to-editor-161a4229.md`
 - SHA-256: `d6b3c9f80c1dabf060efae4a2bf65335ef74cb1dbe803f3fe1c7df88370b75d9`
 
-# Validator Directive: Refactor Codex Mirror Structure
+### Validator Directive: Refactor Codex Mirror Structure
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -231,11 +231,11 @@ Open a separate Editor refactor directive to split the mirror into smaller behav
 - To: Editor
 - Work tier: Tier 2 governance/continuity infrastructure
 
-## Request
+#### Request
 
 Perform a behavior-preserving anti-spaghetti refactor of `tools/codex_transcript_mirror.py`.
 
-## Scope
+#### Scope
 
 Allowed:
 
@@ -252,7 +252,7 @@ Forbidden:
 - changing CLI arguments;
 - adding app behavior.
 
-## Required Verification
+#### Required Verification
 
 - `python -m py_compile` for affected Python files.
 - At least two mirror runs showing cache behavior still works.
@@ -273,7 +273,7 @@ Forbidden:
 - Body: `agent-relay/messages/route-20260616-014650-editor-to-validator-728241f4.md`
 - SHA-256: `7e589ac5822fa9d072af4124567360e74b04ae4a83f77b54251a271fb91f53bf`
 
-# Editor Report: Codex Mirror Refactor
+### Editor Report: Codex Mirror Refactor
 
 - Date: 2026-06-16
 - Phase: codex-transcript-mirror-cleanup
@@ -281,7 +281,7 @@ Forbidden:
 - To: Validator
 - Directive: `agent-relay/roles/Validator/directives/2026-06-16-editor-refactor-codex-mirror.md`
 
-## Files Changed
+#### Files Changed
 
 - `tools/codex_transcript_mirror.py`
 - `tools/codex_transcript_memory.py`
@@ -289,7 +289,7 @@ Forbidden:
   - `memory-bank/CODEX_CONTINUITY.md`
   - `memory-bank/transcripts/codex-session-live.md`
 
-## Refactor Summary
+#### Refactor Summary
 
 Moved prompt/topic/memory summarization logic out of the mirror driver and into:
 
@@ -297,16 +297,16 @@ Moved prompt/topic/memory summarization logic out of the mirror driver and into:
 
 This separates memory classification/rendering helpers from session mirroring, caching, filesystem output, and watch-loop behavior.
 
-## Size Change
+#### Size Change
 
 - `tools/codex_transcript_mirror.py`: reduced from 896 lines to 602 lines.
 - `tools/codex_transcript_memory.py`: 319 lines.
 
-## Behavior Preservation
+#### Behavior Preservation
 
 The refactor did not change CLI arguments, memory tracking policy, raw mirror ignore policy, or output locations.
 
-## Verification
+#### Verification
 
 - `python -m py_compile tools/codex_transcript_mirror.py tools/codex_transcript_memory.py` passed.
 - First post-refactor mirror run completed successfully.
@@ -317,7 +317,7 @@ The refactor did not change CLI arguments, memory tracking policy, raw mirror ig
   - `skipped: 0`
 - Router verification passed with `checked: 18`.
 
-## Remaining Concerns
+#### Remaining Concerns
 
 The mirror driver is still not tiny, but it now has a clearer boundary:
 

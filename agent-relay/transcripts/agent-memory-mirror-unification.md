@@ -1,6 +1,6 @@
 # Agent Relay Transcript: agent-memory-mirror-unification
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Validator -> Builder: Unify agent transcript mirrors + AGENTS.md startup
 
@@ -12,7 +12,7 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260618-031504-validator-to-builder-8c846aa2.md`
 - SHA-256: `8a48e9d4ffb22f224d2a8de978b08a83a0f65eb9cad6bab29024d066f37bb448`
 
-# Validator Directive — Unify Agent Transcript Mirrors + AGENTS.md Startup
+### Validator Directive — Unify Agent Transcript Mirrors + AGENTS.md Startup
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -21,14 +21,14 @@ Generated: 2026-06-18T04:28:20Z
 - Tier: 2 (governance + tooling, multi-step)
 - Type: EXECUTION DIRECTIVE
 
-## Goal (User/Mediator)
+#### Goal (User/Mediator)
 
 Make every agent (Codex and Cursor/Claude) boot from one synchronized governance
 file, spin up BOTH transcript mirrors first thing, and write their transcripts
 into one shared, source-tagged archive so each agent can read what it did AND
 what the other agent did.
 
-## Frozen Requirements
+#### Frozen Requirements
 
 R1. Single startup source of truth.
 - Every agent bootstrap file (`CLAUDE.md`, and any Cursor/Codex-specific
@@ -70,7 +70,7 @@ R6. No regressions.
 - Do not change existing Codex mirror behavior or output.
 - Preserve `.gitignore` rules for `offline-*-transcripts-*/` raw mirrors.
 
-## Process Constraints
+#### Process Constraints
 
 - GitNexus: run impact analysis before editing any indexed symbol; note if a
   tool/script is not indexed.
@@ -84,7 +84,7 @@ R6. No regressions.
   messages through `tools/agent_router.py` one at a time, and returns the
   decision to the User/Mediator.
 
-## Acceptance Criteria
+#### Acceptance Criteria
 
 - `CLAUDE.md` (and peers) route to `AGENTS.md`; no duplicate governance.
 - `AGENTS.md` startup starts both mirrors idempotently, first.
@@ -106,7 +106,7 @@ R6. No regressions.
 - Body: `agent-relay/messages/route-20260618-032050-builder-to-validator-4fdf8daf.md`
 - SHA-256: `9d3e551ae272eb0c8634dd97cb83d6c90274b4b81d330a41b86bcd6345721e3e`
 
-# Builder Report — Mirror Unification + AGENTS.md Startup
+### Builder Report — Mirror Unification + AGENTS.md Startup
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -117,7 +117,7 @@ R6. No regressions.
 
 > I am NOT certifying this work. The Editor and Validator review and decide.
 
-## Files Changed
+#### Files Changed
 
 1. `tools/cursor_transcript_mirror.py` — (R3) Cursor mirror now also writes durable,
    source-tagged dated snapshots into the same tracked layout Codex uses:
@@ -145,7 +145,7 @@ R6. No regressions.
    sensitive-handling rules as the codex snapshots. Notes the two mirrors share identical
    layout/cadence, differing only by the source-tagged `codex/` vs `cursor/` subfolder.
 
-## What I Verified
+#### What I Verified
 
 - `python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror.py', doraise=True)"`
   → `OK cursor`. Codex mirror also re-compiled → `OK codex`. Exit code 0.
@@ -153,19 +153,19 @@ R6. No regressions.
 - Did NOT run the mirrors or any watcher (per constraints). No runtime/output verification of
   produced snapshot files was performed.
 
-## R1 Finding (no change made)
+#### R1 Finding (no change made)
 
 - `CLAUDE.md` is already a thin router to `AGENTS.md` with no duplicated governance — left as-is
   (no gratuitous rewrite). No other agent bootstrap files were found
   (`.cursorrules`, `CODEX.md`, `CURSOR.md`, `.github/copilot-instructions.md` — none exist).
 
-## R6 Finding (no change needed)
+#### R6 Finding (no change needed)
 
 - `.gitignore` already ignores `offline-cursor-transcripts-*/` and `offline-codex-transcripts-*/`
   (lines 17–18). Left unchanged.
 - `tools/codex_transcript_mirror.py` was NOT modified; codex behavior/output is preserved.
 
-## Assumptions Made
+#### Assumptions Made
 
 - For the cursor dated-snapshot identity I reused the active Cursor composer: filename slug from
   the composer `name` (sanitized), and the manifest key base from `composerId` (falling back to the
@@ -177,7 +177,7 @@ R6. No regressions.
   the codex mirror writes the same `snapshot_text` to both the live file and the dated snapshot).
 - Snapshot cadence constants match codex exactly (6h min interval / 100k char delta).
 
-## Limitations / Risks (for the Editor to focus on)
+#### Limitations / Risks (for the Editor to focus on)
 
 - Helper duplication: the cadence helpers are copied into `cursor_transcript_mirror.py` rather than
   shared. Codex imports its summary helpers from `codex_transcript_memory.py`; the cursor mirror keeps
@@ -192,7 +192,7 @@ R6. No regressions.
   `write_text_if_changed`; they still use direct `write_text` to avoid behavior drift. The new dated
   snapshots do use `write_text_if_changed` (matching codex).
 
-## Intentionally NOT Done
+#### Intentionally NOT Done
 
 - Did not rewrite `CLAUDE.md` (already compliant).
 - Did not modify `tools/codex_transcript_mirror.py`, `codex_transcript_memory.py`, or the codex
@@ -203,7 +203,7 @@ R6. No regressions.
   are not application symbols in the indexed call graph, so no `gitnexus_impact` was run. If the
   Validator wants, `gitnexus_detect_changes` can confirm scope at review time.
 
-## Certification
+#### Certification
 
 I am the Builder. I do NOT certify this work. Editor reviews for duplication/clarity/behavior drift;
 Validator verifies scope and routes the decision.
@@ -221,7 +221,7 @@ Validator verifies scope and routes the decision.
 - Body: `agent-relay/messages/route-20260618-032606-editor-to-validator-fa191665.md`
 - SHA-256: `5965686c7a615e4cdfe509bb2d9c2937b2809146c03fa76dd51c080295b03a7c`
 
-# Editor Review — Mirror Unification + AGENTS.md Startup
+### Editor Review — Mirror Unification + AGENTS.md Startup
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -236,7 +236,7 @@ Validator verifies scope and routes the decision.
 > I do NOT add product behavior and I do NOT certify that any refactor preserved
 > behavior — that is the Validator's call.
 
-## What I Reviewed
+#### What I Reviewed
 
 - `tools/cursor_transcript_mirror.py` — the main change (new dated-snapshot logic + ported helpers).
 - `tools/codex_transcript_mirror.py` — read as the reference implementation only; not modified.
@@ -245,7 +245,7 @@ Validator verifies scope and routes the decision.
 - `CLAUDE.md` — router compliance (R1).
 - `git diff` and `git status --porcelain` for the five files to confirm scope.
 
-## Refactor Decision: LEFT AS-IS (no code change)
+#### Refactor Decision: LEFT AS-IS (no code change)
 
 I performed **no** refactor. The one structural improvement on the table —
 extracting the duplicated cadence helpers into a shared module
@@ -275,7 +275,7 @@ python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror
 → OK cursor (exit 0)
 ```
 
-## Behavior-Drift Review
+#### Behavior-Drift Review
 
 - **Existing cursor continuity / live writes preserved.** The only change to
   existing logic in `write_memory_bank_views` is hoisting
@@ -301,7 +301,7 @@ sign that the Builder change altered the two existing cursor output files'
 content. I do not certify Builder's new snapshot behavior is correct — that is
 the Validator's call.
 
-## Correctness Smells in the New Snapshot Code (reviewed, none blocking)
+#### Correctness Smells in the New Snapshot Code (reviewed, none blocking)
 
 - **Date-folder derivation.** `snapshot_dt = epoch_ms_to_datetime(metadata.get("mirrored_at_epoch_ms")) or datetime.now()`.
   Note `write_memory_bank_views` runs *before* `write_metadata` in `mirror_once`,
@@ -326,7 +326,7 @@ the Validator's call.
   `write_text_if_changed` while the timestamped checkpoint is gated by the
   manifest. Matches the reference. No smell.
 
-## Clarity Review
+#### Clarity Review
 
 - Naming is clear and intent-revealing (`cursor_snapshot_identity`,
   `epoch_ms_to_datetime`, `snapshot_text`, `snapshot_key_base`).
@@ -339,7 +339,7 @@ the Validator's call.
   current, which overlaps slightly with the memory policy; this is appropriate
   for a routing doc and not worth a change.
 
-## Non-Blocking Concerns (tech debt)
+#### Non-Blocking Concerns (tech debt)
 
 1. **Helper duplication (tracked).** `write_text_if_changed`,
    `sanitize_filename`, `should_write_dated_snapshot`,
@@ -358,11 +358,11 @@ the Validator's call.
    files are unverified against live Cursor storage shape. Flagging for the
    Validator's verification plan, not as a defect.
 
-## Editor Blocker
+#### Editor Blocker
 
 **Editor found no blocker.**
 
-## Certification
+#### Certification
 
 I am the Editor. I made no code changes, so there is nothing of mine to
 certify. I do not certify that Builder's new snapshot behavior preserves prior
@@ -382,7 +382,7 @@ Validator.
 - Body: `agent-relay/messages/route-20260618-032915-validator-to-builder-62ef62b7.md`
 - SHA-256: `162186f4c70af4029bca79821dda6ab3638fc94471ba8beb7e54a5d41ba87141`
 
-# Validator Directive — Cursor Mirror Resilience to Malformed/Locked Source DB
+### Validator Directive — Cursor Mirror Resilience to Malformed/Locked Source DB
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -391,7 +391,7 @@ Validator.
 - Tier: 1 (defensive bug fix)
 - Type: EXECUTION DIRECTIVE
 
-## Problem (found during Validator verification)
+#### Problem (found during Validator verification)
 
 The Cursor mirror crashes on startup:
 
@@ -407,7 +407,7 @@ WAL mode, in the OneDrive sync tree), the uncaught exception kills the entire
 mirror loop. This is why `CURSOR_CONTINUITY.md` has been frozen since ~March and
 why this session is currently not being captured.
 
-## Frozen Requirements
+#### Frozen Requirements
 
 R1. `read_itemtable_value` must never crash the mirror. Catch `sqlite3.Error`
     (covers `DatabaseError`/`OperationalError`) and any DB-open failure, and
@@ -427,7 +427,7 @@ R3. `mirror_once` / `run` must survive a single bad cycle. A failure in
 R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
     mirror. Do not change output paths/layout established in the prior directive.
 
-## Acceptance Criteria
+#### Acceptance Criteria
 
 - Restarting the cursor mirror with a malformed global `state.vscdb` does NOT
   crash; the process stays alive.
@@ -436,7 +436,7 @@ R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
   whatever data is readable.
 - A concise stderr warning is emitted when a DB read is skipped.
 
-## Process
+#### Process
 
 - Builder writes report to
   `agent-relay/roles/Builder/reports/2026-06-17-cursor-mirror-resilience-builder-report.md`,
@@ -458,7 +458,7 @@ R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
 - Body: `agent-relay/messages/route-20260618-033810-builder-to-validator-cc4dc983.md`
 - SHA-256: `9e8730077563abc77c22bfed34444808dfffc4309e1dd612120b0c275596cb2b`
 
-# Builder Report — Cursor Mirror Resilience to Malformed/Locked Source DB
+### Builder Report — Cursor Mirror Resilience to Malformed/Locked Source DB
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -471,12 +471,12 @@ R4. Preserve all existing behavior when the DBs are healthy. Do not change codex
 > I am NOT certifying this work. The Validator owns verification (live restart
 > against a malformed `state.vscdb`).
 
-## Summary of changes
+#### Summary of changes
 
 All edits are confined to `tools/cursor_transcript_mirror.py`. `tools/codex_transcript_mirror.py`
 was not touched. No output paths/layout were changed.
 
-### R1 — `read_itemtable_value` (was ~line 267)
+##### R1 — `read_itemtable_value` (was ~line 267)
 
 - Moved `sqlite3.connect(...)` inside the `try` block and initialized `conn = None`
   before it, so a failed connect cannot leave the `finally` referencing an
@@ -490,7 +490,7 @@ was not touched. No output paths/layout were changed.
 - `finally` now closes the connection only when `conn is not None`, and the
   `conn.close()` itself is guarded by try/except so a close failure cannot raise.
 
-### R2 — `export_decoded_views` (was ~line 773)
+##### R2 — `export_decoded_views` (was ~line 773)
 
 - Wrapped the global-DB block (build `global_payload` + `write_json` of
   `global-chat-state.json`) in its own try/except.
@@ -502,7 +502,7 @@ was not touched. No output paths/layout were changed.
   written with null values for the keys that failed (when `write_json` itself
   succeeds).
 
-### R3 — `mirror_once` (was ~line 794) and the watch loop in `main`/`run` (was ~line 851)
+##### R3 — `mirror_once` (was ~line 794) and the watch loop in `main`/`run` (was ~line 851)
 
 - In `mirror_once`, wrapped the `export_decoded_views(...)` call in try/except so
   its failure logs `[cursor-mirror] export_decoded_views failed, continuing: <err>`
@@ -515,14 +515,14 @@ was not touched. No output paths/layout were changed.
   only caught `KeyboardInterrupt`, so any per-cycle exception killed the watcher.
   `KeyboardInterrupt` handling is unchanged.
 
-### R4 — Behavior preservation
+##### R4 — Behavior preservation
 
 - On healthy DBs, control flow is identical to before: the new `try` blocks
   simply pass through and return the same values / write the same files.
 - No changes to `codex_transcript_mirror.py`.
 - No changes to output filenames, directories, or JSON structure.
 
-## Verification (performed by Builder; not certification)
+#### Verification (performed by Builder; not certification)
 
 - `python -c "import py_compile; py_compile.compile('tools/cursor_transcript_mirror.py', doraise=True)"`
   → **PASS** (`py_compile OK`, exit 0).
@@ -545,7 +545,7 @@ was not touched. No output paths/layout were changed.
   failure path end-to-end (catch → warn → return None → no crash) that the prior
   pass could only establish by inspection.
 
-### Re-verification note (current Builder pass)
+##### Re-verification note (current Builder pass)
 
 The R1–R4 changes were already present, uncommitted, in the working tree from the
 prior Builder pass (this report's original body). The current pass made **no
@@ -554,7 +554,7 @@ satisfied in `tools/cursor_transcript_mirror.py`, re-ran `py_compile` (PASS), ra
 the no-`--watch` one-shot (exit 0, clean), and added the direct malformed-DB test
 above. `git diff HEAD` for the file matches the change set described in R1–R4.
 
-## Assumptions
+#### Assumptions
 
 - "Catch `sqlite3.Error` and any DB-open failure" is satisfied by a single
   `except Exception`, since `sqlite3.Error` is a subclass of `Exception`; this
@@ -564,7 +564,7 @@ above. `git diff HEAD` for the file matches the change set described in R1–R4.
 - The malformed-DB warning path was not triggered live (DB was healthy at run
   time); correctness of that path is established by code inspection only.
 
-## Limitations / risk
+#### Limitations / risk
 
 - The R1 failure path is now confirmed by a direct malformed-DB unit check (see
   Verification), but the malformed condition was not reproduced through the full
@@ -589,7 +589,7 @@ above. `git diff HEAD` for the file matches the change set described in R1–R4.
 - Body: `agent-relay/messages/route-20260618-034327-validator-to-editor-e9759f66.md`
 - SHA-256: `5f242db6b227202dbc67742dea2a9fe1b94c6d881b5b6d3d816869ab8e553dff`
 
-# Validator Directive — Document the Two-File Agent Memory Archive in AGENTS.md
+### Validator Directive — Document the Two-File Agent Memory Archive in AGENTS.md
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -598,13 +598,13 @@ above. `git diff HEAD` for the file matches the change set described in R1–R4.
 - Tier: 0 (documentation/clarity, no behavior change)
 - Type: EXECUTION DIRECTIVE
 
-## Goal (User/Mediator)
+#### Goal (User/Mediator)
 
 Amend `AGENTS.md` so any agent clearly understands the memory archive is split
 across FILES (plural): two parallel, source-tagged, co-located per-agent
 archives that every agent must read — not one merged file.
 
-## Frozen Requirements
+#### Frozen Requirements
 
 R1. Add a concise subsection to `AGENTS.md` (suggested heading
     "## Agent Memory Archive Layout"), placed near the existing "Agent Transcript
@@ -632,14 +632,14 @@ R2. Keep it short and non-duplicative. Reconcile with the existing Startup Read
 R3. Documentation only. Do NOT change any tooling, paths, or behavior. Do not
     touch the codex mirror or cursor mirror code.
 
-## Acceptance Criteria
+#### Acceptance Criteria
 
 - `AGENTS.md` contains an explicit, plain-language statement that there are two
   per-agent archives, who writes each, that both must be read, and that
   `all.md` is a separate single governance timeline.
 - No duplication bloat; existing read-order steps remain consistent.
 
-## Process
+#### Process
 
 - Editor edits `AGENTS.md` and writes a report to
   `agent-relay/roles/Editor/reports/2026-06-17-agents-md-archive-layout-editor-report.md`.
@@ -659,7 +659,7 @@ R3. Documentation only. Do NOT change any tooling, paths, or behavior. Do not
 - Body: `agent-relay/messages/route-20260618-034554-editor-to-validator-89d619fb.md`
 - SHA-256: `37c9e572fbc98557ac55bf9407a79abbfe548a4f97faacafd564f38104a9f2d1`
 
-# Editor Report — Document the Two-File Agent Memory Archive in AGENTS.md
+### Editor Report — Document the Two-File Agent Memory Archive in AGENTS.md
 
 - Date: 2026-06-17
 - Phase: agent-memory-mirror-unification
@@ -669,7 +669,7 @@ R3. Documentation only. Do NOT change any tooling, paths, or behavior. Do not
 - Type: EXECUTION REPORT
 - Directive: `agent-relay/roles/Validator/directives/2026-06-17-agents-md-archive-layout.md` (R1–R3)
 
-## What I Changed
+#### What I Changed
 
 Amended `AGENTS.md` only. Added one new subsection, `## Agent Memory Archive
 Layout`, placed immediately after the existing "Agent Transcript Mirror Startup"
@@ -693,21 +693,21 @@ The new subsection states plainly:
 - `agent-relay/transcripts/all.md` is a separate single merged timeline covering
   ROLE/governance handoffs (Validator/Builder/Editor) only.
 
-## Non-Duplication Handling (R2)
+#### Non-Duplication Handling (R2)
 
 To avoid restating existing content, the new subsection cross-references the
 "read BOTH" steps already present in "Startup Read Order" rather than repeating
 the read instructions. The file paths are listed once in the new layout section
 because this is the canonical place that names the two-archive layout.
 
-## Scope / Behavior (R3)
+#### Scope / Behavior (R3)
 
 - Documentation only. No tooling, paths, code, or behavior changed.
 - Only `AGENTS.md` was edited (plus this report file under the Editor reports
   folder, which is the required output artifact).
 - No commit made; no relay messages routed.
 
-## Non-Blocking Note
+#### Non-Blocking Note
 
 The pre-existing line in "Agent Transcript Mirror Startup" reads "Running both
 keeps one shared, source-tagged archive...". The phrase "one shared ... archive"
@@ -716,7 +716,7 @@ per-agent files. I left that line unchanged (out of this directive's scope), but
 the new "Agent Memory Archive Layout" subsection clarifies the two-file reality.
 Validator may wish to reconcile that wording in a follow-up.
 
-## R2 Reconciliation Follow-up (2026-06-17)
+#### R2 Reconciliation Follow-up (2026-06-17)
 
 Per Validator follow-up, edited the single flagged sentence in "Agent Transcript
 Mirror Startup" to remove the "one shared ... archive" wording; it now reads
@@ -724,7 +724,7 @@ Mirror Startup" to remove the "one shared ... archive" wording; it now reads
 so each agent can read what it did AND what the other agent did." AGENTS.md only,
 documentation-only, no behavior change.
 
-## Status
+#### Status
 
 Editor work complete. Not self-certified as accepted — Validator to verify and
 return the decision to the User/Mediator.

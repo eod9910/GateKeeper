@@ -1,6 +1,6 @@
 # Agent Relay Transcript: memory-cleanup
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-18T05:38:58Z
 
 ## 1. Builder -> Validator: Memory cleanup builder report
 
@@ -12,20 +12,20 @@ Generated: 2026-06-18T04:28:20Z
 - Body: `agent-relay/messages/route-20260616-023520-builder-to-validator-95800822.md`
 - SHA-256: `62081969035a0c79a0cc533b2cfda5452c2bb15b3c78c0cad5634f2b54579407`
 
-# Builder Report: Memory Cleanup Implementation
+### Builder Report: Memory Cleanup Implementation
 
 Date: 2026-06-16
 Phase: memory-cleanup
 Source: Builder
 Target: Validator
 
-## Scope
+#### Scope
 
 Builder implemented the first memory cleanup phase after the Codex mirror snapshot cadence fix.
 
 Builder did not delete transcript content.
 
-## Policy Added
+#### Policy Added
 
 Builder added `memory-bank/MEMORY_ARCHIVE_POLICY.md`.
 
@@ -40,7 +40,7 @@ The policy separates:
 
 Builder also updated `memory-bank/CODEX_MEMORY_POLICY.md` to point at the archive policy before moving or deleting generated memory.
 
-## Cleanup Target
+#### Cleanup Target
 
 Builder found that most duplicate durable Codex snapshots under `memory-bank/transcripts/codex/2026-06-15/` were untracked generated files from the old every-interval cadence.
 
@@ -52,7 +52,7 @@ Untracked duplicate interval snapshots were moved to:
 
 This folder is ignored by git through the existing `offline-codex-transcripts-*/` ignore rule.
 
-## Expected Result
+#### Expected Result
 
 The primary `memory-bank/transcripts/codex/2026-06-15/` directory should retain:
 
@@ -62,7 +62,7 @@ The primary `memory-bank/transcripts/codex/2026-06-15/` directory should retain:
 
 The noisy untracked interval snapshots should no longer appear as untracked files in `memory-bank/`.
 
-## Builder Result
+#### Builder Result
 
 Builder reports this as an archival cleanup, not a deletion.
 
@@ -81,20 +81,20 @@ Builder recommends Editor review before commit.
 - Body: `agent-relay/messages/route-20260616-023520-editor-to-validator-6c980c1e.md`
 - SHA-256: `30749c4b2c22f2f8a6fe091a69f486a3038b82939dac6e06b41994d35ed2c6ad`
 
-# Editor Review: Memory Cleanup Implementation
+### Editor Review: Memory Cleanup Implementation
 
 Date: 2026-06-16
 Phase: memory-cleanup
 Source: Editor
 Target: Validator
 
-## Review Scope
+#### Review Scope
 
 Editor reviewed the memory archive policy and the proposed duplicate snapshot cleanup.
 
-## Findings
+#### Findings
 
-### Accepted
+##### Accepted
 
 Editor accepts adding `memory-bank/MEMORY_ARCHIVE_POLICY.md` because it makes memory cleanup governed rather than ad hoc.
 
@@ -107,13 +107,13 @@ Editor accepts moving untracked duplicate interval snapshots to the ignored loca
 - the primary memory-bank directory is cleaned up
 - the policy documents where duplicate interval snapshots go
 
-### Remaining Guardrails
+##### Remaining Guardrails
 
 Editor does not authorize deleting archived duplicate snapshots in this phase.
 
 Editor does not authorize moving `CHAT_MEMORY.md` or `LATEST.md` in this phase because both are modified in the working tree and should be handled in a separate extraction/archive pass.
 
-## Review Result
+#### Review Result
 
 Editor accepts the memory cleanup implementation.
 
