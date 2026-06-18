@@ -115,3 +115,16 @@ backend/data/*.sqlite.*
 ml/artifacts/
 # One-off API response dumps
 /sym_resp.json
+
+# --- Session junk: scratch scripts, caches, raw transcript dumps ---
+# Scratch/experiment scripts under backend/scripts (the _tmp_* rules above only
+# cover backend/data and the repo root).
+backend/scripts/_tmp_*
+# Pickled runtime caches generated under backend/data (e.g. _zgrid_cache.pkl).
+backend/data/*.pkl
+# Local raw transcript mirrors. The offline-*-transcripts-*/ rules above miss the
+# no-dash folder names, so cover those explicitly.
+offline-cursor-transcripts/
+offline-codex-transcripts/
+# Pasted YouTube transcript dumps left at the repo root.
+youtube_*.txt
