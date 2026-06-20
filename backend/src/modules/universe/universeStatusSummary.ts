@@ -1,3 +1,6 @@
+import { getOptionableCatalogMeta } from './universeCatalogMeta';
+import { UniverseJob, clampUniverseProgress } from './universeJobProgress';
+
 export interface UniverseManifestSummary {
   manifest: any;
   symbolCount: number;
@@ -6,6 +9,14 @@ export interface UniverseManifestSummary {
   staleCount: number;
   source: string | null;
   sourceLabel: string | null;
+}
+
+export interface UniverseOptionableStatus {
+  optionableCount: number;
+  optionableClassifiedCount: number;
+  optionableUnclassifiedCount: number;
+  optionableComplete: boolean;
+  sourceSymbolCount: number;
 }
 
 export function summarizeUniverseManifest(
@@ -33,4 +44,74 @@ export function summarizeUniverseManifest(
     source: manifest?.source || null,
     sourceLabel: manifest?.source_label || null,
   };
+}
+
+export function createEmptyOptionableStatus(sourceSymbolCount = 0): UniverseOptionableStatus {
+  return {
+    optionableCount: 0,
+    optionableClassifiedCount: 0,
+    optionableUnclassifiedCount: 0,
+    optionableComplete: true,
+    sourceSymbolCount,
+  };
+}
+
+function catalogSourceMatchesManifest(catalog: any, manifest: any): boolean {
+  const optionableSource = String(catalog?.source || '').trim();
+  const manifestSource = String(manifest?.source || '').trim();
+  return !manifestSource || !optionableSource || optionableSource === manifestSource;
+}
+
+export function applyOptionableCatalogStatus(
+  status: UniverseOptionableStatus,
+  catalog: any,
+  manifest: any,
+): void {
+  if (!catalogSourceMatchesManifest(catalog, manifest)) return;
+
+  const meta = getOptionableCatalogMeta(catalog);
+  status.optionableCount = meta.optionableCount;
+  status.optionableClassifiedCount = meta.classifiedCount;
+  status.optionableUnclassifiedCount = meta.unclassifiedCount;
+  status.optionableComplete = meta.complete;
+  status.sourceSymbolCount = Number(meta.sourceSymbolCount || status.sourceSymbolCount || 0);
+}
+
+export function applyOptionableProgressStatus(
+  status: UniverseOptionableStatus,
+  progressCatalog: any,
+  manifest: any,
+  activeJob: UniverseJob | null,
+): void {
+  if (!catalogSourceMatchesManifest(progressCatalog, manifest)) return;
+
+  const meta = getOptionableCatalogMeta(progressCatalog);
+  const shouldPreferProgress =
+    activeJob?.type === 'rebuild_optionable' ||
+    activeJob?.stage === 'checking_optionability' ||
+    activeJob?.stage === 'retrying_unknown' ||
+    meta.classifiedCount > status.optionableClassifiedCount;
+
+  if (shouldPreferProgress) {
+    status.optionableCount = meta.optionableCount;
+    status.optionableClassifiedCount = meta.classifiedCount;
+    status.optionableUnclassifiedCount = meta.unclassifiedCount;
+    status.optionableComplete = meta.complete;
+    status.sourceSymbolCount = Number(meta.sourceSymbolCount || status.sourceSymbolCount || 0);
+  }
+
+  if (activeJob && activeJob.status === 'running' && activeJob.type === 'rebuild_optionable') {
+    if (!activeJob.metrics) activeJob.metrics = {};
+    activeJob.stage = meta.complete ? 'completed' : 'checking_optionability';
+    activeJob.metrics.option_total = meta.sourceSymbolCount;
+    activeJob.metrics.option_checked = meta.classifiedCount;
+    activeJob.metrics.optionable_so_far = meta.optionableCount;
+    activeJob.progress = clampUniverseProgress(
+      meta.sourceSymbolCount > 0 ? 5 + (meta.classifiedCount / meta.sourceSymbolCount) * 50 : (activeJob.progress ?? 5)
+    );
+    activeJob.progress_label = meta.complete
+      ? `Optionable subset rebuilt: ${meta.optionableCount} optionable`
+      : `Option chains checked for ${meta.classifiedCount.toLocaleString()} / ${meta.sourceSymbolCount.toLocaleString()} symbols`;
+    activeJob.last_log_at = progressCatalog?.generated_at || activeJob.last_log_at;
+  }
 }

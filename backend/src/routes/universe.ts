@@ -12,23 +12,24 @@ import {
   buildFreshnessInfo,
   readCacheEnvelope,
 } from '../services/cacheService';
-import {
-  UniverseJob,
-  clampUniverseProgress,
-} from '../modules/universe/universeJobProgress';
+import { UniverseJob } from '../modules/universe/universeJobProgress';
 import {
   createOptionableRebuildJob,
   createRegimeClassificationJob,
   createUniverseBuildJob,
   createUniverseUpdateJob,
 } from '../modules/universe/universeJobFactory';
-import { getOptionableCatalogMeta } from '../modules/universe/universeCatalogMeta';
 import {
   UniversePriceSnapshot,
   buildUniverseFreshness,
   createUniversePriceSnapshotService,
 } from '../modules/universe/universePriceSnapshot';
-import { summarizeUniverseManifest } from '../modules/universe/universeStatusSummary';
+import {
+  applyOptionableCatalogStatus,
+  applyOptionableProgressStatus,
+  createEmptyOptionableStatus,
+  summarizeUniverseManifest,
+} from '../modules/universe/universeStatusSummary';
 import {
   buildOptionableRebuildCommand,
   buildRegimeClassificationCommand,
@@ -80,6 +81,7 @@ router.get('/status', async (req: Request, res: Response) => {
     let staleCount = 0;
     let source: string | null = null;
     let sourceLabel: string | null = null;
+    const optionableStatus = createEmptyOptionableStatus();
 
     try {
       const raw = await fs.readFile(MANIFEST_PATH, 'utf-8');
@@ -91,6 +93,7 @@ router.get('/status', async (req: Request, res: Response) => {
       source = summary.source;
       sourceLabel = summary.sourceLabel;
       staleCount = summary.staleCount;
+      optionableStatus.sourceSymbolCount = summary.sourceSymbolCount;
     } catch {
       // manifest doesn't exist yet
     }
@@ -98,17 +101,7 @@ router.get('/status', async (req: Request, res: Response) => {
     try {
       const raw = await fs.readFile(OPTIONABLE_PATH, 'utf-8');
       const opt = JSON.parse(raw);
-      const optionableSource = String(opt?.source || '').trim();
-      const manifestSource = String(manifest?.source || '').trim();
-      const sourceMatchesManifest = !manifestSource || !optionableSource || optionableSource === manifestSource;
-      if (sourceMatchesManifest) {
-        const meta = getOptionableCatalogMeta(opt);
-        optionableCount = meta.optionableCount;
-        optionableClassifiedCount = meta.classifiedCount;
-        optionableUnclassifiedCount = meta.unclassifiedCount;
-        optionableComplete = meta.complete;
-        sourceSymbolCount = Number(meta.sourceSymbolCount || sourceSymbolCount || 0);
-      }
+      applyOptionableCatalogStatus(optionableStatus, opt, manifest);
     } catch {
       // optionable list doesn't exist yet
     }
@@ -116,41 +109,16 @@ router.get('/status', async (req: Request, res: Response) => {
     try {
       const raw = await fs.readFile(OPTIONABLE_PROGRESS_PATH, 'utf-8');
       const progressOpt = JSON.parse(raw);
-      const optionableSource = String(progressOpt?.source || '').trim();
-      const manifestSource = String(manifest?.source || '').trim();
-      const sourceMatchesManifest = !manifestSource || !optionableSource || optionableSource === manifestSource;
-      if (sourceMatchesManifest) {
-        const meta = getOptionableCatalogMeta(progressOpt);
-        const shouldPreferProgress =
-          activeJob?.type === 'rebuild_optionable' ||
-          activeJob?.stage === 'checking_optionability' ||
-          activeJob?.stage === 'retrying_unknown' ||
-          meta.classifiedCount > optionableClassifiedCount;
-        if (shouldPreferProgress) {
-          optionableCount = meta.optionableCount;
-          optionableClassifiedCount = meta.classifiedCount;
-          optionableUnclassifiedCount = meta.unclassifiedCount;
-          optionableComplete = meta.complete;
-          sourceSymbolCount = Number(meta.sourceSymbolCount || sourceSymbolCount || 0);
-        }
-        if (activeJob && activeJob.status === 'running' && activeJob.type === 'rebuild_optionable') {
-          if (!activeJob.metrics) activeJob.metrics = {};
-          activeJob.stage = meta.complete ? 'completed' : 'checking_optionability';
-          activeJob.metrics.option_total = meta.sourceSymbolCount;
-          activeJob.metrics.option_checked = meta.classifiedCount;
-          activeJob.metrics.optionable_so_far = meta.optionableCount;
-          activeJob.progress = clampUniverseProgress(
-            meta.sourceSymbolCount > 0 ? 5 + (meta.classifiedCount / meta.sourceSymbolCount) * 50 : (activeJob.progress ?? 5)
-          );
-          activeJob.progress_label = meta.complete
-            ? `Optionable subset rebuilt: ${meta.optionableCount} optionable`
-            : `Option chains checked for ${meta.classifiedCount.toLocaleString()} / ${meta.sourceSymbolCount.toLocaleString()} symbols`;
-          activeJob.last_log_at = progressOpt?.generated_at || activeJob.last_log_at;
-        }
-      }
+      applyOptionableProgressStatus(optionableStatus, progressOpt, manifest, activeJob);
     } catch {
       // progress file doesn't exist yet
     }
+
+    optionableCount = optionableStatus.optionableCount;
+    optionableClassifiedCount = optionableStatus.optionableClassifiedCount;
+    optionableUnclassifiedCount = optionableStatus.optionableUnclassifiedCount;
+    optionableComplete = optionableStatus.optionableComplete;
+    sourceSymbolCount = optionableStatus.sourceSymbolCount;
 
     const built = symbolCount > 0;
     const needsUpdate = built && staleCount > 0;

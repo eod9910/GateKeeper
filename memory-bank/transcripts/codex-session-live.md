@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781968089635`
+- Last mirrored epoch ms: `1781968317629`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7174,4 +7174,60 @@ The manifest summarizer is in place and tested independently. I’m wiring only 
 ### Assistant - 2026-06-20T15:08:00.972Z
 
 Only the manifest summary block moved; the route still owns reads and response assembly. I’m running the new focused test, adjacent universe tests, and build now.
+
+### Assistant - 2026-06-20T15:08:09.162Z
+
+The focused tests pass. I’m running TypeScript and checking the diff before I decide whether this deserves its own checkpoint.
+
+### Assistant - 2026-06-20T15:08:32.034Z
+
+Build passes and the diff is small. I’m doing relay verification and GitNexus detect_changes, then I’ll commit this manifest-status slice locally.
+
+### Assistant - 2026-06-20T15:08:39.302Z
+
+GitNexus reports LOW risk with no affected processes. I’m checkpointing the status manifest extraction locally now; still no push.
+
+### Assistant - 2026-06-20T15:08:46.626Z
+
+Manifest-status slice is committed locally as `b3d5ccc89`. The next safe seam is optionable status selection, including the progress-file precedence and active job mutation; I’m going to characterize that before extracting anything broader.
+
+### Assistant - 2026-06-20T15:08:53.313Z
+
+For the optionable portion, I’m keeping the route’s same two-step order: first the saved optionable catalog, then the progress catalog if it should win. The helper will operate on a tiny status object and the existing `activeJob`, so we preserve the current mutation behavior instead of inventing a new state model.
+
+### Assistant - 2026-06-20T15:08:56.656Z
+
+Blast radius is still LOW: one direct importer, no affected execution flows. I’m editing the status summary module and its tests now.
+
+### Assistant - 2026-06-20T15:09:44.095Z
+
+The helper now carries the existing source-matching and progress-precedence rules. I’m adding tests for catalog mismatch, progress winning, and active rebuild job mutation because those are the fragile bits.
+
+### Assistant - 2026-06-20T15:10:08.398Z
+
+Tests now cover the non-obvious behavior. I’m replacing the duplicated route logic with calls to those helpers, still reading the same files in the same order.
+
+### Assistant - 2026-06-20T15:10:36.938Z
+
+That route wiring removed two old route-level imports, so I’m cleaning those before testing.
+
+### Assistant - 2026-06-20T15:10:46.694Z
+
+The `/status` optionable logic is now delegated, but the route still assembles the final response. I’m running the status-summary test first because it now carries the tricky behavior.
+
+### Assistant - 2026-06-20T15:10:54.932Z
+
+Focused tests pass. Now TypeScript will tell us whether the route imports and test typing are clean.
+
+### Assistant - 2026-06-20T15:11:14.481Z
+
+The first build caught only a test typing issue: the fake job was inferred too narrowly. I’m annotating it as `UniverseJob`, which is exactly what the helper expects.
+
+### Assistant - 2026-06-20T15:11:33.766Z
+
+The type fix is in. I’m rerunning the focused test and build.
+
+### Assistant - 2026-06-20T15:11:53.802Z
+
+Now both focused status tests and TypeScript pass. I’m running the adjacent universe tests, relay verification, and GitNexus change detection before committing this optionable-status slice.
 
