@@ -31,12 +31,8 @@ import {
 } from '../modules/universe/universeJobCommands';
 import {
   cancelActiveUniverseJob,
-  completeUniverseJobFromExitCode,
   getRunningUniverseJobConflict,
 } from '../modules/universe/universeJobLifecycle';
-import {
-  attachUniverseProcessOutputHandlers,
-} from '../modules/universe/universeProcessOutput';
 import {
   UniverseProcessRunnerProcess,
   startUniverseProcessJob,
@@ -243,21 +239,19 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
     interval: String(interval),
   });
 
-  activeProcess = spawn(command.command, command.args);
-
-  attachUniverseProcessOutputHandlers(activeProcess, activeJob, true);
-
-  activeProcess.on('close', async (code: number | null) => {
-    if (activeJob) {
-      completeUniverseJobFromExitCode(activeJob, code, 'Regime classification complete.');
-
-      // Parse final summary counts from the snapshot file
-      if (code === 0) {
-        const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
-        await applyRegimeSnapshotSummaryMetrics(activeJob, snapshotPath);
-      }
-    }
-    activeProcess = null;
+  activeProcess = startUniverseProcessJob({
+    command,
+    job: activeJob,
+    spawnProcess: spawn,
+    successLabel: 'Regime classification complete.',
+    useRegimeStdout: true,
+    afterSuccessfulClose: async (job) => {
+      const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
+      await applyRegimeSnapshotSummaryMetrics(job, snapshotPath);
+    },
+    onProcessClosed: () => {
+      activeProcess = null;
+    },
   });
 
   res.json({ success: true, data: { message: 'Regime classification started.', job: activeJob } });

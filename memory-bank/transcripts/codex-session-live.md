@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996966100`
+- Last mirrored epoch ms: `1781997062885`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7927,4 +7927,36 @@ Impact is LOW. I’m wiring `/update` to the runner with the existing `Update co
 ### Assistant - 2026-06-20T23:09:04.866Z
 
 `/update` is wired. I’m running the focused runner/lifecycle/command tests and build again.
+
+### Assistant - 2026-06-20T23:09:28.395Z
+
+Tests and build pass. I’m running relay verification and GitNexus detection before the `/update` commit.
+
+### Assistant - 2026-06-20T23:09:34.651Z
+
+Relay is clean and the route diff is exactly `/update`. I’m running GitNexus.
+
+### Assistant - 2026-06-20T23:09:38.632Z
+
+GitNexus reports LOW risk and no affected processes. I’m committing the `/update` runner migration.
+
+### Assistant - 2026-06-20T23:09:48.047Z
+
+`/update` is migrated and committed as `a5f92445b`. I’m moving to the last route, `/classify-regimes`, which uses regime stdout plus the success hook to apply regime summary metrics.
+
+### Assistant - 2026-06-20T23:09:52.727Z
+
+Impact is LOW. The harness already tests success-hook-before-clear and regime stdout, so I’m wiring `/classify-regimes` to use those options.
+
+### Assistant - 2026-06-20T23:10:11.222Z
+
+All four start routes are now on the runner harness. That means the old direct output attachment and lifecycle completion imports may be unused; I’m checking and then running the full focused suite.
+
+### Assistant - 2026-06-20T23:10:29.386Z
+
+Build passes, so TypeScript didn’t mind the unused imports, but I’ll clean them because the route no longer owns output attachment or close completion. Then I’ll rerun build.
+
+### Assistant - 2026-06-20T23:10:41.061Z
+
+The route imports now reflect ownership: lifecycle completion and output attachment live in the runner. I’m running the focused suite and build again.
 
