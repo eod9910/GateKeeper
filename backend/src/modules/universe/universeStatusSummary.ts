@@ -1,5 +1,11 @@
+import * as fs from 'fs/promises';
 import { getOptionableCatalogMeta } from './universeCatalogMeta';
 import { UniverseJob, clampUniverseProgress } from './universeJobProgress';
+import {
+  ReadUniversePriceSnapshotEnvelope,
+  buildUniverseFreshness,
+  readUniversePriceSnapshotFreshness,
+} from './universePriceSnapshot';
 
 export interface UniverseManifestSummary {
   manifest: any;
@@ -31,6 +37,26 @@ export interface UniverseStatusDataOptions {
   priceSnapshotFreshness: unknown;
   activeJob: UniverseJob | null;
   now?: Date;
+}
+
+export type ReadUniverseStatusJson = (filePath: string) => Promise<any>;
+
+export interface UniverseStatusSnapshotOptions {
+  manifestPath: string;
+  optionablePath: string;
+  optionableProgressPath: string;
+  priceSnapshotCachePath: string;
+  manifestTtlMs: number;
+  priceSnapshotTtlMs: number;
+  activeJob: UniverseJob | null;
+  readJson?: ReadUniverseStatusJson;
+  readPriceEnvelope?: ReadUniversePriceSnapshotEnvelope;
+  now?: Date;
+}
+
+async function readJsonFile(filePath: string): Promise<any> {
+  const raw = await fs.readFile(filePath, 'utf-8');
+  return JSON.parse(raw);
 }
 
 export function summarizeUniverseManifest(
@@ -181,4 +207,67 @@ export function buildUniverseStatusData(options: UniverseStatusDataOptions) {
     },
     active_job: projectUniverseActiveJob(options.activeJob, options.now),
   };
+}
+
+export async function buildUniverseStatusSnapshot(options: UniverseStatusSnapshotOptions) {
+  const readJson = options.readJson || readJsonFile;
+  let manifest: any = null;
+  let sourceSymbolCount = 0;
+  let lastUpdated: string | null = null;
+  let symbolCount = 0;
+  let staleCount = 0;
+  let source: string | null = null;
+  let sourceLabel: string | null = null;
+  const optionableStatus = createEmptyOptionableStatus();
+
+  try {
+    manifest = await readJson(options.manifestPath);
+    const summary = summarizeUniverseManifest(manifest, options.now);
+    symbolCount = summary.symbolCount;
+    sourceSymbolCount = summary.sourceSymbolCount;
+    lastUpdated = summary.lastUpdated;
+    source = summary.source;
+    sourceLabel = summary.sourceLabel;
+    staleCount = summary.staleCount;
+    optionableStatus.sourceSymbolCount = summary.sourceSymbolCount;
+  } catch {
+    // manifest doesn't exist yet
+  }
+
+  try {
+    const opt = await readJson(options.optionablePath);
+    applyOptionableCatalogStatus(optionableStatus, opt, manifest);
+  } catch {
+    // optionable list doesn't exist yet
+  }
+
+  try {
+    const progressOpt = await readJson(options.optionableProgressPath);
+    applyOptionableProgressStatus(optionableStatus, progressOpt, manifest, options.activeJob);
+  } catch {
+    // progress file doesn't exist yet
+  }
+
+  sourceSymbolCount = optionableStatus.sourceSymbolCount;
+
+  const manifestFreshness = buildUniverseFreshness(lastUpdated, options.manifestTtlMs);
+  const priceSnapshotFreshness = await readUniversePriceSnapshotFreshness(
+    options.priceSnapshotCachePath,
+    options.priceSnapshotTtlMs,
+    options.readPriceEnvelope,
+  );
+
+  return buildUniverseStatusData({
+    symbolCount,
+    sourceSymbolCount,
+    optionableStatus,
+    source,
+    sourceLabel,
+    lastUpdated,
+    staleCount,
+    manifestFreshness,
+    priceSnapshotFreshness,
+    activeJob: options.activeJob,
+    now: options.now,
+  });
 }

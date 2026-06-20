@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781968577434`
+- Last mirrored epoch ms: `1781969931856`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -3113,6 +3113,8 @@
 - proceed
 - OK continue
 - proceed at your Discretion
+- Do you feel confident
+- OK that sounds like you have a plan so let's go ahead and do that as long as you have a plan
 
 ## Latest Session Transcript
 
@@ -7322,4 +7324,85 @@ TypeScript is being correctly picky about the generic fake reader. I’m making 
 ### Assistant - 2026-06-20T15:16:14.644Z
 
 That should satisfy both runtime behavior and compile-time shape. I’m rerunning the price test and full build.
+
+### Assistant - 2026-06-20T15:16:31.162Z
+
+Price test and build pass now. I’m doing GitNexus detection and then I’ll commit the price freshness extraction locally.
+
+### Assistant - 2026-06-20T15:16:34.276Z
+
+GitNexus reports LOW risk and no affected processes. I’m committing this price freshness slice locally.
+
+### Assistant - 2026-06-20T15:16:48.878Z
+
+Price freshness extraction is committed as `abd7af9ca`. I’m checking the route shape now; if the remaining change would require a bigger file-reader/service extraction, I’ll stop there as the next roadblock.
+
+### Assistant - 2026-06-20T15:16:59.271Z
+
+Validator proceeded at discretion and stopped at the next sensible roadblock.
+
+Added local commits on `migration/universe-domain-slices`:
+
+- `b3d5ccc89` Extract universe status manifest summary
+- `d16e3e5e4` Extract universe status optionable summary
+- `eabc5b29a` Extract universe status response builder
+- `abd7af9ca` Extract universe price freshness read
+
+No push.
+
+Verification passed:
+- `npm.cmd --prefix backend run universe-status-summary:test`
+- `npm.cmd --prefix backend run universe-price-snapshot:test`
+- adjacent universe tests
+- `npm.cmd --prefix backend run build`
+- `python tools\agent_router.py verify`
+- GitNexus `detect_changes`: LOW risk, no affected execution flows
+
+Roadblock: the remaining `/status` code is mostly read orchestration across manifest, optionable catalog, progress catalog, freshness, and `activeJob` mutation. Extracting that safely now needs route-level characterization with injected file readers or an endpoint-level test harness. I stopped there because the next step is no longer a tiny pure extraction.
+
+### User - 2026-06-20T15:36:04.739Z
+
+Do you feel confident
+
+### Assistant - 2026-06-20T15:36:11.963Z
+
+Yes. Confident in the slices we’ve already committed.
+
+Why:
+- Each change was narrow and behavior-preserving.
+- The risky parts stayed in the route until they had tests.
+- Backend build stayed green.
+- Focused universe tests passed after every slice.
+- GitNexus kept reporting LOW risk / no affected execution flows.
+- You already manually verified key app workflows earlier.
+
+I am **not** equally confident about extracting the remaining `/status` orchestration without a better harness. That’s the right next caution point: before moving it, we should add injected-reader or endpoint-level characterization so we can prove the same JSON response under missing files, mismatched sources, progress-file precedence, and active rebuild jobs.
+
+### User - 2026-06-20T15:36:44.176Z
+
+OK that sounds like you have a plan so let's go ahead and do that as long as you have a plan
+
+### Assistant - 2026-06-20T15:36:57.276Z
+
+Validator plan: characterize the remaining `/status` orchestration before moving it. The safe slice is to extract a tested `buildUniverseStatusSnapshot` function that accepts injected JSON/cache readers, proves missing-file and progress-precedence behavior, then lets the route call that function without changing the response contract.
+
+### Assistant - 2026-06-20T15:37:10.620Z
+
+I’ve confirmed the current route: what remains in `/status` is orchestration, not business math. I’m adding a `buildUniverseStatusSnapshot` helper with injected readers so tests can prove the same behavior without touching real files.
+
+### Assistant - 2026-06-20T15:37:30.717Z
+
+The snapshot helper is in place and mirrors the exact old read order: manifest, optionable catalog, progress catalog, then freshness. I’m adding tests for the no-files path and a full progress-precedence path.
+
+### Assistant - 2026-06-20T15:38:03.527Z
+
+The characterization tests now pin the whole `/status` orchestration: missing files stay empty, progress catalog can win, active rebuild job mutates the same way, and price freshness still appears. I’m wiring the route to this helper next.
+
+### Assistant - 2026-06-20T15:38:24.588Z
+
+The route now delegates the full status snapshot but still owns the Express response and error envelope. I’m running the focused test and TypeScript first; this is the critical gate for this slice.
+
+### Assistant - 2026-06-20T15:38:46.706Z
+
+Focused orchestration tests and TypeScript are green. I’m running the adjacent universe tests, relay verification, and then GitNexus detect_changes before committing.
 

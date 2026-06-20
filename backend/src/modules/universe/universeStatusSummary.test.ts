@@ -3,6 +3,7 @@ import type { UniverseJob } from './universeJobProgress';
 import {
   applyOptionableCatalogStatus,
   applyOptionableProgressStatus,
+  buildUniverseStatusSnapshot,
   buildUniverseStatusData,
   createEmptyOptionableStatus,
   projectUniverseActiveJob,
@@ -216,7 +217,101 @@ function testBuildsStatusDataShape(): void {
   assert.equal(data.active_job, null);
 }
 
-function runTests(): void {
+async function testBuildStatusSnapshotHandlesMissingFiles(): Promise<void> {
+  const data = await buildUniverseStatusSnapshot({
+    manifestPath: 'manifest.json',
+    optionablePath: 'optionable.json',
+    optionableProgressPath: 'optionable-progress.json',
+    priceSnapshotCachePath: 'prices-cache.json',
+    manifestTtlMs: 60_000,
+    priceSnapshotTtlMs: 60_000,
+    activeJob: null,
+    readJson: async () => {
+      throw new Error('missing');
+    },
+    readPriceEnvelope: async () => null,
+    now: new Date('2026-06-20T00:00:00.000Z'),
+  });
+
+  assert.equal(data.built, false);
+  assert.equal(data.symbol_count, 0);
+  assert.equal(data.source_symbol_count, 0);
+  assert.equal(data.optionable_complete, true);
+  assert.equal(data.needs_update, false);
+  assert.equal(data.active_job, null);
+  assert.equal((data.freshness as any).prices.cache_layer, 'missing');
+}
+
+async function testBuildStatusSnapshotAppliesProgressPrecedence(): Promise<void> {
+  const files: Record<string, any> = {
+    'manifest.json': {
+      total_symbols: 6,
+      source_symbol_count: 6,
+      last_updated: '2026-06-20T00:00:00.000Z',
+      source: 'nasdaq-trader-us',
+      source_label: 'Nasdaq Trader US-listed underlyings',
+      symbols: {
+        AAPL: { end: '2026-06-19' },
+        MSFT: { end: '2026-06-01' },
+      },
+    },
+    'optionable.json': {
+      source: 'nasdaq-trader-us',
+      optionable: ['AAPL'],
+      not_optionable: ['IBM'],
+      source_symbol_count: 6,
+    },
+    'optionable-progress.json': {
+      source: 'nasdaq-trader-us',
+      optionable: ['AAPL', 'MSFT', 'NVDA'],
+      not_optionable: ['IBM'],
+      source_symbol_count: 6,
+      generated_at: '2026-06-20T00:01:00.000Z',
+    },
+  };
+  const activeJob: UniverseJob = {
+    type: 'rebuild_optionable',
+    status: 'running',
+    started_at: '2026-06-20T00:00:00.000Z',
+    log: ['started'],
+    progress: 5,
+    stage: 'starting',
+  };
+
+  const data = await buildUniverseStatusSnapshot({
+    manifestPath: 'manifest.json',
+    optionablePath: 'optionable.json',
+    optionableProgressPath: 'optionable-progress.json',
+    priceSnapshotCachePath: 'prices-cache.json',
+    manifestTtlMs: 60_000,
+    priceSnapshotTtlMs: 60_000,
+    activeJob,
+    readJson: async (filePath) => files[filePath],
+    readPriceEnvelope: async <T>() => ({
+      key: 'cache-key',
+      version: 1,
+      fetchedAt: Date.parse('2026-06-20T00:00:00.000Z'),
+      ttlMs: 60_000,
+      createdAt: '2026-06-20T00:00:00.000Z',
+      source: 'universePriceSnapshot',
+      data: {} as T,
+    }),
+    now: new Date('2026-06-20T00:03:00.000Z'),
+  });
+
+  assert.equal(data.built, true);
+  assert.equal(data.symbol_count, 6);
+  assert.equal(data.source_symbol_count, 6);
+  assert.equal(data.optionable_count, 3);
+  assert.equal(data.optionable_classified_count, 4);
+  assert.equal(data.stale_count, 1);
+  assert.equal(data.needs_update, true);
+  assert.equal(data.active_job?.progress, 38);
+  assert.equal(data.active_job?.progress_label, 'Option chains checked for 4 / 6 symbols');
+  assert.equal((data.freshness as any).prices.cache_layer, 'disk');
+}
+
+async function runTests(): Promise<void> {
   testSummarizesManifestFields();
   testFallsBackToSymbolObjectCountAndGeneratedAt();
   testHandlesMissingManifestShape();
@@ -226,7 +321,13 @@ function runTests(): void {
   testProgressCatalogUpdatesActiveRebuildJob();
   testProjectsActiveJobShape();
   testBuildsStatusDataShape();
+  await testBuildStatusSnapshotHandlesMissingFiles();
+  await testBuildStatusSnapshotAppliesProgressPrecedence();
 }
 
-runTests();
-console.log('universeStatusSummary tests passed');
+runTests()
+  .then(() => console.log('universeStatusSummary tests passed'))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

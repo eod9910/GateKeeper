@@ -18,17 +18,10 @@ import {
   createUniverseUpdateJob,
 } from '../modules/universe/universeJobFactory';
 import {
-  UniversePriceSnapshot,
-  buildUniverseFreshness,
   createUniversePriceSnapshotService,
-  readUniversePriceSnapshotFreshness,
 } from '../modules/universe/universePriceSnapshot';
 import {
-  applyOptionableCatalogStatus,
-  applyOptionableProgressStatus,
-  buildUniverseStatusData,
-  createEmptyOptionableStatus,
-  summarizeUniverseManifest,
+  buildUniverseStatusSnapshot,
 } from '../modules/universe/universeStatusSummary';
 import {
   buildOptionableRebuildCommand,
@@ -70,66 +63,15 @@ const universePriceSnapshotService = createUniversePriceSnapshotService({
 // ─── GET /api/universe/status ─────────────────────────────────────────────────
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    let manifest: any = null;
-    let sourceSymbolCount = 0;
-    let lastUpdated: string | null = null;
-    let symbolCount = 0;
-    let staleCount = 0;
-    let source: string | null = null;
-    let sourceLabel: string | null = null;
-    const optionableStatus = createEmptyOptionableStatus();
-
-    try {
-      const raw = await fs.readFile(MANIFEST_PATH, 'utf-8');
-      manifest = JSON.parse(raw);
-      const summary = summarizeUniverseManifest(manifest);
-      symbolCount = summary.symbolCount;
-      sourceSymbolCount = summary.sourceSymbolCount;
-      lastUpdated = summary.lastUpdated;
-      source = summary.source;
-      sourceLabel = summary.sourceLabel;
-      staleCount = summary.staleCount;
-      optionableStatus.sourceSymbolCount = summary.sourceSymbolCount;
-    } catch {
-      // manifest doesn't exist yet
-    }
-
-    try {
-      const raw = await fs.readFile(OPTIONABLE_PATH, 'utf-8');
-      const opt = JSON.parse(raw);
-      applyOptionableCatalogStatus(optionableStatus, opt, manifest);
-    } catch {
-      // optionable list doesn't exist yet
-    }
-
-    try {
-      const raw = await fs.readFile(OPTIONABLE_PROGRESS_PATH, 'utf-8');
-      const progressOpt = JSON.parse(raw);
-      applyOptionableProgressStatus(optionableStatus, progressOpt, manifest, activeJob);
-    } catch {
-      // progress file doesn't exist yet
-    }
-
-    sourceSymbolCount = optionableStatus.sourceSymbolCount;
-
-    const manifestFreshness = buildUniverseFreshness(lastUpdated, UNIVERSE_MANIFEST_TTL_MS);
-    const priceSnapshotFreshness = await readUniversePriceSnapshotFreshness(
-      PRICE_SNAPSHOT_CACHE_PATH,
-      UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
-    );
-
     res.json({
       success: true,
-      data: buildUniverseStatusData({
-        symbolCount,
-        sourceSymbolCount,
-        optionableStatus,
-        source,
-        sourceLabel,
-        lastUpdated,
-        staleCount,
-        manifestFreshness,
-        priceSnapshotFreshness,
+      data: await buildUniverseStatusSnapshot({
+        manifestPath: MANIFEST_PATH,
+        optionablePath: OPTIONABLE_PATH,
+        optionableProgressPath: OPTIONABLE_PROGRESS_PATH,
+        priceSnapshotCachePath: PRICE_SNAPSHOT_CACHE_PATH,
+        manifestTtlMs: UNIVERSE_MANIFEST_TTL_MS,
+        priceSnapshotTtlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
         activeJob,
       })
     });
