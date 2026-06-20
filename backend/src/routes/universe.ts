@@ -21,6 +21,13 @@ import {
   buildUniverseStatusApiData,
 } from '../modules/universe/universeRouteResponses';
 import {
+  parseOptionableRebuildRequestParams,
+  parseRegimeClassificationRequestParams,
+  parseUniverseBuildRequestParams,
+  parseUniverseForceRefreshQuery,
+  parseUniverseUpdateRequestParams,
+} from '../modules/universe/universeRequestParams';
+import {
   buildOptionableRebuildCommand,
   buildRegimeClassificationCommand,
   buildUniverseBuildCommand,
@@ -83,11 +90,10 @@ router.get('/status', async (req: Request, res: Response) => {
 
 router.get('/prices', async (req: Request, res: Response) => {
   try {
-    const forceRefresh = String(req.query.force_refresh || '').trim().toLowerCase() === 'true';
     const response = await buildUniversePricesApiResponse({
       manifestPath: MANIFEST_PATH,
       priceSnapshotTtlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
-      forceRefresh,
+      forceRefresh: parseUniverseForceRefreshQuery(req.query),
       canAccessManifest: canAccessUniverseFile,
       buildPriceSnapshot: universePriceSnapshotService.buildUniversePriceSnapshot,
     });
@@ -102,31 +108,25 @@ router.post('/build', async (req: Request, res: Response) => {
   const conflict = getRunningUniverseJobConflict(activeJob);
   if (conflict) return res.status(409).json(conflict);
 
-  const {
-    lookback = '5y',
-    interval = '1d',
-    min_volume = 0,
-    workers = 10,
-    source = 'nasdaq-trader-us',
-  } = req.body;
+  const params = parseUniverseBuildRequestParams(req.body);
 
   const canReuseOptionable = await canReuseOptionableCatalog(OPTIONABLE_PATH);
 
   activeJob = createUniverseBuildJob({
-    source: String(source),
-    lookback: String(lookback),
-    interval: String(interval),
-    workers: Number(workers),
-    minVolume: Number(min_volume),
+    source: params.source,
+    lookback: params.lookback,
+    interval: params.interval,
+    workers: params.workers,
+    minVolume: params.minVolume,
   });
 
   const command = buildUniverseBuildCommand({
     servicesDir: SERVICES_DIR,
-    source: String(source),
-    lookback: String(lookback),
-    interval: String(interval),
-    minVolume: String(min_volume),
-    workers: String(workers),
+    source: params.source,
+    lookback: params.lookback,
+    interval: params.interval,
+    minVolume: params.minVolumeArg,
+    workers: params.workersArg,
     skipOptionsCheck: canReuseOptionable,
   });
 
@@ -148,20 +148,17 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
   const conflict = getRunningUniverseJobConflict(activeJob);
   if (conflict) return res.status(409).json(conflict);
 
-  const {
-    workers = 5,
-    source = 'nasdaq-trader-us',
-  } = req.body || {};
+  const params = parseOptionableRebuildRequestParams(req.body);
 
   activeJob = createOptionableRebuildJob({
-    source: String(source),
-    workers: Number(workers),
+    source: params.source,
+    workers: params.workers,
   });
 
   const command = buildOptionableRebuildCommand({
     servicesDir: SERVICES_DIR,
-    source: String(source),
-    workers: String(workers),
+    source: params.source,
+    workers: params.workersArg,
   });
 
   activeProcess = startUniverseProcessJob({
@@ -188,15 +185,15 @@ router.post('/update', async (req: Request, res: Response) => {
     });
   }
 
-  const { interval = '1d' } = req.body;
+  const params = parseUniverseUpdateRequestParams(req.body);
 
   activeJob = createUniverseUpdateJob({
-    interval: String(interval),
+    interval: params.interval,
   });
 
   const command = buildUniverseUpdateCommand({
     servicesDir: SERVICES_DIR,
-    interval: String(interval),
+    interval: params.interval,
   });
 
   activeProcess = startUniverseProcessJob({
@@ -219,16 +216,16 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
   const conflict = getRunningUniverseJobConflict(activeJob);
   if (conflict) return res.status(409).json(conflict);
 
-  const { interval = '1d' } = req.body || {};
+  const params = parseRegimeClassificationRequestParams(req.body);
 
   activeJob = createRegimeClassificationJob({
-    interval: String(interval),
+    interval: params.interval,
   });
 
   const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'build_regime_universes.py');
   const command = buildRegimeClassificationCommand({
     scriptPath,
-    interval: String(interval),
+    interval: params.interval,
   });
 
   activeProcess = startUniverseProcessJob({

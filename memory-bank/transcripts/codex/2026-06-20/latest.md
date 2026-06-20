@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781997640489`
+- Last mirrored epoch ms: `1781997865350`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,59 +5721,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-ice should be recorded in `AGENTS.md`.
-
-Now it does.
-
-Added and pushed to `eod9910/bootstrap`:
-
-- `templates/agents/AGENTS_PACKAGE_SELECTION_BLOCK.md`
-  - includes the exact `## Project Coding Paradigm` block for generated projects
-  - includes the `medium-large-modular-web` startup language
-
-- Updated `IMPLEMENTATION_GUIDE.md`
-  - says generated projects must copy that block into `AGENTS.md`
-
-- Updated `packages/README.md`
-  - says every generated project must include selected package in `AGENTS.md`
-
-Pushed commit:
-
-```text
-aa03504 Add AGENTS package selection block
-```
-
-So now bootstrap can enforce the paradigm at project creation, not just document it afterward.
-
-### User - 2026-06-20T12:55:43.549Z
-
-So the important part is that agents MD is what instantiates the validator the builder and editor and tells them uh hey wake up and go read your documents so it has to be an and it has to be in the documents that the the editor the builder and the validator read
-
-### Assistant - 2026-06-20T12:55:59.036Z
-
-Yes, that’s exactly the center of gravity: `AGENTS.md` is the bootloader. It should wake the agent up, point it at the governing contract, then point each role at its own operating document before any Builder/Editor/Validator behavior is trusted. I’m going to tighten both Pattern Detector and `bootstrap` so that rule is explicit.
-
-### Assistant - 2026-06-20T12:56:08.008Z
-
-The current bootstrap block says “Validator/Builder/Editor enforce,” but you’re right: it does not yet say “wake up, read the role documents.” I’m adding that explicit bootloader rule now: `AGENTS.md` must route agents into `agent-relay/roles/<Role>/ROLE.md` before role behavior starts.
-
-### Assistant - 2026-06-20T12:56:32.709Z
-
-Pattern Detector’s `AGENTS.md` now explicitly wakes up the three role documents. I’m making the same rule reusable in `bootstrap`, so every generated project gets that behavior from the beginning.
-
-### Assistant - 2026-06-20T12:57:35.910Z
-
-The reusable bootstrap template now has both pieces: Role Bootloader and Project Coding Paradigm. I’ll verify the text, commit, and push it so `bootstrap` remains the source of truth.
-
-### Assistant - 2026-06-20T12:57:38.814Z
-
-Verification shows the role wake-up language is now in both places: Pattern Detector’s startup and the reusable bootstrap template. I’m committing and pushing the bootstrap update now.
-
-### Assistant - 2026-06-20T12:57:54.502Z
-
-Yes. That is now explicit in both places.
-
-Pattern Detector now has this in [AGENTS.md](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/AGENTS.md:7):
+md](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/AGENTS.md:7):
 
 - read `agent-relay/roles/Validator/ROLE.md`
 - read `agent-relay/roles/Builder/ROLE.md`
@@ -8069,4 +8017,44 @@ GitNexus still reports stale symbol names for `routes/universe.ts`, but the risk
 ### Assistant - 2026-06-20T23:20:38.256Z
 
 The recent migration commits are intentionally carrying the continuity snapshots, so I’ll keep that pattern for this local checkpoint. This gives us a clean rollback point for the slice without pushing anything.
+
+### Assistant - 2026-06-20T23:20:46.950Z
+
+Staged. I’m doing one last staged diff check before the local commit, just to catch any accidental inclusion beyond this route-response slice.
+
+### Assistant - 2026-06-20T23:20:50.637Z
+
+The staged set matches the intended slice plus memory snapshots. The mirrors changed again after staging, so a little unstaged memory churn may remain after the commit; that’s expected with live transcript writers.
+
+### Assistant - 2026-06-20T23:20:58.653Z
+
+Local checkpoint made: `043583a65 Extract universe route response helpers`. Per the GitNexus instructions, I’m refreshing the index after the commit, then I’ll look for the next small extraction slice.
+
+### Assistant - 2026-06-20T23:22:09.097Z
+
+The index refresh completed and the route is now 269 lines. Next clean slice: pull request/body/query parsing into a tiny universe module, so Express remains a router and the defaults/conversions become directly testable.
+
+### Assistant - 2026-06-20T23:22:13.792Z
+
+The MCP graph is still returning stale symbol rows for this route even after the analyzer refresh, so I’m going to use the available low-risk route target and keep the real safety net as focused tests, TypeScript compile, relay verify, and post-change detection.
+
+### Assistant - 2026-06-20T23:22:23.097Z
+
+I’m making the request parsing extraction now. This is deliberately boring code: defaults and conversions only, with tests that pin the current route behavior.
+
+### Assistant - 2026-06-20T23:23:22.975Z
+
+Request parsing is now its own module and the route is using parsed params instead of inline destructuring. I’m running its new tests plus the route-adjacent universe tests and compile.
+
+### Assistant - 2026-06-20T23:23:49.229Z
+
+The parser slice passes its focused tests, neighboring job tests, relay verify, and the backend build. I’m running GitNexus detect now; if it stays low, I’ll make the next local checkpoint.
+
+### Assistant - 2026-06-20T23:23:57.457Z
+
+GitNexus reports low risk and no affected processes, but its analyzer also touched `AGENTS.md` and `CLAUDE.md`. I’m inspecting those before staging, because I don’t want to smuggle analyzer metadata into this request-parsing commit unless it’s truly expected.
+
+### Assistant - 2026-06-20T23:24:06.653Z
+
+Those `AGENTS.md` and `CLAUDE.md` edits are analyzer side effects, not part of the migration slice. I’m going to remove just those tool-added doc changes so the commit stays about request parsing and the live memory snapshots only.
 
