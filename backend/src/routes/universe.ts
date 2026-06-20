@@ -37,7 +37,10 @@ import {
 import {
   attachUniverseProcessOutputHandlers,
 } from '../modules/universe/universeProcessOutput';
-import { readUniverseRegimeSnapshot } from '../modules/universe/universeRegimeSnapshot';
+import {
+  applyRegimeSnapshotSummaryMetrics,
+  readUniverseRegimeSnapshot,
+} from '../modules/universe/universeRegimeSnapshot';
 
 const router = Router();
 
@@ -249,14 +252,8 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 
       // Parse final summary counts from the snapshot file
       if (code === 0) {
-        try {
-          const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
-          const raw = await fs.readFile(snapshotPath, 'utf-8');
-          const snap = JSON.parse(raw);
-          activeJob.metrics = snap.summary || {};
-        } catch {
-          // Non-fatal
-        }
+        const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
+        await applyRegimeSnapshotSummaryMetrics(activeJob, snapshotPath);
       }
     }
     activeProcess = null;

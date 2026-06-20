@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import { UniverseJob } from './universeJobProgress';
 
 export interface UniverseRegimeSnapshot {
   generated_at: unknown;
@@ -24,5 +25,16 @@ export async function readUniverseRegimeSnapshot(
     };
   } catch {
     return null;
+  }
+}
+
+export async function applyRegimeSnapshotSummaryMetrics(
+  job: UniverseJob,
+  snapshotPath: string,
+  readFile?: ReadUniverseSnapshotFile,
+): Promise<void> {
+  const snapshot = await readUniverseRegimeSnapshot(snapshotPath, readFile);
+  if (snapshot) {
+    job.metrics = (snapshot.summary as UniverseJob['metrics']) || {};
   }
 }

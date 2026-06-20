@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996260665`
+- Last mirrored epoch ms: `1781996389330`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7682,4 +7682,48 @@ The fake-stream tests are in place. I’m wiring all four spawned-process output
 ### Assistant - 2026-06-20T22:57:38.323Z
 
 The route now delegates output attachment but still owns all `spawn`, `close`, and `activeProcess` logic. I’m running the process-output tests and build.
+
+### Assistant - 2026-06-20T22:57:49.695Z
+
+Focused tests and build pass. I’m running the adjacent universe checks, relay verification, and GitNexus scan before committing.
+
+### Assistant - 2026-06-20T22:57:53.487Z
+
+Everything is green. I’m running GitNexus detect_changes for the output-handler attachment slice now.
+
+### Assistant - 2026-06-20T22:57:59.545Z
+
+GitNexus says LOW risk with no affected processes. I’m committing the output-handler attachment extraction locally.
+
+### Assistant - 2026-06-20T22:58:02.136Z
+
+The code diff is exactly the listener extraction; process lifecycle remains in the route. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-20T22:58:13.936Z
+
+The output attachment slice is committed as `4be112c13`. I’m checking the remaining route shape now; if the next move requires extracting `spawn` and `close` ownership together, that’s the blocker we’ve been approaching.
+
+### Assistant - 2026-06-20T22:58:21.422Z
+
+The remaining spawn/close ownership is the real blocker, but there’s one more safe non-ownership seam before that: the classify-regimes close handler reads `regime_snapshot.json` and copies `summary` into job metrics. I can extract and test that read/apply behavior without moving close ownership.
+
+### Assistant - 2026-06-20T22:58:30.460Z
+
+Impact is LOW. I’m adding the regime summary metrics helper with injected file reading and focused tests.
+
+### Assistant - 2026-06-20T22:58:34.518Z
+
+I’ll reuse the existing regime snapshot module rather than creating another place for the same file behavior.
+
+### Assistant - 2026-06-20T22:58:54.527Z
+
+The helper now covers the non-fatal snapshot read and metrics mutation. I’m wiring the classify close handler to it, leaving the close handler itself in the route.
+
+### Assistant - 2026-06-20T22:59:10.840Z
+
+The classify close handler now delegates only the summary metrics read. I’m running the focused regime snapshot test and build.
+
+### Assistant - 2026-06-20T22:59:34.730Z
+
+Focused test and build pass. I’m running adjacent process-output/lifecycle tests, relay verify, and GitNexus before committing this final pre-blocker slice.
 
