@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996836460`
+- Last mirrored epoch ms: `1781996901693`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7879,4 +7879,28 @@ The runner contract now requires `kill`, matching cancellation semantics. I’m 
 ### Assistant - 2026-06-20T23:07:11.606Z
 
 Build is green now. I’m running the adjacent universe tests, relay verification, and GitNexus scan before committing this `/build` migration checkpoint.
+
+### Assistant - 2026-06-20T23:07:17.423Z
+
+Verification gates are green. I’m running GitNexus detect_changes, then I’ll commit the `/build` runner wiring.
+
+### Assistant - 2026-06-20T23:07:24.176Z
+
+GitNexus reports LOW risk and no affected processes. I’m committing the `/build` runner migration now.
+
+### Assistant - 2026-06-20T23:07:27.589Z
+
+The diff is contained to the `/build` route and runner type contract. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-20T23:07:37.920Z
+
+`/build` is now on the runner harness and committed as `8b494e852`. I’m continuing to the next route, `/rebuild-optionable`, which has the same simple close behavior and no success hook.
+
+### Assistant - 2026-06-20T23:07:44.665Z
+
+Impact is still LOW. I’m wiring `/rebuild-optionable` to the same runner path and keeping response timing unchanged.
+
+### Assistant - 2026-06-20T23:08:03.451Z
+
+`/rebuild-optionable` is wired. I’m running the harness, lifecycle, command tests, and build.
 

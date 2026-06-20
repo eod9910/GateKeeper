@@ -176,15 +176,14 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
     workers: String(workers),
   });
 
-  activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
-
-  attachUniverseProcessOutputHandlers(activeProcess, activeJob);
-
-  activeProcess.on('close', (code: number | null) => {
-    if (activeJob) {
-      completeUniverseJobFromExitCode(activeJob, code, 'Optionable subset rebuild complete.');
-    }
-    activeProcess = null;
+  activeProcess = startUniverseProcessJob({
+    command,
+    job: activeJob,
+    spawnProcess: spawn,
+    successLabel: 'Optionable subset rebuild complete.',
+    onProcessClosed: () => {
+      activeProcess = null;
+    },
   });
 
   res.json({ success: true, data: { message: 'Optionable subset rebuild started.', job: activeJob } });
