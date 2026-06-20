@@ -59,9 +59,40 @@ function testCancelsActiveJobAndProcess() {
   assert.strictEqual(job.progress_label, 'Cancelled.');
 }
 
+function testStartsPlanAndStoresJobAndProcess() {
+  const state = new UniverseActiveJobState();
+  const job = createJob();
+  const process = new FakeProcess();
+  let successLabel = '';
+
+  const returnedJob = state.startPlan(
+    {
+      job,
+      command: {
+        command: 'py',
+        args: ['-u', 'script.py'],
+      },
+    },
+    (options) => {
+      successLabel = options.successLabel;
+      assert.strictEqual(options.job, job);
+      assert.deepStrictEqual(options.command.args, ['-u', 'script.py']);
+      return process;
+    },
+    {
+      successLabel: 'Done.',
+    },
+  );
+
+  assert.strictEqual(returnedJob, job);
+  assert.strictEqual(state.getJob(), job);
+  assert.strictEqual(successLabel, 'Done.');
+}
+
 function main() {
   testStoresJobAndClearsProcess();
   testCancelsActiveJobAndProcess();
+  testStartsPlanAndStoresJobAndProcess();
   console.log('universeActiveJobState tests passed');
 }
 

@@ -100,14 +100,9 @@ router.post('/build', async (req: Request, res: Response) => {
 
   const canReuseOptionable = await canReuseOptionableCatalog(routeConfig.optionablePath);
 
-  const { job, command } = createUniverseBuildPlan(params, routeConfig, canReuseOptionable);
-  activeState.setJob(job);
-
-  activeState.setProcess(startUniverseRouteProcess({
-    command,
-    job,
+  const job = activeState.startPlan(createUniverseBuildPlan(params, routeConfig, canReuseOptionable), startUniverseRouteProcess, {
     successLabel: 'Build complete.',
-  }));
+  });
 
   res.json({ success: true, data: { message: 'Build started.', job } });
 });
@@ -119,14 +114,9 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
 
   const params = parseOptionableRebuildRequestParams(req.body);
 
-  const { job, command } = createOptionableRebuildPlan(params, routeConfig);
-  activeState.setJob(job);
-
-  activeState.setProcess(startUniverseRouteProcess({
-    command,
-    job,
+  const job = activeState.startPlan(createOptionableRebuildPlan(params, routeConfig), startUniverseRouteProcess, {
     successLabel: 'Optionable subset rebuild complete.',
-  }));
+  });
 
   res.json({ success: true, data: { message: 'Optionable subset rebuild started.', job } });
 });
@@ -144,14 +134,9 @@ router.post('/update', async (req: Request, res: Response) => {
 
   const params = parseUniverseUpdateRequestParams(req.body);
 
-  const { job, command } = createUniverseUpdatePlan(params, routeConfig);
-  activeState.setJob(job);
-
-  activeState.setProcess(startUniverseRouteProcess({
-    command,
-    job,
+  const job = activeState.startPlan(createUniverseUpdatePlan(params, routeConfig), startUniverseRouteProcess, {
     successLabel: 'Update complete.',
-  }));
+  });
 
   res.json({ success: true, data: { message: 'Update started.', job } });
 });
@@ -165,18 +150,13 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 
   const params = parseRegimeClassificationRequestParams(req.body);
 
-  const { job, command } = createRegimeClassificationPlan(params, routeConfig);
-  activeState.setJob(job);
-
-  activeState.setProcess(startUniverseRouteProcess({
-    command,
-    job,
+  const job = activeState.startPlan(createRegimeClassificationPlan(params, routeConfig), startUniverseRouteProcess, {
     successLabel: 'Regime classification complete.',
     useRegimeStdout: true,
     afterSuccessfulClose: async (job) => {
       await applyRegimeSnapshotSummaryMetrics(job, routeConfig.regimeSnapshotPath);
     },
-  }));
+  });
 
   res.json({ success: true, data: { message: 'Regime classification started.', job } });
 });

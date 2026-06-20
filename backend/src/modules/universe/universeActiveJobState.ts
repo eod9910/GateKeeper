@@ -1,6 +1,11 @@
 import { UniverseJob } from './universeJobProgress';
 import { cancelActiveUniverseJob } from './universeJobLifecycle';
 import { UniverseProcessRunnerProcess } from './universeProcessRunner';
+import { UniverseJobPlan } from './universeJobPlans';
+import { UniverseProcessStartOptions } from './universeProcessStarter';
+
+export type StartUniverseJobPlan = (options: UniverseProcessStartOptions) => UniverseProcessRunnerProcess;
+export type StartUniverseJobPlanOptions = Omit<UniverseProcessStartOptions, 'command' | 'job'>;
 
 export class UniverseActiveJobState {
   private activeJob: UniverseJob | null = null;
@@ -16,6 +21,20 @@ export class UniverseActiveJobState {
 
   setProcess(process: UniverseProcessRunnerProcess): void {
     this.activeProcess = process;
+  }
+
+  startPlan(
+    plan: UniverseJobPlan,
+    startProcess: StartUniverseJobPlan,
+    options: StartUniverseJobPlanOptions,
+  ): UniverseJob {
+    this.setJob(plan.job);
+    this.setProcess(startProcess({
+      command: plan.command,
+      job: plan.job,
+      ...options,
+    }));
+    return plan.job;
   }
 
   clearProcess(): void {

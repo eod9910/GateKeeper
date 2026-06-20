@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781999031805`
+- Last mirrored epoch ms: `1781999260410`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,67 +5721,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-on the exact functions/symbols before editing.
-5. Only then decide whether to move code.
-
-So my recommendation is:
-
-**Proceed with Slice 0: audit only. Do not move files yet.**
-
-The backup exists, the PRD/checklist exists, the role contract exists, and GitNexus is available. That makes an audit slice safe. A code migration slice becomes safe after the audit names the exact symbol boundary and we get a low/medium impact result.
-
-### User - 2026-06-20T13:26:53.567Z
-
-So let me ask you this how how are you planning on doing this Are you going to create the the framework that it should be and then migrate it to that or in some other manner So basically are you saying this is the way it should be This is for that should have been for originally and we will just migrate this from the old to the new Or are you going to basically transform the repo as it stands
-
-### Assistant - 2026-06-20T13:27:04.795Z
-
-I would **not** transform the whole repo as it stands.
-
-And I would **not** create a giant empty “perfect framework” and then try to pour the old app into it.
-
-I would do a third thing:
-
-**Create the new shape only where a real vertical slice needs it, then migrate one behavior at a time.**
-
-So the approach is:
-
-**Old repo stays running. New domain boundaries appear gradually.**
-
-For example, for `universe/scanner`, I would not immediately create the entire final tree:
-
-```text
-apps/server/src/modules/scanner/
-apps/server/src/modules/universe/
-apps/web/src/pages/scanner/
-packages/contracts/
-```
-
-with a bunch of empty files. That creates theater. It looks architectural, but it does not prove anything.
-
-Instead, I’d do this:
-
-1. **Audit current behavior**
-   Find the current universe/scanner route, service, frontend calls, data files, and UI controls.
-
-2. **Pick one tiny behavior**
-   Example: universe status refresh, universe build action, or scanner universe metadata.
-
-3. **Create only the target boundary needed for that behavior**
-   Maybe:
-   ```text
-   apps/server/src/modules/universe/
-     universe.service.ts
-     universe.types.ts
-   ```
-   Or if frontend first:
-   ```text
-   frontend/public/modules/universe-api.js
-   ```
-   depending on the current app constraints.
-
-4. **Bridge from old to new**
-   The old route/UI keeps working, but it calls the new domain module internally.
+it calls the new domain module internally.
 
 5. **Verify behavior did not change**
    Same route, same response shape, same button behavior, same status display.
@@ -8034,4 +7974,52 @@ The GitNexus doc changes are removed. I’m staging the job-plan extraction and 
 ### Assistant - 2026-06-20T23:43:48.163Z
 
 Clean again: only the intended code plus memory mirrors. Staging and checking scope now.
+
+### Assistant - 2026-06-20T23:43:59.541Z
+
+Staged set is exactly the job-plan module, route usage, test script, and continuity snapshots. Committing now.
+
+### Assistant - 2026-06-20T23:44:09.339Z
+
+Checkpoint made: `f52746ebf Extract universe job plans`. I’m refreshing GitNexus and checking the tree. If everything stays clean, I’ll take one more small slice.
+
+### Assistant - 2026-06-20T23:45:28.977Z
+
+Post-commit index refresh is done; only live cursor memory files are dirty. I’m inspecting the 201-line route for one last low-risk seam before stopping at a clean checkpoint.
+
+### Assistant - 2026-06-20T23:45:38.709Z
+
+One more small seam is visible now: each route still repeats “set job, start process, store process, return job.” I’m going to put that operation on `UniverseActiveJobState`, which is exactly where that coordination belongs.
+
+### Assistant - 2026-06-20T23:45:44.104Z
+
+GitNexus doesn’t see the newly added `UniverseActiveJobState` symbol yet through MCP lookup, so I’m falling back to the route target it can resolve and will verify this with tests/build/detect afterward.
+
+### Assistant - 2026-06-20T23:45:50.889Z
+
+The route-level blast radius remains low and flow-neutral. I’m adding `startPlan` to the active state and replacing the four repeated route blocks.
+
+### Assistant - 2026-06-20T23:46:21.224Z
+
+The repeated start/store pattern is now a state method, and the route reads more like the actual workflow. I’m running the state, plan, starter tests and compile.
+
+### Assistant - 2026-06-20T23:46:42.248Z
+
+This refinement is green. I’m running relay verify, GitNexus detect, and checking the final route size before committing.
+
+### Assistant - 2026-06-20T23:46:45.605Z
+
+The route is now 181 lines. The analyzer doc side effects are back in the diff, so I’m stripping those before GitNexus detect/staging.
+
+### Assistant - 2026-06-20T23:47:29.702Z
+
+Doc side effects are removed. I’m doing the actual change detection and then staging the `startPlan` refinement.
+
+### Assistant - 2026-06-20T23:47:35.263Z
+
+Only the intended state/route files and memory mirrors are dirty. Running GitNexus detect now.
+
+### Assistant - 2026-06-20T23:47:38.794Z
+
+GitNexus is low risk with no affected processes. I’m staging and committing this final refinement.
 
