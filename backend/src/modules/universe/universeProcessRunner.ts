@@ -8,7 +8,7 @@ import {
 
 export interface UniverseProcessRunnerProcess extends UniverseProcessWithOutput {
   on(event: 'close', handler: (code: number | null) => void | Promise<void>): unknown;
-  kill?(): unknown;
+  kill(): unknown;
 }
 
 export type SpawnUniverseProcess = (

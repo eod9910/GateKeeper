@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996646773`
+- Last mirrored epoch ms: `1781996836460`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7802,4 +7802,81 @@ Harness and build are green. I’m running the remaining verification gates and 
 ### Assistant - 2026-06-20T23:03:58.819Z
 
 GitNexus reports LOW risk with no affected processes. I’m committing the harness as its own checkpoint, still with no route ownership change.
+
+### Assistant - 2026-06-20T23:04:14.556Z
+
+The diff stat omitted the new untracked harness files until staging, so I confirmed they’re present and not ignored. I’m staging all harness files and committing now.
+
+### Assistant - 2026-06-20T23:04:24.310Z
+
+Staging now shows the new harness module and tests correctly. I’m committing this checkpoint.
+
+### Assistant - 2026-06-20T23:04:35.512Z
+
+The harness is committed locally as its own safety checkpoint. I’m doing a final status check so the handoff is clean.
+
+### Assistant - 2026-06-20T23:04:41.517Z
+
+Harness built, tested, and committed locally.
+
+Commit:
+
+`a79f3195e Add universe process runner harness`
+
+What it covers:
+- fake `stdout` / `stderr` streams
+- fake `close` events
+- fake `kill()`
+- output attachment
+- success close completion
+- failure close completion
+- success-only hook behavior
+- clear/cleanup callback ordering
+
+Verification passed:
+- `universe-process-runner:test`
+- `universe-process-output:test`
+- `universe-job-lifecycle:test`
+- `universe-regime-snapshot:test`
+- backend build
+- relay verify
+- GitNexus LOW risk / no affected processes
+
+No route ownership was moved yet. The next safe step is wiring `universe.ts` to this runner harness one route at a time, starting with `/build`. No push.
+
+### User - 2026-06-20T23:05:37.714Z
+
+continue
+
+### Assistant - 2026-06-20T23:05:49.420Z
+
+I’ll wire the harness into runtime one route at a time, starting with `/build` as planned. That route has the simplest success close behavior, so it’s the lowest-risk first consumer of `startUniverseProcessJob`.
+
+### Assistant - 2026-06-20T23:05:57.048Z
+
+Before editing, I’m checking the route impact again and reading the current imports so the change stays contained.
+
+### Assistant - 2026-06-20T23:06:00.269Z
+
+Route impact has to be checked before this runtime ownership edit, even though it is one route.
+
+### Assistant - 2026-06-20T23:06:05.466Z
+
+Blast radius is LOW. I’m wiring only `/build` to `startUniverseProcessJob`, and I’m changing the route’s active-process type to the runner interface so later routes can migrate without fighting `ChildProcess` typing.
+
+### Assistant - 2026-06-20T23:06:22.672Z
+
+`/build` now uses the harness; the other routes still use their existing explicit close handlers. I’m running the runner/process tests and build to catch any typing or behavior mismatch.
+
+### Assistant - 2026-06-20T23:06:42.685Z
+
+The tests pass, and TypeScript caught a type truth: our active process type allowed optional `kill`, but cancellation requires it. Since real spawned processes and the fake harness both support `kill`, I’m tightening the runner interface.
+
+### Assistant - 2026-06-20T23:06:52.398Z
+
+The runner contract now requires `kill`, matching cancellation semantics. I’m rerunning build and the harness test.
+
+### Assistant - 2026-06-20T23:07:11.606Z
+
+Build is green now. I’m running the adjacent universe tests, relay verification, and GitNexus scan before committing this `/build` migration checkpoint.
 

@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { UniverseJob } from '../modules/universe/universeJobProgress';
@@ -38,6 +38,10 @@ import {
   attachUniverseProcessOutputHandlers,
 } from '../modules/universe/universeProcessOutput';
 import {
+  UniverseProcessRunnerProcess,
+  startUniverseProcessJob,
+} from '../modules/universe/universeProcessRunner';
+import {
   applyRegimeSnapshotSummaryMetrics,
   readUniverseRegimeSnapshot,
 } from '../modules/universe/universeRegimeSnapshot';
@@ -54,7 +58,7 @@ const UNIVERSE_MANIFEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const UNIVERSE_PRICE_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 
 let activeJob: UniverseJob | null = null;
-let activeProcess: ChildProcess | null = null;
+let activeProcess: UniverseProcessRunnerProcess | null = null;
 const universePriceSnapshotService = createUniversePriceSnapshotService({
   dataDir: DATA_DIR,
   manifestPath: MANIFEST_PATH,
@@ -138,15 +142,14 @@ router.post('/build', async (req: Request, res: Response) => {
     skipOptionsCheck: canReuseOptionable,
   });
 
-  activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
-
-  attachUniverseProcessOutputHandlers(activeProcess, activeJob);
-
-  activeProcess.on('close', (code: number | null) => {
-    if (activeJob) {
-      completeUniverseJobFromExitCode(activeJob, code, 'Build complete.');
-    }
-    activeProcess = null;
+  activeProcess = startUniverseProcessJob({
+    command,
+    job: activeJob,
+    spawnProcess: spawn,
+    successLabel: 'Build complete.',
+    onProcessClosed: () => {
+      activeProcess = null;
+    },
   });
 
   res.json({ success: true, data: { message: 'Build started.', job: activeJob } });
