@@ -41,8 +41,8 @@ import {
 } from '../modules/universe/universeJobLifecycle';
 import {
   UniverseProcessRunnerProcess,
-  startUniverseProcessJob,
 } from '../modules/universe/universeProcessRunner';
+import { createUniverseProcessStarter } from '../modules/universe/universeProcessStarter';
 import { createUniverseRouteConfig } from '../modules/universe/universeRouteConfig';
 import {
   applyRegimeSnapshotSummaryMetrics,
@@ -55,6 +55,9 @@ const routeConfig = createUniverseRouteConfig(path.join(__dirname, '..', '..'));
 
 let activeJob: UniverseJob | null = null;
 let activeProcess: UniverseProcessRunnerProcess | null = null;
+const startUniverseRouteProcess = createUniverseProcessStarter(spawn, () => {
+  activeProcess = null;
+});
 const universePriceSnapshotService = createUniversePriceSnapshotService({
   dataDir: routeConfig.dataDir,
   manifestPath: routeConfig.manifestPath,
@@ -124,14 +127,10 @@ router.post('/build', async (req: Request, res: Response) => {
     skipOptionsCheck: canReuseOptionable,
   });
 
-  activeProcess = startUniverseProcessJob({
+  activeProcess = startUniverseRouteProcess({
     command,
     job: activeJob,
-    spawnProcess: spawn,
     successLabel: 'Build complete.',
-    onProcessClosed: () => {
-      activeProcess = null;
-    },
   });
 
   res.json({ success: true, data: { message: 'Build started.', job: activeJob } });
@@ -155,14 +154,10 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
     workers: params.workersArg,
   });
 
-  activeProcess = startUniverseProcessJob({
+  activeProcess = startUniverseRouteProcess({
     command,
     job: activeJob,
-    spawnProcess: spawn,
     successLabel: 'Optionable subset rebuild complete.',
-    onProcessClosed: () => {
-      activeProcess = null;
-    },
   });
 
   res.json({ success: true, data: { message: 'Optionable subset rebuild started.', job: activeJob } });
@@ -190,14 +185,10 @@ router.post('/update', async (req: Request, res: Response) => {
     interval: params.interval,
   });
 
-  activeProcess = startUniverseProcessJob({
+  activeProcess = startUniverseRouteProcess({
     command,
     job: activeJob,
-    spawnProcess: spawn,
     successLabel: 'Update complete.',
-    onProcessClosed: () => {
-      activeProcess = null;
-    },
   });
 
   res.json({ success: true, data: { message: 'Update started.', job: activeJob } });
@@ -221,17 +212,13 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
     interval: params.interval,
   });
 
-  activeProcess = startUniverseProcessJob({
+  activeProcess = startUniverseRouteProcess({
     command,
     job: activeJob,
-    spawnProcess: spawn,
     successLabel: 'Regime classification complete.',
     useRegimeStdout: true,
     afterSuccessfulClose: async (job) => {
       await applyRegimeSnapshotSummaryMetrics(job, routeConfig.regimeSnapshotPath);
-    },
-    onProcessClosed: () => {
-      activeProcess = null;
     },
   });
 

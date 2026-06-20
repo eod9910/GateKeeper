@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781998126214`
+- Last mirrored epoch ms: `1781998356028`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,44 +5721,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-in `frontend/public`. I’m turning that into an ACTIVE PRD/checklist pair now so the migration has a governed track instead of becoming another loose cleanup idea.
-
-### Assistant - 2026-06-20T12:59:44.975Z
-
-The ACTIVE migration plan pair is created. I’m going to route this as the first migration workstream setup and verify the relay; after that the next actionable step is a Builder audit of the universe/scanner flow, not code movement.
-
-### Assistant - 2026-06-20T13:00:00.790Z
-
-The Builder report is ready. I’m routing it and adding an Editor review for the plan, because planning docs are Tier 2 here and should get the same second-pass check before Validator accepts them.
-
-### Assistant - 2026-06-20T13:00:10.606Z
-
-The plan creation is routed. I’m having Editor check that the PRD/checklist are enforceable and narrow, especially that they don’t accidentally authorize a big cleanup wave.
-
-### Assistant - 2026-06-20T13:00:40.525Z
-
-Editor accepted the migration plan with no blocker, and the relay verifies. I’m updating the checklist to reflect the startup/governance items that are already complete, while leaving the actual universe/scanner audit and first slice still open.
-
-### Assistant - 2026-06-20T13:01:00.263Z
-
-The migration workstream is now accepted as an active plan. I’m doing one final status/anchor check so I can give you the clean “what happened / next move” answer.
-
-### Assistant - 2026-06-20T13:01:09.271Z
-
-Validator started the migration process, but deliberately as a governed plan rather than code movement.
-
-Created the ACTIVE workstream:
-
-- [modular-domain-migration-prd.md](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/.planning/plans/ACTIVE/modular-domain-migration-prd.md:1)
-- [modular-domain-migration-checklist.md](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/.planning/plans/ACTIVE/modular-domain-migration-checklist.md:1)
-
-The plan declares:
-
-- selected package: `medium-large-modular-web`
-- first migration candidate: `universe/scanner`
-- first actual implementation step: current-flow audit before moving code
-- no whole-repo reshuffle
-- no frontend framework migration
+igration
 - no trading/backtest/research behavior changes
 - migration by vertical slice only
 
@@ -8054,4 +8017,44 @@ The config slice passes the focused tests and TypeScript compile. I’m doing re
 ### Assistant - 2026-06-20T23:27:58.738Z
 
 The analyzer side-effect docs came back from the post-commit index refresh. Same treatment: remove those unrelated doc edits before staging the config slice.
+
+### Assistant - 2026-06-20T23:28:44.304Z
+
+The unrelated GitNexus doc diff is gone again. The route is now 257 lines, and I’m running final change detection on this config slice before staging.
+
+### Assistant - 2026-06-20T23:28:48.271Z
+
+GitNexus detects the config slice as low risk with no affected processes. I’m staging exactly this module, route wiring, test script, and the memory snapshots, then committing locally.
+
+### Assistant - 2026-06-20T23:28:56.180Z
+
+Staged; doing the short staged check and then the commit.
+
+### Assistant - 2026-06-20T23:28:58.560Z
+
+The staged set is cleanly scoped. Committing this one now.
+
+### Assistant - 2026-06-20T23:29:08.897Z
+
+Third checkpoint made: `3c00ab879 Extract universe route configuration`. I’m refreshing the GitNexus index again and checking the repo status; then I’ll decide whether the next slice is still small enough to safely take in this run.
+
+### Assistant - 2026-06-20T23:30:30.896Z
+
+We’re at a clean boundary, but there’s one more obviously repetitive patch I can safely take: the four route blocks all start a universe process the same way. I’m going to extract a tiny process-starter factory around the existing runner, with tests, so the route stops repeating spawn/cleanup boilerplate.
+
+### Assistant - 2026-06-20T23:30:41.029Z
+
+The impact check GitNexus can provide is low risk again: route file plus server import, no affected flows. I’m adding the process-starter wrapper now and swapping the four repeated route starts through it.
+
+### Assistant - 2026-06-20T23:31:28.106Z
+
+The four start blocks now share a starter factory, so the route only says what job it starts, not how spawn cleanup is wired. I’m testing the new starter plus runner/lifecycle and compiling.
+
+### Assistant - 2026-06-20T23:31:55.245Z
+
+The process-starter slice passes its tests and the backend build. I’m doing relay verification and GitNexus detection before the checkpoint.
+
+### Assistant - 2026-06-20T23:32:02.337Z
+
+Route is down to 244 lines. The GitNexus analyzer doc side effects are present again, so I’ll remove those before final detection/staging just like the last two slices.
 
