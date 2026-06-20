@@ -7,12 +7,6 @@ import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import {
-  createOptionableRebuildJob,
-  createRegimeClassificationJob,
-  createUniverseBuildJob,
-  createUniverseUpdateJob,
-} from '../modules/universe/universeJobFactory';
-import {
   createUniversePriceSnapshotService,
 } from '../modules/universe/universePriceSnapshot';
 import {
@@ -27,13 +21,15 @@ import {
   parseUniverseUpdateRequestParams,
 } from '../modules/universe/universeRequestParams';
 import {
-  buildOptionableRebuildCommand,
-  buildRegimeClassificationCommand,
-  buildUniverseBuildCommand,
-  buildUniverseUpdateCommand,
   canAccessUniverseFile,
   canReuseOptionableCatalog,
 } from '../modules/universe/universeJobCommands';
+import {
+  createOptionableRebuildPlan,
+  createRegimeClassificationPlan,
+  createUniverseBuildPlan,
+  createUniverseUpdatePlan,
+} from '../modules/universe/universeJobPlans';
 import {
   getRunningUniverseJobConflict,
 } from '../modules/universe/universeJobLifecycle';
@@ -104,24 +100,8 @@ router.post('/build', async (req: Request, res: Response) => {
 
   const canReuseOptionable = await canReuseOptionableCatalog(routeConfig.optionablePath);
 
-  const job = createUniverseBuildJob({
-    source: params.source,
-    lookback: params.lookback,
-    interval: params.interval,
-    workers: params.workers,
-    minVolume: params.minVolume,
-  });
+  const { job, command } = createUniverseBuildPlan(params, routeConfig, canReuseOptionable);
   activeState.setJob(job);
-
-  const command = buildUniverseBuildCommand({
-    servicesDir: routeConfig.servicesDir,
-    source: params.source,
-    lookback: params.lookback,
-    interval: params.interval,
-    minVolume: params.minVolumeArg,
-    workers: params.workersArg,
-    skipOptionsCheck: canReuseOptionable,
-  });
 
   activeState.setProcess(startUniverseRouteProcess({
     command,
@@ -139,17 +119,8 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
 
   const params = parseOptionableRebuildRequestParams(req.body);
 
-  const job = createOptionableRebuildJob({
-    source: params.source,
-    workers: params.workers,
-  });
+  const { job, command } = createOptionableRebuildPlan(params, routeConfig);
   activeState.setJob(job);
-
-  const command = buildOptionableRebuildCommand({
-    servicesDir: routeConfig.servicesDir,
-    source: params.source,
-    workers: params.workersArg,
-  });
 
   activeState.setProcess(startUniverseRouteProcess({
     command,
@@ -173,15 +144,8 @@ router.post('/update', async (req: Request, res: Response) => {
 
   const params = parseUniverseUpdateRequestParams(req.body);
 
-  const job = createUniverseUpdateJob({
-    interval: params.interval,
-  });
+  const { job, command } = createUniverseUpdatePlan(params, routeConfig);
   activeState.setJob(job);
-
-  const command = buildUniverseUpdateCommand({
-    servicesDir: routeConfig.servicesDir,
-    interval: params.interval,
-  });
 
   activeState.setProcess(startUniverseRouteProcess({
     command,
@@ -201,15 +165,8 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 
   const params = parseRegimeClassificationRequestParams(req.body);
 
-  const job = createRegimeClassificationJob({
-    interval: params.interval,
-  });
+  const { job, command } = createRegimeClassificationPlan(params, routeConfig);
   activeState.setJob(job);
-
-  const command = buildRegimeClassificationCommand({
-    scriptPath: routeConfig.regimeScriptPath,
-    interval: params.interval,
-  });
 
   activeState.setProcess(startUniverseRouteProcess({
     command,

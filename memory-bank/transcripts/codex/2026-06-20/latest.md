@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781998802655`
+- Last mirrored epoch ms: `1781999031805`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,57 +5721,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-### Assistant - 2026-06-20T13:23:56.113Z
-
-The usable backup is here:
-
-```text
-C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector-backups\pre-modular-migration-code-20260620-061636
-```
-
-Manifest file:
-
-```text
-C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector-backups\pre-modular-migration-code-20260620-061636\BACKUP_MANIFEST.json
-```
-
-Ignore this partial one:
-
-```text
-C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector-backups\pre-modular-migration-20260620-061058
-```
-
-### User - 2026-06-20T13:24:54.232Z
-
-Is it safe to try a slice of the migration
-
-### Assistant - 2026-06-20T13:24:59.258Z
-
-I think it can be safe, but only if the first “slice” is tiny and audit-led. I’m going to check the GitNexus impact-analysis workflow and then I’ll give you a concrete go/no-go boundary rather than a vague reassurance.
-
-### Assistant - 2026-06-20T13:25:04.752Z
-
-For an actual code slice, the safe path is: audit first, then run GitNexus impact on the exact symbols we would touch, then edit only if the blast radius is low/medium and understood. I’m checking whether the GitNexus tools are callable in this session; if not, I’ll keep the recommendation at the planning boundary.
-
-### Assistant - 2026-06-20T13:25:10.664Z
-
-GitNexus is available. I’ll do a lightweight safety read on the likely first slice area (`universe/scanner`) and current uncommitted state; then I’ll answer with the safest slice boundary.
-
-### Assistant - 2026-06-20T13:25:46.225Z
-
-Yes, but with a very narrow definition of “slice.”
-
-**Safe now:** a `universe/scanner` current-flow audit.  
-**Not safe yet:** moving code or changing runtime behavior.
-
-Why: GitNexus says the current worktree already has a lot of changes: 46 files, 139 changed symbols, medium risk. That is mostly governance/bootstrap/frontend work we’ve been doing, but it means we should avoid mixing architecture movement into the same pile.
-
-The safe first slice should be:
-
-1. Audit current `universe/scanner` flow.
-2. Document routes, services, frontend functions, data files, polling/status behavior.
-3. Identify one tiny behavior-preserving move.
-4. Run GitNexus impact on the exact functions/symbols before editing.
+on the exact functions/symbols before editing.
 5. Only then decide whether to move code.
 
 So my recommendation is:
@@ -8040,4 +7990,48 @@ Relay verification is clean. The route line count stayed flat because this slice
 ### Assistant - 2026-06-20T23:40:00.684Z
 
 GitNexus still reports stale route symbols, but the change is low risk with no affected execution flows. I’m staging the state slice plus continuity snapshots and committing locally.
+
+### Assistant - 2026-06-20T23:40:09.569Z
+
+Staged. I’m checking the staged scope, then I’ll commit.
+
+### Assistant - 2026-06-20T23:40:12.623Z
+
+The staged set is correctly scoped to active-job state plus memory snapshots. Committing this checkpoint now.
+
+### Assistant - 2026-06-20T23:40:22.951Z
+
+Checkpoint made: `51b1175a9 Extract universe active job state`. I’m refreshing GitNexus after the commit and checking the tree, then I’ll choose the next small slice if the repo is still steady.
+
+### Assistant - 2026-06-20T23:41:18.408Z
+
+The branch is steady. The next worthwhile slice is to separate “job plan creation” from Express: each route currently creates a job and a command side by side. I’m going to move those paired job+command builders into a tested module, so the route can just parse params, ask for a plan, start it, and respond.
+
+### Assistant - 2026-06-20T23:41:21.456Z
+
+Impact is still low with no affected flows on the route-level target GitNexus can resolve. I’m extracting the job-plan builders now.
+
+### Assistant - 2026-06-20T23:42:23.856Z
+
+The route now delegates each job+command pair to `universeJobPlans`. I’m running the new plan tests plus the existing factory/command/request tests and compile.
+
+### Assistant - 2026-06-20T23:42:49.576Z
+
+That was a good slice: tests pass, compile passes, relay verify passes, and the route dropped from 244 to 201 lines. I’m running GitNexus detect and checking for analyzer doc side effects before staging.
+
+### Assistant - 2026-06-20T23:42:55.891Z
+
+GitNexus reports low risk/no affected processes, but it’s again including analyzer-updated docs. I’m removing those unrelated `AGENTS.md`/`CLAUDE.md` side effects before staging the job-plan slice.
+
+### Assistant - 2026-06-20T23:43:00.679Z
+
+Same analyzer side effect as before. I’m stripping that out so this commit stays focused on job plans.
+
+### Assistant - 2026-06-20T23:43:44.529Z
+
+The GitNexus doc changes are removed. I’m staging the job-plan extraction and committing it locally.
+
+### Assistant - 2026-06-20T23:43:48.163Z
+
+Clean again: only the intended code plus memory mirrors. Staging and checking scope now.
 
