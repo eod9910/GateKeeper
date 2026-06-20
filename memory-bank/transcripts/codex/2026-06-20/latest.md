@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781969931856`
+- Last mirrored epoch ms: `1781994817403`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -3115,6 +3115,7 @@
 - proceed at your Discretion
 - Do you feel confident
 - OK that sounds like you have a plan so let's go ahead and do that as long as you have a plan
+- next
 
 ## Latest Session Transcript
 
@@ -7405,4 +7406,73 @@ The route now delegates the full status snapshot but still owns the Express resp
 ### Assistant - 2026-06-20T15:38:46.706Z
 
 Focused orchestration tests and TypeScript are green. I’m running the adjacent universe tests, relay verification, and then GitNexus detect_changes before committing.
+
+### Assistant - 2026-06-20T15:39:02.523Z
+
+GitNexus reports LOW risk and no affected processes. I’m committing this status orchestration extraction locally now; no push.
+
+### Assistant - 2026-06-20T15:39:05.578Z
+
+The diff is exactly the intended shape: `/status` is now a thin route, and the behavior is covered by injected-reader tests. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-20T15:39:19.490Z
+
+The status orchestration extraction is committed locally as `1ca6bd579`. I’m doing a final sanity check of the branch and working tree; then I’ll summarize what changed and what I’d do next.
+
+### Assistant - 2026-06-20T15:39:26.681Z
+
+Yes, the plan worked.
+
+Validator had Builder extract the remaining `/status` orchestration behind an injected-reader helper:
+
+- Added `buildUniverseStatusSnapshot` in [universeStatusSummary.ts](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/backend/src/modules/universe/universeStatusSummary.ts)
+- Added route-level characterization tests for:
+  - missing manifest / optionable / progress files
+  - progress-file precedence
+  - active rebuild job mutation
+  - price freshness read
+- Reduced `/api/universe/status` in [universe.ts](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/backend/src/routes/universe.ts) to a thin route call.
+
+Committed locally:
+
+`1ca6bd579 Extract universe status snapshot orchestration`
+
+Verification passed before commit:
+- `universe-status-summary:test`
+- `universe-price-snapshot:test`
+- `universe-catalog-meta:test`
+- `universe-job-progress:test`
+- backend `tsc` build
+- relay verify
+- GitNexus LOW risk / no affected processes
+
+No push. Current working tree only has live Cursor memory mirror churn.
+
+### User - 2026-06-20T22:32:23.808Z
+
+next
+
+### Assistant - 2026-06-20T22:32:37.945Z
+
+Next slice: I’m going to keep moving through `universe.ts` from top to bottom. `/status` is now thin, so the next safe target is `/prices`: extract the response/freshness shaping while leaving the existing service call and manifest guard in the route.
+
+### Assistant - 2026-06-20T22:32:42.616Z
+
+The `/prices` route has a clean seam: `snapshot -> { data, freshness }` is pure response shaping. I’m checking route impact, then I’ll move that shaping into `universePriceSnapshot.ts` with tests.
+
+### Assistant - 2026-06-20T22:32:47.144Z
+
+Blast radius is LOW: only `server.ts` imports the route and no execution flows are marked affected. I’m making the price response helper now.
+
+### Assistant - 2026-06-20T22:32:54.645Z
+
+The helper returns the exact two-part shape the route currently sends: nested `data.freshness` plus top-level `freshness`. I’m adding a focused test for that contract.
+
+### Assistant - 2026-06-20T22:33:06.275Z
+
+Now I’m wiring the route to the helper and removing the cache freshness import from the route.
+
+### Assistant - 2026-06-20T22:33:17.115Z
+
+The `/prices` route is now just guard, force-refresh parse, service call, response helper. I’m running the focused price test and TypeScript.
 

@@ -7,9 +7,6 @@ import { Router, Request, Response } from 'express';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import {
-  buildFreshnessInfo,
-} from '../services/cacheService';
 import { UniverseJob } from '../modules/universe/universeJobProgress';
 import {
   createOptionableRebuildJob,
@@ -18,6 +15,7 @@ import {
   createUniverseUpdateJob,
 } from '../modules/universe/universeJobFactory';
 import {
+  buildUniversePriceSnapshotResponse,
   createUniversePriceSnapshotService,
 } from '../modules/universe/universePriceSnapshot';
 import {
@@ -93,21 +91,10 @@ router.get('/prices', async (req: Request, res: Response) => {
   try {
     const forceRefresh = String(req.query.force_refresh || '').trim().toLowerCase() === 'true';
     const snapshot = await universePriceSnapshotService.buildUniversePriceSnapshot(forceRefresh);
-    const freshness = buildFreshnessInfo({
-      fetchedAt: snapshot.fetchedAt,
-      ttlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
-      cacheLayer: snapshot.cacheLayer,
-      cacheKey: snapshot.cacheKey,
-      version: 1,
-    });
+    const priceResponse = buildUniversePriceSnapshotResponse(snapshot, UNIVERSE_PRICE_SNAPSHOT_TTL_MS);
     res.json({
       success: true,
-      data: {
-        count: Object.keys(snapshot.data).length,
-        prices: snapshot.data,
-        freshness,
-      },
-      freshness,
+      ...priceResponse,
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

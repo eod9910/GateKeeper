@@ -25,6 +25,28 @@ export interface UniversePriceSnapshotResult {
   cacheLayer: 'memory' | 'disk' | 'refresh';
 }
 
+export function buildUniversePriceSnapshotResponse(
+  snapshot: UniversePriceSnapshotResult,
+  priceSnapshotTtlMs: number,
+) {
+  const freshness = buildFreshnessInfo({
+    fetchedAt: snapshot.fetchedAt,
+    ttlMs: priceSnapshotTtlMs,
+    cacheLayer: snapshot.cacheLayer,
+    cacheKey: snapshot.cacheKey,
+    version: 1,
+  });
+
+  return {
+    data: {
+      count: Object.keys(snapshot.data).length,
+      prices: snapshot.data,
+      freshness,
+    },
+    freshness,
+  };
+}
+
 export type ReadUniversePriceSnapshotEnvelope = <T>(filePath: string) => Promise<CacheEnvelope<T> | null>;
 
 export function parseIsoTimestamp(value: string | null | undefined): number | null {

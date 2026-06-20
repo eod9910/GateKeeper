@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import {
+  buildUniversePriceSnapshotResponse,
   buildUniverseFreshness,
   createUniversePriceSnapshotService,
   parseIsoTimestamp,
@@ -29,6 +30,28 @@ function testBuildUniverseFreshness(): void {
   assert.equal(freshness.cache_layer, 'disk');
   assert.equal(freshness.source_status, 'ok');
   assert.equal(freshness.stale, false);
+}
+
+function testBuildUniversePriceSnapshotResponse(): void {
+  const response = buildUniversePriceSnapshotResponse(
+    {
+      data: {
+        AAPL: { last_close: 123.45, end: '2026-06-20', source: 'manifest' },
+        MSFT: { last_close: 222.25, end: null, source: 'csv_tail' },
+      },
+      fetchedAt: Date.now(),
+      cacheKey: 'cache-key',
+      cacheLayer: 'refresh',
+    },
+    60_000,
+  );
+
+  assert.equal(response.data.count, 2);
+  assert.equal(response.data.prices.AAPL.last_close, 123.45);
+  assert.equal(response.data.freshness, response.freshness);
+  assert.equal(response.freshness.cache_layer, 'refresh');
+  assert.equal(response.freshness.cache_key, 'cache-key');
+  assert.equal(response.freshness.version, 1);
 }
 
 async function testReadUniversePriceSnapshotFreshnessFromCache(): Promise<void> {
@@ -128,6 +151,7 @@ async function testBuildUniversePriceSnapshotUsesManifestAndCsvTail(): Promise<v
 async function runTests(): Promise<void> {
   testParseIsoTimestamp();
   testBuildUniverseFreshness();
+  testBuildUniversePriceSnapshotResponse();
   await testReadUniversePriceSnapshotFreshnessFromCache();
   await testReadUniversePriceSnapshotFreshnessMissingOnNullOrError();
   await testReadLastCloseFromCsv();
