@@ -10,11 +10,31 @@ import * as fs from 'fs/promises';
 import {
   CacheEnvelope,
   buildFreshnessInfo,
-  createCacheEnvelope,
-  isFreshTimestamp,
   readCacheEnvelope,
-  writeCacheEnvelope,
 } from '../services/cacheService';
+import {
+  UniverseJob,
+  appendUniverseJobLog,
+  clampUniverseProgress,
+  getUniverseSourceLabel,
+} from '../modules/universe/universeJobProgress';
+import { getOptionableCatalogMeta } from '../modules/universe/universeCatalogMeta';
+import {
+  UniversePriceSnapshot,
+  buildUniverseFreshness,
+  createUniversePriceSnapshotService,
+} from '../modules/universe/universePriceSnapshot';
+import {
+  buildOptionableRebuildCommand,
+  buildRegimeClassificationCommand,
+  buildUniverseBuildCommand,
+  buildUniverseUpdateCommand,
+} from '../modules/universe/universeJobCommands';
+import {
+  applyRegimeProgressLine,
+  cancelUniverseJob,
+  completeUniverseJobFromExitCode,
+} from '../modules/universe/universeJobLifecycle';
 
 const router = Router();
 
@@ -27,372 +47,14 @@ const SERVICES_DIR = path.join(__dirname, '..', '..', 'services');
 const UNIVERSE_MANIFEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const UNIVERSE_PRICE_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Track active job
-interface UniverseJob {
-  type: 'build' | 'update' | 'rebuild_optionable' | 'classify_regimes';
-  status: 'running' | 'completed' | 'failed';
-  started_at: string;
-  completed_at?: string;
-  log: string[];
-  error?: string;
-  progress?: number;
-  progress_label?: string;
-  stage?: string;
-  last_log_at?: string;
-  source?: string;
-  source_label?: string;
-  lookback?: string;
-  interval?: string;
-  workers?: number;
-  min_volume?: number;
-  metrics?: {
-    source_symbols?: number;
-    option_checked?: number;
-    option_total?: number;
-    optionable_so_far?: number;
-    retry_checked?: number;
-    retry_total?: number;
-    retry_recovered?: number;
-    volume_checked?: number;
-    volume_total?: number;
-    download_batch?: number;
-    download_batches?: number;
-    download_batch_size?: number;
-    download_total?: number;
-  };
-}
-
 let activeJob: UniverseJob | null = null;
 let activeProcess: ChildProcess | null = null;
-const MAX_UNIVERSE_LOG_LINES = 400;
-let priceSnapshotCache: CacheEnvelope<Record<string, { last_close: number; end: string | null; source: string }>> | null = null;
-
-type UniversePriceSnapshot = Record<string, { last_close: number; end: string | null; source: string }>;
-
-function parseIsoTimestamp(value: string | null | undefined): number | null {
-  if (!value) return null;
-  const ts = new Date(value).getTime();
-  return Number.isFinite(ts) ? ts : null;
-}
-
-function buildUniverseFreshness(value: string | null | undefined, ttlMs: number) {
-  return buildFreshnessInfo({
-    fetchedAt: parseIsoTimestamp(value),
-    ttlMs,
-    cacheLayer: 'disk',
-  });
-}
-
-async function readPersistedPriceSnapshot(cacheKey: string): Promise<CacheEnvelope<UniversePriceSnapshot> | null> {
-  const parsed = await readCacheEnvelope<UniversePriceSnapshot>(PRICE_SNAPSHOT_CACHE_PATH);
-  if (!parsed || parsed.key !== cacheKey) return null;
-  if (!isFreshTimestamp(parsed.fetchedAt, parsed.ttlMs)) return null;
-  return parsed;
-}
-
-async function persistPriceSnapshot(cacheKey: string, data: UniversePriceSnapshot): Promise<CacheEnvelope<UniversePriceSnapshot>> {
-  const payload = createCacheEnvelope(cacheKey, data, UNIVERSE_PRICE_SNAPSHOT_TTL_MS, 'universePriceSnapshot');
-  await writeCacheEnvelope(PRICE_SNAPSHOT_CACHE_PATH, payload);
-  return payload;
-}
-
-function normalizeUniverseSymbols(values: any): string[] {
-  if (!Array.isArray(values)) return [];
-  return Array.from(
-    new Set(
-      values
-        .map((value: any) => String(value || '').trim().toUpperCase())
-        .filter((value: string) => !!value)
-    )
-  ).sort((a, b) => a.localeCompare(b));
-}
-
-function getOptionableCatalogMeta(opt: any): {
-  optionableCount: number;
-  sourceSymbolCount: number;
-  classifiedCount: number;
-  unclassifiedCount: number;
-  complete: boolean;
-} {
-  const optionable = normalizeUniverseSymbols(opt?.optionable || opt?.symbols || []);
-  const notOptionable = normalizeUniverseSymbols(opt?.not_optionable || []);
-  const sourceSymbols = normalizeUniverseSymbols(opt?.source_symbols || []);
-  const unknownSymbols = normalizeUniverseSymbols(
-    Array.isArray(opt?.unknown_optionability)
-      ? opt.unknown_optionability.map((item: any) => item?.symbol)
-      : []
-  );
-  const classified = new Set([...optionable, ...notOptionable, ...unknownSymbols]);
-  const sourceCount = Number(opt?.source_symbol_count || opt?.total_checked || sourceSymbols.length || 0);
-  const classifiedCount = Number(opt?.classified_count || classified.size || 0);
-  const unclassifiedCount = Number(
-    opt?.unclassified_count ?? Math.max(0, sourceCount - classifiedCount)
-  );
-  const complete = Boolean(opt?.complete_optionability ?? (unclassifiedCount === 0 && sourceCount > 0));
-  return {
-    optionableCount: Number(opt?.optionable_count || optionable.length || 0),
-    sourceSymbolCount: sourceCount,
-    classifiedCount,
-    unclassifiedCount,
-    complete,
-  };
-}
-
-function getUniverseSourceLabel(source: string): string {
-  if (source === 'nasdaq-trader-us') return 'Nasdaq Trader US-listed underlyings';
-  if (source === 'russell2000') return 'Russell 2000 optionable';
-  if (source === 'custom_csv') return 'Custom ticker list';
-  return source || 'Optionable universe';
-}
-
-function clampUniverseProgress(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function computeUniverseProgress(job: UniverseJob): number | undefined {
-  const metrics = job.metrics || {};
-  switch (job.stage) {
-    case 'loading_source':
-      return Math.max(job.progress ?? 0, 2);
-    case 'checking_optionability':
-      if (metrics.option_checked && metrics.option_total) {
-        return clampUniverseProgress(5 + (metrics.option_checked / metrics.option_total) * 50);
-      }
-      return Math.max(job.progress ?? 0, 5);
-    case 'retrying_unknown':
-      if (metrics.retry_checked && metrics.retry_total) {
-        return clampUniverseProgress(55 + (metrics.retry_checked / metrics.retry_total) * 10);
-      }
-      return Math.max(job.progress ?? 0, 55);
-    case 'volume_filter':
-      if (metrics.volume_checked && metrics.volume_total) {
-        return clampUniverseProgress(65 + (metrics.volume_checked / metrics.volume_total) * 5);
-      }
-      return Math.max(job.progress ?? 0, 65);
-    case 'downloading_history':
-      if (metrics.download_batch && metrics.download_batches) {
-        return clampUniverseProgress(70 + ((metrics.download_batch - 1) / metrics.download_batches) * 28);
-      }
-      return Math.max(job.progress ?? 0, 70);
-    case 'writing_manifest':
-      return Math.max(job.progress ?? 0, 99);
-    case 'completed':
-      return 100;
-    default:
-      return job.progress;
-  }
-}
-
-function updateUniverseJobFromLine(job: UniverseJob, rawLine: string): void {
-  const line = rawLine.trim();
-  if (!line) return;
-  job.last_log_at = new Date().toISOString();
-  job.progress_label = line;
-  if (!job.metrics) job.metrics = {};
-
-  let match = line.match(/Found (\d+) eligible US-listed/i);
-  if (match) {
-    job.stage = 'loading_source';
-    job.metrics.source_symbols = Number(match[1]);
-  }
-
-  match = line.match(/Found (\d+) Russell 2000/i);
-  if (match) {
-    job.stage = 'loading_source';
-    job.metrics.source_symbols = Number(match[1]);
-  }
-
-  match = line.match(/Loaded (\d+) tickers from /i);
-  if (match) {
-    job.stage = 'loading_source';
-    job.metrics.source_symbols = Number(match[1]);
-  }
-
-  match = line.match(/Checking options availability for (\d+) tickers \((\d+) parallel workers\)/i);
-  if (match) {
-    job.stage = 'checking_optionability';
-    job.metrics.option_total = Number(match[1]);
-    job.workers = Number(match[2]);
-  }
-
-  match = line.match(/\[\s*(\d+)%\]\s+(\d+)\/(\d+)\s+checked\s+-\s+(\d+)\s+optionable so far/i);
-  if (match) {
-    job.stage = 'checking_optionability';
-    job.metrics.option_checked = Number(match[2]);
-    job.metrics.option_total = Number(match[3]);
-    job.metrics.optionable_so_far = Number(match[4]);
-  }
-
-  if (/Options filter results:/i.test(line)) {
-    job.stage = 'options_filtered';
-  }
-
-  match = line.match(/Optionable:\s+(\d+)/i);
-  if (match && job.stage === 'options_filtered') {
-    job.metrics.optionable_so_far = Number(match[1]);
-  }
-
-  if (/Retrying unknown optionability results sequentially/i.test(line)) {
-    job.stage = 'retrying_unknown';
-  }
-
-  match = line.match(/\[retry\s+(\d+)%\]\s+(\d+)\/(\d+)\s+checked\s+-\s+recovered\s+(\d+)/i);
-  if (match) {
-    job.stage = 'retrying_unknown';
-    job.metrics.retry_checked = Number(match[2]);
-    job.metrics.retry_total = Number(match[3]);
-    job.metrics.retry_recovered = Number(match[4]);
-  }
-
-  match = line.match(/Checking 30-day average volume/i);
-  if (match) {
-    job.stage = 'volume_filter';
-  }
-
-  match = line.match(/\[\s*(\d+)%\]\s+(\d+)\/(\d+)\s+checked$/i);
-  if (match && job.stage === 'volume_filter') {
-    job.metrics.volume_checked = Number(match[2]);
-    job.metrics.volume_total = Number(match[3]);
-  }
-
-  match = line.match(/Downloading\s+.+\s+history for (\d+) tickers/i);
-  if (match) {
-    job.stage = 'downloading_history';
-    job.metrics.download_total = Number(match[1]);
-  }
-
-  match = line.match(/Batch (\d+)\/(\d+) \((\d+) symbols\)\.\.\./i);
-  if (match) {
-    job.stage = 'downloading_history';
-    job.metrics.download_batch = Number(match[1]);
-    job.metrics.download_batches = Number(match[2]);
-    job.metrics.download_batch_size = Number(match[3]);
-  }
-
-  if (/Manifest saved to/i.test(line)) {
-    job.stage = 'writing_manifest';
-  }
-
-  if (/DONE in /i.test(line)) {
-    job.stage = 'completed';
-  }
-
-  const explicitPercent = line.match(/\[\s*(\d+)%\]/);
-  if (explicitPercent) {
-    job.progress = clampUniverseProgress(Number(explicitPercent[1]));
-    return;
-  }
-
-  const computed = computeUniverseProgress(job);
-  if (typeof computed === 'number') {
-    job.progress = computed;
-  }
-}
-
-function appendUniverseJobLog(job: UniverseJob, rawLine: string): void {
-  const line = rawLine.trimEnd();
-  if (!line.trim()) return;
-  job.log.push(line);
-  if (job.log.length > MAX_UNIVERSE_LOG_LINES) {
-    job.log = job.log.slice(-MAX_UNIVERSE_LOG_LINES);
-  }
-  updateUniverseJobFromLine(job, line);
-}
-
-async function readLastCloseFromCsv(filePath: string): Promise<number | null> {
-  try {
-    const handle = await fs.open(filePath, 'r');
-    try {
-      const stat = await handle.stat();
-      if (!stat.size) return null;
-      const bytesToRead = Math.min(4096, stat.size);
-      const buffer = Buffer.alloc(bytesToRead);
-      await handle.read(buffer, 0, bytesToRead, stat.size - bytesToRead);
-      const lines = buffer
-        .toString('utf-8')
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-      const lastLine = lines[lines.length - 1];
-      if (!lastLine) return null;
-      const parts = lastLine.split(',');
-      const close = Number(parts[4]);
-      return Number.isFinite(close) ? close : null;
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    return null;
-  }
-}
-
-async function buildUniversePriceSnapshot(forceRefresh = false): Promise<{ data: UniversePriceSnapshot; fetchedAt: number; cacheKey: string; cacheLayer: 'memory' | 'disk' | 'refresh' }> {
-  const raw = await fs.readFile(MANIFEST_PATH, 'utf-8');
-  const manifest = JSON.parse(raw) || {};
-  const symbols = manifest.symbols || {};
-  const cacheKey = `${manifest.last_updated || manifest.generated_at || ''}:${Object.keys(symbols).length}`;
-  if (!forceRefresh && priceSnapshotCache?.key === cacheKey && isFreshTimestamp(priceSnapshotCache.fetchedAt, priceSnapshotCache.ttlMs)) {
-    return {
-      data: priceSnapshotCache.data,
-      fetchedAt: priceSnapshotCache.fetchedAt,
-      cacheKey,
-      cacheLayer: 'memory',
-    };
-  }
-
-  if (!forceRefresh) {
-    const persisted = await readPersistedPriceSnapshot(cacheKey);
-    if (persisted) {
-      priceSnapshotCache = persisted;
-      return {
-        data: persisted.data,
-        fetchedAt: persisted.fetchedAt,
-        cacheKey,
-        cacheLayer: 'disk',
-      };
-    }
-  }
-
-  const interval = String(manifest.interval || '1d');
-  const snapshot: UniversePriceSnapshot = {};
-  const missing: Array<[string, any]> = [];
-
-  for (const [symbol, meta] of Object.entries(symbols) as Array<[string, any]>) {
-    const lastClose = Number(meta?.last_close);
-    if (Number.isFinite(lastClose)) {
-      snapshot[symbol] = {
-        last_close: lastClose,
-        end: meta?.end || null,
-        source: 'manifest',
-      };
-    } else {
-      missing.push([symbol, meta || {}]);
-    }
-  }
-
-  const batchSize = 50;
-  for (let index = 0; index < missing.length; index += batchSize) {
-    const batch = missing.slice(index, index + batchSize);
-    await Promise.all(
-      batch.map(async ([symbol, meta]) => {
-        const fileName = String(meta?.file || `${symbol}_${interval}.csv`);
-        const filePath = path.join(DATA_DIR, fileName);
-        const lastClose = await readLastCloseFromCsv(filePath);
-        if (Number.isFinite(lastClose)) {
-          snapshot[symbol] = {
-            last_close: Number(lastClose),
-            end: meta?.end || null,
-            source: 'csv_tail',
-          };
-        }
-      })
-    );
-  }
-
-  const persisted = await persistPriceSnapshot(cacheKey, snapshot);
-  priceSnapshotCache = persisted;
-  return { data: snapshot, fetchedAt: persisted.fetchedAt, cacheKey, cacheLayer: 'refresh' };
-}
+const universePriceSnapshotService = createUniversePriceSnapshotService({
+  dataDir: DATA_DIR,
+  manifestPath: MANIFEST_PATH,
+  priceSnapshotCachePath: PRICE_SNAPSHOT_CACHE_PATH,
+  priceSnapshotTtlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+});
 
 // ─── GET /api/universe/status ─────────────────────────────────────────────────
 router.get('/status', async (req: Request, res: Response) => {
@@ -577,7 +239,7 @@ router.get('/prices', async (req: Request, res: Response) => {
 
   try {
     const forceRefresh = String(req.query.force_refresh || '').trim().toLowerCase() === 'true';
-    const snapshot = await buildUniversePriceSnapshot(forceRefresh);
+    const snapshot = await universePriceSnapshotService.buildUniversePriceSnapshot(forceRefresh);
     const freshness = buildFreshnessInfo({
       fetchedAt: snapshot.fetchedAt,
       ttlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
@@ -641,21 +303,17 @@ router.post('/build', async (req: Request, res: Response) => {
     metrics: {},
   };
 
-  const scriptPath = path.join(SERVICES_DIR, 'build_universe.py');
-  const args = [
-    '-u',
-    scriptPath,
-    '--source', String(source),
-    '--lookback', String(lookback),
-    '--interval', String(interval),
-    '--min-volume', String(min_volume),
-    '--workers', String(workers),
-  ];
-  if (canReuseOptionable) {
-    args.push('--skip-options-check');
-  }
+  const command = buildUniverseBuildCommand({
+    servicesDir: SERVICES_DIR,
+    source: String(source),
+    lookback: String(lookback),
+    interval: String(interval),
+    minVolume: String(min_volume),
+    workers: String(workers),
+    skipOptionsCheck: canReuseOptionable,
+  });
 
-  activeProcess = spawn('py', args, { cwd: SERVICES_DIR });
+  activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n').filter(Boolean);
@@ -673,14 +331,7 @@ router.post('/build', async (req: Request, res: Response) => {
 
   activeProcess.on('close', (code: number | null) => {
     if (activeJob) {
-      activeJob.status = code === 0 ? 'completed' : 'failed';
-      activeJob.completed_at = new Date().toISOString();
-      activeJob.progress = code === 0 ? 100 : activeJob.progress;
-      activeJob.progress_label = code === 0 ? 'Build complete.' : `Failed (exit code ${code})`;
-      activeJob.stage = code === 0 ? 'completed' : 'failed';
-      if (code !== 0) {
-        activeJob.error = `Process exited with code ${code}`;
-      }
+      completeUniverseJobFromExitCode(activeJob, code, 'Build complete.');
     }
     activeProcess = null;
   });
@@ -719,19 +370,13 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
     metrics: {},
   };
 
-  const scriptPath = path.join(SERVICES_DIR, 'build_universe.py');
-  const args = [
-    '-u',
-    scriptPath,
-    '--source', String(source),
-    '--interval', '1d',
-    '--min-volume', '0',
-    '--workers', String(workers),
-    '--option-timeout', '8',
-    '--options-only',
-  ];
+  const command = buildOptionableRebuildCommand({
+    servicesDir: SERVICES_DIR,
+    source: String(source),
+    workers: String(workers),
+  });
 
-  activeProcess = spawn('py', args, { cwd: SERVICES_DIR });
+  activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n').filter(Boolean);
@@ -749,14 +394,7 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
 
   activeProcess.on('close', (code: number | null) => {
     if (activeJob) {
-      activeJob.status = code === 0 ? 'completed' : 'failed';
-      activeJob.completed_at = new Date().toISOString();
-      activeJob.progress = code === 0 ? 100 : activeJob.progress;
-      activeJob.progress_label = code === 0 ? 'Optionable subset rebuild complete.' : `Failed (exit code ${code})`;
-      activeJob.stage = code === 0 ? 'completed' : 'failed';
-      if (code !== 0) {
-        activeJob.error = `Process exited with code ${code}`;
-      }
+      completeUniverseJobFromExitCode(activeJob, code, 'Optionable subset rebuild complete.');
     }
     activeProcess = null;
   });
@@ -796,10 +434,12 @@ router.post('/update', async (req: Request, res: Response) => {
     metrics: {},
   };
 
-  const scriptPath = path.join(SERVICES_DIR, 'update_universe.py');
-  const args = ['-u', scriptPath, '--interval', String(interval)];
+  const command = buildUniverseUpdateCommand({
+    servicesDir: SERVICES_DIR,
+    interval: String(interval),
+  });
 
-  activeProcess = spawn('py', args, { cwd: SERVICES_DIR });
+  activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n').filter(Boolean);
@@ -817,14 +457,7 @@ router.post('/update', async (req: Request, res: Response) => {
 
   activeProcess.on('close', (code: number | null) => {
     if (activeJob) {
-      activeJob.status = code === 0 ? 'completed' : 'failed';
-      activeJob.completed_at = new Date().toISOString();
-      activeJob.progress = code === 0 ? 100 : activeJob.progress;
-      activeJob.progress_label = code === 0 ? 'Update complete.' : `Failed (exit code ${code})`;
-      activeJob.stage = code === 0 ? 'completed' : 'failed';
-      if (code !== 0) {
-        activeJob.error = `Process exited with code ${code}`;
-      }
+      completeUniverseJobFromExitCode(activeJob, code, 'Update complete.');
     }
     activeProcess = null;
   });
@@ -863,20 +496,19 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
   };
 
   const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'build_regime_universes.py');
-  const args = ['-u', scriptPath, '--interval', String(interval)];
+  const command = buildRegimeClassificationCommand({
+    scriptPath,
+    interval: String(interval),
+  });
 
-  activeProcess = spawn('py', args);
+  activeProcess = spawn(command.command, command.args);
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n').filter(Boolean);
     for (const line of lines) {
       // Parse progress from output like "[2000/4440] regimes so far: ..."
-      const progressMatch = line.match(/\[(\d+)\/(\d+)\]/);
-      if (progressMatch && activeJob) {
-        const done = Number(progressMatch[1]);
-        const total = Number(progressMatch[2]);
-        activeJob.progress = Math.round((done / total) * 90);
-        activeJob.progress_label = line.trim();
+      if (activeJob) {
+        applyRegimeProgressLine(activeJob, line);
       }
       appendUniverseJobLog(activeJob!, line);
     }
@@ -891,14 +523,7 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 
   activeProcess.on('close', async (code: number | null) => {
     if (activeJob) {
-      activeJob.status = code === 0 ? 'completed' : 'failed';
-      activeJob.completed_at = new Date().toISOString();
-      activeJob.progress = code === 0 ? 100 : activeJob.progress;
-      activeJob.progress_label = code === 0 ? 'Regime classification complete.' : `Failed (exit code ${code})`;
-      activeJob.stage = code === 0 ? 'completed' : 'failed';
-      if (code !== 0) {
-        activeJob.error = `Process exited with code ${code}`;
-      }
+      completeUniverseJobFromExitCode(activeJob, code, 'Regime classification complete.');
 
       // Parse final summary counts from the snapshot file
       if (code === 0) {
@@ -948,11 +573,7 @@ router.delete('/cancel', (req: Request, res: Response) => {
     activeProcess.kill();
     activeProcess = null;
   }
-  activeJob.status = 'failed';
-  activeJob.error = 'Cancelled by user';
-  activeJob.completed_at = new Date().toISOString();
-  activeJob.progress_label = 'Cancelled.';
-  activeJob.stage = 'failed';
+  cancelUniverseJob(activeJob);
   res.json({ success: true, data: { message: 'Job cancelled.' } });
 });
 

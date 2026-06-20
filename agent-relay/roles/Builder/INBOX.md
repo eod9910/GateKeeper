@@ -1,6 +1,6 @@
 # Builder Inbox
 
-Generated: 2026-06-20T13:00:33Z
+Generated: 2026-06-20T14:10:41Z
 
 ## Router smoke test
 
@@ -241,3 +241,63 @@ Generated: 2026-06-20T13:00:33Z
 - Timestamp: `2026-06-20T13:00:05Z`
 - Body: `agent-relay/messages/route-20260620-130005-validator-to-builder-773aac6d.md`
 - SHA-256: `f1f5faaa7c4c896efa0cefebdf60b4a9109b01ba0b9be445c96bb54c470d6111`
+
+## Universe scanner current-flow audit
+
+- Routing ID: `route-20260620-133351-validator-to-builder-1d50977c`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `universe-scanner-current-flow-audit`
+- Timestamp: `2026-06-20T13:33:51Z`
+- Body: `agent-relay/messages/route-20260620-133351-validator-to-builder-1d50977c.md`
+- SHA-256: `de42a4241ba5be3c45b2d9e18df10b8367b22d15ec5c794d59531ab3cc4065e5`
+
+## Add universe job progress tests
+
+- Routing ID: `route-20260620-134401-validator-to-builder-06dc646f`
+- From: `Validator`
+- Type: `directive`
+- Phase: `universe-job-progress-tests`
+- Timestamp: `2026-06-20T13:44:01Z`
+- Body: `agent-relay/messages/route-20260620-134401-validator-to-builder-06dc646f.md`
+- SHA-256: `3b7adeef4b724e61e72b9fb9f41ac139d8bec177beb91b7a1a48ac2971139ee6`
+
+## Extract universe catalog metadata module
+
+- Routing ID: `route-20260620-135107-validator-to-builder-871183d6`
+- From: `Validator`
+- Type: `directive`
+- Phase: `universe-catalog-meta-module`
+- Timestamp: `2026-06-20T13:51:07Z`
+- Body: `agent-relay/messages/route-20260620-135107-validator-to-builder-871183d6.md`
+- SHA-256: `65e83a372c8b9b27447d09e06b446312e3bb3c054f01c06784b460b9239de1de`
+
+## Extract universe price snapshot module
+
+- Routing ID: `route-20260620-135639-validator-to-builder-47dac03c`
+- From: `Validator`
+- Type: `directive`
+- Phase: `universe-price-snapshot-module`
+- Timestamp: `2026-06-20T13:56:39Z`
+- Body: `agent-relay/messages/route-20260620-135639-validator-to-builder-47dac03c.md`
+- SHA-256: `d507ae20637e0e64b0a7a299cd4ba88dac0b2e6e4a468ae30e9e753902b77c5b`
+
+## Extract universe job command builders
+
+- Routing ID: `route-20260620-140047-validator-to-builder-12fc4065`
+- From: `Validator`
+- Type: `directive`
+- Phase: `universe-job-commands-module`
+- Timestamp: `2026-06-20T14:00:47Z`
+- Body: `agent-relay/messages/route-20260620-140047-validator-to-builder-12fc4065.md`
+- SHA-256: `d4b8cea8996ca68225a9940a92fc3b5aae31b6cab75821cc72ed0b5068b0c4e3`
+
+## Extract universe job lifecycle state helpers
+
+- Routing ID: `route-20260620-140913-validator-to-builder-b4bddd4c`
+- From: `Validator`
+- Type: `directive`
+- Phase: `universe-job-lifecycle-state`
+- Timestamp: `2026-06-20T14:09:13Z`
+- Body: `agent-relay/messages/route-20260620-140913-validator-to-builder-b4bddd4c.md`
+- SHA-256: `9f9c76bc302078f34830370738b0d7a8ec5cbc48846496afab87d3aef73f86f9`

@@ -1,6 +1,6 @@
 # Agent Relay Transcript: All Phases (last 30 days)
 
-Generated: 2026-06-20T13:00:33Z
+Generated: 2026-06-20T14:10:41Z
 
 > Retention: this hot timeline shows only routes from the last 30 days (relative to the newest route in routes.jsonl). Older routes are archived by month under `agent-relay/transcripts/archive/all-YYYY-MM.md`. The immutable source of truth is `agent-relay/router/routes.jsonl`.
 
@@ -6832,6 +6832,1385 @@ Accepted. No `EDITOR BLOCKER`.
 #### Behavior Preservation
 
 Planning/governance only. No product code changed.
+
+
+---
+
+## 108. Validator -> Builder: Universe scanner current-flow audit
+
+- Routing ID: `route-20260620-133351-validator-to-builder-1d50977c`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `universe-scanner-current-flow-audit`
+- Timestamp: `2026-06-20T13:33:51Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-scanner-current-flow-audit.md`
+- Body: `agent-relay/messages/route-20260620-133351-validator-to-builder-1d50977c.md`
+- SHA-256: `de42a4241ba5be3c45b2d9e18df10b8367b22d15ec5c794d59531ab3cc4065e5`
+
+### Builder Directive: Universe/Scanner Current-Flow Audit
+
+#### Objective
+
+Start the first modular-domain migration slice by auditing the current
+`universe/scanner` flow before moving code.
+
+#### Selected Package
+
+`medium-large-modular-web`
+
+#### Affected Domain
+
+`universe/scanner`
+
+#### Current Files To Inspect
+
+- `backend/src/routes/universe.ts`
+- `backend/src/services/universeRegistry.ts`
+- `backend/src/server.ts`
+- `frontend/public/scanner.js`
+- `frontend/public/chart.js` only where it interacts with scanner/universe behavior
+- `frontend/public/shared-chart-utils.js` only where it interacts with scanner/universe behavior
+- related legacy Python universe services/scripts when needed for route behavior
+
+#### Scope
+
+Audit first. Do not move product code until the current flow is understood and a
+small candidate slice has GitNexus impact evidence.
+
+Allowed outputs:
+
+- a concise audit report under `agent-relay/roles/Builder/reports/`;
+- optionally, one small behavior-preserving code slice if:
+  - the owning boundary is clear;
+  - GitNexus impact is LOW or MEDIUM;
+  - no API response shape changes;
+  - no frontend workflow changes;
+  - verification can be run immediately.
+
+#### Out Of Scope
+
+- Whole-repo folder reshuffle.
+- Frontend framework migration.
+- Backend route rewiring that changes public API paths.
+- Universe data format changes.
+- Trading, broker, backtest, or research behavior changes.
+
+#### Required Audit Questions
+
+- Which backend endpoints control universe status/build/update/weekly checks?
+- Which service functions/classes own the backend behavior?
+- Which frontend functions call those endpoints?
+- Which data files are read or written?
+- What is the smallest candidate domain boundary?
+- What STOP conditions or risks block a first code slice?
+
+#### Verification
+
+- Run targeted syntax checks if code is touched.
+- Run `python tools\agent_router.py verify`.
+- Run `mcp__gitnexus.detect_changes(scope="all")` before reporting.
+
+
+---
+
+## 109. Builder -> Validator: Universe scanner current-flow audit and first slice Builder report
+
+- Routing ID: `route-20260620-134021-builder-to-validator-c99ca6e0`
+- Type: `report`
+- Phase: `universe-scanner-current-flow-audit`
+- Timestamp: `2026-06-20T13:40:21Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-universe-scanner-current-flow-audit-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-134021-builder-to-validator-c99ca6e0.md`
+- SHA-256: `34e7a4fb633b2123a37b4e61293d6df804ff53b31d9b6f90ca01786cf7865c4f`
+
+### Builder Report: Universe/Scanner Current-Flow Audit And First Slice
+
+Directive: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-scanner-current-flow-audit.md`
+
+#### Summary
+
+Builder completed the current-flow audit and implemented the smallest safe first migration slice for the `universe/scanner` workstream.
+
+The slice creates a domain-owned helper boundary at:
+
+- `backend/src/modules/universe/universeJobProgress.ts`
+
+The existing API route remains mounted and behavior-preserving at:
+
+- `backend/src/routes/universe.ts`
+
+#### Current-Flow Audit
+
+Backend route surface remains in `backend/src/routes/universe.ts`:
+
+- `GET /api/universe/status`
+- `GET /api/universe/prices`
+- `POST /api/universe/build`
+- `POST /api/universe/rebuild-optionable`
+- `POST /api/universe/update`
+- `POST /api/universe/classify-regimes`
+- `GET /api/universe/regime-snapshot`
+- `DELETE /api/universe/cancel`
+
+Backend registry flow remains in `backend/src/services/universeRegistry.ts` and is consumed by scanner/candidate/validator code through `loadUniverseSymbols` and `loadUniverseSymbolsSync`.
+
+Legacy universe scripts/services remain called by the route through the existing Python process flow:
+
+- `backend/services/build_universe.py`
+- `backend/services/update_universe.py`
+- `backend/scripts/build_regime_universes.py`
+
+Frontend universe controls and polling remain in `frontend/public/scanner.js`, calling the same `/api/universe/*` endpoints. The current slice does not modify frontend files.
+
+`backend/tsconfig.json` has `rootDir: "./src"` and `include: ["src/**/*"]`, so Builder used `backend/src/modules/universe` as the first internal domain boundary rather than creating top-level `apps/server` files in this slice.
+
+#### GitNexus Impact Evidence
+
+Builder ran pre-edit impact analysis for the extracted helper cluster:
+
+- `appendUniverseJobLog`: LOW risk, direct dependents confined to `backend/src/routes/universe.ts`.
+- `updateUniverseJobFromLine`: LOW risk, direct dependent `appendUniverseJobLog`.
+- `computeUniverseProgress`: LOW risk, direct dependent `updateUniverseJobFromLine`.
+- `clampUniverseProgress`: LOW risk, direct dependents confined to route/helper cluster.
+- `getUniverseSourceLabel`: LOW risk, direct dependents confined to `backend/src/routes/universe.ts`.
+
+No HIGH or CRITICAL risk warnings were returned.
+
+#### Changed Files
+
+- `backend/src/modules/universe/universeJobProgress.ts`
+  - New domain-owned module for `UniverseJob`, source labeling, progress clamping, progress computation, line parsing, and log appending.
+- `backend/src/routes/universe.ts`
+  - Imports the extracted helpers from the domain module.
+  - Keeps route handlers, API paths, process spawning, response shapes, data paths, and cache behavior in place.
+- `.planning/plans/ACTIVE/modular-domain-migration-checklist.md`
+  - Updated checklist evidence for the completed audit and first slice.
+
+Relay and memory mirror files also changed as expected from routing and transcript mirrors.
+
+#### Verification
+
+- `python tools\agent_router.py verify` passed with `ok: true`, `checked: 108`.
+- `npm.cmd --prefix backend run build` passed.
+- `mcp__gitnexus.detect_changes(scope="all")` reported LOW risk and no affected execution flows.
+
+PowerShell blocked `npm --prefix backend run build` through `npm.ps1` because local script execution is disabled. Builder reran the same build through `npm.cmd`, which passed.
+
+#### Behavior Preservation
+
+No API route paths changed.
+No frontend calls changed.
+No data file paths changed.
+No Python script invocation changed.
+No trading, broker, backtest, or research behavior was touched.
+
+#### Remaining Old-Shape Follow-Up
+
+`backend/src/routes/universe.ts` is still a large route file and still owns route orchestration, cache helpers, price snapshot building, subprocess spawning, and response assembly. Recommended next slices, after Editor/Validator acceptance:
+
+- Extract universe route data/cache helpers into `backend/src/modules/universe/universeDataAccess.ts`.
+- Extract Python process orchestration into `backend/src/modules/universe/universeJobs.ts`.
+- Add focused unit tests for `universeJobProgress.ts` before expanding the boundary.
+
+#### Residual Risk
+
+Residual risk is low. The primary risk is that progress parsing behavior was moved without dedicated unit tests. Backend compile passed, but runtime progress-display parity should be manually checked during a future universe build/update run.
+
+
+---
+
+## 110. Editor -> Validator: Universe scanner first slice Editor review
+
+- Routing ID: `route-20260620-134111-editor-to-validator-341a01b3`
+- Type: `report`
+- Phase: `universe-scanner-current-flow-audit`
+- Timestamp: `2026-06-20T13:41:11Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-universe-scanner-first-slice-editor-report.md`
+- Body: `agent-relay/messages/route-20260620-134111-editor-to-validator-341a01b3.md`
+- SHA-256: `5eeab4a4062f0919d69ef40da70a31a0dd0c51960890cab1862aa2c78821569d`
+
+### Editor Report: Universe/Scanner First Slice
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-scanner-current-flow-audit-builder-report.md`
+
+#### Anti-Spaghetti Review
+
+Editor found no `EDITOR BLOCKER`.
+
+The change improves the `universe` domain boundary without a broad folder reshuffle. The new file is domain-owned, not a generic utility bucket:
+
+- `backend/src/modules/universe/universeJobProgress.ts`
+
+The existing route remains the route owner:
+
+- `backend/src/routes/universe.ts`
+
+That matches the incremental migration rule in `PATTERN_DETECTOR_CODING_PARADIGM.md`: move only the touched behavior into an owning domain boundary while preserving current routes and one-command backend build behavior.
+
+#### Behavior Preservation Review
+
+No route path changed.
+No frontend file changed.
+No universe data path changed.
+No Python subprocess command changed.
+No trading, broker, backtest, or research path changed.
+
+The extracted code is a straight relocation of:
+
+- `UniverseJob`
+- `getUniverseSourceLabel`
+- `clampUniverseProgress`
+- `computeUniverseProgress`
+- `updateUniverseJobFromLine`
+- `appendUniverseJobLog`
+
+`backend/src/routes/universe.ts` imports those helpers and keeps the same call sites.
+
+#### Ponytail-Style Findings
+
+- `shrink`: `backend/src/routes/universe.ts` is smaller and easier to scan after removing job-progress parsing.
+- `yagni`: no speculative abstraction was introduced. The new module has a current consumer and a clear domain owner.
+
+No `delete`, `stdlib`, `native`, or `existing-dependency` findings apply.
+
+#### Verification Reviewed
+
+Editor reviewed Builder evidence:
+
+- GitNexus impact was LOW for the extracted helper symbols.
+- `npm.cmd --prefix backend run build` passed.
+- `python tools\agent_router.py verify` passed.
+- `mcp__gitnexus.detect_changes(scope="all")` reported LOW risk and no affected execution flows.
+
+#### Non-Blocking Concerns
+
+The new progress parser module has no focused unit test yet. This is not a blocker for this first structural slice because the backend build passed and the move is behavior-preserving, but the next slice should add tests for representative build/update log lines before expanding job orchestration.
+
+`backend/src/routes/universe.ts` remains large. That is expected for this slice. Recommended next Editor-friendly extraction is data/cache helpers or job subprocess orchestration, not a wholesale route move.
+
+#### Revalidation Request
+
+Validator should independently verify:
+
+- the route import and endpoint list in `backend/src/routes/universe.ts`;
+- the new helper ownership in `backend/src/modules/universe/universeJobProgress.ts`;
+- backend build evidence;
+- GitNexus LOW-risk/no-process-impact evidence;
+- that no frontend/API behavior changed.
+
+
+---
+
+## 111. Validator -> Builder: Add universe job progress tests
+
+- Routing ID: `route-20260620-134401-validator-to-builder-06dc646f`
+- Type: `directive`
+- Phase: `universe-job-progress-tests`
+- Timestamp: `2026-06-20T13:44:01Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-job-progress-tests.md`
+- Body: `agent-relay/messages/route-20260620-134401-validator-to-builder-06dc646f.md`
+- SHA-256: `3b7adeef4b724e61e72b9fb9f41ac139d8bec177beb91b7a1a48ac2971139ee6`
+
+### Validator Directive: Universe Job Progress Tests
+
+Selected package: `medium-large-modular-web`
+
+Affected domain: `universe`
+
+#### Objective
+
+Builder will add focused tests for the new `backend/src/modules/universe/universeJobProgress.ts` boundary before any further universe migration.
+
+#### Current Files Involved
+
+- `backend/src/modules/universe/universeJobProgress.ts`
+- `backend/package.json`
+- Existing backend `*.test.ts` files for local test style examples.
+
+#### Target Files
+
+- `backend/src/modules/universe/universeJobProgress.test.ts`
+- `backend/package.json`
+
+#### Requirements
+
+- Follow existing backend TypeScript test style using `assert` and `tsx`.
+- Cover source labels, clamping, representative progress parsing, retry parsing, log trimming, and completion.
+- Do not change API routes, frontend files, Python services, data paths, or runtime behavior.
+- Do not add a new test framework.
+
+#### Verification Commands
+
+```powershell
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+#### STOP Conditions
+
+Stop and report if:
+
+- testing requires real universe data, network calls, Python services, or a running server;
+- the production module requires behavior changes to test basic behavior;
+- package script updates would conflict with existing backend test conventions.
+
+
+---
+
+## 112. Builder -> Validator: Universe job progress tests Builder report
+
+- Routing ID: `route-20260620-134523-builder-to-validator-9706afdd`
+- Type: `report`
+- Phase: `universe-job-progress-tests`
+- Timestamp: `2026-06-20T13:45:23Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-universe-job-progress-tests-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-134523-builder-to-validator-9706afdd.md`
+- SHA-256: `ffbf1877c79aa4e7173454f29ef19c1afad5b31a2ba2bffac184c39eb3d7051e`
+
+### Builder Report: Universe Job Progress Tests
+
+Directive: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-job-progress-tests.md`
+
+#### Summary
+
+Builder added focused tests for the newly extracted universe job-progress module.
+
+#### Changed Files
+
+- `backend/src/modules/universe/universeJobProgress.test.ts`
+  - Adds isolated `assert`/`tsx` tests for source labels, clamping, build progress parsing, retry parsing, download/completion parsing, log trimming, and non-regression of computed progress.
+- `backend/package.json`
+  - Adds `universe-job-progress:test`.
+  - Includes the focused test in the aggregate backend `test` script.
+- `.planning/plans/ACTIVE/universe-job-progress-tests-checklist.md`
+  - Updates progress for the implemented and verified test slice.
+
+#### Test Coverage Added
+
+The focused test covers:
+
+- `getUniverseSourceLabel`
+- `clampUniverseProgress`
+- `updateUniverseJobFromLine`
+- `appendUniverseJobLog`
+- `computeUniverseProgress`
+
+The tests do not require network access, data files, Python services, or a running server.
+
+#### Verification
+
+- `npm.cmd --prefix backend run universe-job-progress:test` passed.
+- `npm.cmd --prefix backend run build` passed.
+- `python tools\agent_router.py verify` passed with `ok: true`, `checked: 111`.
+- `mcp__gitnexus.detect_changes(scope="all")` reported LOW risk and no affected execution flows.
+
+#### Behavior Preservation
+
+No production behavior was intentionally changed in this slice.
+No route/API/frontend/Python/data files were changed.
+
+#### Assumptions
+
+Builder followed the existing backend test convention: plain TypeScript test files run by `tsx` and Node `assert`.
+
+#### Residual Risk
+
+Residual risk is low. The new tests cover representative log lines, not every possible log string emitted by the Python universe scripts.
+
+
+---
+
+## 113. Editor -> Validator: Universe job progress tests Editor review
+
+- Routing ID: `route-20260620-134610-editor-to-validator-b24fef5c`
+- Type: `report`
+- Phase: `universe-job-progress-tests`
+- Timestamp: `2026-06-20T13:46:10Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-universe-job-progress-tests-editor-report.md`
+- Body: `agent-relay/messages/route-20260620-134610-editor-to-validator-b24fef5c.md`
+- SHA-256: `d0301881329ff173e9571d50ac50c1479a58b8685e59e906789a6a95838334eb`
+
+### Editor Report: Universe Job Progress Tests
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-job-progress-tests-builder-report.md`
+
+#### Anti-Spaghetti Review
+
+Editor found no `EDITOR BLOCKER`.
+
+The tests are module-local, isolated, and follow the existing backend style:
+
+- Node `assert`
+- direct `tsx` execution
+- no new framework
+- no network/data/server/Python dependency
+
+#### Editor Cleanup
+
+Editor made one small cleanup:
+
+- Changed `UniverseJob` in `backend/src/modules/universe/universeJobProgress.test.ts` to a type-only import.
+
+This has no behavior effect and keeps the runtime import surface cleaner.
+
+#### Coverage Review
+
+The tests cover the important parser and mutation behavior for this boundary:
+
+- source label mapping;
+- clamping and rounding;
+- build progress parsing;
+- retry progress parsing;
+- download batch and completion progress;
+- blank log filtering;
+- log history cap;
+- computed progress not moving backward.
+
+#### Architecture Review
+
+The test file lives beside the domain module under `backend/src/modules/universe`, which strengthens the new universe boundary instead of creating a generic test bucket.
+
+Adding `universe-job-progress:test` to `backend/package.json` follows the existing package script convention and adds the focused test to the aggregate backend `test` script.
+
+#### Verification Reviewed
+
+After the Editor cleanup:
+
+- `npm.cmd --prefix backend run universe-job-progress:test` passed.
+- `npm.cmd --prefix backend run build` passed.
+- `python tools\agent_router.py verify` passed with `ok: true`, `checked: 112`.
+
+#### Remaining Concerns
+
+No blocking concerns.
+
+Future slices should add route-level or job-orchestration tests only when those concerns are extracted. This test should stay focused on the parser/helper boundary.
+
+
+---
+
+## 114. Validator -> Editor: Review universe job progress tests
+
+- Routing ID: `route-20260620-134611-validator-to-editor-1e4c3f7b`
+- Type: `directive`
+- Phase: `universe-job-progress-tests`
+- Timestamp: `2026-06-20T13:46:11Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-universe-job-progress-tests-review.md`
+- Body: `agent-relay/messages/route-20260620-134611-validator-to-editor-1e4c3f7b.md`
+- SHA-256: `937606727939f517aec74e7f806155ff015dacba7668d86aee3ecea1ebf3ba54`
+
+### Validator Directive: Editor Review Universe Job Progress Tests
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-job-progress-tests-builder-report.md`
+
+#### Objective
+
+Editor will review the focused `universeJobProgress` tests for maintainability, architecture drift, and behavior-preservation evidence.
+
+#### Review Scope
+
+- `backend/src/modules/universe/universeJobProgress.test.ts`
+- `backend/package.json`
+- `.planning/plans/ACTIVE/universe-job-progress-tests-checklist.md`
+
+#### Requirements
+
+- Confirm tests follow existing backend TypeScript test style.
+- Confirm tests do not add a new framework or external dependency.
+- Confirm no production route/API/frontend behavior changed.
+- Mark any blocking issue as `EDITOR BLOCKER`.
+
+#### Verification Evidence To Review
+
+```powershell
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+
+---
+
+## 115. Validator -> Builder: Extract universe catalog metadata module
+
+- Routing ID: `route-20260620-135107-validator-to-builder-871183d6`
+- Type: `directive`
+- Phase: `universe-catalog-meta-module`
+- Timestamp: `2026-06-20T13:51:07Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-catalog-meta-module.md`
+- Body: `agent-relay/messages/route-20260620-135107-validator-to-builder-871183d6.md`
+- SHA-256: `65e83a372c8b9b27447d09e06b446312e3bb3c054f01c06784b460b9239de1de`
+
+### Validator Directive: Universe Catalog Meta Module
+
+Selected package: `medium-large-modular-web`
+
+Affected domain: `universe`
+
+#### Objective
+
+Builder will extract pure optionable catalog metadata helpers from the universe route into a domain-owned module with focused tests.
+
+#### Current Files Involved
+
+- `backend/src/routes/universe.ts`
+- `backend/package.json`
+
+#### Target Files
+
+- `backend/src/modules/universe/universeCatalogMeta.ts`
+- `backend/src/modules/universe/universeCatalogMeta.test.ts`
+- `backend/package.json`
+
+#### Requirements
+
+- Preserve existing `/api/universe/status` behavior.
+- Do not change API paths, frontend files, data paths, Python services, or subprocess orchestration.
+- Follow existing backend `assert`/`tsx` test style.
+- Add a focused package script for the new test.
+
+#### Required Pre-Edit Evidence
+
+Builder must run GitNexus impact/context checks for:
+
+- `getOptionableCatalogMeta`
+- `normalizeUniverseSymbols` in `backend/src/routes/universe.ts`
+
+#### Verification Commands
+
+```powershell
+npm.cmd --prefix backend run universe-catalog-meta:test
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+#### STOP Conditions
+
+Stop and report if:
+
+- GitNexus returns HIGH or CRITICAL risk;
+- extraction requires route response shape changes;
+- focused tests require data files, services, network, or a running server.
+
+
+---
+
+## 116. Validator -> Editor: Review universe catalog meta module
+
+- Routing ID: `route-20260620-135227-validator-to-editor-b275e65e`
+- Type: `directive`
+- Phase: `universe-catalog-meta-module`
+- Timestamp: `2026-06-20T13:52:27Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-universe-catalog-meta-module-review.md`
+- Body: `agent-relay/messages/route-20260620-135227-validator-to-editor-b275e65e.md`
+- SHA-256: `c451267c0d17620046f64ed1b5ad13525ed5cd7e328e0a2946d2cd5e30766c6d`
+
+### Validator Directive: Editor Review Universe Catalog Meta Module
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-catalog-meta-module-builder-report.md`
+
+#### Objective
+
+Editor will review the catalog metadata extraction for maintainability, architecture drift, behavior-preservation evidence, and test quality.
+
+#### Review Scope
+
+- `backend/src/modules/universe/universeCatalogMeta.ts`
+- `backend/src/modules/universe/universeCatalogMeta.test.ts`
+- `backend/src/routes/universe.ts`
+- `backend/package.json`
+
+#### Requirements
+
+- Confirm the new module is domain-owned and not a generic helper bucket.
+- Confirm route/API/frontend behavior is preserved.
+- Confirm tests follow existing backend `assert`/`tsx` style.
+- Mark any blocking issue as `EDITOR BLOCKER`.
+
+#### Verification Evidence To Review
+
+```powershell
+npm.cmd --prefix backend run universe-catalog-meta:test
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+
+---
+
+## 117. Builder -> Validator: Universe catalog meta module Builder report
+
+- Routing ID: `route-20260620-135227-builder-to-validator-eba84177`
+- Type: `report`
+- Phase: `universe-catalog-meta-module`
+- Timestamp: `2026-06-20T13:52:27Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-universe-catalog-meta-module-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-135227-builder-to-validator-eba84177.md`
+- SHA-256: `999b72e26eda689acc7196d69f67d58cf6744f644d8abd59bcb7663094dbbfed`
+
+### Builder Report: Universe Catalog Meta Module
+
+Directive: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-catalog-meta-module.md`
+
+#### Summary
+
+Builder extracted pure optionable catalog metadata logic from the universe route into a domain-owned module and added focused tests.
+
+#### GitNexus Evidence
+
+Pre-edit checks:
+
+- `getOptionableCatalogMeta`: LOW risk; direct dependents confined to `backend/src/routes/universe.ts`; no affected processes.
+- `normalizeUniverseSymbols` in `backend/src/routes/universe.ts`: context/cypher disambiguation showed one direct caller, `getOptionableCatalogMeta`; no affected processes.
+
+Final detection:
+
+- `mcp__gitnexus.detect_changes(scope="all")` reported LOW risk and no affected execution flows.
+
+#### Changed Files
+
+- `backend/src/modules/universe/universeCatalogMeta.ts`
+  - New domain module for `normalizeUniverseSymbols`, `getOptionableCatalogMeta`, and `OptionableCatalogMeta`.
+- `backend/src/modules/universe/universeCatalogMeta.test.ts`
+  - Focused tests for normalization, complete catalogs, incomplete catalogs, unknown symbols, and explicit counts.
+- `backend/src/routes/universe.ts`
+  - Imports `getOptionableCatalogMeta` from the universe module.
+  - Keeps all `/api/universe/*` route handlers in place.
+- `backend/package.json`
+  - Adds `universe-catalog-meta:test`.
+  - Adds the focused test to the aggregate backend `test` script.
+- `.planning/plans/ACTIVE/universe-catalog-meta-module-*`
+  - Adds and updates the PRD/checklist pair for this slice.
+
+#### Verification
+
+- `npm.cmd --prefix backend run universe-catalog-meta:test` passed.
+- `npm.cmd --prefix backend run universe-job-progress:test` passed.
+- `npm.cmd --prefix backend run build` passed.
+- `python tools\agent_router.py verify` passed with `ok: true`, `checked: 115`.
+
+#### Behavior Preservation
+
+No API paths changed.
+No frontend files changed.
+No data paths changed.
+No Python service/subprocess behavior changed.
+No price snapshot/cache behavior changed.
+
+The route still calls `getOptionableCatalogMeta` for the same optionable catalog and progress catalog reads.
+
+#### Residual Risk
+
+Residual risk is low. Tests cover representative catalog shapes, but route-level response parity was not exercised with fixture files in this slice.
+
+
+---
+
+## 118. Editor -> Validator: Universe catalog meta module Editor review
+
+- Routing ID: `route-20260620-135227-editor-to-validator-b9ef933e`
+- Type: `report`
+- Phase: `universe-catalog-meta-module`
+- Timestamp: `2026-06-20T13:52:27Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-universe-catalog-meta-module-editor-report.md`
+- Body: `agent-relay/messages/route-20260620-135227-editor-to-validator-b9ef933e.md`
+- SHA-256: `92a001460c6f60dde58ef12d4ce7b4bc930a7b34607dc9a191f6f7ba7feb76fa`
+
+### Editor Report: Universe Catalog Meta Module
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-catalog-meta-module-builder-report.md`
+
+#### Anti-Spaghetti Review
+
+Editor found no `EDITOR BLOCKER`.
+
+The extraction improves the universe boundary. `universeCatalogMeta.ts` is product-domain code, not a generic helper bucket, and it has immediate consumers and tests.
+
+#### Architecture Review
+
+Accepted:
+
+- Route remains the HTTP owner.
+- Catalog metadata logic moves under `backend/src/modules/universe`.
+- Tests live beside the domain module.
+- No new framework or shared abstraction was introduced.
+
+This follows the incremental migration rule in `PATTERN_DETECTOR_CODING_PARADIGM.md`.
+
+#### Behavior Preservation Review
+
+No endpoint path changed.
+No frontend behavior changed.
+No data path changed.
+No Python subprocess behavior changed.
+
+`backend/src/routes/universe.ts` still calls `getOptionableCatalogMeta` at the same status-flow decision points.
+
+#### Test Review
+
+The focused tests cover:
+
+- normalization uppercase/dedupe/sort behavior;
+- non-array fallback;
+- complete catalog count inference;
+- incomplete catalog count inference with unknown symbols;
+- explicit count fields taking precedence.
+
+The tests are isolated and use the existing backend `assert`/`tsx` convention.
+
+#### Ponytail-Style Findings
+
+- `shrink`: the route sheds pure catalog parsing code.
+- `yagni`: no speculative abstraction was introduced; the module has a concrete route consumer and tests.
+
+#### Remaining Concerns
+
+No blocking concerns.
+
+Future route-level fixture tests would be useful when the status response assembly is extracted, but they are not required for this pure helper slice.
+
+
+---
+
+## 119. Validator -> Builder: Extract universe price snapshot module
+
+- Routing ID: `route-20260620-135639-validator-to-builder-47dac03c`
+- Type: `directive`
+- Phase: `universe-price-snapshot-module`
+- Timestamp: `2026-06-20T13:56:39Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-price-snapshot-module.md`
+- Body: `agent-relay/messages/route-20260620-135639-validator-to-builder-47dac03c.md`
+- SHA-256: `d507ae20637e0e64b0a7a299cd4ba88dac0b2e6e4a468ae30e9e753902b77c5b`
+
+### Validator Directive: Universe Price Snapshot Module
+
+Selected package: `medium-large-modular-web`
+
+Affected domain: `universe`
+
+#### Objective
+
+Builder will extract universe price snapshot/cache behavior from the universe route into a domain-owned module with focused tests.
+
+#### Current Files Involved
+
+- `backend/src/routes/universe.ts`
+- `backend/package.json`
+
+#### Target Files
+
+- `backend/src/modules/universe/universePriceSnapshot.ts`
+- `backend/src/modules/universe/universePriceSnapshot.test.ts`
+- `backend/package.json`
+
+#### Requirements
+
+- Preserve `/api/universe/prices` response behavior.
+- Preserve status freshness behavior for universe manifest and price snapshot cache.
+- Keep filesystem paths supplied by the route.
+- Do not change API paths, frontend files, data formats, Python services, or subprocess orchestration.
+- Follow existing backend `assert`/`tsx` test style.
+
+#### Required Pre-Edit Evidence
+
+Builder must run GitNexus impact/context checks for:
+
+- `buildUniversePriceSnapshot`
+- `readLastCloseFromCsv`
+- `readPersistedPriceSnapshot`
+- `persistPriceSnapshot`
+- `buildUniverseFreshness`
+
+#### Verification Commands
+
+```powershell
+npm.cmd --prefix backend run universe-price-snapshot:test
+npm.cmd --prefix backend run universe-catalog-meta:test
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+#### STOP Conditions
+
+Stop and report if:
+
+- GitNexus returns HIGH or CRITICAL risk;
+- extraction changes response shape or cache semantics;
+- focused tests require production data, network, Python services, or a running server.
+
+
+---
+
+## 120. Editor -> Validator: Universe price snapshot module Editor review
+
+- Routing ID: `route-20260620-135759-editor-to-validator-201b02d2`
+- Type: `report`
+- Phase: `universe-price-snapshot-module`
+- Timestamp: `2026-06-20T13:57:59Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-universe-price-snapshot-module-editor-report.md`
+- Body: `agent-relay/messages/route-20260620-135759-editor-to-validator-201b02d2.md`
+- SHA-256: `957eb89b3783cee988e4c547fbbc8431c71f1a28468240701431bb2a58452a31`
+
+### Editor Report: Universe Price Snapshot Module
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-price-snapshot-module-builder-report.md`
+
+#### Anti-Spaghetti Review
+
+Editor found no `EDITOR BLOCKER`.
+
+The extraction improves the universe boundary. `universePriceSnapshot.ts` owns domain-specific price snapshot behavior and keeps Express concerns out of the module.
+
+#### Architecture Review
+
+Accepted:
+
+- Route remains the HTTP owner.
+- Runtime paths are still created in `backend/src/routes/universe.ts` and injected into the module.
+- The module owns in-memory price snapshot cache state through a concrete service factory.
+- Tests live beside the domain module.
+- No new test framework or generic helper bucket was introduced.
+
+#### Behavior Preservation Review
+
+No route path changed.
+No frontend file changed.
+No data format changed.
+No Python subprocess behavior changed.
+
+The `/api/universe/prices` handler still:
+
+- checks the manifest exists;
+- reads `force_refresh`;
+- returns count, prices, and freshness;
+- uses the same TTL and cache file path.
+
+#### Test Review
+
+The focused tests cover:
+
+- ISO timestamp parsing;
+- universe freshness helper behavior;
+- last close parsing from CSV tails;
+- manifest last-close snapshot entries;
+- CSV fallback snapshot entries;
+- memory cache reuse;
+- disk cache reuse.
+
+The tests use temporary directories and require no production data, network, Python service, or running server.
+
+#### Ponytail-Style Findings
+
+- `shrink`: route loses price snapshot/cache implementation details.
+- `yagni`: the service factory is justified by current in-memory cache ownership and injected runtime paths.
+
+#### Remaining Concerns
+
+No blocking concerns.
+
+Future route-level tests would be useful when status/prices response assembly is extracted, but they are not required for this slice.
+
+
+---
+
+## 121. Builder -> Validator: Universe price snapshot module Builder report
+
+- Routing ID: `route-20260620-135759-builder-to-validator-808c85e5`
+- Type: `report`
+- Phase: `universe-price-snapshot-module`
+- Timestamp: `2026-06-20T13:57:59Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-universe-price-snapshot-module-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-135759-builder-to-validator-808c85e5.md`
+- SHA-256: `91a9540aee64095fb081aa170f6a06980c28f72888211cf9b24657ccaf737e4e`
+
+### Builder Report: Universe Price Snapshot Module
+
+Directive: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-price-snapshot-module.md`
+
+#### Summary
+
+Builder extracted universe price snapshot/cache behavior from `backend/src/routes/universe.ts` into a domain-owned module and added focused tests.
+
+#### GitNexus Evidence
+
+Pre-edit checks:
+
+- `buildUniversePriceSnapshot`: LOW risk; direct dependent confined to `backend/src/routes/universe.ts`; no affected processes.
+- `readLastCloseFromCsv`: LOW risk; direct dependent `buildUniversePriceSnapshot`; no affected processes.
+- `readPersistedPriceSnapshot`: LOW risk; direct dependent `buildUniversePriceSnapshot`; no affected processes.
+- `persistPriceSnapshot`: LOW risk; direct dependent `buildUniversePriceSnapshot`; no affected processes.
+- `buildUniverseFreshness`: LOW risk; direct dependent confined to `backend/src/routes/universe.ts`; no affected processes.
+
+Final detection:
+
+- `mcp__gitnexus.detect_changes(scope="all")` reported LOW risk and no affected execution flows.
+
+#### Changed Files
+
+- `backend/src/modules/universe/universePriceSnapshot.ts`
+  - New domain module for price snapshot building, CSV tail fallback, cache envelope persistence, in-memory cache ownership, timestamp parsing, and universe freshness helper.
+- `backend/src/modules/universe/universePriceSnapshot.test.ts`
+  - Tests timestamp parsing, freshness helper behavior, CSV tail close parsing, manifest close extraction, CSV fallback extraction, memory cache reuse, and disk cache reuse.
+- `backend/src/routes/universe.ts`
+  - Imports `createUniversePriceSnapshotService`, `buildUniverseFreshness`, and `UniversePriceSnapshot`.
+  - Supplies the same existing runtime paths to the service.
+  - Keeps all `/api/universe/*` route handlers in place.
+- `backend/package.json`
+  - Adds `universe-price-snapshot:test`.
+  - Adds the focused test to the aggregate backend `test` script.
+- `.planning/plans/ACTIVE/universe-price-snapshot-module-*`
+  - Adds and updates the PRD/checklist pair for this slice.
+
+#### Verification
+
+- `npm.cmd --prefix backend run universe-price-snapshot:test` passed.
+- `npm.cmd --prefix backend run universe-catalog-meta:test` passed.
+- `npm.cmd --prefix backend run universe-job-progress:test` passed.
+- `npm.cmd --prefix backend run build` passed.
+- `python tools\agent_router.py verify` passed with `ok: true`, `checked: 119`.
+
+#### Behavior Preservation
+
+No API paths changed.
+No frontend files changed.
+No data format changed.
+No Python service/subprocess behavior changed.
+
+The route still supplies `DATA_DIR`, `MANIFEST_PATH`, `PRICE_SNAPSHOT_CACHE_PATH`, and `UNIVERSE_PRICE_SNAPSHOT_TTL_MS`, preserving runtime path semantics.
+
+#### Residual Risk
+
+Residual risk is low. The focused tests cover cache and snapshot behavior with temporary files, but they do not start the Express route or exercise a browser workflow.
+
+
+---
+
+## 122. Validator -> Editor: Review universe price snapshot module
+
+- Routing ID: `route-20260620-135806-validator-to-editor-7f68a17b`
+- Type: `directive`
+- Phase: `universe-price-snapshot-module`
+- Timestamp: `2026-06-20T13:58:06Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-universe-price-snapshot-module-review.md`
+- Body: `agent-relay/messages/route-20260620-135806-validator-to-editor-7f68a17b.md`
+- SHA-256: `d6b284e32da54dcb323d1e0436a9b28326910dc30edbba8920e3d8dd8bbb1dff`
+
+### Validator Directive: Editor Review Universe Price Snapshot Module
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-price-snapshot-module-builder-report.md`
+
+#### Objective
+
+Editor will review the price snapshot extraction for maintainability, architecture drift, runtime path preservation, and test quality.
+
+#### Review Scope
+
+- `backend/src/modules/universe/universePriceSnapshot.ts`
+- `backend/src/modules/universe/universePriceSnapshot.test.ts`
+- `backend/src/routes/universe.ts`
+- `backend/package.json`
+
+#### Requirements
+
+- Confirm the new module is domain-owned and not a generic helper bucket.
+- Confirm runtime paths remain supplied by the route.
+- Confirm `/api/universe/prices` response behavior is preserved.
+- Confirm tests follow existing backend `assert`/`tsx` style and use temp files only.
+- Mark any blocking issue as `EDITOR BLOCKER`.
+
+#### Verification Evidence To Review
+
+```powershell
+npm.cmd --prefix backend run universe-price-snapshot:test
+npm.cmd --prefix backend run universe-catalog-meta:test
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+
+---
+
+## 123. Validator -> Builder: Extract universe job command builders
+
+- Routing ID: `route-20260620-140047-validator-to-builder-12fc4065`
+- Type: `directive`
+- Phase: `universe-job-commands-module`
+- Timestamp: `2026-06-20T14:00:47Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-job-commands-module.md`
+- Body: `agent-relay/messages/route-20260620-140047-validator-to-builder-12fc4065.md`
+- SHA-256: `d4b8cea8996ca68225a9940a92fc3b5aae31b6cab75821cc72ed0b5068b0c4e3`
+
+### Validator Directive: Universe Job Commands Module
+
+Selected package: `medium-large-modular-web`
+
+Affected domain: `universe`
+
+#### Objective
+
+Builder will extract Python subprocess command construction from the universe route into a tested domain module.
+
+#### Current Files Involved
+
+- `backend/src/routes/universe.ts`
+- `backend/package.json`
+
+#### Target Files
+
+- `backend/src/modules/universe/universeJobCommands.ts`
+- `backend/src/modules/universe/universeJobCommands.test.ts`
+- `backend/package.json`
+
+#### Requirements
+
+- Preserve command, args, and cwd behavior.
+- Keep process spawning/listeners/close handlers in the route.
+- Do not change API paths, frontend files, data formats, Python scripts, or subprocess lifecycle behavior.
+- Follow existing backend `assert`/`tsx` test style.
+
+#### Required Pre-Edit Evidence
+
+Builder must run GitNexus impact/context checks for the universe route before editing.
+
+#### Verification Commands
+
+```powershell
+npm.cmd --prefix backend run universe-job-commands:test
+npm.cmd --prefix backend run universe-price-snapshot:test
+npm.cmd --prefix backend run universe-catalog-meta:test
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+#### STOP Conditions
+
+Stop and report if:
+
+- GitNexus returns HIGH or CRITICAL risk;
+- preserving command/cwd behavior becomes unclear;
+- tests require spawning subprocesses.
+
+
+---
+
+## 124. Builder -> Validator: Universe job commands module Builder report
+
+- Routing ID: `route-20260620-140212-builder-to-validator-b4277746`
+- Type: `report`
+- Phase: `universe-job-commands-module`
+- Timestamp: `2026-06-20T14:02:12Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-universe-job-commands-module-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-140212-builder-to-validator-b4277746.md`
+- SHA-256: `c716a03641ecc2d81fdb4d971fffa43d7bfc3d03982bd556ec051324b15e8e0a`
+
+### Builder Report: Universe Job Commands Module
+
+Directive: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-job-commands-module.md`
+
+#### Summary
+
+Builder extracted universe subprocess command construction into a domain-owned module while leaving process lifecycle handling in `backend/src/routes/universe.ts`.
+
+#### GitNexus Evidence
+
+Pre-edit check:
+
+- `backend/src/routes/universe.ts` file impact: LOW risk; direct importer `backend/src/server.ts`; no affected processes.
+
+Final detection:
+
+- `mcp__gitnexus.detect_changes(scope="all")` reported LOW risk and no affected execution flows.
+
+#### Changed Files
+
+- `backend/src/modules/universe/universeJobCommands.ts`
+  - New command builder module for build, optionable rebuild, update, and regime classification jobs.
+- `backend/src/modules/universe/universeJobCommands.test.ts`
+  - Focused tests for command, args, and cwd behavior.
+- `backend/src/routes/universe.ts`
+  - Uses command builders.
+  - Still owns `spawn`, stdout/stderr listeners, close handlers, active job state, cancellation, and HTTP responses.
+- `backend/package.json`
+  - Adds `universe-job-commands:test`.
+  - Adds the focused test to aggregate `test`.
+
+#### Verification
+
+- `npm.cmd --prefix backend run universe-job-commands:test` passed.
+- `npm.cmd --prefix backend run universe-price-snapshot:test` passed.
+- `npm.cmd --prefix backend run universe-catalog-meta:test` passed.
+- `npm.cmd --prefix backend run universe-job-progress:test` passed.
+- `npm.cmd --prefix backend run build` passed.
+- `python tools\agent_router.py verify` passed with `ok: true`, `checked: 123`.
+
+#### Behavior Preservation
+
+No subprocess lifecycle behavior was intentionally moved or changed.
+No API paths changed.
+No frontend files changed.
+No data formats changed.
+No Python scripts changed.
+
+Command construction still uses `path.join` for script paths, matching previous route behavior.
+
+#### Residual Risk
+
+Residual risk is low. Tests verify constructed commands without spawning Python. Runtime process lifecycle remains in the existing route.
+
+
+---
+
+## 125. Editor -> Validator: Universe job commands module Editor review
+
+- Routing ID: `route-20260620-140212-editor-to-validator-38d85676`
+- Type: `report`
+- Phase: `universe-job-commands-module`
+- Timestamp: `2026-06-20T14:02:12Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-universe-job-commands-module-editor-report.md`
+- Body: `agent-relay/messages/route-20260620-140212-editor-to-validator-38d85676.md`
+- SHA-256: `d440b60ddfdc56f74583cb1d2611508038c2ef266dac7a7b16b8d54e881d53b0`
+
+### Editor Report: Universe Job Commands Module
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-job-commands-module-builder-report.md`
+
+#### Anti-Spaghetti Review
+
+Editor found no `EDITOR BLOCKER`.
+
+The extraction is appropriately narrow. It moves command construction into a domain-owned module without moving live process lifecycle.
+
+#### Architecture Review
+
+Accepted:
+
+- `universeJobCommands.ts` is domain-specific.
+- The route remains the owner of `spawn`, listeners, close handlers, cancellation, and response timing.
+- Tests live beside the domain module.
+- No new process abstraction was introduced.
+
+#### Behavior Preservation Review
+
+The command builders preserve:
+
+- command `py`;
+- script path construction with `path.join`;
+- build args, including conditional `--skip-options-check`;
+- optionable rebuild args;
+- update args and cwd;
+- regime classification args without cwd.
+
+#### Test Review
+
+Tests cover all four command builders and do not spawn subprocesses.
+
+#### Remaining Concerns
+
+No blocking concerns.
+
+Moving live process lifecycle should be a separate, higher-caution slice with tests around lifecycle callbacks or a small injected process runner.
+
+
+---
+
+## 126. User -> Validator: Post universe migration runtime smoke evidence
+
+- Routing ID: `route-20260620-140635-user-to-validator-cbe5c5a4`
+- Type: `evidence`
+- Phase: `universe-migration-runtime-smoke`
+- Timestamp: `2026-06-20T14:06:35Z`
+- Original: `agent-relay/roles/User/outbox/2026-06-20-post-universe-slices-runtime-smoke.md`
+- Body: `agent-relay/messages/route-20260620-140635-user-to-validator-cbe5c5a4.md`
+- SHA-256: `64061efe10cc6f15da471e2bee19281fd5dca0f1c7227b7cf02b6f12e28b12fb`
+
+### User Runtime Smoke Evidence: Post Universe Migration Slices
+
+The User/Mediator manually opened the app after the accepted universe migration slices.
+
+Observed working:
+
+- App opened and continued running in the background without crashing.
+- Market Intelligence flow called the backend and database successfully.
+- Consumer Cycle flow called the backend and database successfully.
+- A chart loaded successfully.
+- A chart with a preloaded indicator loaded successfully.
+
+User/Mediator reported: so far, no problems with the app.
+
+This smoke evidence supports the accepted low-risk helper/module extraction slices, but it does not validate unperformed live subprocess lifecycle extraction.
+
+
+---
+
+## 127. Validator -> Builder: Extract universe job lifecycle state helpers
+
+- Routing ID: `route-20260620-140913-validator-to-builder-b4bddd4c`
+- Type: `directive`
+- Phase: `universe-job-lifecycle-state`
+- Timestamp: `2026-06-20T14:09:13Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-job-lifecycle-state.md`
+- Body: `agent-relay/messages/route-20260620-140913-validator-to-builder-b4bddd4c.md`
+- SHA-256: `9f9c76bc302078f34830370738b0d7a8ec5cbc48846496afab87d3aef73f86f9`
+
+### Validator Directive: Universe Job Lifecycle State Helpers
+
+Selected package: `medium-large-modular-web`
+
+Affected domain: `universe`
+
+#### Objective
+
+Builder will extract pure `UniverseJob` lifecycle state mutations from the universe route into a tested domain module.
+
+#### Current Files Involved
+
+- `backend/src/routes/universe.ts`
+- `backend/src/modules/universe/universeJobProgress.ts`
+- `backend/package.json`
+
+#### Target Files
+
+- `backend/src/modules/universe/universeJobLifecycle.ts`
+- `backend/src/modules/universe/universeJobLifecycle.test.ts`
+- `backend/package.json`
+
+#### Requirements
+
+- Preserve job success/failure/cancel state behavior.
+- Preserve regime progress line parsing behavior.
+- Keep `spawn`, stdout/stderr listeners, close handlers, active process assignment, and HTTP responses in the route.
+- Do not change API paths, frontend files, Python scripts, data formats, or process ownership.
+
+#### Verification Commands
+
+```powershell
+npm.cmd --prefix backend run universe-job-lifecycle:test
+npm.cmd --prefix backend run universe-job-commands:test
+npm.cmd --prefix backend run universe-price-snapshot:test
+npm.cmd --prefix backend run universe-catalog-meta:test
+npm.cmd --prefix backend run universe-job-progress:test
+npm.cmd --prefix backend run build
+python tools\agent_router.py verify
+```
+
+#### STOP Conditions
+
+Stop and report if:
+
+- preserving lifecycle behavior becomes unclear;
+- tests require subprocess spawning;
+- existing universe tests or backend build fail.
+
+
+---
+
+## 128. Builder -> Validator: Universe job lifecycle state Builder report
+
+- Routing ID: `route-20260620-141041-builder-to-validator-7948b02c`
+- Type: `report`
+- Phase: `universe-job-lifecycle-state`
+- Timestamp: `2026-06-20T14:10:41Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-universe-job-lifecycle-state-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-141041-builder-to-validator-7948b02c.md`
+- SHA-256: `a88122263febc0211f1e2d987f6b8e9dc37464cf987852d1b23911a6d99794e3`
+
+### Builder Report: Universe Job Lifecycle State Helpers
+
+Directive: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-job-lifecycle-state.md`
+
+#### Summary
+
+Builder extracted pure `UniverseJob` lifecycle state mutation helpers while preserving process ownership in `backend/src/routes/universe.ts`.
+
+#### Changed Files
+
+- `backend/src/modules/universe/universeJobLifecycle.ts`
+  - Adds `completeUniverseJobFromExitCode`, `cancelUniverseJob`, and `applyRegimeProgressLine`.
+- `backend/src/modules/universe/universeJobLifecycle.test.ts`
+  - Tests success, failure, null-code failure, cancellation, regime progress parsing, and unmatched regime lines.
+- `backend/src/routes/universe.ts`
+  - Uses lifecycle helpers.
+  - Still owns `spawn`, stdout/stderr listeners, close handlers, active process assignment, cancellation trigger, and HTTP responses.
+- `backend/package.json`
+  - Adds `universe-job-lifecycle:test`.
+  - Adds the test to aggregate `test`.
+
+#### Verification
+
+- `npm.cmd --prefix backend run universe-job-lifecycle:test` passed.
+- `npm.cmd --prefix backend run universe-job-commands:test` passed.
+- `npm.cmd --prefix backend run universe-price-snapshot:test` passed.
+- `npm.cmd --prefix backend run universe-catalog-meta:test` passed.
+- `npm.cmd --prefix backend run universe-job-progress:test` passed.
+- `npm.cmd --prefix backend run build` passed.
+- `python tools\agent_router.py verify` passed with `ok: true`, `checked: 127`.
+- `mcp__gitnexus.detect_changes(scope="all")` reported LOW risk and no affected execution flows.
+
+#### Behavior Preservation
+
+No process runner was moved.
+No API paths changed.
+No frontend files changed.
+No Python scripts changed.
+No data formats changed.
+
+State mutation behavior was preserved for success, failure, cancellation, and regime progress lines.
+
+#### Residual Risk
+
+Residual risk is low for this slice. The next possible extraction, process runner ownership, is higher risk and should not proceed without a fake process or integration-test strategy.
+
+
+---
+
+## 129. Editor -> Validator: Universe job lifecycle state Editor review
+
+- Routing ID: `route-20260620-141041-editor-to-validator-ded8872e`
+- Type: `report`
+- Phase: `universe-job-lifecycle-state`
+- Timestamp: `2026-06-20T14:10:41Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-universe-job-lifecycle-state-editor-report.md`
+- Body: `agent-relay/messages/route-20260620-141041-editor-to-validator-ded8872e.md`
+- SHA-256: `e8dd6b512a3b6fdc6a03552bf6ce860a4c36d7339a54b4ccf11fefb592d17708`
+
+### Editor Report: Universe Job Lifecycle State Helpers
+
+Builder report: `agent-relay/roles/Builder/reports/2026-06-20-universe-job-lifecycle-state-builder-report.md`
+
+#### Anti-Spaghetti Review
+
+Editor found no `EDITOR BLOCKER`.
+
+The extraction is appropriately constrained. It moves pure state mutation only and does not introduce a process runner abstraction.
+
+#### Architecture Review
+
+Accepted:
+
+- `universeJobLifecycle.ts` is domain-specific.
+- The route remains the owner of live subprocess lifecycle.
+- Tests live beside the domain module.
+- No generic helper bucket was introduced.
+
+#### Behavior Preservation Review
+
+The helpers preserve existing behavior for:
+
+- exit code `0` completion;
+- non-zero and `null` exit failure;
+- cancellation state;
+- regime progress line parsing.
+
+#### Remaining Concerns
+
+No blocking concerns for this slice.
+
+Editor recommends stopping before process runner extraction until a fake process/integration strategy exists.
 
 
 ---
