@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781999260410`
+- Last mirrored epoch ms: `1781999676098`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,75 +5721,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-it calls the new domain module internally.
-
-5. **Verify behavior did not change**
-   Same route, same response shape, same button behavior, same status display.
-
-6. **Repeat**
-   Over time, more behavior moves behind domain modules. Eventually the old folders become thin adapters or disappear.
-
-So the migration style is:
-
-```text
-current app
-  -> audit one domain flow
-  -> extract one behavior into target boundary
-  -> keep old entrypoints stable
-  -> verify
-  -> repeat
-```
-
-The key rule:
-
-**We migrate behavior, not folders.**
-
-The final architecture is the compass, not the first patch.
-
-Pattern Detector should keep running the whole time. The first “real” code slice should be so small that if it fails, we understand exactly why.
-
-### User - 2026-06-20T13:28:46.003Z
-
-OK All right let's do it we've got a backup copy Umm we have so anything Here's the here's the thing we don't commit to get during this process and actually what we should do OK we should make one more final safety check is we make a complete umm commit to get right now so we have a backup copy we have a git copy we should be safe
-
-### Assistant - 2026-06-20T13:29:00.389Z
-
-Yes. That gives us two rollback anchors: the local filesystem snapshot outside git, and a real git commit at the current state before migration code starts. I’m going to make one safety commit of the current worktree, but first I’ll run the required GitNexus change detection and router verify so the commit has a clean preflight.
-
-### Assistant - 2026-06-20T13:29:10.671Z
-
-Preflight is acceptable for a checkpoint: GitNexus reports medium risk for the current mixed worktree, and the relay verifies cleanly. Since you asked for a complete checkpoint, I’m going to stage the whole current repo state and commit it as the pre-migration safety anchor.
-
-### Assistant - 2026-06-20T13:29:19.804Z
-
-The first commit attempt hit the sandbox, not a git content problem: it could not create `.git/index.lock`, so nothing was staged or committed. I’m rerunning the same checkpoint with elevated git access, then I’ll verify the new commit hash and clean/dirty status.
-
-### Assistant - 2026-06-20T13:29:56.795Z
-
-Done. We now have both safety anchors.
-
-Local backup:
-
-```text
-C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector-backups\pre-modular-migration-code-20260620-061636
-```
-
-Git checkpoint commit:
-
-```text
-49720a2b1 Checkpoint before modular domain migration
-```
-
-Preflight before commit:
-
-```text
-GitNexus detect_changes: medium risk
-agent_router verify: ok, checked 107
-```
-
-The repo is now clean relative to that checkpoint, and the branch is ahead of origin. I did **not** push, so this is a local git safety point plus the filesystem backup.
-
-### User - 2026-06-20T13:32:03.815Z
+15Z
 
 OK from now on nothing pushed to get until if we do push it's completely a different branch
 
@@ -8022,4 +7954,66 @@ Only the intended state/route files and memory mirrors are dirty. Running GitNex
 ### Assistant - 2026-06-20T23:47:38.794Z
 
 GitNexus is low risk with no affected processes. I’m staging and committing this final refinement.
+
+### Assistant - 2026-06-20T23:47:46.597Z
+
+Staged. Quick scope check, then commit.
+
+### Assistant - 2026-06-20T23:47:48.958Z
+
+Staged set is scoped to the `startPlan` refinement and memory snapshots. Committing now.
+
+### Assistant - 2026-06-20T23:47:59.956Z
+
+Checkpoint made: `ec244c32d Centralize universe job plan startup`. I’m doing the post-commit GitNexus refresh and final status/build sanity for this batch.
+
+### Assistant - 2026-06-20T23:49:16.378Z
+
+Post-commit index refresh is complete. Only live cursor memory files are dirty; I’m doing one final quick build and detect check so this ends at a known-good boundary.
+
+### Assistant - 2026-06-20T23:49:38.924Z
+
+Build and relay are green. GitNexus again rewrote `AGENTS.md`/`CLAUDE.md` during the post-commit analyze, so I’m removing that tool side effect before I give the final status.
+
+### Assistant - 2026-06-20T23:50:24.854Z
+
+The analyzer doc side effects are removed again. I’m checking final status and diffs now.
+
+### Assistant - 2026-06-20T23:50:32.670Z
+
+Continued and landed three more local checkpoints:
+
+- `51b1175a9` Extract universe active job state
+- `f52746ebf` Extract universe job plans
+- `ec244c32d` Centralize universe job plan startup
+
+The big win: [backend/src/routes/universe.ts](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/backend/src/routes/universe.ts) is now down to 181 lines. It no longer owns raw active job/process state, and the job+command pairing now lives in tested module code instead of being hand-built in each route.
+
+Verified:
+- New/affected focused tests passed.
+- Backend `tsc` build passed.
+- Relay verifier passed: `checked: 135`.
+- GitNexus detect stayed low risk with no affected processes before commits.
+
+No push. Current dirty files are only live memory/transcript mirrors.
+
+### User - 2026-06-20T23:53:32.188Z
+
+continue
+
+### Assistant - 2026-06-20T23:53:43.080Z
+
+Continuing. I’ll take another small slice from the now-leaner universe route, with the same guardrails: inspect, impact check where GitNexus can resolve it, edit narrowly, test/build, detect, and commit locally only.
+
+### Assistant - 2026-06-20T23:53:54.384Z
+
+The next tiny seam is the repeated conflict check against `activeState.getJob()`. I’m going to put that on `UniverseActiveJobState` as `getConflict()`, which keeps the route from reaching into state just to ask “can I start?”
+
+### Assistant - 2026-06-20T23:53:59.356Z
+
+Impact is low: direct route usage, indirect server import, no affected processes. I’m making the state-conflict extraction now and pinning it with a focused test.
+
+### Assistant - 2026-06-20T23:54:27.938Z
+
+The conflict check now lives with active job state. I’m running the focused state/lifecycle tests and the backend build.
 

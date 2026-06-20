@@ -1,5 +1,9 @@
 import { UniverseJob } from './universeJobProgress';
-import { cancelActiveUniverseJob } from './universeJobLifecycle';
+import {
+  UniverseJobConflict,
+  cancelActiveUniverseJob,
+  getRunningUniverseJobConflict,
+} from './universeJobLifecycle';
 import { UniverseProcessRunnerProcess } from './universeProcessRunner';
 import { UniverseJobPlan } from './universeJobPlans';
 import { UniverseProcessStartOptions } from './universeProcessStarter';
@@ -13,6 +17,10 @@ export class UniverseActiveJobState {
 
   getJob(): UniverseJob | null {
     return this.activeJob;
+  }
+
+  getConflict(includeWaitMessage = true): UniverseJobConflict | null {
+    return getRunningUniverseJobConflict(this.activeJob, includeWaitMessage);
   }
 
   setJob(job: UniverseJob): void {

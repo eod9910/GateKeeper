@@ -44,6 +44,22 @@ function testStoresJobAndClearsProcess() {
   assert.strictEqual(process.killed, false);
 }
 
+function testReportsRunningJobConflict() {
+  const state = new UniverseActiveJobState();
+  const job = createJob();
+
+  assert.strictEqual(state.getConflict(), null);
+  state.setJob(job);
+  assert.deepStrictEqual(state.getConflict(), {
+    success: false,
+    error: 'A update job is already running. Wait for it to complete.',
+  });
+  assert.deepStrictEqual(state.getConflict(false), {
+    success: false,
+    error: 'A update job is already running.',
+  });
+}
+
 function testCancelsActiveJobAndProcess() {
   const state = new UniverseActiveJobState();
   const job = createJob();
@@ -91,6 +107,7 @@ function testStartsPlanAndStoresJobAndProcess() {
 
 function main() {
   testStoresJobAndClearsProcess();
+  testReportsRunningJobConflict();
   testCancelsActiveJobAndProcess();
   testStartsPlanAndStoresJobAndProcess();
   console.log('universeActiveJobState tests passed');

@@ -30,9 +30,6 @@ import {
   createUniverseBuildPlan,
   createUniverseUpdatePlan,
 } from '../modules/universe/universeJobPlans';
-import {
-  getRunningUniverseJobConflict,
-} from '../modules/universe/universeJobLifecycle';
 import { UniverseActiveJobState } from '../modules/universe/universeActiveJobState';
 import { createUniverseProcessStarter } from '../modules/universe/universeProcessStarter';
 import { createUniverseRouteConfig } from '../modules/universe/universeRouteConfig';
@@ -93,7 +90,7 @@ router.get('/prices', async (req: Request, res: Response) => {
 
 // ─── POST /api/universe/build ─────────────────────────────────────────────────
 router.post('/build', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeState.getJob());
+  const conflict = activeState.getConflict();
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseUniverseBuildRequestParams(req.body);
@@ -109,7 +106,7 @@ router.post('/build', async (req: Request, res: Response) => {
 
 // ─── POST /api/universe/update ────────────────────────────────────────────────
 router.post('/rebuild-optionable', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeState.getJob());
+  const conflict = activeState.getConflict();
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseOptionableRebuildRequestParams(req.body);
@@ -122,7 +119,7 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
 });
 
 router.post('/update', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeState.getJob(), false);
+  const conflict = activeState.getConflict(false);
   if (conflict) return res.status(409).json(conflict);
 
   if (!(await canAccessUniverseFile(routeConfig.manifestPath))) {
@@ -145,7 +142,7 @@ router.post('/update', async (req: Request, res: Response) => {
 // Runs build_regime_universes.py to classify all universe stocks by market phase
 // (expansion / distribution / accumulation / markdown) and save the JSON files.
 router.post('/classify-regimes', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeState.getJob());
+  const conflict = activeState.getConflict();
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseRegimeClassificationRequestParams(req.body);
