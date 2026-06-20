@@ -144,9 +144,65 @@
     return equivolBars.length ? equivolBars : bars;
   }
 
+  // Compute a single Heikin-Ashi bar from a raw OHLC bar and the previous HA
+  // open/close. Returns a NEW object (never mutates input); preserves `time` and
+  // passes `volume`/`tick_volume` through unchanged. Non-finite OHLC inputs are
+  // passed through untransformed (never throws). This is the single source of
+  // truth for the HA math, reused by computeHeikinAshi and the live poller.
+  function computeHeikinAshiBar(bar, prevHaOpen, prevHaClose) {
+    var next = Object.assign({}, bar || {});
+    if (!bar) return next;
+    var o = Number(bar.open);
+    var h = Number(bar.high);
+    var l = Number(bar.low);
+    var c = Number(bar.close);
+    if (!Number.isFinite(o) || !Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c)) {
+      return next;
+    }
+    var haClose = (o + h + l + c) / 4;
+    var haOpen = (Number.isFinite(prevHaOpen) && Number.isFinite(prevHaClose))
+      ? (prevHaOpen + prevHaClose) / 2
+      : (o + c) / 2;
+    var haHigh = Math.max(h, haOpen, haClose);
+    var haLow = Math.min(l, haOpen, haClose);
+    next.open = haOpen;
+    next.high = haHigh;
+    next.low = haLow;
+    next.close = haClose;
+    return next;
+  }
+
+  // Transform an array of raw OHLC bars into Heikin-Ashi bars. Does NOT mutate
+  // the input array or its bars. Preserves `time` and passes `volume`/
+  // `tick_volume` through unchanged (equivolume width depends on real volume).
+  // Handles empty/short input and non-finite values defensively (never throws).
+  function computeHeikinAshi(bars) {
+    if (!Array.isArray(bars) || bars.length === 0) return [];
+    var out = [];
+    var prevHaOpen = NaN;
+    var prevHaClose = NaN;
+    for (var i = 0; i < bars.length; i += 1) {
+      var bar = bars[i];
+      if (!bar) continue;
+      var haBar = computeHeikinAshiBar(bar, prevHaOpen, prevHaClose);
+      out.push(haBar);
+      var io = Number(bar.open);
+      var ih = Number(bar.high);
+      var il = Number(bar.low);
+      var ic = Number(bar.close);
+      if (Number.isFinite(io) && Number.isFinite(ih) && Number.isFinite(il) && Number.isFinite(ic)) {
+        prevHaOpen = haBar.open;
+        prevHaClose = haBar.close;
+      }
+    }
+    return out;
+  }
+
   window.SharedChartUtils = {
     sanitizeChartData: sanitizeChartData,
     getCandlestickSeriesOptions: getCandlestickSeriesOptions,
     buildEqualVolumeBars: buildEqualVolumeBars,
+    computeHeikinAshi: computeHeikinAshi,
+    computeHeikinAshiBar: computeHeikinAshiBar,
   };
 })();

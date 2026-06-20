@@ -1,6 +1,6 @@
 # Agent Relay Transcript: All Phases (last 30 days)
 
-Generated: 2026-06-18T05:38:58Z
+Generated: 2026-06-20T13:00:33Z
 
 > Retention: this hot timeline shows only routes from the last 30 days (relative to the newest route in routes.jsonl). Older routes are archived by month under `agent-relay/transcripts/archive/all-YYYY-MM.md`. The immutable source of truth is `agent-relay/router/routes.jsonl`.
 
@@ -4133,6 +4133,2705 @@ touching control flow, the windowing math, the gating, or any emitted format.
 NO BLOCKER. Validated behavior is preserved; my edits are purely structural
 (dead-import removal + helper deduplication) and verified to leave verify,
 regenerate, and the dry-run plan byte-identical.
+
+
+---
+
+## 67. Validator -> Editor: Editor Cleanup Pass: Chart Cache Coalescing
+
+- Routing ID: `route-20260619-035637-validator-to-editor-28ce4bfd`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `chart-performance-cache-coalescing`
+- Timestamp: `2026-06-19T03:56:37Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-18-editor-review-chart-cache-coalescing.md`
+- Body: `agent-relay/messages/route-20260619-035637-validator-to-editor-28ce4bfd.md`
+- SHA-256: `1d3dbe82686c42e0d16a5ef50859a4d0a71ffd461777b3313c8c91a9357c747f`
+
+### Validator Directive — Editor Cleanup Pass: Chart Performance / Cache Coalescing
+
+- Date: 2026-06-18
+- Phase: chart-performance-cache-coalescing
+- From: Validator
+- To: Editor
+- Tier: 2 (data-critical concurrency in shared DataCache + frontend chart path)
+- Type: REVIEW DIRECTIVE (anti-spaghetti cleanup pass)
+
+#### Context (full disclosure)
+
+This change set was implemented OUT OF BAND — directly by the running agent, NOT
+through a Builder handoff. There is no Builder report. The Editor is therefore
+reviewing un-Built, un-reviewed code. Treat every claim below as UNTRUSTED and
+verify against the actual files and `git diff`.
+
+The goal of the change set was to fix two user-reported symptoms on the scanner
+chart:
+
+1. The scanner chart did not update live (last candle stayed frozen until a
+   manual page reload).
+2. Switching timeframes took a long time to load.
+
+#### Files in scope (and ONLY these)
+
+- `backend/services/plugin_service.py` — `DataCache.__init__`, new
+  `DataCache._key_lock`, and `DataCache.fetch_or_cache` (per-key fetch
+  coalescing via double-checked locking).
+- `frontend/public/chart.js` — parallelized timeframe switch (OHLCV + scan fire
+  concurrently, bars render first, scan overlays later, stale-guard), plus a new
+  `_scannerRtTick` real-time poller mirroring `copilot-chart.js`.
+
+Use `git diff -- backend/services/plugin_service.py frontend/public/chart.js`
+to see exactly what changed. Do not review unrelated code.
+
+#### What the change claims to do
+
+- `fetch_or_cache` now acquires a per-key lock (keyed by `symbol::interval::period`)
+  after an in-memory cache miss, re-checks the cache under the lock
+  (double-checked), and only the first caller hits `fetch_data_yfinance`; the rest
+  reuse the populated cache. `force_refresh` / long-history (`bypass_memory_cache`)
+  callers are serialized but still fetch.
+- `chart.js` `switchChartTimeframe` fires `/api/chart/ohlcv` and
+  `/api/candidates/scan` in parallel, renders bars as soon as OHLCV returns, then
+  overlays scan markers/levels, with an `isStale()` guard to discard results if
+  the user switched symbol/timeframe mid-flight.
+- A `_scannerRtTick` poller hits `/api/quotes` every 5s and updates the last
+  candle in place (with intraday rollover in time-indexed mode only).
+
+#### Review scope (anti-spaghetti + correctness)
+
+This is the Editor's standard anti-spaghetti pass, but because the core change is
+concurrency, the review MUST also reason about correctness, not just style:
+
+1. **Concurrency correctness of the per-key lock** (PRIMARY):
+   - Is the double-checked locking pattern correct? Any TOCTOU window that could
+     still double-fetch or return stale data?
+   - `_key_locks` grows unbounded (one `threading.Lock` per distinct
+     symbol/interval/period forever). Is that an acceptable leak for this
+     single-user service, or does it need bounding/eviction? Flag, don't fix
+     silently.
+   - Lock-hold duration: the per-key lock is held across the blocking
+     `fetch_data_yfinance` network call. Confirm it is NOT held across the
+     CPU-bound `run_strategy` (that runs in `_run_scanner_for_symbol` AFTER
+     `fetch_or_cache` returns). Confirm no nested/global lock is held during the
+     network call that could serialize unrelated symbols.
+   - Deadlock / re-entrancy: can any path call `fetch_or_cache` again while
+     holding the same key lock (e.g. `_repair_recent_forex_daily_bars` calls
+     `fetch_or_cache` for a DIFFERENT key — confirm it cannot self-deadlock)?
+   - Interaction with the 30s Node->Python timeout: a waiter blocks up to one
+     fetch duration. Is there a realistic case where the lock makes the waiter
+     EXCEED 30s and trigger the cold spawn fallback MORE often than before?
+2. **Frontend structure**: is `switchChartTimeframe` now too large / branchy?
+   Duplicated render logic across the `renderedBars` branches? Naming clarity of
+   the new module-scope globals (`_scannerRtTimer`, `window._scannerChartBars`,
+   etc.). Any leak of the `setInterval` timer across symbol switches?
+3. **Duplicated systems**: does `_scannerRtTick` duplicate `copilot-chart.js`
+   logic in a way that should be shared, or is copy acceptable here? Flag only;
+   do not unify without Validator approval (that would be new behavior risk).
+4. **Behavior preservation**: confirm the cache-hit fast path and the
+   `force_refresh` path behave exactly as before for healthy/sequential callers.
+
+#### Constraints
+
+- Editor MAY make structure-only refactors that preserve behavior (naming,
+  extracting helpers, comments). Editor MUST NOT change product behavior, alter
+  the locking semantics, or unify frontend pollers without Validator approval.
+- Editor MUST NOT certify that its own refactor preserved behavior.
+- Any issue that must be fixed before this is trusted must be labeled
+  `EDITOR BLOCKER` with: blocked artifact, why blocking, recommended owner
+  (Builder for behavior/concurrency-semantics changes, Editor for structure-only),
+  and the evidence required to clear it.
+
+#### Deliverable
+
+Write the review to:
+`agent-relay/roles/Editor/reports/2026-06-18-chart-cache-coalescing-editor-review.md`
+
+Include: anti-spaghetti review, any refactor summary + files changed (if Editor
+refactored), behavior-preservation statement (as a claim, not a certification),
+remaining structural concerns, explicit EDITOR BLOCKER list (or "none"), and a
+revalidation request back to Validator.
+
+Do NOT route to Builder. Do NOT commit. Report back to Validator only.
+
+
+---
+
+## 68. Editor -> Validator: Chart Cache Coalescing Review (1 blocker)
+
+- Routing ID: `route-20260619-040157-editor-to-validator-ddfcc43c`
+- Type: `EDITOR REVIEW`
+- Phase: `chart-performance-cache-coalescing`
+- Timestamp: `2026-06-19T04:01:57Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-18-chart-cache-coalescing-editor-review.md`
+- Body: `agent-relay/messages/route-20260619-040157-editor-to-validator-ddfcc43c.md`
+- SHA-256: `7b43de2affa238a5a7f678baecc2cdeda5901cce300951429577169d7639400e`
+
+### Editor Review — Chart Performance / Cache Coalescing
+
+- Date: 2026-06-18
+- Phase: chart-performance-cache-coalescing
+- From: Editor
+- To: Validator
+- Tier: 2 (data-critical concurrency + frontend chart path)
+- Type: Anti-spaghetti + concurrency-correctness review (no Builder report; code reviewed OUT OF BAND)
+- Files in scope (only): `backend/services/plugin_service.py`, `frontend/public/chart.js`
+
+All prior claims were treated as UNTRUSTED. Findings below are verified against
+`git --no-pager diff` and direct reads of the working-tree files. `plugin_service.py`
+passes `py_compile` (doraise) clean.
+
+---
+
+#### Anti-spaghetti review (findings tied to file:line)
+
+##### Backend — `DataCache` per-key coalescing
+
+1. **Double-checked locking is correct.** `fetch_or_cache` does the outer
+   cache check (`backend/services/plugin_service.py:100-102`), then acquires the
+   per-key lock (`:109`), then re-checks the cache under the lock
+   (`:113-116`) before fetching (`:117-118`). This is the standard, correct
+   double-checked pattern. The inner re-check is correctly gated on
+   `not bypass_memory_cache`, so `force_refresh`/long-history callers skip the
+   re-check and always fetch — matching the stated intent.
+
+2. **Lock-registry creation is race-safe.** `_key_lock`
+   (`backend/services/plugin_service.py:57-63`) serializes lock creation behind
+   `_locks_guard`, so two threads racing the same new key receive the *same*
+   `Lock` object. Without this guard, coalescing would silently fail (each
+   thread would get its own lock and both would fetch). Guard scope is minimal
+   (dict get/create only) and is NOT held across the network fetch — good.
+
+3. **Lock-hold scope is correct.** The per-key lock wraps `fetch_data_yfinance`
+   (`:117`) — intentional, this is what coalesces concurrent fetches — and is
+   released when `fetch_or_cache` returns. The CPU-bound `run_strategy` runs in
+   `_run_scanner_for_symbol` at `backend/services/plugin_service.py:619`, which
+   is AFTER `fetch_or_cache` returns at `:599`. Confirmed: the lock does NOT wrap
+   `run_strategy`. `_locks_guard` is never held across the network call, so
+   unrelated symbols/keys are not serialized.
+
+4. **No self-deadlock via `_repair_recent_forex_daily_bars`.**
+   `_repair_recent_forex_daily_bars` calls `fetch_or_cache(symbol, "1h", "720d")`
+   (`backend/services/plugin_service.py:185`). It is invoked from the
+   `/chart/ohlcv` handler at `:341`, which is AFTER that handler's own
+   `fetch_or_cache(... fetch_interval, period ...)` returned at `:331` (lock
+   released). It also targets a DIFFERENT key (`1h::720d` vs the daily key).
+   `threading.Lock` is non-reentrant, but since (a) the first lock is already
+   released and (b) the keys differ, there is no re-entrant or nested
+   self-deadlock. (Assumption, not provable from these files: `fetch_data_yfinance`
+   does not itself call back into `DATA_CACHE.fetch_or_cache`. This held by code
+   reading but I cannot certify the whole `fetch_data_yfinance` call tree here.)
+
+5. **`_key_locks` grows unbounded (per-key Lock leak) — FLAG, acceptable for
+   single-user.** `backend/services/plugin_service.py:52,62` — one
+   `threading.Lock` is created per distinct `SYMBOL::interval::period` and never
+   evicted, even after the matching `_cache` entry TTL-expires and is popped
+   (`get` at `:71`). The lock map and the cache map therefore diverge over time.
+   For a single-user local service with a bounded symbol/timeframe universe this
+   is a few thousand tiny objects at most — not a practical problem. Flagging per
+   directive; do not fix silently. If this service ever becomes multi-tenant or
+   long-lived with a large symbol universe, bound/evict the map.
+
+6. **Batch-scan path is unaffected by contention.** `/scanner/run` pre-fetches
+   via `ThreadPoolExecutor` submitting `fetch_or_cache` per symbol
+   (`backend/services/plugin_service.py:789-793`). Distinct symbols use distinct
+   keys → no lock contention; identical symbols (duplicates in a batch) now
+   correctly coalesce instead of double-fetching. Net improvement, no regression.
+
+7. **30s Node→Python timeout interaction — no increased cold-spawn risk.**
+   `PY_SERVICE_TIMEOUT_MS` = 30000 (`backend/src/services/pluginServiceClient.ts:13`),
+   `backend/src/routes/chart.ts:47,63` = 30000. A waiter on the per-key lock
+   blocks for at most ONE in-flight fetch duration, then takes the inner
+   cache-hit fast path and returns. Before this change, two same-key callers
+   (the parallel OHLCV + scan) BOTH fetched concurrently, each finishing in
+   ~`T_fetch`; now the first finishes in ~`T_fetch` and the second waits ~`T_fetch`
+   then returns from cache — i.e. the second caller's wall time is still
+   ~`T_fetch`, NOT `2·T_fetch`. So the lock does not push a waiter past 30s any
+   more than the pre-change single fetch already could, and it reduces duplicate
+   Yahoo load (less rate-limiting). No realistic increase in the cold-spawn
+   fallback. The only residual exposure is the pre-existing one: a single cold
+   Yahoo fetch that itself approaches 30s — unchanged by this diff.
+
+##### Frontend — `switchChartTimeframe` + `_scannerRtTick`
+
+8. **`switchChartTimeframe` is now larger and more branchy, with duplicated
+   UI-commit logic.** `frontend/public/chart.js:~1320-1372`. The trio
+   `commitIntervalUi()` + `document.getElementById('chart-symbol').textContent = ...`
+   + `redrawWithCurrentMode(...)` now appears in ~3 branches (bars-first render,
+   scan-found render, no-pattern fallback). A small pure helper
+   (`commitChartHeader(symbol, timeframe)`) would remove the repetition. This is a
+   structure-only opportunity; I did NOT make the edit (see Refactor summary for
+   why). Non-blocking.
+
+9. **Stale guard is reasonable.** `isStale()` compares both
+   `_chartCurrentSymbol` and `_chartCurrentInterval` against the captured
+   `switchSymbol`/`newInterval` (`frontend/public/chart.js:~1309`), and is
+   checked before bars render and before the scan overlay clobbers a newer view
+   (`return` at the post-scan check). Correct intent; prevents a late scan from
+   stomping a newer selection.
+
+10. **Double render when a candidate is found.** When the scan returns a
+    candidate, the code renders the chart-only candidate first
+    (`redrawWithCurrentMode(chartOnly)`) and then re-renders with the full
+    candidate (`redrawWithCurrentMode(candidate)`). This is the intended
+    "bars first, overlay later" UX, but it is two full redraws on the happy path.
+    Acceptable; noted so it is not mistaken for a bug.
+
+11. **New module-scope globals — naming is acceptable, one is loose.**
+    `_scannerRtTimer`, `SCANNER_RT_POLL_MS`, `SCANNER_RT_INTRADAY_SECONDS`
+    (`frontend/public/chart.js:1416-1418`) are clear and mirror the copilot
+    `_rt*`/`RT_*` convention. `window._scannerChartBars`
+    (`:863`, read at `:1431`) is a true window-global used as cross-function
+    shared state; a module-scope variable would be cleaner, but it mirrors
+    existing patterns in this file. Non-blocking.
+
+12. **Timer is NOT leaked across symbol switches, BUT is never stopped on
+    teardown.** `_scannerRtStart` calls `_scannerRtStop` first
+    (`frontend/public/chart.js:1424`), so repeated starts (one per
+    `drawPatternChart` at `:864`) replace rather than accumulate timers — at most
+    one timer exists. However, `_scannerRtStop` is exposed on `window`
+    (`:1479`) but is **never called anywhere** except inside `_scannerRtStart`
+    (verified by repo-wide search). The copilot chart stops its equivalent poller
+    in `clearChart()` via `window._rtStopChartUpdates()`
+    (`frontend/public/copilot-chart.js:1806`); the scanner chart has no
+    corresponding teardown call. Result: once started, the scanner poller hits
+    `/api/quotes` every 5s indefinitely (for the last `_chartCurrentSymbol`) until
+    the page is fully unloaded — including after the user navigates away from the
+    chart within the SPA. See EDITOR BLOCKER 1.
+
+13. **`_scannerRtTick` duplicates `copilot-chart.js` `_rtTick` — FLAG ONLY.**
+    `frontend/public/chart.js:1429-1473` re-implements essentially the same
+    `/api/quotes` poll, intraday-rollover math, and `series.update` last-bar
+    logic as `copilot-chart.js:1951+`. This is copy-paste of a non-trivial
+    algorithm (two places to fix any rollover/price bug). A shared
+    `createRtChartPoller({ getSymbol, getInterval, getBars, getSeries, getMode })`
+    factory would unify them. Per directive I am flagging only and NOT unifying —
+    unifying these two pollers is behavior-risk and needs Validator/Builder
+    ownership.
+
+---
+
+#### Refactor summary + files changed
+
+**No edits made.**
+
+Rationale: the highest-value safe refactor (extracting `commitChartHeader` and
+de-duplicating the `switchChartTimeframe` branches, finding #8) sits directly on
+top of the concurrency/UX-sensitive code under review, and per the Editor role I
+cannot certify that my own refactor preserved behavior. Touching it would also
+blur a review whose primary purpose is correctness of un-Built code. I have
+therefore left the code unchanged and recorded the structural opportunities as
+non-blocking concerns for a later, separately-reviewed pass.
+
+---
+
+#### Behavior-preservation statement (CLAIM — explicitly NOT a self-certification)
+
+I made no edits, so there is no Editor refactor to certify. As a review CLAIM
+(to be independently verified by the Validator against the files/diff, not
+accepted on my word):
+
+- The cache-hit fast path is unchanged for healthy/sequential callers: the outer
+  `get()` check and early `return cached, True` at
+  `backend/services/plugin_service.py:100-102` run before any lock is touched,
+  identical to the pre-diff behavior.
+- The `force_refresh` / long-history (`bypass_memory_cache`) path still always
+  fetches: the inner re-check is skipped (`:113`), so these callers fetch every
+  time and are only serialized per key — matching prior fetch semantics.
+- For two sequential callers with no contention, behavior is identical to before;
+  the lock is uncontended and adds only a negligible acquire/release.
+
+This is a claim from reading, not a guarantee. Validator must confirm.
+
+---
+
+#### Remaining structural concerns (non-blocking)
+
+- (#5) `_key_locks` is an unbounded map (acceptable for single-user; revisit if
+  scope changes).
+- (#8) Duplicated UI-commit lines in `switchChartTimeframe`; extract
+  `commitChartHeader` in a future structure-only pass.
+- (#10) Two redraws on the candidate-found happy path (intended; monitor for
+  flicker).
+- (#11) `window._scannerChartBars` as a window-global; prefer module scope.
+- (#13) `_scannerRtTick` duplicates `copilot-chart.js _rtTick`; candidate for a
+  shared poller factory (Validator-approved behavior work, not Editor structure).
+
+---
+
+#### EDITOR BLOCKERS
+
+##### EDITOR BLOCKER 1 — Scanner real-time poller has no teardown (leaked indefinite `/api/quotes` polling)
+
+- **What is blocked:** Acceptance of the `frontend/public/chart.js` real-time
+  poller change (`_scannerRtStart`/`_scannerRtStop`/`_scannerRtTick`).
+- **Why blocking:** `_scannerRtStop` (`frontend/public/chart.js:1419,1479`) is
+  defined and exposed but never invoked on any teardown/navigation path
+  (verified by repo-wide search; the only caller is `_scannerRtStart` itself).
+  Once `drawPatternChart` starts the timer (`:864`), it polls `/api/quotes` every
+  5s forever for the last `_chartCurrentSymbol`, even after the user leaves the
+  chart view, until full page unload. The copilot chart avoids exactly this by
+  calling `window._rtStopChartUpdates()` in `clearChart()`
+  (`frontend/public/copilot-chart.js:1806`); the scanner path has no equivalent.
+  This is a runtime/lifecycle resource leak and continued background network
+  load, not a structure-only issue, so the Editor cannot fix it under
+  behavior-preservation rules.
+- **Recommended owner:** Builder (behavior/lifecycle change — decide and wire the
+  correct teardown points so `_scannerRtStop()` is called when the scanner chart
+  is cleared/closed or the symbol context is torn down, mirroring the copilot
+  `clearChart()` teardown).
+- **Evidence required to clear:** A diff showing `_scannerRtStop()` invoked from
+  the scanner chart's teardown/clear path(s), plus a demonstration (manual or
+  logged) that switching away from the scanner chart stops the 5s `/api/quotes`
+  polling, with no orphaned timer remaining.
+
+(All other reviewed items — the per-key locking semantics, double-checked
+locking, lock-hold scope, no self-deadlock, and the timeout interaction — are
+NOT blockers. The unbounded `_key_locks` map is a FLAG, not a blocker, for this
+single-user service.)
+
+---
+
+#### Revalidation request back to Validator
+
+Validator: please independently verify (against files/diff + compile/test, not
+this report) and decide:
+
+1. Confirm the behavior-preservation CLAIMS above (cache-hit fast path and
+   `force_refresh`/`bypass_memory_cache` path) by reading
+   `backend/services/plugin_service.py:100-119`.
+2. Confirm BLOCKER 1: that `_scannerRtStop` is never called on teardown, and
+   route it to Builder to wire teardown (mirroring `copilot-chart.js:1806`).
+3. Decide disposition of the `_key_locks` unbounded-growth FLAG (#5) — accept as
+   acceptable for single-user, or schedule bounding.
+4. Decide whether to schedule the non-blocking structure-only refactors (#8, #11)
+   as a later Editor pass, and whether to authorize a Builder unification of the
+   two real-time pollers (#13) — which is behavior-risk, not Editor structure.
+
+No code was committed. No frontend pollers were unified. No long-running servers
+or watchers were started by the Editor.
+
+
+---
+
+## 69. Validator -> Builder: Heikin-Ashi + Equivolume Combined Chart Mode
+
+- Routing ID: `route-20260619-042800-validator-to-builder-0d621679`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `heikin-ashi-equivolume`
+- Timestamp: `2026-06-19T04:28:00Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-18-heikin-ashi-equivolume.md`
+- Body: `agent-relay/messages/route-20260619-042800-validator-to-builder-0d621679.md`
+- SHA-256: `0ed37458e3f16babc28c849b4851effb9cb70f8c6e12ab3d3d4904d93841fcc8`
+
+### Validator Directive — Heikin-Ashi + Equivolume Combined Chart Mode
+
+- Date: 2026-06-18
+- Phase: heikin-ashi-equivolume
+- From: Validator
+- To: Builder
+- Tier: 2 (new frontend chart feature; also clears an open Editor blocker)
+- Type: EXECUTION DIRECTIVE (frozen requirements)
+
+#### Goal
+
+Add Heikin-Ashi as a selectable candle type on the scanner/workshop chart
+(`frontend/public/chart.js`), and make it compose with the existing Equivolume
+layout so the user can view **Heikin-Ashi candles with volume-proportional
+width** (HA bodies + equivolume widths). Normal candles must remain the default
+and behave exactly as today.
+
+This also folds in an OPEN Editor blocker from the prior phase
+(`chart-performance-cache-coalescing`): the scanner real-time poller is never
+stopped on teardown. Fix it as part of R6 below.
+
+#### Current state (verified by Validator)
+
+- `chartDisplayMode` is a 2-value layout flag: `'time'` (LightweightCharts
+  candlestick series `patternSeries`) or `'equivol'` (custom canvas overlay
+  `drawEquivolumeCandles`, which reads `open/high/low/close` for the body/wick and
+  `volume`/`tick_volume` for width). See `chart.js:12`, `:137`, `:1121`.
+- `drawPatternChart` builds `safeData` (raw) and `displayData`
+  (`buildChartDisplayData`), sets `patternSeries.setData(displayData)` (`:859`),
+  stores `window._scannerChartBars = displayData` for the poller (`:863`), sets
+  `equivolumeDisplayData = safeData` (`:825`), and builds markers (`:866`).
+- The real-time poller `_scannerRtTick` updates the last candle from `/api/quotes`
+  using `window._scannerChartBars` (`:1415`–`:1479`). `_scannerRtStop` exists and
+  is exposed but is ONLY called inside `_scannerRtStart` — never on teardown.
+- There is NO Heikin-Ashi anywhere in the frontend today.
+- The display-mode UI lives in `frontend/public/index.html` under
+  `#chart-display-mode-btns` with `.chart-display-mode-btn[data-chart-display-mode]`.
+
+#### Frozen Requirements
+
+R1. **HA transform util.** Add `computeHeikinAshi(bars)` to
+    `frontend/public/shared-chart-utils.js`, exposed on `window.SharedChartUtils`.
+    - Input: array of `{ time, open, high, low, close, volume?, tick_volume? }`.
+    - Output: a NEW array (do not mutate input) with HA values:
+      `haClose = (o+h+l+c)/4`; `haOpen = (prevHaOpen + prevHaClose)/2`, seeded on
+      the first bar as `(o+c)/2`; `haHigh = max(h, haOpen, haClose)`;
+      `haLow = min(l, haOpen, haClose)`.
+    - MUST preserve `time` and pass through `volume`/`tick_volume` unchanged
+      (equivolume width depends on real volume, not HA).
+    - Must handle empty/short input and non-finite values defensively (skip/clamp,
+      never throw).
+
+R2. **Candle-type state, separate from layout.** Introduce
+    `chartCandleType` = `'normal' | 'heikin'`, persisted to `localStorage` key
+    `scanner-chart-candle-type`, defaulting to `'normal'`. Do NOT overload
+    `chartDisplayMode`; layout (time/equivol) and candle type (normal/heikin) are
+    independent and all four combinations must work.
+
+R3. **Apply HA in both layouts.** In `drawPatternChart`, when
+    `chartCandleType === 'heikin'`, derive an HA array from `displayData` once and
+    use it consistently for:
+    - the series data passed to `patternSeries.setData(...)` in `time` mode;
+    - `equivolumeDisplayData` / the array fed to `drawEquivolumeCandles` in
+      `equivol` mode (so HA bodies get equivolume widths from real volume);
+    - `window._scannerChartBars` handed to the poller.
+    When `chartCandleType === 'normal'`, behavior MUST be byte-for-byte the same as
+    today (no HA path taken).
+
+R4. **Markers/levels.** Pattern markers are time-indexed and must keep working.
+    Price-based overlays/levels are computed on RAW price and are NOT to be
+    recomputed onto HA — leave them on raw price. Add a brief, visible UI note (a
+    small label or tooltip near the candle-type toggle) that Heikin-Ashi bodies are
+    synthetic and levels reference real price. Keep it minimal.
+
+R5. **Live poller is HA-aware.** `_scannerRtTick` must keep updating the last
+    candle correctly when `chartCandleType === 'heikin'`:
+    - Keep a raw-bar source of truth so HA can be recomputed (e.g. store raw bars
+      alongside, such as `window._scannerChartRawBars`, in addition to the HA
+      series the chart renders).
+    - On each tick: update the raw last bar (high/low/close as today, with the same
+      intraday-rollover rules and the equivol no-append rule), then recompute the
+      HA value(s) for the affected tail bar(s) from the prior HA bar and call
+      `patternSeries.update(...)` with the HA bar. In `normal` mode the poller path
+      is unchanged.
+    - A bad poll cycle must never throw or kill the timer (preserve existing
+      try/catch behavior).
+
+R6. **Clear the open blocker (poller teardown).** `clearChart()` (`chart.js:19`)
+    MUST call `_scannerRtStop()` so the poller stops when the chart is cleared,
+    mirroring the copilot chart (`copilot-chart.js:1806`). Confirm no other
+    teardown/navigation path leaves the timer running.
+
+R7. **UI toggle.** Add a candle-type toggle in `index.html` next to the existing
+    display-mode buttons (parallel structure: a `#chart-candle-type-btns` wrapper
+    with `.chart-candle-type-btn[data-chart-candle-type]` for `normal`/`heikin`).
+    Mirror the existing display-mode wiring: a `setChartCandleType(type)` that
+    persists, updates button styles, and redraws via `drawPatternChart` with
+    `currentDisplayData`; a `_updateChartCandleTypeButtonStyles()`; and a
+    `wireChartCandleTypeButtons()` called from the SAME init site as
+    `wireChartDisplayModeButtons()`.
+
+R8. **No backend changes.** This is frontend-only. Do not touch
+    `plugin_service.py` or any data path. Do not change the equivolume width math
+    or the cache-coalescing code.
+
+#### Acceptance Criteria
+
+- Default load is Normal candles; Normal × Time and Normal × Equivolume are
+  visually identical to current behavior.
+- Toggling to Heikin-Ashi in Time mode shows HA candles (smoothed, fewer
+  whipsaws). Toggling Equivolume on top shows HA bodies whose widths vary by
+  volume.
+- Switching candle type re-renders the currently displayed symbol without a full
+  reload, and the choice persists across reloads (localStorage).
+- With Heikin-Ashi active, the live poller keeps the last HA candle updating; in
+  equivol mode it refreshes the last bar in place (no spurious append).
+- After leaving/clearing the chart, the `/api/quotes` poll loop STOPS (blocker
+  R6 cleared) — verify the interval is cleared.
+- No console errors across the four combinations and during a timeframe switch.
+
+#### Process
+
+- Builder writes a report to
+  `agent-relay/roles/Builder/reports/2026-06-18-heikin-ashi-equivolume-builder-report.md`
+  describing what changed (files + functions), assumptions, and limitations.
+- Builder does NOT certify its own work, does NOT commit, and does NOT route.
+  Builder MUST NOT start/leave the long-running dev server; a static review plus a
+  JS syntax sanity check (e.g. `node --check frontend/public/chart.js` and
+  `node --check frontend/public/shared-chart-utils.js`) is the expected
+  verification depth for the Builder.
+- Validator will independently verify against the files/diff, then route to the
+  Editor for an anti-spaghetti pass (watch for: duplicated toggle scaffolding vs
+  the display-mode code, the HA recompute living in one util not scattered, poller
+  raw/HA bookkeeping clarity), then Validator accepts or rejects.
+
+
+---
+
+## 70. Builder -> Validator: Heikin-Ashi + Equivolume Implemented
+
+- Routing ID: `route-20260619-043501-builder-to-validator-9b35034e`
+- Type: `BUILDER REPORT`
+- Phase: `heikin-ashi-equivolume`
+- Timestamp: `2026-06-19T04:35:01Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-18-heikin-ashi-equivolume-builder-report.md`
+- Body: `agent-relay/messages/route-20260619-043501-builder-to-validator-9b35034e.md`
+- SHA-256: `e641c715d845a990ee56fe9d4512df007f859a964d1f6bc8f687977778b384c9`
+
+### Builder Report — Heikin-Ashi + Equivolume Combined Chart Mode
+
+- Date: 2026-06-18
+- Phase: heikin-ashi-equivolume
+- From: Builder
+- To: Validator
+- Directive: `agent-relay/roles/Validator/directives/2026-06-18-heikin-ashi-equivolume.md`
+- Tier: 2 (frontend chart feature; also clears the open poller-teardown Editor blocker)
+
+> Builder does NOT certify this work. Validator must independently verify against
+> the files/diff and compile output. No commit and no router action were taken.
+
+#### Files Changed
+
+1. `frontend/public/shared-chart-utils.js`
+2. `frontend/public/chart.js`
+3. `frontend/public/index.html`
+
+No backend files were touched (R8 honored): `plugin_service.py`, the equivolume
+width math, and the cache-coalescing code are unchanged.
+
+#### Functions Added / Modified (with line refs)
+
+##### `frontend/public/shared-chart-utils.js`
+- **Added `computeHeikinAshiBar(bar, prevHaOpen, prevHaClose)`** (~lines 147–169).
+  Single source of truth for HA math. Returns a NEW object (shallow copy via
+  `Object.assign`), never mutates input, preserves `time`, passes
+  `volume`/`tick_volume` through unchanged. Non-finite OHLC inputs are passed
+  through untransformed (never throws). Seeds `haOpen=(o+c)/2` when no valid prior
+  HA is supplied.
+- **Added `computeHeikinAshi(bars)`** (~lines 171–193). Iterates raw bars, calls
+  `computeHeikinAshiBar` per bar, advances `prevHaOpen/prevHaClose` only when the
+  input bar's OHLC are all finite. Returns `[]` for empty/non-array input.
+- **Modified the `window.SharedChartUtils` export** (~lines 195–202) to expose
+  `computeHeikinAshi` and `computeHeikinAshiBar`.
+
+##### `frontend/public/chart.js`
+- **Added `chartCandleType` state** (~line 12). Reads `localStorage`
+  `scanner-chart-candle-type`, defaults to `'normal'` (only `'heikin'` opts in).
+- **Added `applyCandleType(bars)` helper** (~after `buildChartDisplayData`).
+  Returns the input array **unchanged (same reference)** in normal mode (so the
+  normal path is byte-for-byte identical); returns a NEW HA array via
+  `SharedChartUtils.computeHeikinAshi` in heikin mode, with a try/catch fallback
+  to raw bars if the util is missing/throws.
+- **Modified `clearChart()`** (~line 19, R6). Calls `_scannerRtStop()` inside a
+  try/catch at the very top, before `initPatternChart()`.
+- **Modified `drawPatternChart(candidate)`** (R3):
+  - After `displayData` is built, derives `const renderData = applyCandleType(displayData)` ONCE.
+  - `equivolumeDisplayData = chartCandleType === 'heikin' ? renderData : safeData`
+    (normal mode keeps the exact prior `= safeData`).
+  - `patternSeries.setData(renderData)` (was `displayData`).
+  - `window._scannerChartBars = renderData` and **new** `window._scannerChartRawBars = displayData`.
+  - The markers call still uses raw (`chartDisplayMode === 'equivol' ? displayData : safeData`) — unchanged (R4).
+- **Modified `_scannerRtTick()`** (R5). Now picks a raw source of truth:
+  `rawBars = isHeikin ? (window._scannerChartRawBars || window._scannerChartBars) : window._scannerChartBars`.
+  Raw last bar is updated with the same high/low/close + intraday-rollover +
+  equivol-no-append rules as before. When heikin, it recomputes the affected tail
+  HA bar from the prior HA bar via `SharedChartUtils.computeHeikinAshiBar` and
+  calls `patternSeries.update(haBar)`; the HA array (`window._scannerChartBars`,
+  which is the same reference as `equivolumeDisplayData` in heikin mode) is updated
+  in place. In normal mode `rawBars === window._scannerChartBars`, so the path is
+  unchanged (no double-mutation). The existing try/catch is preserved so a bad
+  poll never throws or kills the timer.
+- **Added `_updateChartCandleTypeButtonStyles()`, `setChartCandleType(type)`,
+  `wireChartCandleTypeButtons()`** (R7), mirroring the display-mode trio.
+  `setChartCandleType` persists to `localStorage`, updates button styles, and
+  redraws via `drawPatternChart` using `currentDisplayData`.
+- **Modified `initChartTimeframeButtons()`** to call `wireChartCandleTypeButtons()`
+  right beside `wireChartDisplayModeButtons()` — the same init site (also runs on
+  `DOMContentLoaded`/immediate per the existing guard below it).
+- **Added window exports** `window.setChartCandleType` and
+  `window.wireChartCandleTypeButtons` next to the existing display-mode exports.
+
+##### `frontend/public/index.html`
+- **Added `#chart-candle-type-btns`** right after `#chart-display-mode-btns`,
+  with `.chart-candle-type-btn[data-chart-candle-type]` buttons for `normal` and
+  `heikin`, matching the display-mode button markup/styling. Includes an inline
+  info note (`#chart-candle-type-note`, an ⓘ glyph with a `title` tooltip +
+  `aria-label`) stating HA bodies are synthetic and markers/levels reference real
+  price (R4 UI note).
+
+#### How Each Requirement Was Addressed
+
+- **R1** — `computeHeikinAshi(bars)` added and exposed on `window.SharedChartUtils`.
+  New array (no mutation), `time` preserved, `volume`/`tick_volume` passed
+  through, first-bar seed `(o+c)/2`, defensive on empty/short/non-finite (never
+  throws). The per-bar math was factored into `computeHeikinAshiBar` so the live
+  poller reuses the exact same formula (one util, not scattered).
+- **R2** — `chartCandleType` (`'normal' | 'heikin'`) added, persisted to
+  `scanner-chart-candle-type`, default `'normal'`. It is fully independent of
+  `chartDisplayMode`; all four combinations are supported.
+- **R3** — HA derived once as `renderData` in `drawPatternChart` and used for
+  `patternSeries.setData`, `equivolumeDisplayData`/`drawEquivolumeCandles`, and
+  `window._scannerChartBars`. In normal mode `applyCandleType` returns the same
+  reference, so the path is byte-for-byte equivalent to before.
+- **R4** — Markers continue to be built from raw (`displayData`/`safeData`);
+  price overlays/levels in `buildCandidateOverlays`/`renderOverlays` are untouched
+  and remain on raw price. Added the minimal visible UI note + tooltip near the
+  toggle.
+- **R5** — `_scannerRtTick` keeps `window._scannerChartRawBars` as the raw source
+  of truth, applies the same update/rollover/no-append rules to the raw tail, then
+  recomputes the HA tail bar and `patternSeries.update(...)`s it. Normal mode is
+  unchanged; try/catch preserved.
+- **R6** — `clearChart()` now calls `_scannerRtStop()`. I searched `chart.js`
+  for poller start/stop sites: `_scannerRtStart()` is called only inside
+  `drawPatternChart` (which calls `_scannerRtStop()` first via `_scannerRtStart`),
+  and `_scannerRtStop()` is now also called on teardown in `clearChart()`. No
+  other teardown path in `chart.js` starts the timer.
+- **R7** — Toggle UI added in `index.html`; `setChartCandleType`,
+  `_updateChartCandleTypeButtonStyles`, `wireChartCandleTypeButtons` mirror the
+  display-mode functions and are wired from `initChartTimeframeButtons` (same site
+  as `wireChartDisplayModeButtons`).
+- **R8** — Frontend-only. No backend, equivolume-width, or cache-coalescing
+  changes.
+
+#### Assumptions
+
+- `currentDisplayData` is a pre-existing global (already referenced by
+  `setChartDisplayMode`); `setChartCandleType` reuses it identically for redraw.
+- In heikin mode, `window._scannerChartBars` (the rendered HA array) and
+  `equivolumeDisplayData` intentionally point at the same `renderData` reference,
+  so the live poller's in-place tail update is reflected if/when the equivolume
+  canvas is redrawn by an interaction. The poller itself does not trigger a canvas
+  redraw (matching prior behavior).
+- "Visible UI note" was satisfied with a small always-present ⓘ glyph carrying a
+  `title` tooltip + `aria-label`, per the directive's "small label or tooltip"
+  allowance.
+- The raw tail bar written by the poller carries `{time, open, high, low, close}`
+  only (volume dropped), matching the pre-existing normal-mode behavior; HA tail
+  recompute does not need volume, and the equivolume canvas is not redrawn by the
+  poller, so widths are unaffected by this.
+
+#### Deviations / Limitations
+
+- **Added an extra exported util `computeHeikinAshiBar`** beyond the literal R1
+  surface (`computeHeikinAshi`). Rationale: it centralizes the HA formula so the
+  full-array transform and the live-poller tail recompute share one
+  implementation (anti-spaghetti). Flagging for Validator/Editor awareness.
+- Verification depth was limited per directive: `node --check` only; the dev
+  server was NOT started/left running, and no browser smoke test of the four
+  combinations was performed. Live/visual acceptance criteria remain for the
+  Validator.
+
+#### node --check Results
+
+Run from repo root (PowerShell; commands run separately because PowerShell does
+not accept `&&`):
+
+```
+node --check frontend/public/chart.js              -> exit 0
+node --check frontend/public/shared-chart-utils.js -> exit 0
+```
+
+Both files pass syntax check. Editor/IDE linter reported no errors on the three
+edited files.
+
+
+---
+
+## 71. Validator -> Editor: Editor Pass: Heikin-Ashi + Equivolume
+
+- Routing ID: `route-20260619-043650-validator-to-editor-0237d314`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `heikin-ashi-equivolume`
+- Timestamp: `2026-06-19T04:36:50Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-18-editor-review-heikin-ashi-equivolume.md`
+- Body: `agent-relay/messages/route-20260619-043650-validator-to-editor-0237d314.md`
+- SHA-256: `cfcabd528752216a202772e9e0778d5d101f7601d9575af202a73a367a74c28c`
+
+### Validator Directive — Editor Pass: Heikin-Ashi + Equivolume
+
+- Date: 2026-06-18
+- Phase: heikin-ashi-equivolume
+- From: Validator
+- To: Editor
+- Tier: 2
+- Type: REVIEW DIRECTIVE (anti-spaghetti pass)
+
+#### Context
+
+The Builder implemented the Heikin-Ashi + Equivolume feature per directive
+`2026-06-18-heikin-ashi-equivolume.md` (frozen requirements R1–R8). Builder report:
+`agent-relay/roles/Builder/reports/2026-06-18-heikin-ashi-equivolume-builder-report.md`.
+Treat the report as UNTRUSTED; verify against the files and `git diff`.
+
+Validator has already done a correctness pass and believes the logic is sound;
+your job is the anti-spaghetti / maintainability review plus a second pair of eyes
+on the concurrency-adjacent poller bookkeeping.
+
+#### Files in scope
+
+- `frontend/public/shared-chart-utils.js` — `computeHeikinAshi`, `computeHeikinAshiBar`.
+- `frontend/public/chart.js` — `applyCandleType`, `drawPatternChart` HA wiring,
+  `_scannerRtTick` HA branch, `clearChart` teardown, candle-type toggle trio.
+- `frontend/public/index.html` — candle-type toggle markup + note.
+
+Run `git --no-pager diff -- frontend/public/chart.js frontend/public/shared-chart-utils.js frontend/public/index.html`. PowerShell: use the Read tool, do not pipe to head/tail.
+
+#### Review focus
+
+1. **HA/raw bookkeeping in the poller** (PRIMARY): confirm `window._scannerChartBars`
+   (rendered, HA in heikin mode) and `window._scannerChartRawBars` (raw) cannot
+   drift out of sync across rollover vs in-place updates; confirm the prior-HA
+   index math (`haBars[len-2]` for in-place, `haBars[len-1]` for rollover) is
+   correct; confirm normal mode is behaviorally unchanged (same array mutated,
+   `patternSeries.update(updated)`).
+2. **Duplication**: the candle-type toggle trio mirrors the display-mode trio
+   nearly verbatim. Is that acceptable parallelism or should it be factored? FLAG
+   with a recommendation; do not refactor product behavior.
+3. **HA math centralization**: is `computeHeikinAshiBar` genuinely the single
+   source of truth (used by both the array transform and the poller), or is HA
+   math duplicated anywhere?
+4. **Defensive behavior**: empty/short arrays, missing `SharedChartUtils`,
+   non-finite prices — does anything throw and kill the poller timer or break a
+   draw?
+5. **Length-mismatch risk**: `computeHeikinAshi` skips `!bar` via `continue` (could
+   shorten the HA array vs raw). Given inputs are pre-sanitized, is this a real
+   risk or only theoretical? State which.
+
+#### Constraints
+
+- Editor MAY make structure-only, behavior-preserving edits (naming, comments,
+  small extraction). MUST NOT change HA math, poller semantics, or unify the
+  toggles without Validator approval. MUST NOT certify its own refactor.
+- Label anything that must change before acceptance as `EDITOR BLOCKER` with
+  blocked artifact, reason, recommended owner, and evidence to clear.
+
+#### Deliverable
+
+Write to `agent-relay/roles/Editor/reports/2026-06-18-heikin-ashi-equivolume-editor-review.md`
+with: anti-spaghetti review, refactor summary + files (or "no edits"),
+behavior-preservation statement (claim, not certification), remaining concerns,
+EDITOR BLOCKERS (or "None"), and a revalidation request. Do not route; do not
+commit.
+
+
+---
+
+## 72. Editor -> Validator: Heikin-Ashi + Equivolume Review (0 blockers)
+
+- Routing ID: `route-20260619-044032-editor-to-validator-91c6fdf9`
+- Type: `EDITOR REVIEW`
+- Phase: `heikin-ashi-equivolume`
+- Timestamp: `2026-06-19T04:40:32Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-18-heikin-ashi-equivolume-editor-review.md`
+- Body: `agent-relay/messages/route-20260619-044032-editor-to-validator-91c6fdf9.md`
+- SHA-256: `9b3fe815130aa45ba992eb121fe6b71c724686210eca0b3e3dfb5d9fa0f22b5f`
+
+### Editor Review — Heikin-Ashi + Equivolume Combined Chart Mode
+
+- Date: 2026-06-18
+- Phase: heikin-ashi-equivolume
+- From: Editor
+- To: Validator
+- Tier: 2
+- Type: Anti-spaghetti / maintainability review (second-eyes on poller bookkeeping)
+- Directive: `agent-relay/roles/Validator/directives/2026-06-18-editor-review-heikin-ashi-equivolume.md`
+- Builder report reviewed (treated as UNTRUSTED, verified against code): `agent-relay/roles/Builder/reports/2026-06-18-heikin-ashi-equivolume-builder-report.md`
+
+Verification basis: read of `frontend/public/shared-chart-utils.js`, `frontend/public/chart.js`,
+`frontend/public/index.html`; `git --no-pager diff` of the three files; `node --check`
+on both JS files (both exit 0). No dev server started, no commit, no router action.
+
+---
+
+#### Anti-spaghetti review (findings tied to file:line)
+
+##### Focus 1 — HA/raw bookkeeping in the poller (PRIMARY)
+
+**Sync across rollover vs in-place: cannot drift. CONFIRMED.**
+
+- In heikin mode the two arrays are genuinely distinct references: `renderData`
+  is a NEW array from `computeHeikinAshi(displayData)` (`chart.js:853`), while the
+  raw `displayData` is stored separately (`chart.js:894-895`:
+  `window._scannerChartBars = renderData`, `window._scannerChartRawBars = displayData`).
+- Poller picks raw as source of truth and HA as the rendered tail
+  (`chart.js:1512-1538`).
+- Rollover branch (`chart.js:1547-1558`): `rawBars.push(newBar)` AND
+  `haBars.push(haBar)` — both grow by exactly one. In sync.
+- In-place branch (`chart.js:1569-1574`): `rawBars[len-1] = updated` AND
+  `haBars[len-1] = haBar` — both replace the last element. In sync.
+- The two branches are mutually exclusive (`return` at `chart.js:1558` after a
+  rollover), so no path mutates one array without the matching mutation on the
+  other.
+
+**Prior-HA index math: CORRECT.**
+
+- Rollover (`chart.js:1551`): a brand-new bar is appended, so the previous HA bar
+  is the *current* last element, read as `haBars[haBars.length - 1]` *before* the
+  push. Correct.
+- In-place (`chart.js:1571`): the last HA bar is being *recomputed*, so its
+  predecessor is `haBars[haBars.length - 2]`. Correct. Using `len-1` here would
+  have seeded the recompute from itself.
+- Both reads are null-guarded (`haBars.length ? …`, `haBars.length >= 2 ? …`) and
+  fall back to `NaN` seeds, which `computeHeikinAshiBar` interprets as the
+  first-bar `(o+c)/2` seed. No throw on a short array.
+
+**NORMAL mode behaviorally unchanged: CONFIRMED.**
+
+- `applyCandleType` returns the *same array reference* in normal mode
+  (`chart.js:77`), so `renderData === displayData`; `equivolumeDisplayData = safeData`
+  exactly as before (`chart.js:854`), and `setData(renderData)` is the prior
+  `setData(displayData)` (`chart.js:888`).
+- In the poller, `isHeikin === false` ⇒ `rawBars === window._scannerChartBars`,
+  `haBars === null`, `useHa === false` (`chart.js:1536-1539`), so the only mutation
+  is `rawBars[len-1] = updated` / `patternSeries.update(updated)`
+  (`chart.js:1569,1576`) — the single-array path, no HA branch, no double-mutation.
+
+**Bonus correctness note (no compounding):** `setChartCandleType` redraws from
+`currentDisplayData.chart_data`, which is the RAW `safeData` (`chart.js:884`), and
+`drawPatternChart` re-derives HA from scratch every draw. So normal→heikin→normal
+toggling never applies HA-on-HA. Good.
+
+##### Focus 2 — Duplication: candle-type trio vs display-mode trio
+
+**ACCEPTABLE PARALLELISM — recommend (do not require) future factoring.**
+
+The trio `_updateChartCandleTypeButtonStyles` / `setChartCandleType` /
+`wireChartCandleTypeButtons` (`chart.js:1182-1224`) mirrors the display-mode trio
+nearly verbatim (button-style branch, `localStorage` persist, redraw-from-
+`currentDisplayData`, `dataset.*Wired` guard, delegated click listener). This is
+intentional parallel structure mandated by R7 ("mirror the existing display-mode
+wiring") and it keeps the two toggles trivially comparable. It is the cleaner of
+the two evils versus a premature abstraction.
+
+Recommendation (NON-BLOCKING, NOT performed — would risk unifying the toggles,
+which the directive forbids): if a third toggle is ever added, extract a small
+`makeChartToggle({ wrapId, btnClass, attr, getState, setState })` factory. With
+only two toggles today, the shared helper would not yet pay for itself. Leave as-is.
+
+##### Focus 3 — HA math centralization
+
+**SINGLE SOURCE OF TRUTH — CONFIRMED, no duplicated formula.**
+
+- The HA formula lives only in `computeHeikinAshiBar` (`shared-chart-utils.js:152-173`).
+- `computeHeikinAshi` calls it per bar (`shared-chart-utils.js:187`).
+- The poller calls the *same* exported function via
+  `window.SharedChartUtils.computeHeikinAshiBar` (`chart.js:1533-1534`, used at
+  `:1552` and `:1572`).
+- No `(o+h+l+c)/4` / `(prevOpen+prevClose)/2` arithmetic appears anywhere else in
+  the three files. Grep-clean.
+
+##### Focus 4 — Defensive behavior (does anything throw and kill the poller/draw?)
+
+**No throw path identified.**
+
+- `computeHeikinAshiBar` passes non-finite OHLC through untransformed instead of
+  throwing (`shared-chart-utils.js:159-161`); `Object.assign({}, bar || {})`
+  tolerates a null bar.
+- `computeHeikinAshi` returns `[]` for empty/non-array input
+  (`shared-chart-utils.js:180`); per-bar null skipped via `continue`
+  (`shared-chart-utils.js:186`).
+- `applyCandleType` is try/catch-wrapped with a raw fallback and a missing-util
+  guard (`chart.js:78-86`).
+- `drawPatternChart` returns early when `displayData.length === 0`
+  (`chart.js:849`), so `renderData` is only built on non-empty input; the empty-HA
+  edge cannot reach `setData`.
+- The poller body is fully inside try/catch (`chart.js:1516-1580`), with
+  `!rawBars || rawBars.length === 0` and `!lastBar` guards (`chart.js:1515,1531`)
+  and a finite-price guard (`chart.js:1528`). A bad poll cycle is swallowed and the
+  interval survives.
+- `clearChart` calls `_scannerRtStop()` inside its own try/catch at the top
+  (`chart.js:26`), so teardown cannot throw before `initPatternChart()`.
+
+One graceful-degradation note (NON-BLOCKING): if `isHeikin` is true but
+`computeHeikinAshiBar` is unavailable, `useHa` is false and the poller would
+`patternSeries.update(updated)` with a RAW bar. This is coherent in practice,
+because the same missing-util condition makes `applyCandleType` fall back to raw at
+draw time (both functions are exported together), so the series is already showing
+raw bars. No visual jump, no throw.
+
+##### Focus 5 — Length-mismatch risk (`if (!bar) continue;`)
+
+**THEORETICAL ONLY, not a real risk — with a latent-coupling caveat.**
+
+- The HA array can only become shorter than raw if a `displayData` element is
+  falsy. `displayData` comes from `buildChartDisplayData` → `sanitizeChartData`
+  (`chart.js:67-70`), whose `.filter()` drops every falsy bar and every bar with
+  null/NaN OHLC and returns a fresh array (`shared-chart-utils.js:22-57`). So
+  `computeHeikinAshi`'s `continue` (`shared-chart-utils.js:186`) is unreachable on
+  this input and `out.length === displayData.length`. The poller's tail-index
+  alignment between `haBars` and `rawBars` therefore holds.
+- Caveat (NON-BLOCKING): the no-mismatch guarantee depends entirely on the
+  upstream sanitize contract, not on anything local to the poller. The poller
+  indexes both arrays by tail position (`len-1`/`len-2`) and assumes positional
+  alignment. If a future caller ever feeds unsanitized bars into the heikin path,
+  the tails could silently misalign without throwing. Worth a one-line comment
+  noting the precondition; not required for this acceptance.
+
+##### Other observations
+
+- **Mixed working-tree diff (NON-BLOCKING, Validator-relevant):** `git diff` for
+  these files also shows the prior-phase `switchChartTimeframe` parallelization and
+  the full `_scannerRt*` block as additions (uncommitted work from
+  `chart-performance-cache-coalescing`). The directive's "current state" describes
+  the poller as pre-existing, but it appears as new in the diff. The HA-specific
+  additions I reviewed are interleaved with that prior work; Validator's
+  diff-based verification should expect the diff to span both phases.
+- **Comment quality:** the new comments explain intent/trade-offs (why raw+HA are
+  kept separately, why no append in equivol, why normal mode is byte-identical)
+  rather than narrating code. Good.
+
+---
+
+#### Refactor summary + files changed
+
+**No edits made.**
+
+The in-scope code is already well-named, single-sourced for HA math, and
+intent-commented. The only duplication (toggle trio) is directive-mandated parallel
+structure, and the only structural improvements available (unify the toggles /
+extract a toggle factory) are explicitly out of bounds for this pass. Making
+cosmetic edits would add churn without maintainability gain, so the Editor changed
+nothing.
+
+---
+
+#### Behavior-preservation statement (CLAIM — explicitly NOT a self-certification)
+
+Because the Editor made no edits, there is no Editor refactor whose behavior could
+need preserving. The Editor's *claim*, based on reading the code and diff, is that
+the Builder's implementation leaves NORMAL mode behaviorally identical to prior
+behavior (same single array mutated, `patternSeries.update(updated)`, no HA path)
+and that the HA path is additive and isolated behind `chartCandleType === 'heikin'`.
+Per the tri-agent contract, this is a claim for the Validator to verify
+independently; the Editor does not certify it, and the Editor cannot certify its
+own work (there was none).
+
+---
+
+#### Remaining structural concerns
+
+1. (Low) Poller tail-index alignment relies on an upstream sanitize precondition
+   that is not asserted locally (Focus 5 caveat). A one-line comment at the
+   `haBars` selection (`chart.js:1536`) noting "haBars and rawBars are
+   index-aligned because both derive from sanitized displayData" would harden it.
+2. (Low) Toggle-trio duplication will become real debt at a third toggle (Focus 2).
+   Track for future factoring; not actionable now.
+3. (Info) Mixed-phase working tree may complicate the Validator's clean
+   phase-scoped diff (see Other observations).
+
+None of these are blockers.
+
+---
+
+#### EDITOR BLOCKERS
+
+**None.**
+
+The Heikin-Ashi math is centralized in one util, the poller keeps raw and HA arrays
+in lockstep with correct prior-HA index math, normal mode is unchanged, and every
+identified edge case degrades gracefully rather than throwing. The remaining
+concerns are low-severity, non-blocking, and either advisory comments or future
+factoring.
+
+---
+
+#### Revalidation request to Validator
+
+The Editor performed an anti-spaghetti / maintainability pass and made no edits, so
+no re-review of an Editor refactor is required. The Editor requests that the
+Validator:
+
+1. Independently confirm the NORMAL-mode behavior-preservation CLAIM above against
+   the files/diff (Editor did not certify it).
+2. Perform the live acceptance checks the static pass cannot cover: the four
+   normal/heikin × time/equivol combinations render without console errors; the
+   live poller updates the last HA candle in heikin mode (rollover and in-place);
+   equivol mode refreshes in place with no spurious append; and the `/api/quotes`
+   loop STOPS after `clearChart` (R6 cleared — verify the interval is cleared).
+3. Decide whether to accept the two low-severity advisory items (precondition
+   comment at `chart.js:1536`; future toggle-factory note) now or defer them.
+
+
+---
+
+## 73. Validator -> Builder: Add Ponytail-style Editor pass
+
+- Routing ID: `route-20260620-105628-validator-to-builder-caae3594`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `editor-ponytail-pass`
+- Timestamp: `2026-06-20T10:56:28Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-ponytail-pass.md`
+- Body: `agent-relay/messages/route-20260620-105628-validator-to-builder-caae3594.md`
+- SHA-256: `60357ba69859ae35d5de19a027a4ad4c7f2f8661188e8680855cdc8beba683af`
+
+### Validator Directive: Add Ponytail-Style Editor Pass
+
+#### Classification
+
+Governance / role-instruction change. No product behavior or code-symbol edit is authorized.
+
+#### Intent
+
+Give the Editor a concrete anti-overengineering checklist inspired by the Ponytail "lazy senior developer" doctrine, while preserving this repo's existing Tri-Agent authority model.
+
+#### Builder Directive
+
+Update `agent-relay/roles/Editor/ROLE.md` only.
+
+Add a section that instructs Editor to perform an optional Ponytail-style anti-overengineering pass during structure review. The pass should identify needless code and mark findings with compact categories:
+
+- `delete`: dead code, speculative features, unused flexibility.
+- `stdlib`: hand-rolled logic that the standard library already covers.
+- `native`: platform/browser/runtime feature already exists.
+- `existing-dependency`: already-installed dependency covers it.
+- `yagni`: abstraction, config, layer, or hook with no current need.
+- `shrink`: same behavior in fewer clearer lines.
+
+The section must preserve safety boundaries:
+
+- Do not remove trust-boundary validation.
+- Do not remove data-loss protection.
+- Do not weaken security or accessibility.
+- Do not delete required tests.
+- Do not replace correctness, security, performance, or behavior-preservation review.
+
+The section should state that Ponytail-style findings are advisory unless Editor explicitly marks them as an `EDITOR BLOCKER`.
+
+#### Acceptance Evidence
+
+- Diff is limited to `agent-relay/roles/Editor/ROLE.md` plus relay artifacts.
+- Router verification passes.
+- The new language does not install or require the Ponytail plugin.
+
+
+---
+
+## 74. Builder -> Validator: Ponytail-style Editor pass builder report
+
+- Routing ID: `route-20260620-105708-builder-to-validator-a8fabb54`
+- Type: `BUILDER REPORT`
+- Phase: `editor-ponytail-pass`
+- Timestamp: `2026-06-20T10:57:08Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-editor-ponytail-pass-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-105708-builder-to-validator-a8fabb54.md`
+- SHA-256: `ba37a13f5b1531fef6dbe27501d206538e6b3206c9018149d342a4a46758e831`
+
+### Builder Report: Ponytail-Style Editor Pass
+
+#### Directive
+
+Implement Validator directive `2026-06-20-editor-ponytail-pass.md`.
+
+#### Files Changed
+
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### What Changed
+
+Added `## Ponytail-Style Anti-Overengineering Pass` to the Editor role instructions.
+
+The new section directs Editor to look for unnecessary code using these labels:
+
+- `delete`
+- `stdlib`
+- `native`
+- `existing-dependency`
+- `yagni`
+- `shrink`
+
+It also preserves the safety boundary: Editor must not remove trust-boundary validation, data-loss protection, security controls, accessibility, required tests, or behavior-preservation evidence.
+
+#### Notes
+
+No product code was changed. No external Ponytail plugin was installed or required.
+
+
+---
+
+## 75. Validator -> Editor: Review Ponytail-style Editor pass
+
+- Routing ID: `route-20260620-105734-validator-to-editor-ea0a7356`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `editor-ponytail-pass`
+- Timestamp: `2026-06-20T10:57:34Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-ponytail-pass.md`
+- Body: `agent-relay/messages/route-20260620-105734-validator-to-editor-ea0a7356.md`
+- SHA-256: `5c098f70889889582f43ec9bb88e04d8fabc17664053f5aeed0698d52a97ac58`
+
+### Validator Directive: Review Ponytail-Style Editor Pass
+
+#### Review Scope
+
+Review the Builder change to `agent-relay/roles/Editor/ROLE.md`.
+
+#### Questions
+
+- Is the new anti-overengineering pass clear enough for Editor to use?
+- Does it preserve the existing Tri-Agent authority model?
+- Does it avoid installing or requiring the external Ponytail plugin?
+- Does it protect validation, security, accessibility, tests, and behavior-preservation evidence?
+- Are there any `EDITOR BLOCKER` findings?
+
+#### Required Output
+
+Report accepted, accepted with non-blocking notes, or blocked.
+
+
+---
+
+## 76. Editor -> Validator: Ponytail-style Editor pass review
+
+- Routing ID: `route-20260620-105905-editor-to-validator-beb752db`
+- Type: `EDITOR REVIEW`
+- Phase: `editor-ponytail-pass`
+- Timestamp: `2026-06-20T10:59:05Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-editor-ponytail-pass-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-105905-editor-to-validator-beb752db.md`
+- SHA-256: `4b8fa006f31c80c8ac448cfe19780890f9492b4ba412a76ffc8d4e7e3279d7f2`
+
+### Editor Review: Ponytail-Style Editor Pass
+
+#### Scope Reviewed
+
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### Findings
+
+Accepted with no blocker.
+
+The new section is placed in the role instructions before the blocker rule, which is appropriate: it informs normal Editor review before defining escalation behavior.
+
+The categories are concrete enough to guide anti-overengineering review:
+
+- `delete`
+- `stdlib`
+- `native`
+- `existing-dependency`
+- `yagni`
+- `shrink`
+
+The section preserves safety and behavior boundaries by explicitly excluding trust-boundary validation, data-loss protection, security controls, accessibility, required tests, and behavior-preservation evidence from the deletion/simplification pass.
+
+#### Blockers
+
+No `EDITOR BLOCKER` findings.
+
+#### Non-Blocking Note
+
+If this pattern proves useful, a future change could add a standard `Ponytail Pass:` subsection to Editor report templates. That is not required for this directive.
+
+
+---
+
+## 77. Validator -> Editor: Current worktree Editor review
+
+- Routing ID: `route-20260620-110225-validator-to-editor-a4165b36`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `current-worktree-editor-review`
+- Timestamp: `2026-06-20T11:02:25Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-current-worktree-review.md`
+- Body: `agent-relay/messages/route-20260620-110225-validator-to-editor-a4165b36.md`
+- SHA-256: `1ec8168bfe712d5f696b2125e072a82cc99dc9ffae1d1b0c3439f02de58415b5`
+
+### Validator Directive: Current Worktree Editor Review
+
+#### Classification
+
+Editor review only. No file edits are authorized except the Editor review report itself.
+
+#### Scope
+
+Review the current uncommitted worktree for maintainability, anti-spaghetti risk, and Ponytail-style overengineering concerns.
+
+Pay special attention to:
+
+- `agent-relay/roles/Editor/ROLE.md`
+- `backend/services/plugin_service.py`
+- `frontend/public/chart.js`
+- `frontend/public/index.html`
+- `frontend/public/shared-chart-utils.js`
+- relay artifacts generated by the recent governance work
+- memory/transcript files generated by mirrors
+
+#### Required Editor Output
+
+- State whether there are any `EDITOR BLOCKER` findings.
+- Separate current-governance changes from pre-existing dirty-worktree changes where possible.
+- Use Ponytail-style labels when applicable: `delete`, `stdlib`, `native`, `existing-dependency`, `yagni`, `shrink`.
+- Do not certify product behavior; this is a structure/maintainability review.
+- Do not modify source files.
+
+
+---
+
+## 78. Editor -> Validator: Current worktree Editor review
+
+- Routing ID: `route-20260620-110339-editor-to-validator-dcddce06`
+- Type: `EDITOR REVIEW`
+- Phase: `current-worktree-editor-review`
+- Timestamp: `2026-06-20T11:03:39Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-current-worktree-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-110339-editor-to-validator-dcddce06.md`
+- SHA-256: `57850baec2ecea71c7635100c88d3299c18726bb6739c2b3de293441b48d8c65`
+
+### Editor Review: Current Worktree
+
+#### Scope Reviewed
+
+Reviewed current uncommitted worktree with emphasis on:
+
+- `agent-relay/roles/Editor/ROLE.md`
+- `backend/services/plugin_service.py`
+- `frontend/public/chart.js`
+- `frontend/public/index.html`
+- `frontend/public/shared-chart-utils.js`
+- relay-generated artifacts
+- memory/transcript-generated artifacts
+
+No source edits were made by Editor.
+
+#### Verification Observed
+
+- `python tools\agent_router.py verify` passed before review.
+- `py -m py_compile backend\services\plugin_service.py` passed.
+- `node --check frontend\public\chart.js` passed.
+- `node --check frontend\public\shared-chart-utils.js` passed.
+- GitNexus `detect_changes(scope="all")` reported low risk and no affected indexed execution flows.
+
+#### Blockers
+
+No `EDITOR BLOCKER` findings.
+
+#### Structural Findings
+
+1. `agent-relay/roles/Editor/ROLE.md`: accepted. The Ponytail-style pass is scoped as review guidance, preserves behavior/safety boundaries, and does not install or require the external Ponytail plugin.
+
+2. `frontend/public/chart.js`: non-blocking concern. The chart change adds several responsibilities in one large existing file: Heikin-Ashi mode, real-time quote polling, timeframe parallel fetch/scan behavior, and chart-state bookkeeping. This follows the current static-frontend/global-script pattern, but it increases the size and coupling of an already-large file. Future related work should prefer extracting chart mode/poller helpers only if there is an existing local pattern to reuse.
+
+3. `frontend/public/chart.js`: non-blocking behavior-preservation risk. The real-time poller updates `patternSeries`, but static review cannot certify that equivolume canvas redraws, markers, and Heikin-Ashi tail recomputation behave correctly across all four mode combinations. Visual/manual browser verification is still needed.
+
+4. `backend/services/plugin_service.py`: accepted with non-blocking note. The per-key lock approach is simple and appropriate for coalescing concurrent fetches. It adds a small amount of state to `DataCache`, but the implementation is localized and avoids a broader queue/cache subsystem.
+
+5. Relay and memory files: accepted as generated artifacts, but they create high git noise. Treat generated relay/memory diffs as evidence trails, not product-code changes, during review and commit scoping.
+
+#### Ponytail Pass
+
+- `shrink`: `frontend/public/chart.js` has verbose comments around the new poller and candle-mode paths. Keep for now because the mode interactions are subtle; revisit only after behavior is proven.
+- `yagni`: no blocker. The new Heikin-Ashi and real-time features appear tied to active user workflow, not speculative abstractions.
+- `delete`: no obvious dead code introduced in the inspected diff.
+- `stdlib` / `native` / `existing-dependency`: no clear replacement opportunity found.
+
+#### Revalidation Request
+
+Before accepting the product-facing chart changes, Validator should request or perform a browser/manual check for:
+
+- normal + time candles
+- normal + equivolume candles
+- Heikin-Ashi + time candles
+- Heikin-Ashi + equivolume candles
+- timeframe switch while scan is still pending
+- real-time quote update start/stop after chart redraw and clear
+
+
+---
+
+## 79. Validator -> Editor: Review frontend public chart cluster
+
+- Routing ID: `route-20260620-110655-validator-to-editor-f51baaf7`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `frontend-public-chart-cluster-editor-review`
+- Timestamp: `2026-06-20T11:06:55Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-frontend-public-chart-cluster-review.md`
+- Body: `agent-relay/messages/route-20260620-110655-validator-to-editor-f51baaf7.md`
+- SHA-256: `9861a4dfbeaeae1875249adb05eb669d9c87ebd6bea570c8b36ec8c5c5cacfc2`
+
+### Validator Directive: Frontend Public Chart Cluster Editor Review
+
+#### Classification
+
+Editor review only. No product-code edits are authorized.
+
+#### Scope
+
+Review the scanner/chart cluster in `frontend/public/`:
+
+- `frontend/public/chart.js`
+- `frontend/public/shared-chart-utils.js`
+- `frontend/public/index.html`
+- `frontend/public/scanner.js`
+- `frontend/public/index.js`
+
+#### Review Goals
+
+- Identify structural/maintainability risk.
+- Identify global-state and script-order coupling risk.
+- Identify duplicate logic or unclear ownership boundaries.
+- Run the Ponytail-style anti-overengineering pass:
+  - `delete`
+  - `stdlib`
+  - `native`
+  - `existing-dependency`
+  - `yagni`
+  - `shrink`
+- State whether there are any `EDITOR BLOCKER` findings.
+
+#### Boundaries
+
+- Do not certify product behavior.
+- Do not modify source files.
+- Do not remove validation, safety checks, accessibility, required tests, or behavior-preservation evidence.
+- If a concern is not blocking, label it non-blocking.
+
+
+---
+
+## 80. Editor -> Validator: Frontend public chart cluster Editor review
+
+- Routing ID: `route-20260620-110834-editor-to-validator-0e5a6ce1`
+- Type: `EDITOR REVIEW`
+- Phase: `frontend-public-chart-cluster-editor-review`
+- Timestamp: `2026-06-20T11:08:34Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-frontend-public-chart-cluster-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-110834-editor-to-validator-0e5a6ce1.md`
+- SHA-256: `1345af60f6b6230d683c0ecd6ddd573586f5081c77a6d2aa3bdf3d8622319b80`
+
+### Editor Review: Frontend Public Chart Cluster
+
+#### Scope Reviewed
+
+- `frontend/public/chart.js`
+- `frontend/public/shared-chart-utils.js`
+- `frontend/public/index.html`
+- `frontend/public/scanner.js`
+- `frontend/public/index.js`
+
+No source edits were made by Editor.
+
+#### Verification Observed
+
+- `node --check frontend\public\scanner.js` passed.
+- `node --check frontend\public\index.js` passed.
+- `node --check frontend\public\chart.js` passed.
+- `node --check frontend\public\shared-chart-utils.js` passed.
+
+#### EDITOR BLOCKER
+
+`frontend/public/scanner.js` contains duplicate overwritten universe-management functions:
+
+- `universeRefreshStatus` at lines 10, 135, and 452.
+- `universeBuild` at lines 80, 172, and 548.
+- `_universeCheckWeeklyUpdate` at lines 207 and 715.
+
+Why this blocks folder health:
+
+- In plain browser JavaScript, later function declarations overwrite earlier declarations.
+- The first two versions of `universeRefreshStatus` and `universeBuild` are dead at runtime but still visible to maintainers.
+- The duplicate blocks differ in behavior and copy, so future edits could easily patch the wrong version.
+- `index.html` and `index.js` call the global names directly, so the file depends on declaration-order side effects.
+
+Recommended owner: Builder.
+
+Evidence required to clear:
+
+- Remove or consolidate the superseded duplicate universe-management function bodies.
+- Preserve the latest intended behavior unless Validator explicitly freezes a different requirement.
+- Run `node --check frontend\public\scanner.js`.
+- Run or manually verify the Settings universe controls:
+  - Build Universe
+  - Update Universe
+  - Refresh
+  - weekly update check when Settings is opened
+
+#### Non-Blocking Structural Findings
+
+1. `frontend/public/index.js` is very large and mixes fundamentals rendering, navigation, scanner state, formatting helpers, and candidate display behavior. This is not a blocker because it reflects the current static-frontend architecture, but it is a high-coupling area.
+
+2. `frontend/public/chart.js` is also large and now owns base chart rendering, equal-volume rendering, Heikin-Ashi mode, markers, overlays, drawing-tool attachment, timeframe switching, and real-time polling. The current diff is understandable, but this file should be watched closely.
+
+3. `frontend/public/index.html` relies on inline `onclick` handlers for scanner/universe actions. That matches the existing no-build frontend style, but it preserves global-name coupling and makes duplicate function declarations more dangerous.
+
+4. `frontend/public/shared-chart-utils.js` is a good direction: reusable chart math and data normalization live outside `chart.js`. No blocker found there.
+
+#### Ponytail Pass
+
+- `delete`: remove the overwritten duplicate universe-management function blocks in `scanner.js`.
+- `yagni`: no new abstraction is needed to clear the blocker; a small consolidation/delete pass is enough.
+- `shrink`: after duplicate removal, `scanner.js` should get shorter without changing behavior.
+- `native`: inline `onclick` could eventually move to event listeners, but that would be a broader frontend convention change and is not required for this cleanup.
+- `stdlib` / `existing-dependency`: no clear finding.
+
+#### Editor Decision
+
+Blocked for folder health until the duplicate universe-management definitions in `frontend/public/scanner.js` are consolidated.
+
+
+---
+
+## 81. Validator -> Builder: Fix duplicate scanner universe functions
+
+- Routing ID: `route-20260620-110959-validator-to-builder-62b7efa8`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `fix-scanner-duplicate-universe-functions`
+- Timestamp: `2026-06-20T11:09:59Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-fix-scanner-duplicate-universe-functions.md`
+- Body: `agent-relay/messages/route-20260620-110959-validator-to-builder-62b7efa8.md`
+- SHA-256: `53214298d3a8d1b35e12dc87b72f7f029d2cc8056010c135170e8beb5554d740`
+
+### Validator Directive: Fix Duplicate Scanner Universe Functions
+
+#### Classification
+
+Tier 1 localized frontend cleanup to clear an `EDITOR BLOCKER`.
+
+#### Frozen Intent
+
+`frontend/public/scanner.js` must contain one canonical implementation of each universe-management function. Preserve the latest intended behavior and remove overwritten duplicate declarations that are dead at runtime.
+
+#### Impact Analysis
+
+GitNexus impact was run before editing:
+
+- `universeRefreshStatus`: MEDIUM risk, 5 direct callers in `frontend/public/scanner.js`, no affected indexed execution flows.
+- `universeBuild`: LOW risk, no indexed upstream callers.
+- `_universeCheckWeeklyUpdate`: LOW risk, no indexed upstream callers.
+
+#### Builder Tasks
+
+1. Edit `frontend/public/scanner.js`.
+2. Remove or consolidate superseded duplicate definitions of:
+   - `universeRefreshStatus`
+   - `universeBuild`
+   - `_universeCheckWeeklyUpdate`
+3. Also remove any directly associated duplicate helper blocks if they are part of the overwritten universe-management copies and superseded by the later canonical implementation.
+4. Preserve the latest intended behavior from the later universe-management implementation.
+5. Do not refactor unrelated scanner behavior.
+
+#### Required Verification
+
+- `node --check frontend\public\scanner.js`
+- Search confirms only one declaration each for:
+  - `universeRefreshStatus`
+  - `universeBuild`
+  - `_universeCheckWeeklyUpdate`
+
+#### Builder Report
+
+Report files changed, declarations removed/consolidated, verification output, and any residual risks.
+
+
+---
+
+## 82. Builder -> Validator: Fix scanner duplicate universe functions builder report
+
+- Routing ID: `route-20260620-111137-builder-to-validator-ecf9925e`
+- Type: `BUILDER REPORT`
+- Phase: `fix-scanner-duplicate-universe-functions`
+- Timestamp: `2026-06-20T11:11:37Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-fix-scanner-duplicate-universe-functions-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-111137-builder-to-validator-ecf9925e.md`
+- SHA-256: `9c9b97fd977fafde5f071ebc77fb6518c9b0569dab44334e2548082775835108`
+
+### Builder Report: Fix Scanner Duplicate Universe Functions
+
+#### Directive
+
+Implement Validator directive `2026-06-20-builder-fix-scanner-duplicate-universe-functions.md`.
+
+#### Files Changed
+
+- `frontend/public/scanner.js`
+
+#### What Changed
+
+Removed the superseded early universe-management blocks from `scanner.js`.
+
+The removed code included overwritten duplicate declarations for:
+
+- `universeRefreshStatus`
+- `universeBuild`
+- `universeUpdate`
+- `_universeShowProgress`
+- `_universeStartPolling`
+- `_universeStopPolling`
+- `_universeCheckWeeklyUpdate`
+
+The latest later implementation remains canonical.
+
+Net code reduction:
+
+- `frontend/public/scanner.js`: 207 lines removed.
+
+#### Impact Notes
+
+GitNexus impact was run for the named duplicate symbols before editing:
+
+- `universeRefreshStatus`: MEDIUM
+- `universeBuild`: LOW
+- `_universeCheckWeeklyUpdate`: LOW
+
+After noticing associated duplicate helper/function blocks were also removed, Validator also checked:
+
+- `universeUpdate`: LOW
+- `_universeShowProgress`: MEDIUM
+- `_universeStartPolling`: MEDIUM
+- `_universeStopPolling`: LOW
+
+No HIGH or CRITICAL impact was reported.
+
+#### Verification
+
+Passed:
+
+```powershell
+node --check frontend\public\scanner.js
+```
+
+Declaration search now shows one remaining definition each:
+
+```text
+_universeShowProgress
+_universeStartPolling
+_universeStopPolling
+universeRefreshStatus
+universeBuild
+universeUpdate
+_universeCheckWeeklyUpdate
+```
+
+#### Residual Risk
+
+This was a structure cleanup preserving the later declaration that already won at runtime. Browser/manual verification of Settings universe controls is still recommended before product acceptance.
+
+
+---
+
+## 83. Validator -> Editor: Review scanner duplicate universe function fix
+
+- Routing ID: `route-20260620-111209-validator-to-editor-9d7fe3c3`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `fix-scanner-duplicate-universe-functions`
+- Timestamp: `2026-06-20T11:12:09Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-scanner-duplicate-fix.md`
+- Body: `agent-relay/messages/route-20260620-111209-validator-to-editor-9d7fe3c3.md`
+- SHA-256: `6af0069debc32b8cd7d907daadd42bc2aef764225999551c5f454cb2d2903d9a`
+
+### Validator Directive: Review Scanner Duplicate Universe Function Fix
+
+#### Review Scope
+
+Review Builder's cleanup in `frontend/public/scanner.js`.
+
+#### Questions
+
+- Did Builder remove the duplicate overwritten universe-management declarations?
+- Does one canonical definition remain for each relevant universe function?
+- Does the cleanup preserve the latest intended implementation rather than an older superseded version?
+- Are there any remaining `EDITOR BLOCKER` findings?
+
+#### Verification To Consider
+
+Builder reports:
+
+- `node --check frontend\public\scanner.js` passed.
+- Declaration search shows one remaining definition each for the universe-management functions.
+
+#### Required Output
+
+Report accepted, accepted with non-blocking notes, or blocked.
+
+
+---
+
+## 84. Editor -> Validator: Scanner duplicate universe function fix Editor review
+
+- Routing ID: `route-20260620-111234-editor-to-validator-edbf11d1`
+- Type: `EDITOR REVIEW`
+- Phase: `fix-scanner-duplicate-universe-functions`
+- Timestamp: `2026-06-20T11:12:34Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-scanner-duplicate-fix-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-111234-editor-to-validator-edbf11d1.md`
+- SHA-256: `ad2ffc163522e5a3388034b30c7462a38e33678f3d72685c18f7e7d638db21bd`
+
+### Editor Review: Scanner Duplicate Universe Function Fix
+
+#### Scope Reviewed
+
+- `frontend/public/scanner.js`
+
+#### Verification Observed
+
+Passed:
+
+```powershell
+node --check frontend\public\scanner.js
+```
+
+Declaration search shows one remaining definition for each reviewed universe-management function:
+
+```text
+_universeShowProgress
+_universeStartPolling
+_universeStopPolling
+universeRefreshStatus
+universeBuild
+universeUpdate
+_universeCheckWeeklyUpdate
+```
+
+#### Findings
+
+Accepted with no blocker.
+
+Builder removed the overwritten duplicate universe-management declarations and preserved the latest, richer implementation as the canonical version.
+
+#### Ponytail Pass
+
+- `delete`: satisfied. Dead overwritten function blocks were removed.
+- `shrink`: satisfied. `frontend/public/scanner.js` is 207 lines shorter.
+- `yagni`: no new abstraction was introduced.
+- `stdlib`, `native`, `existing-dependency`: no finding.
+
+#### Blockers
+
+No `EDITOR BLOCKER` findings remain for the duplicate universe-management definitions.
+
+#### Residual Note
+
+Manual/browser verification of the Settings universe controls is still recommended before accepting product behavior, but the structural blocker is cleared.
+
+
+---
+
+## 85. Validator -> Builder: Add Builder Elegance Standard
+
+- Routing ID: `route-20260620-111608-validator-to-builder-9e2c488d`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `builder-elegance-standard`
+- Timestamp: `2026-06-20T11:16:08Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-elegance-standard.md`
+- Body: `agent-relay/messages/route-20260620-111608-validator-to-builder-9e2c488d.md`
+- SHA-256: `4a7dac696fb34cec1abff9e87b8e3ec72ffda5ffe2cbdf99aa2718aae2a19a55`
+
+### Validator Directive: Add Builder Elegance Standard
+
+#### Classification
+
+Governance / role-instruction change. No product behavior or code-symbol edit is authorized.
+
+#### Intent
+
+Give Builder a concrete implementation-quality doctrine that complements:
+
+- Validator + GitNexus: impact, risk, blast radius, acceptance evidence.
+- Editor + Ponytail: deletion, simplicity, anti-overengineering.
+
+Builder's doctrine should focus on native, correct implementation.
+
+#### Builder Directive
+
+Update `agent-relay/roles/Builder/ROLE.md` only.
+
+Add a `Builder Elegance Standard` section that instructs Builder to:
+
+- implement the smallest correct change that satisfies the Validator directive;
+- fit the existing codebase's local patterns, naming, data contracts, and UI/API conventions;
+- prefer existing services, helpers, routes, schemas, and storage locations over new parallel structures;
+- keep scope narrow and avoid opportunistic refactors;
+- preserve behavior not named in the directive;
+- choose boring, readable code over clever compression;
+- leave the smallest meaningful verification evidence;
+- report assumptions, limitations, and any behavior that still needs manual validation.
+
+#### Boundaries
+
+The new section must not weaken Builder restrictions. Builder still cannot accept its own work or route directly to Editor.
+
+#### Acceptance Evidence
+
+- Diff is limited to `agent-relay/roles/Builder/ROLE.md` plus relay artifacts.
+- Router verification passes.
+
+
+---
+
+## 86. Builder -> Validator: Builder Elegance Standard builder report
+
+- Routing ID: `route-20260620-111630-builder-to-validator-3e6d72ea`
+- Type: `BUILDER REPORT`
+- Phase: `builder-elegance-standard`
+- Timestamp: `2026-06-20T11:16:30Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-builder-elegance-standard-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-111630-builder-to-validator-3e6d72ea.md`
+- SHA-256: `3cd950268376fcd25f88d16025c506e79453b29d5be2d77f8d7afa8f8eb344d8`
+
+### Builder Report: Builder Elegance Standard
+
+#### Directive
+
+Implement Validator directive `2026-06-20-builder-elegance-standard.md`.
+
+#### Files Changed
+
+- `agent-relay/roles/Builder/ROLE.md`
+
+#### What Changed
+
+Added `## Builder Elegance Standard`.
+
+The new section instructs Builder to:
+
+- implement the smallest correct change that satisfies the Validator directive;
+- fit the codebase's existing local patterns;
+- prefer existing services, helpers, routes, schemas, storage locations, and UI/API conventions;
+- keep edits narrow;
+- preserve behavior outside the directive;
+- avoid parallel engines, caches, workflows, or sources of truth;
+- report scope expansion, assumptions, limitations, and manual-validation needs.
+
+#### Notes
+
+No product code was changed.
+
+
+---
+
+## 87. Validator -> Editor: Review Builder Elegance Standard
+
+- Routing ID: `route-20260620-111649-validator-to-editor-9f503e22`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `builder-elegance-standard`
+- Timestamp: `2026-06-20T11:16:49Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-builder-elegance-standard.md`
+- Body: `agent-relay/messages/route-20260620-111649-validator-to-editor-9f503e22.md`
+- SHA-256: `f4aca5d1c37c06145d17a4c3b763c305503c41735dbd8fe806d7f330149f9383`
+
+### Validator Directive: Review Builder Elegance Standard
+
+#### Review Scope
+
+Review Builder's change to `agent-relay/roles/Builder/ROLE.md`.
+
+#### Questions
+
+- Is the new Builder Elegance Standard clear and useful?
+- Does it preserve the existing Validator/Builder/Editor authority split?
+- Does it avoid weakening Builder restrictions?
+- Does it complement, rather than duplicate, Editor's Ponytail anti-overengineering role?
+- Are there any `EDITOR BLOCKER` findings?
+
+#### Required Output
+
+Report accepted, accepted with non-blocking notes, or blocked.
+
+
+---
+
+## 88. Editor -> Validator: Builder Elegance Standard Editor review
+
+- Routing ID: `route-20260620-111704-editor-to-validator-2a73642f`
+- Type: `EDITOR REVIEW`
+- Phase: `builder-elegance-standard`
+- Timestamp: `2026-06-20T11:17:04Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-builder-elegance-standard-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-111704-editor-to-validator-2a73642f.md`
+- SHA-256: `d43b917261cd6da183a97a703a2c8b03d95d252518190b3073a0a4f709d98eb1`
+
+### Editor Review: Builder Elegance Standard
+
+#### Scope Reviewed
+
+- `agent-relay/roles/Builder/ROLE.md`
+
+#### Findings
+
+Accepted with no blocker.
+
+The new section is clear and useful. It gives Builder implementation discipline without giving Builder authority to accept its own work.
+
+It preserves the existing role split:
+
+- Validator still freezes intent and accepts/rejects.
+- Builder still implements the approved directive.
+- Editor still performs maintainability and anti-overengineering review after Builder work.
+
+The standard complements the Ponytail-style Editor pass: Builder is asked to make the change native and narrow up front; Editor still checks whether the result can be simpler afterward.
+
+#### Blockers
+
+No `EDITOR BLOCKER` findings.
+
+#### Ponytail Pass
+
+- `yagni`: no concern. The section fills a real role gap.
+- `shrink`: no concern. The section is compact enough for role instructions.
+- `delete`, `stdlib`, `native`, `existing-dependency`: no finding.
+
+
+---
+
+## 89. Validator -> Builder: Add Validator improve-style planning standard
+
+- Routing ID: `route-20260620-112401-validator-to-builder-2c23dbb6`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `validator-improve-style-planning-standard`
+- Timestamp: `2026-06-20T11:24:01Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-validator-improve-style-planning-standard.md`
+- Body: `agent-relay/messages/route-20260620-112401-validator-to-builder-2c23dbb6.md`
+- SHA-256: `0c9228ebc0dc8c7173cb073f6315a7cc5161b5f3467f52935db8927a6adccd52`
+
+### Validator Directive: Add Improve-Style Planning Standard
+
+#### Classification
+
+Governance / planning-instruction change. No product behavior or code-symbol edit is authorized.
+
+#### Intent
+
+Adapt the useful doctrine from `shadcn/improve` into this repo's existing planning system.
+
+Do not adopt `improve`'s `plans/001-*.md` layout. This repo's canonical planning format remains paired PRD/checklist files under `.planning/plans/` according to `.planning/plans/PLAN_CONVENTIONS.md`.
+
+#### Builder Directive
+
+Update only:
+
+- `agent-relay/roles/Validator/ROLE.md`
+- `.planning/plans/PLAN_CONVENTIONS.md`
+
+Add a Validator planning standard that says PRDs/checklists should be self-contained and executable by Builder without relying on prior chat context.
+
+Include these concepts:
+
+- current-state evidence;
+- exact files, symbols, routes, data stores, or UI surfaces involved;
+- scope and explicit out-of-scope boundaries;
+- verification gates and expected commands/output where practical;
+- STOP conditions for when Builder must report back instead of improvising;
+- drift check before implementation when plans may be stale;
+- done criteria that Validator can independently verify;
+- preserving this repo's PRD/checklist naming and folder conventions.
+
+#### Boundaries
+
+- Do not create new planning folders.
+- Do not install or reference `shadcn/improve` as a required tool.
+- Do not weaken the Tri-Agent role split.
+- Do not authorize Builder to write or approve plans.
+
+#### Acceptance Evidence
+
+- Diff is limited to the two target docs plus relay artifacts.
+- Router verification passes.
+
+
+---
+
+## 90. Builder -> Validator: Validator improve-style planning standard builder report
+
+- Routing ID: `route-20260620-112430-builder-to-validator-365c776f`
+- Type: `BUILDER REPORT`
+- Phase: `validator-improve-style-planning-standard`
+- Timestamp: `2026-06-20T11:24:30Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-validator-improve-style-planning-standard-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-112430-builder-to-validator-365c776f.md`
+- SHA-256: `994ce90b813dd138ae57076e24c29fb0727b546621d500138e8698ec3123f912`
+
+### Builder Report: Validator Improve-Style Planning Standard
+
+#### Directive
+
+Implement Validator directive `2026-06-20-validator-improve-style-planning-standard.md`.
+
+#### Files Changed
+
+- `agent-relay/roles/Validator/ROLE.md`
+- `.planning/plans/PLAN_CONVENTIONS.md`
+
+#### What Changed
+
+Added a `Planning Standard` section to the Validator role. It requires substantial Builder directives and PRD/checklist work to be self-contained enough for Builder to execute without relying on prior chat context.
+
+Added an `Executable Planning Standard` section to the planning conventions. It keeps the existing paired PRD/checklist format and adds quality requirements:
+
+- current-state evidence;
+- exact files/symbols/routes/data stores/UI surfaces/plans in scope;
+- explicit out-of-scope boundaries;
+- verification gates;
+- STOP conditions;
+- drift checks;
+- Validator-verifiable done criteria.
+
+#### Boundaries Preserved
+
+- No new planning folders were added.
+- No external tool was installed or required.
+- The repo's paired PRD/checklist convention remains canonical.
+- Builder was not authorized to approve its own plans.
+
+#### Verification
+
+Doc-only change. No product code changed.
+
+
+---
+
+## 91. Validator -> Editor: Review Validator planning standard
+
+- Routing ID: `route-20260620-112441-validator-to-editor-b5b6f9d1`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `validator-improve-style-planning-standard`
+- Timestamp: `2026-06-20T11:24:41Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-validator-planning-standard.md`
+- Body: `agent-relay/messages/route-20260620-112441-validator-to-editor-b5b6f9d1.md`
+- SHA-256: `cce032a85a1b565acd633392e14e572f316f7045a7a1a46afa49fc8e94fb180b`
+
+### Validator Directive: Review Validator Planning Standard
+
+#### Review Scope
+
+Review Builder's changes to:
+
+- `agent-relay/roles/Validator/ROLE.md`
+- `.planning/plans/PLAN_CONVENTIONS.md`
+
+#### Questions
+
+- Does the new standard improve Validator planning quality?
+- Does it preserve the existing paired PRD/checklist format?
+- Does it avoid creating a second planning system?
+- Does it keep Builder from approving its own plans?
+- Are there any `EDITOR BLOCKER` findings?
+
+#### Required Output
+
+Report accepted, accepted with non-blocking notes, or blocked.
+
+
+---
+
+## 92. Editor -> Validator: Validator planning standard Editor review
+
+- Routing ID: `route-20260620-112501-editor-to-validator-6bc5f806`
+- Type: `EDITOR REVIEW`
+- Phase: `validator-improve-style-planning-standard`
+- Timestamp: `2026-06-20T11:25:01Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-validator-planning-standard-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-112501-editor-to-validator-6bc5f806.md`
+- SHA-256: `437c76eedffdb65b86288b5c318975518b8f61cfc039a8b0782a4d928a41e016`
+
+### Editor Review: Validator Improve-Style Planning Standard
+
+#### Scope Reviewed
+
+- `agent-relay/roles/Validator/ROLE.md`
+- `.planning/plans/PLAN_CONVENTIONS.md`
+
+#### Findings
+
+Accepted with no blocker.
+
+The change improves Validator planning quality while preserving the repo's existing paired PRD/checklist convention.
+
+The split is appropriate:
+
+- `Validator/ROLE.md` defines Validator's control-plane responsibility.
+- `PLAN_CONVENTIONS.md` defines what high-quality PRD/checklist artifacts should contain.
+
+The language explicitly rejects `plans/001-*` one-off planning files and keeps work inside `TODO/`, `ACTIVE/`, or `COMPLETED/` paired PRD/checklist files.
+
+Builder is not authorized to approve its own plans. Validator still owns acceptance.
+
+#### Blockers
+
+No `EDITOR BLOCKER` findings.
+
+#### Ponytail Pass
+
+- `yagni`: no concern. This fills a real planning-quality gap.
+- `shrink`: acceptable. There is some overlap between the two files, but each file serves a different audience.
+- `delete`, `stdlib`, `native`, `existing-dependency`: no finding.
+
+
+---
+
+## 93. Validator -> Builder: Add Builder elegance metric
+
+- Routing ID: `route-20260620-113053-validator-to-builder-6e8bfed2`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `builder-elegance-metric`
+- Timestamp: `2026-06-20T11:30:53Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-elegance-metric.md`
+- Body: `agent-relay/messages/route-20260620-113053-validator-to-builder-6e8bfed2.md`
+- SHA-256: `7c37fc092316f3fc77382a84f908a953c0ca1c8b86c352323353f49326e8e3d4`
+
+### Validator Directive: Add Builder Elegance Metric
+
+#### Classification
+
+Governance / role-instruction change. No product behavior or code-symbol edit is authorized.
+
+#### Intent
+
+Make Builder's elegance standard measurable when a task reduces unnecessary code.
+
+The metric should capture the idea:
+
+```text
+Elegance gain = unnecessary LOC removed / original LOC
+```
+
+But only when required behavior, safety, readability, and verification are preserved.
+
+#### Builder Directive
+
+Update:
+
+- `agent-relay/roles/Builder/ROLE.md`
+- `agent-relay/roles/Editor/ROLE.md`
+
+In Builder's role file, add guidance that Builder reports an `Elegance Result` when relevant, including:
+
+- before/after shape;
+- net LOC reduction or consolidation;
+- percent reduction when meaningful;
+- behavior preserved;
+- verification evidence;
+- safety boundaries not weakened.
+
+In Editor's role file, add guidance that Editor may use this metric during the Ponytail-style pass, but must reject code-golf reductions that weaken clarity, validation, security, accessibility, tests, or behavior-preservation evidence.
+
+#### Boundaries
+
+- Do not make line count the only measure of quality.
+- Do not incentivize clever compression.
+- Do not weaken any role authority or restrictions.
+
+#### Acceptance Evidence
+
+- Diff limited to the two role files plus relay artifacts.
+- Router verification passes.
+
+
+---
+
+## 94. Builder -> Validator: Builder elegance metric builder report
+
+- Routing ID: `route-20260620-113125-builder-to-validator-acf4110a`
+- Type: `BUILDER REPORT`
+- Phase: `builder-elegance-metric`
+- Timestamp: `2026-06-20T11:31:25Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-builder-elegance-metric-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-113125-builder-to-validator-acf4110a.md`
+- SHA-256: `1acd1a82dfbd82d4e14c18378d3856f53fbf38a36f1b8a40c1908f68644503de`
+
+### Builder Report: Builder Elegance Metric
+
+#### Directive
+
+Implement Validator directive `2026-06-20-builder-elegance-metric.md`.
+
+#### Files Changed
+
+- `agent-relay/roles/Builder/ROLE.md`
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### What Changed
+
+Added `### Elegance Result` under Builder's Elegance Standard.
+
+Builder now reports an `Elegance Result` when a task meaningfully removes unnecessary code or consolidates duplicate implementations, including:
+
+- before/after shape;
+- net LOC reduced or duplicate paths removed;
+- percent reduction when clear;
+- behavior preserved;
+- verification evidence;
+- safety boundaries not weakened.
+
+Added Editor guidance to verify that reported reductions are real unnecessary code, not code golf.
+
+#### Boundaries Preserved
+
+The new language explicitly rejects shorter code that weakens readability, validation, security, accessibility, required tests, or behavior-preservation evidence.
+
+#### Verification
+
+Doc-only role instruction change. No product code changed.
+
+
+---
+
+## 95. Validator -> Editor: Review Builder elegance metric
+
+- Routing ID: `route-20260620-113135-validator-to-editor-de882127`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `builder-elegance-metric`
+- Timestamp: `2026-06-20T11:31:35Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-builder-elegance-metric.md`
+- Body: `agent-relay/messages/route-20260620-113135-validator-to-editor-de882127.md`
+- SHA-256: `5a9b8d51c15a7045d75352dc5c983db399640b55cb227317eb7f626321365115`
+
+### Validator Directive: Review Builder Elegance Metric
+
+#### Review Scope
+
+Review Builder's changes to:
+
+- `agent-relay/roles/Builder/ROLE.md`
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### Questions
+
+- Does the metric make Builder reports more concrete?
+- Does it avoid treating line count as the only quality measure?
+- Does it preserve safety, readability, verification, and role boundaries?
+- Does Editor have enough guidance to reject code-golf reductions?
+- Are there any `EDITOR BLOCKER` findings?
+
+#### Required Output
+
+Report accepted, accepted with non-blocking notes, or blocked.
+
+
+---
+
+## 96. Editor -> Validator: Builder elegance metric Editor review
+
+- Routing ID: `route-20260620-113148-editor-to-validator-8b16420f`
+- Type: `EDITOR REVIEW`
+- Phase: `builder-elegance-metric`
+- Timestamp: `2026-06-20T11:31:48Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-builder-elegance-metric-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-113148-editor-to-validator-8b16420f.md`
+- SHA-256: `d51b7fe8a72685b9ea4941a05d9e8c907ff4d83216530a4b2bb4c2953ce8e680`
+
+### Editor Review: Builder Elegance Metric
+
+#### Scope Reviewed
+
+- `agent-relay/roles/Builder/ROLE.md`
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### Findings
+
+Accepted with no blocker.
+
+The `Elegance Result` metric makes Builder reports more concrete when a task removes unnecessary code or consolidates duplicate implementations.
+
+The guardrails are explicit: line count is not the only quality measure, and shorter code is not acceptable if it weakens readability, validation, security, accessibility, required tests, or behavior-preservation evidence.
+
+Editor now has direct guidance to reject code-golf reductions during the Ponytail-style pass.
+
+#### Blockers
+
+No `EDITOR BLOCKER` findings.
+
+#### Ponytail Pass
+
+- `shrink`: accepted. The added metric is compact and useful.
+- `yagni`: no concern. The metric responds to a real reporting need from the scanner cleanup.
+- `delete`, `stdlib`, `native`, `existing-dependency`: no finding.
+
+
+---
+
+## 97. Validator -> Builder: Sync agent memory bootstrap role doctrine
+
+- Routing ID: `route-20260620-113543-validator-to-builder-934b382a`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-role-doctrine-sync`
+- Timestamp: `2026-06-20T11:35:43Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-sync-agent-memory-bootstrap-role-doctrine.md`
+- Body: `agent-relay/messages/route-20260620-113543-validator-to-builder-934b382a.md`
+- SHA-256: `80d24c90d1a35900b4729216e284dbb98054605e58437b3b735490d37d3f920c`
+
+### Builder Directive: Sync Agent Memory Bootstrap Role Doctrine
+
+#### Objective
+
+Update the `agent-memory-bootstrap/` documentation so a new repo bootstrapped
+from this package receives the current Pattern Detector tri-agent doctrine, not
+only the older mirror/router setup.
+
+#### Scope
+
+Edit only:
+
+- `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
+- `agent-memory-bootstrap/ROUTER_WORKFLOW.md`
+
+#### Required Updates
+
+1. Add a portable tri-agent doctrine snapshot covering:
+   - Validator planning standard: self-contained PRDs/checklists/directives,
+     repo evidence, exact scope, verification gates, STOP conditions, drift
+     checks, and independently verifiable done criteria.
+   - Builder elegance standard: smallest correct native implementation,
+     local patterns, no unapproved parallel systems, and explicit reporting
+     when scope expands.
+   - Builder Elegance Result metric: when removing duplicate/unnecessary code,
+     report before/after shape, LOC or duplicate paths removed, percent
+     reduction when clear, behavior preserved, verification evidence, and
+     safety boundaries not weakened.
+   - Editor Ponytail-style anti-overengineering pass: `delete`, `stdlib`,
+     `native`, `existing-dependency`, `yagni`, and `shrink` labels with the
+     safety guardrails from the live Editor role.
+2. Preserve the existing PRD/checklist convention. Do not introduce or imply
+   external `plans/001-*` planning layout.
+3. Fix `ROUTER_WORKFLOW.md` section 5.5 so it no longer tells users to route
+   `Validator -> User`; the current router allowlist does not support that
+   route.
+4. Add checklist coverage so future bootstrap installs verify role files and
+   router route docs are in sync.
+
+#### Verification
+
+- Run `python tools\agent_router.py verify`.
+- Report changed files and any residual bootstrap risk.
+
+
+---
+
+## 98. Builder -> Validator: Sync agent memory bootstrap role doctrine builder report
+
+- Routing ID: `route-20260620-113630-builder-to-validator-6045ee8a`
+- Type: `BUILDER REPORT`
+- Phase: `agent-memory-bootstrap-role-doctrine-sync`
+- Timestamp: `2026-06-20T11:36:30Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-sync-agent-memory-bootstrap-role-doctrine-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-113630-builder-to-validator-6045ee8a.md`
+- SHA-256: `0e5a908a653ff1c2e033426a014ad6008a4a319a1f42bc28e7d25cc7ecd4c9ab`
+
+### Builder Report: Sync Agent Memory Bootstrap Role Doctrine
+
+#### Status
+
+Implemented.
+
+#### Files Changed
+
+- `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
+- `agent-memory-bootstrap/ROUTER_WORKFLOW.md`
+
+#### Changes
+
+- Added a current role doctrine snapshot for:
+  - Validator self-contained planning standard.
+  - Builder elegance standard.
+  - Builder Elegance Result metric.
+  - Editor Ponytail-style anti-overengineering pass.
+- Preserved Pattern Detector's PRD/checklist convention and explicitly warned
+  against importing an unrelated `plans/001-*` layout by accident.
+- Added the portable router allowlist to the implementation guide.
+- Clarified that the default router does not allow `Validator -> User`; Validator
+  rulings remain role-owned files and final decisions are reported to the
+  User/Mediator in normal conversation unless a target repo extends the router.
+- Added bootstrap checklist items for copying/adapting role doctrine and
+  verifying router docs against `ALLOWED_ROUTES`.
+
+#### Verification
+
+- Pending: `python tools\agent_router.py verify`
+
+#### Residual Risk
+
+- Target repos still need to adapt the role doctrine to their own governance
+  contracts instead of copying Pattern Detector-specific language blindly.
+
+
+---
+
+## 99. Validator -> Editor: Review agent memory bootstrap role doctrine sync
+
+- Routing ID: `route-20260620-113654-validator-to-editor-e72e1ce0`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `agent-memory-bootstrap-role-doctrine-sync`
+- Timestamp: `2026-06-20T11:36:54Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-agent-memory-bootstrap-role-doctrine-sync.md`
+- Body: `agent-relay/messages/route-20260620-113654-validator-to-editor-e72e1ce0.md`
+- SHA-256: `bfb18dbe8b3230d7677c650bdbfa9ee82f5c8dd1a0d9e19d551c2ab0103c6e4e`
+
+### Editor Review Directive: Agent Memory Bootstrap Role Doctrine Sync
+
+#### Objective
+
+Review Builder's updates to the bootstrap documentation for clarity,
+maintainability, and consistency with the live role system.
+
+#### Scope
+
+Review only:
+
+- `agent-memory-bootstrap/IMPLEMENTATION_GUIDE.md`
+- `agent-memory-bootstrap/ROUTER_WORKFLOW.md`
+
+#### Review Questions
+
+- Does the bootstrap now include the current Validator/Builder/Editor doctrine
+  without over-prescribing Pattern Detector-specific details for other repos?
+- Does it preserve the existing PRD/checklist convention and avoid importing an
+  unrelated planning layout?
+- Does router workflow section 5.5 accurately reflect that the default router
+  does not allow `Validator -> User`?
+- Is the added doctrine clear enough for future agents to install/adapt without
+  becoming a second, divergent source of truth?
+
+#### Output
+
+Report any `EDITOR BLOCKER` explicitly. If there is no blocker, state that the
+bootstrap sync is maintainable enough to accept.
+
+
+---
+
+## 100. Validator -> Builder: Declare Pattern Detector coding paradigm
+
+- Routing ID: `route-20260620-125125-validator-to-builder-49fc36ec`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `pattern-detector-coding-paradigm`
+- Timestamp: `2026-06-20T12:51:25Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-declare-pattern-detector-coding-paradigm.md`
+- Body: `agent-relay/messages/route-20260620-125125-validator-to-builder-49fc36ec.md`
+- SHA-256: `6c92d4d76d4bc489fd0799777357d010142c4fd503da43872b9d85e56be24c9c`
+
+### Builder Directive: Declare Pattern Detector Coding Paradigm
+
+#### Objective
+
+Declare Pattern Detector as a `medium-large-modular-web` project so future
+Validator, Builder, and Editor work enforces the modular-monolith coding
+paradigm from the beginning of each task.
+
+#### Scope
+
+Documentation/governance only. Do not move product code.
+
+Allowed files:
+
+- `PATTERN_DETECTOR_CODING_PARADIGM.md`
+- `AGENTS.md`
+- `agent-relay/roles/Validator/ROLE.md`
+- `agent-relay/roles/Builder/ROLE.md`
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### Requirements
+
+- Add a project-level coding paradigm contract.
+- Make the contract visible from startup via `AGENTS.md`.
+- Require Validator directives to name the selected package, affected domain,
+  current files, target boundary, shared-contract permission, verification
+  gates, and STOP conditions.
+- Require Builder to stay inside the named domain boundary or report back.
+- Require Editor to treat architecture drift as a blocker when it would create
+  or preserve spaghetti.
+- Preserve incremental migration: no whole-repo reshuffle.
+
+#### Verification
+
+- Run `python tools\agent_router.py verify`.
+- Report changed files.
+
+
+---
+
+## 101. Builder -> Validator: Pattern Detector coding paradigm builder report
+
+- Routing ID: `route-20260620-125212-builder-to-validator-56027d7d`
+- Type: `BUILDER REPORT`
+- Phase: `pattern-detector-coding-paradigm`
+- Timestamp: `2026-06-20T12:52:12Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-pattern-detector-coding-paradigm-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-125212-builder-to-validator-56027d7d.md`
+- SHA-256: `625ecb0a3622f23eb387158a651cb6948fb168e7018b131dd85166078d39905c`
+
+### Builder Report: Pattern Detector Coding Paradigm
+
+#### Status
+
+Implemented.
+
+#### Files Changed
+
+- `PATTERN_DETECTOR_CODING_PARADIGM.md`
+- `AGENTS.md`
+- `agent-relay/roles/Validator/ROLE.md`
+- `agent-relay/roles/Builder/ROLE.md`
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### Changes
+
+- Added a project-level coding paradigm contract declaring Pattern Detector as a
+  `medium-large-modular-web` project.
+- Added the target modular-monolith architecture and product domain boundaries.
+- Added startup visibility in `AGENTS.md`.
+- Added Validator enforcement requirements for substantial directives.
+- Added Builder enforcement requirements for staying inside approved domain
+  boundaries.
+- Added Editor drift-review requirements and blocker conditions.
+- Preserved incremental migration: no product code was moved.
+
+#### Verification
+
+- Pending: `python tools\agent_router.py verify`
+
+#### Residual Risk
+
+- This stops future drift through governance, but existing old-shape code remains
+  until migrated by approved vertical slices.
+
+
+---
+
+## 102. Validator -> Editor: Review Pattern Detector coding paradigm
+
+- Routing ID: `route-20260620-125243-validator-to-editor-94b9a042`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `pattern-detector-coding-paradigm`
+- Timestamp: `2026-06-20T12:52:43Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-pattern-detector-coding-paradigm.md`
+- Body: `agent-relay/messages/route-20260620-125243-validator-to-editor-94b9a042.md`
+- SHA-256: `69799948e1b44f9e1d17d95a5ae94c2533b619131599bdfbb7d786cc2bb1492f`
+
+### Editor Review Directive: Pattern Detector Coding Paradigm
+
+#### Objective
+
+Review the Pattern Detector coding paradigm declaration for clarity,
+maintainability, and enforceability.
+
+#### Scope
+
+Review only documentation/governance changes:
+
+- `PATTERN_DETECTOR_CODING_PARADIGM.md`
+- `AGENTS.md`
+- `agent-relay/roles/Validator/ROLE.md`
+- `agent-relay/roles/Builder/ROLE.md`
+- `agent-relay/roles/Editor/ROLE.md`
+
+#### Review Questions
+
+- Is the medium/large modular paradigm visible early enough for future agents?
+- Are Validator, Builder, and Editor responsibilities specific enough to stop
+  new drift?
+- Does the contract preserve incremental migration instead of implying a risky
+  whole-repo reshuffle?
+- Are blocker conditions clear enough for architecture drift?
+
+#### Output
+
+Report any `EDITOR BLOCKER` explicitly. If there is no blocker, state whether
+the governance change is maintainable enough to accept.
+
+
+---
+
+## 103. Editor -> Validator: Pattern Detector coding paradigm editor review
+
+- Routing ID: `route-20260620-125244-editor-to-validator-ab9319bc`
+- Type: `EDITOR REVIEW`
+- Phase: `pattern-detector-coding-paradigm`
+- Timestamp: `2026-06-20T12:52:44Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-pattern-detector-coding-paradigm-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-125244-editor-to-validator-ab9319bc.md`
+- SHA-256: `24eabd35ea5d80c69873e3f80ad866807850d3215e49b61749d6bbb50881ff59`
+
+### Editor Review: Pattern Detector Coding Paradigm
+
+#### Status
+
+Accepted. No `EDITOR BLOCKER`.
+
+#### Findings
+
+- `shrink`: The new contract centralizes the coding paradigm in one project file
+  and keeps role files focused on enforcement duties.
+- `yagni`: The change does not create a migration plan or broad restructure
+  prematurely. It declares the rule and preserves vertical-slice migration.
+- `delete`: No obsolete active guidance needed removal in this pass; historical
+  relay/transcript references can remain as history.
+
+#### Maintainability Notes
+
+- `AGENTS.md` now makes the paradigm visible during startup for substantial
+  work.
+- Validator directives now have enough required fields to prevent ambiguous
+  domain placement.
+- Builder has explicit STOP conditions instead of permission to improvise across
+  boundaries.
+- Editor has blocker criteria for architecture drift.
+
+#### Behavior Preservation
+
+Documentation/governance only. No product code was moved or behavior changed.
+
+
+---
+
+## 104. Validator -> Builder: Start modular domain migration plan
+
+- Routing ID: `route-20260620-130005-validator-to-builder-773aac6d`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `modular-domain-migration-plan`
+- Timestamp: `2026-06-20T13:00:05Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-start-modular-domain-migration-plan.md`
+- Body: `agent-relay/messages/route-20260620-130005-validator-to-builder-773aac6d.md`
+- SHA-256: `f1f5faaa7c4c896efa0cefebdf60b4a9109b01ba0b9be445c96bb54c470d6111`
+
+### Builder Directive: Start Modular Domain Migration Plan
+
+#### Objective
+
+Start Pattern Detector's incremental migration toward the declared
+`medium-large-modular-web` coding paradigm by creating the active planning
+workstream.
+
+#### Scope
+
+Planning/governance only. Do not move product code.
+
+Expected files:
+
+- `.planning/plans/ACTIVE/modular-domain-migration-prd.md`
+- `.planning/plans/ACTIVE/modular-domain-migration-checklist.md`
+
+#### Requirements
+
+- Use the paired PRD/checklist convention from
+  `.planning/plans/PLAN_CONVENTIONS.md`.
+- Declare the first migration candidate as `universe/scanner`.
+- Preserve incremental migration and forbid a whole-repo reshuffle.
+- Require the first implementation step to be a current-flow audit before code
+  movement.
+- Include Validator, Builder, Editor, verification, STOP, and done criteria.
+
+#### Verification
+
+- Confirm the PRD links to the checklist.
+- Confirm the checklist links to the PRD and includes a percent complete line.
+- Run `python tools\agent_router.py verify`.
+
+
+---
+
+## 105. Builder -> Validator: Modular domain migration plan builder report
+
+- Routing ID: `route-20260620-130007-builder-to-validator-4db41727`
+- Type: `BUILDER REPORT`
+- Phase: `modular-domain-migration-plan`
+- Timestamp: `2026-06-20T13:00:07Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-modular-domain-migration-plan-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-130007-builder-to-validator-4db41727.md`
+- SHA-256: `12a979d860c02eed98289d3c83d2c4d5a65347295c7aac23603261bf9f4f3007`
+
+### Builder Report: Modular Domain Migration Plan
+
+#### Status
+
+Implemented.
+
+#### Files Changed
+
+- `.planning/plans/ACTIVE/modular-domain-migration-prd.md`
+- `.planning/plans/ACTIVE/modular-domain-migration-checklist.md`
+
+#### Changes
+
+- Created an ACTIVE PRD/checklist pair for incremental modular domain migration.
+- Declared `universe/scanner` as the first migration candidate based on current
+  route/service/frontend/data evidence and the recent duplicate-universe
+  frontend cleanup.
+- Required a current-flow audit before moving code.
+- Preserved incremental migration and explicitly excluded broad repo reshuffling.
+- Added Validator, Builder, Editor, verification, STOP, and done criteria.
+
+#### Verification
+
+- PRD links to `modular-domain-migration-checklist.md`.
+- Checklist links to `modular-domain-migration-prd.md`.
+- Checklist includes `Percent complete: 0% (0 complete, 0 partial, 18 remaining)`.
+- Pending: `python tools\agent_router.py verify`.
+
+#### Residual Risk
+
+- The PRD evidence is intentionally high-level. The first implementation
+  directive must audit the exact current universe/scanner flow before any code
+  movement.
+
+
+---
+
+## 106. Validator -> Editor: Review modular domain migration plan
+
+- Routing ID: `route-20260620-130033-validator-to-editor-b63e3532`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `modular-domain-migration-plan`
+- Timestamp: `2026-06-20T13:00:33Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-editor-review-modular-domain-migration-plan.md`
+- Body: `agent-relay/messages/route-20260620-130033-validator-to-editor-b63e3532.md`
+- SHA-256: `edf796b5f97df1bbaca9ebe6d0ea49d093fbab5087260c3ee617509e88748dd0`
+
+### Editor Review Directive: Modular Domain Migration Plan
+
+#### Objective
+
+Review the new modular domain migration PRD/checklist for clarity,
+maintainability, and anti-spaghetti guardrails.
+
+#### Scope
+
+Review only:
+
+- `.planning/plans/ACTIVE/modular-domain-migration-prd.md`
+- `.planning/plans/ACTIVE/modular-domain-migration-checklist.md`
+
+#### Review Questions
+
+- Does the plan preserve incremental vertical-slice migration instead of
+  authorizing a broad reshuffle?
+- Is `universe/scanner` a reasonable first candidate based on the provided
+  evidence?
+- Are Validator, Builder, Editor, STOP, and verification gates clear enough?
+- Does the checklist follow the repo's paired planning convention?
+
+#### Output
+
+Report any `EDITOR BLOCKER` explicitly. If there is no blocker, state whether
+the plan is maintainable enough to accept.
+
+
+---
+
+## 107. Editor -> Validator: Modular domain migration plan editor review
+
+- Routing ID: `route-20260620-130033-editor-to-validator-7d96c922`
+- Type: `EDITOR REVIEW`
+- Phase: `modular-domain-migration-plan`
+- Timestamp: `2026-06-20T13:00:33Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-modular-domain-migration-plan-editor-review.md`
+- Body: `agent-relay/messages/route-20260620-130033-editor-to-validator-7d96c922.md`
+- SHA-256: `88a511e02cfed9b3d55374ac810eb66be46d4d4d2fad31c81bf49cb0bc97114b`
+
+### Editor Review: Modular Domain Migration Plan
+
+#### Status
+
+Accepted. No `EDITOR BLOCKER`.
+
+#### Findings
+
+- `shrink`: The plan keeps the first migration action to an audit and one
+  vertical slice, not a broad reshape.
+- `yagni`: It does not authorize a frontend framework migration, microservices,
+  or whole-repo folder movement.
+- `delete`: No duplicate planning artifact was created; the workstream uses the
+  required paired PRD/checklist format.
+
+#### Maintainability Notes
+
+- `universe/scanner` is a reasonable first candidate because current evidence
+  includes backend routes/services, legacy scripts, frontend scanner behavior,
+  universe data files, and recent duplicate universe-management cleanup.
+- STOP conditions are strong enough to prevent accidental expansion into
+  trading, broker, backtest, research, or broad frontend migration work.
+- The checklist starts at 0% and correctly requires a current-flow audit before
+  code movement.
+
+#### Behavior Preservation
+
+Planning/governance only. No product code changed.
 
 
 ---

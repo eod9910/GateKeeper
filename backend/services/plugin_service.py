@@ -45,9 +45,22 @@ class DataCache:
     def __init__(self, ttl_seconds: int = DEFAULT_DATA_TTL_SECONDS):
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._ttl = ttl_seconds
+        # Per-key locks coalesce concurrent fetches for the same series so two
+        # callers (e.g. the chart OHLCV request and the pattern scan firing in
+        # parallel) don't both hit Yahoo / race the same cache-file write.
+        self._locks_guard = threading.Lock()
+        self._key_locks: Dict[str, threading.Lock] = {}
 
     def _key(self, symbol: str, interval: str, period: str) -> str:
         return f"{symbol.upper()}::{interval}::{period}"
+
+    def _key_lock(self, key: str) -> threading.Lock:
+        with self._locks_guard:
+            lock = self._key_locks.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                self._key_locks[key] = lock
+            return lock
 
     def get(self, symbol: str, interval: str, period: str) -> Optional[List[OHLCV]]:
         key = self._key(symbol, interval, period)
@@ -87,9 +100,23 @@ class DataCache:
         cached = None if bypass_memory_cache else self.get(symbol, interval, period)
         if cached is not None:
             return cached, True
-        fetched = fetch_data_yfinance(symbol, period=period, interval=interval, force_refresh=force_refresh) or []
-        self.put(symbol, interval, period, fetched)
-        return fetched, False
+
+        # Coalesce concurrent fetches for the same key. When the chart OHLCV
+        # request and the pattern scan fire in parallel (or any two callers want
+        # the same series at once), only the FIRST hits Yahoo; the rest wait on
+        # the per-key lock and then reuse the cache it populated.
+        key = self._key(symbol, interval, period)
+        with self._key_lock(key):
+            # Double-checked: a concurrent caller may have populated the cache
+            # while we waited for the lock. (force_refresh/long-history callers
+            # bypass the memory cache and are simply serialized here.)
+            if not bypass_memory_cache:
+                cached = self.get(symbol, interval, period)
+                if cached is not None:
+                    return cached, True
+            fetched = fetch_data_yfinance(symbol, period=period, interval=interval, force_refresh=force_refresh) or []
+            self.put(symbol, interval, period, fetched)
+            return fetched, False
 
     def stats(self) -> Dict[str, Any]:
         return {

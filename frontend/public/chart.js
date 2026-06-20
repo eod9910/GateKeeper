@@ -10,6 +10,10 @@ let baseBoxSeries = null;  // Track base box for updates in correction mode
 let overlaySeriesList = []; // Track overlay series for cleanup
 let subPanelSeriesList = []; // Track sub-panel (indicator) series for cleanup
 let chartDisplayMode = localStorage.getItem('scanner-chart-display-mode') === 'equivol' ? 'equivol' : 'time';
+// Candle type is independent of layout (chartDisplayMode). 'normal' renders raw
+// OHLC exactly as before; 'heikin' renders Heikin-Ashi bodies. All four
+// combinations (normal/heikin x time/equivol) are valid.
+let chartCandleType = localStorage.getItem('scanner-chart-candle-type') === 'heikin' ? 'heikin' : 'normal';
 let equivolumeCanvas = null;
 let equivolumeDisplayData = [];
 let equivolumeRedrawQueued = false;
@@ -17,6 +21,10 @@ let equivolumeInteractionRedrawWired = false;
 
 // Clear the chart completely (no data, no annotations)
 function clearChart() {
+  // Stop the real-time /api/quotes poller on teardown (mirrors copilot-chart.js).
+  // Without this the interval keeps polling after the chart is cleared.
+  try { _scannerRtStop(); } catch (e) {}
+
   initPatternChart();
 
   // Reset drawing annotations (defined in drawing.js)
@@ -59,6 +67,23 @@ function sanitizeChartData(data) {
 function buildChartDisplayData(data) {
   const safeData = sanitizeChartData(data);
   return safeData;
+}
+
+// Apply the active candle type to a sanitized bar array. In 'normal' mode the
+// input array is returned unchanged (same reference) so behavior is byte-for-byte
+// identical to before HA existed. In 'heikin' mode it returns a NEW HA array
+// derived via the shared util (volume/tick_volume and time preserved).
+function applyCandleType(bars) {
+  if (chartCandleType !== 'heikin') return bars;
+  if (window.SharedChartUtils && typeof window.SharedChartUtils.computeHeikinAshi === 'function') {
+    try {
+      return window.SharedChartUtils.computeHeikinAshi(bars);
+    } catch (e) {
+      console.warn('computeHeikinAshi failed, falling back to raw candles:', e && e.message);
+      return bars;
+    }
+  }
+  return bars;
 }
 
 function hasUsableEquivolume(data) {
@@ -822,7 +847,11 @@ async function drawPatternChart(candidate) {
   if (safeData.length === 0) return;
   const displayData = buildChartDisplayData(safeData);
   if (displayData.length === 0) return;
-  equivolumeDisplayData = safeData;
+  // Derive the HA array ONCE (no-op in normal mode) and use it consistently for
+  // the series data, the equivolume canvas, and the live poller. Raw price stays
+  // available via safeData/displayData for markers, levels, and HA recompute.
+  const renderData = applyCandleType(displayData);
+  equivolumeDisplayData = chartCandleType === 'heikin' ? renderData : safeData;
   if (chartDisplayMode === 'equivol' && !hasUsableEquivolume(safeData) && patternSeries) {
     patternSeries.applyOptions(
       window.SharedChartUtils && typeof window.SharedChartUtils.getCandlestickSeriesOptions === 'function'
@@ -856,7 +885,15 @@ async function drawPatternChart(candidate) {
     display_chart_data: displayData,
     chart_display_mode: chartDisplayMode,
   };
-  try { patternSeries.setData(displayData); } catch (e) { console.warn('Chart setData error:', e.message); return; }
+  try { patternSeries.setData(renderData); } catch (e) { console.warn('Chart setData error:', e.message); return; }
+
+  // Wire live price updates for the freshly rendered series. Storing the exact
+  // array handed to setData lets the poller update/extend the last candle. Keep a
+  // raw source of truth so HA can be recomputed for the rolling tail bar; in
+  // normal mode renderData === displayData so these point at the same content.
+  window._scannerChartBars = renderData;
+  window._scannerChartRawBars = displayData;
+  try { _scannerRtStart(); } catch (e) {}
 
   const markers = buildCandidateMarkers(candidate, chartDisplayMode === 'equivol' ? displayData : safeData);
   try { setPatternMarkers(markers); } catch (e) { console.warn('setMarkers error:', e.message); }
@@ -1142,6 +1179,50 @@ function wireChartDisplayModeButtons() {
   });
 }
 
+function _updateChartCandleTypeButtonStyles() {
+  document.querySelectorAll('.chart-candle-type-btn').forEach(btn => {
+    const type = btn.getAttribute('data-chart-candle-type');
+    if (type === chartCandleType) {
+      btn.style.background = '#42596d';
+      btn.style.color = '#e8e8e4';
+      btn.style.borderColor = '#7f9bb8';
+    } else {
+      btn.style.background = '#222224';
+      btn.style.color = '#a8a8a4';
+      btn.style.borderColor = '#333335';
+    }
+  });
+}
+
+async function setChartCandleType(type) {
+  const nextType = type === 'heikin' ? 'heikin' : 'normal';
+  if (nextType === chartCandleType) return;
+  chartCandleType = nextType;
+  localStorage.setItem('scanner-chart-candle-type', chartCandleType);
+  _updateChartCandleTypeButtonStyles();
+  if (currentDisplayData && Array.isArray(currentDisplayData.chart_data) && currentDisplayData.chart_data.length) {
+    const candidate = {
+      ...currentDisplayData,
+      chart_data: currentDisplayData.chart_data,
+    };
+    await drawPatternChart(candidate);
+  }
+}
+
+function wireChartCandleTypeButtons() {
+  const wrap = document.getElementById('chart-candle-type-btns');
+  if (!wrap || wrap.dataset.candleTypeWired === '1') return;
+  wrap.dataset.candleTypeWired = '1';
+  _updateChartCandleTypeButtonStyles();
+  wrap.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('.chart-candle-type-btn');
+    if (!btn || !wrap.contains(btn)) return;
+    e.preventDefault();
+    const type = btn.getAttribute('data-chart-candle-type');
+    void setChartCandleType(type).catch((err) => console.error('setChartCandleType:', err));
+  });
+}
+
 function _updateTfButtonStyles(activeInterval) {
   document.querySelectorAll('.chart-tf-btn').forEach(btn => {
     const tf = btn.getAttribute('data-tf');
@@ -1297,57 +1378,76 @@ async function switchChartTimeframe(newInterval) {
       return;
     }
 
-    // Always fetch full OHLCV for the selected timeframe so plugin candidates
-    // cannot clip the visible chart window by returning a narrowed chart_data slice.
-    try {
-      const baseRes = await fetch(`${API_URL}/api/chart/ohlcv?symbol=${encodeURIComponent(_chartCurrentSymbol)}&interval=${newInterval}&period=${chartPeriod}`);
-      const baseData = await baseRes.json();
-      if (baseData?.success && Array.isArray(baseData?.chart_data)) {
-        fullChartBars = baseData.chart_data;
-      }
-    } catch (e) {
-      console.warn('Timeframe switch: base OHLCV fetch failed, falling back to plugin chart_data', e);
-    }
+    // Fire the bars fetch and the (slow) pattern scan in PARALLEL, then render
+    // the candles as soon as the bars arrive. The scan only adds markers/overlays
+    // and must not block the chart from appearing. A late scan result is ignored
+    // if the user has since switched symbol/timeframe (stale guard).
+    const switchSymbol = _chartCurrentSymbol;
+    const isStale = () => _chartCurrentSymbol !== switchSymbol || _chartCurrentInterval !== newInterval;
 
-    const res = await fetch(`${API_URL}/api/candidates/scan`, {
+    const ohlcvPromise = fetch(`${API_URL}/api/chart/ohlcv?symbol=${encodeURIComponent(switchSymbol)}&interval=${newInterval}&period=${chartPeriod}`)
+      .then((r) => r.json())
+      .catch((e) => { console.warn('Timeframe switch: base OHLCV fetch failed', e); return null; });
+
+    const scanPromise = fetch(`${API_URL}/api/candidates/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        symbol: _chartCurrentSymbol,
-        pluginId,
-        interval: newInterval,
-        period: chartPeriod,
-        timeframe,
-      }),
-    });
-    const data = await res.json();
+      body: JSON.stringify({ symbol: switchSymbol, pluginId, interval: newInterval, period: chartPeriod, timeframe }),
+    })
+      .then((r) => r.json())
+      .catch((e) => { console.warn('Timeframe switch: scan failed', e); return null; });
+
+    // 1) Render the candles immediately, before the scan returns.
+    const baseData = await ohlcvPromise;
+    if (baseData?.success && Array.isArray(baseData?.chart_data)) {
+      fullChartBars = baseData.chart_data;
+    }
+    let renderedBars = false;
+    if (fullChartBars.length > 0 && !isStale()) {
+      const chartOnly = buildChartOnlyCandidate(switchSymbol, timeframe, fullChartBars);
+      commitIntervalUi();
+      document.getElementById('chart-symbol').textContent = switchSymbol + ' (' + timeframe + ')';
+      await redrawWithCurrentMode(chartOnly);
+      renderedBars = true;
+      if (statusEl) statusEl.textContent = `${switchSymbol} (${timeframe}) — ${fullChartBars.length} bars (scanning…)`;
+    }
+
+    // 2) Overlay the scan candidate (markers/levels) once it arrives.
+    const data = await scanPromise;
+    if (isStale()) return; // user moved on; do not clobber the newer view
     if (data?.success) {
       const found = Array.isArray(data?.data?.candidates) ? data.data.candidates : [];
       if (found.length > 0) {
         const candidate = {
           ...found[0],
-          symbol: _chartCurrentSymbol,
+          symbol: switchSymbol,
           id: found[0].id || found[0].candidate_id || 0,
           chart_data: fullChartBars.length > 0 ? fullChartBars : found[0].chart_data,
         };
-        commitIntervalUi();
-        document.getElementById('chart-symbol').textContent = _chartCurrentSymbol + ' (' + timeframe + ')';
+        if (!renderedBars) {
+          commitIntervalUi();
+          document.getElementById('chart-symbol').textContent = switchSymbol + ' (' + timeframe + ')';
+        }
         await redrawWithCurrentMode(candidate);
         const bars = Array.isArray(candidate.chart_data) ? candidate.chart_data.length : 0;
-        if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}) — ${bars} bars`;
+        if (statusEl) statusEl.textContent = `${switchSymbol} (${timeframe}) — ${bars} bars`;
+      } else if (renderedBars) {
+        if (statusEl) statusEl.textContent = `${switchSymbol} (${timeframe}) - raw chart only (no pattern match)`;
       } else if (fullChartBars.length > 0) {
-        const candidate = buildChartOnlyCandidate(_chartCurrentSymbol, timeframe, fullChartBars);
+        const candidate = buildChartOnlyCandidate(switchSymbol, timeframe, fullChartBars);
         commitIntervalUi();
-        document.getElementById('chart-symbol').textContent = _chartCurrentSymbol + ' (' + timeframe + ')';
+        document.getElementById('chart-symbol').textContent = switchSymbol + ' (' + timeframe + ')';
         await redrawWithCurrentMode(candidate);
-        if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}) - raw chart only (no pattern match)`;
+        if (statusEl) statusEl.textContent = `${switchSymbol} (${timeframe}) - raw chart only (no pattern match)`;
       } else {
         revertIntervalUi();
-        if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}): no data`;
+        if (statusEl) statusEl.textContent = `${switchSymbol} (${timeframe}): no data`;
       }
-    } else {
+    } else if (!renderedBars) {
       revertIntervalUi();
-      if (statusEl) statusEl.textContent = `${_chartCurrentSymbol} (${timeframe}): scan failed`;
+      if (statusEl) statusEl.textContent = `${switchSymbol} (${timeframe}): scan failed`;
+    } else if (statusEl) {
+      statusEl.textContent = `${switchSymbol} (${timeframe}) — ${fullChartBars.length} bars (scan failed)`;
     }
   } catch (err) {
     console.error('Timeframe switch failed:', err);
@@ -1374,6 +1474,7 @@ function wireChartTimeframeButtons() {
 function initChartTimeframeButtons() {
   wireChartTimeframeButtons();
   wireChartDisplayModeButtons();
+  wireChartCandleTypeButtons();
 }
 
 if (document.readyState === 'loading') {
@@ -1382,6 +1483,108 @@ if (document.readyState === 'loading') {
   initChartTimeframeButtons();
 }
 
+// ========== REAL-TIME SCANNER CHART UPDATES ==========
+// The scanner/workshop chart had no live polling (only the copilot chart did),
+// so its last candle stayed frozen until a manual reload. This mirrors the
+// copilot _rtTick loop: poll /api/quotes and update the last candle in place,
+// rolling a new intraday bar when the bar duration elapses.
+
+let _scannerRtTimer = null;
+const SCANNER_RT_POLL_MS = 5000;
+const SCANNER_RT_INTRADAY_SECONDS = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400 };
+
+function _scannerRtStop() {
+  if (_scannerRtTimer) { clearInterval(_scannerRtTimer); _scannerRtTimer = null; }
+}
+
+function _scannerRtStart() {
+  _scannerRtStop();
+  if (!_chartCurrentSymbol) return;
+  _scannerRtTimer = setInterval(_scannerRtTick, SCANNER_RT_POLL_MS);
+}
+
+async function _scannerRtTick() {
+  if (!_chartCurrentSymbol || !patternSeries) return;
+  const isHeikin = chartCandleType === 'heikin';
+  // Raw bars are the source of truth for OHLC accumulation. In normal mode the
+  // rendered series IS the raw array, so we mutate it directly (path unchanged).
+  // In heikin mode we keep a separate raw array and recompute the HA tail bar.
+  const rawBars = isHeikin
+    ? (window._scannerChartRawBars || window._scannerChartBars)
+    : window._scannerChartBars;
+  if (!rawBars || rawBars.length === 0) return;
+  try {
+    const API_URL = window.API_URL || '';
+    const res = await fetch(`${API_URL}/api/quotes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols: [_chartCurrentSymbol] }),
+    });
+    if (!res.ok) return;
+    const json = await res.json();
+    const quote = json && json.data && json.data[_chartCurrentSymbol];
+    if (!quote) return;
+    const price = Number(quote.price ?? quote.regularMarketPrice ?? quote.last);
+    if (!Number.isFinite(price) || !price) return;
+
+    const lastBar = rawBars[rawBars.length - 1];
+    if (!lastBar) return;
+
+    const haUtil = (window.SharedChartUtils && typeof window.SharedChartUtils.computeHeikinAshiBar === 'function')
+      ? window.SharedChartUtils.computeHeikinAshiBar
+      : null;
+    const haBars = (isHeikin && haUtil && Array.isArray(window._scannerChartBars))
+      ? window._scannerChartBars
+      : null;
+    const useHa = !!haBars;
+
+    // Intraday rollover only in normal (time-indexed) mode. Equivolume uses a
+    // synthetic x-axis, so we never append there — we only refresh the last bar.
+    const dur = SCANNER_RT_INTRADAY_SECONDS[_chartCurrentInterval];
+    if (dur && chartDisplayMode !== 'equivol' && typeof lastBar.time === 'number') {
+      const now = Math.floor(Date.now() / 1000);
+      const currentBarStart = Math.floor(now / dur) * dur;
+      if (lastBar.time < currentBarStart) {
+        const newBar = { time: currentBarStart, open: price, high: price, low: price, close: price };
+        rawBars.push(newBar);
+        if (useHa) {
+          const prevHa = haBars.length ? haBars[haBars.length - 1] : null;
+          const haBar = haUtil(newBar, prevHa ? prevHa.open : NaN, prevHa ? prevHa.close : NaN);
+          haBars.push(haBar);
+          patternSeries.update(haBar);
+        } else {
+          patternSeries.update(newBar);
+        }
+        return;
+      }
+    }
+
+    const updated = {
+      time: lastBar.time,
+      open: lastBar.open,
+      high: Math.max(Number(lastBar.high), price),
+      low: Math.min(Number(lastBar.low), price),
+      close: price,
+    };
+    rawBars[rawBars.length - 1] = updated;
+    if (useHa) {
+      const prevHa = haBars.length >= 2 ? haBars[haBars.length - 2] : null;
+      const haBar = haUtil(updated, prevHa ? prevHa.open : NaN, prevHa ? prevHa.close : NaN);
+      haBars[haBars.length - 1] = haBar;
+      patternSeries.update(haBar);
+    } else {
+      patternSeries.update(updated);
+    }
+  } catch (e) {
+    // Never let a bad poll cycle kill the timer; just skip this tick.
+  }
+}
+
+window._scannerRtStart = _scannerRtStart;
+window._scannerRtStop = _scannerRtStop;
+
 window.switchChartTimeframe = switchChartTimeframe;
 window.wireChartTimeframeButtons = wireChartTimeframeButtons;
 window.setChartDisplayMode = setChartDisplayMode;
+window.setChartCandleType = setChartCandleType;
+window.wireChartCandleTypeButtons = wireChartCandleTypeButtons;

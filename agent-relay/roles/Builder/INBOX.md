@@ -1,6 +1,6 @@
 # Builder Inbox
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-20T13:00:33Z
 
 ## Router smoke test
 
@@ -151,3 +151,93 @@ Generated: 2026-06-18T04:28:20Z
 - Timestamp: `2026-06-18T04:08:10Z`
 - Body: `agent-relay/messages/route-20260618-040810-validator-to-builder-e37efc95.md`
 - SHA-256: `88154f5559d3e2cbfcd482b170aad68c4bb74f559a3210bf87c873222f02f46b`
+
+## Heikin-Ashi + Equivolume Combined Chart Mode
+
+- Routing ID: `route-20260619-042800-validator-to-builder-0d621679`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `heikin-ashi-equivolume`
+- Timestamp: `2026-06-19T04:28:00Z`
+- Body: `agent-relay/messages/route-20260619-042800-validator-to-builder-0d621679.md`
+- SHA-256: `0ed37458e3f16babc28c849b4851effb9cb70f8c6e12ab3d3d4904d93841fcc8`
+
+## Add Ponytail-style Editor pass
+
+- Routing ID: `route-20260620-105628-validator-to-builder-caae3594`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `editor-ponytail-pass`
+- Timestamp: `2026-06-20T10:56:28Z`
+- Body: `agent-relay/messages/route-20260620-105628-validator-to-builder-caae3594.md`
+- SHA-256: `60357ba69859ae35d5de19a027a4ad4c7f2f8661188e8680855cdc8beba683af`
+
+## Fix duplicate scanner universe functions
+
+- Routing ID: `route-20260620-110959-validator-to-builder-62b7efa8`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `fix-scanner-duplicate-universe-functions`
+- Timestamp: `2026-06-20T11:09:59Z`
+- Body: `agent-relay/messages/route-20260620-110959-validator-to-builder-62b7efa8.md`
+- SHA-256: `53214298d3a8d1b35e12dc87b72f7f029d2cc8056010c135170e8beb5554d740`
+
+## Add Builder Elegance Standard
+
+- Routing ID: `route-20260620-111608-validator-to-builder-9e2c488d`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `builder-elegance-standard`
+- Timestamp: `2026-06-20T11:16:08Z`
+- Body: `agent-relay/messages/route-20260620-111608-validator-to-builder-9e2c488d.md`
+- SHA-256: `4a7dac696fb34cec1abff9e87b8e3ec72ffda5ffe2cbdf99aa2718aae2a19a55`
+
+## Add Validator improve-style planning standard
+
+- Routing ID: `route-20260620-112401-validator-to-builder-2c23dbb6`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `validator-improve-style-planning-standard`
+- Timestamp: `2026-06-20T11:24:01Z`
+- Body: `agent-relay/messages/route-20260620-112401-validator-to-builder-2c23dbb6.md`
+- SHA-256: `0c9228ebc0dc8c7173cb073f6315a7cc5161b5f3467f52935db8927a6adccd52`
+
+## Add Builder elegance metric
+
+- Routing ID: `route-20260620-113053-validator-to-builder-6e8bfed2`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `builder-elegance-metric`
+- Timestamp: `2026-06-20T11:30:53Z`
+- Body: `agent-relay/messages/route-20260620-113053-validator-to-builder-6e8bfed2.md`
+- SHA-256: `7c37fc092316f3fc77382a84f908a953c0ca1c8b86c352323353f49326e8e3d4`
+
+## Sync agent memory bootstrap role doctrine
+
+- Routing ID: `route-20260620-113543-validator-to-builder-934b382a`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `agent-memory-bootstrap-role-doctrine-sync`
+- Timestamp: `2026-06-20T11:35:43Z`
+- Body: `agent-relay/messages/route-20260620-113543-validator-to-builder-934b382a.md`
+- SHA-256: `80d24c90d1a35900b4729216e284dbb98054605e58437b3b735490d37d3f920c`
+
+## Declare Pattern Detector coding paradigm
+
+- Routing ID: `route-20260620-125125-validator-to-builder-49fc36ec`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `pattern-detector-coding-paradigm`
+- Timestamp: `2026-06-20T12:51:25Z`
+- Body: `agent-relay/messages/route-20260620-125125-validator-to-builder-49fc36ec.md`
+- SHA-256: `6c92d4d76d4bc489fd0799777357d010142c4fd503da43872b9d85e56be24c9c`
+
+## Start modular domain migration plan
+
+- Routing ID: `route-20260620-130005-validator-to-builder-773aac6d`
+- From: `Validator`
+- Type: `EXECUTION DIRECTIVE`
+- Phase: `modular-domain-migration-plan`
+- Timestamp: `2026-06-20T13:00:05Z`
+- Body: `agent-relay/messages/route-20260620-130005-validator-to-builder-773aac6d.md`
+- SHA-256: `f1f5faaa7c4c896efa0cefebdf60b4a9109b01ba0b9be445c96bb54c470d6111`

@@ -4,12 +4,13 @@ When a new agent instance starts work in this repo, read in this order:
 
 1. `TRI_AGENT_CODING_CONTRACT.md` - establishes Validator/Builder/Editor roles, relay expectations, and conversation framing.
 2. `AGENTS.md` - routes the agent to the correct repo contracts, policies, and folders for the task.
-3. `memory-bank/CODEX_MEMORY_POLICY.md` - explains which memory files are active, trackable, local-only, or read-on-demand.
-4. Continuity bridges - read BOTH `memory-bank/CODEX_CONTINUITY.md` and `memory-bank/CURSOR_CONTINUITY.md` so each agent sees recent goals, directives, open questions, and likely next steps from Codex AND Cursor/Claude work.
-5. Recent transcript windows - use BOTH agent windows so each agent sees what the other did:
+3. Role documents - read `agent-relay/roles/Validator/ROLE.md`, `agent-relay/roles/Builder/ROLE.md`, and `agent-relay/roles/Editor/ROLE.md` before acting as or routing to those roles.
+4. `memory-bank/CODEX_MEMORY_POLICY.md` - explains which memory files are active, trackable, local-only, or read-on-demand.
+5. Continuity bridges - read BOTH `memory-bank/CODEX_CONTINUITY.md` and `memory-bank/CURSOR_CONTINUITY.md` so each agent sees recent goals, directives, open questions, and likely next steps from Codex AND Cursor/Claude work.
+6. Recent transcript windows - use BOTH agent windows so each agent sees what the other did:
    - Codex: `memory-bank/transcripts/codex-session-live.md`, then `memory-bank/transcripts/codex/YYYY-MM-DD/latest.md` for today and the prior one or two days when present.
    - Cursor/Claude: `memory-bank/transcripts/cursor-session-live.md`, then `memory-bank/transcripts/cursor/YYYY-MM-DD/latest.md` for today and the prior one or two days when present.
-6. Task-specific contract - read the relevant file below based on the user request.
+7. Task-specific contract - read the relevant file below based on the user request.
 
 Do not preload large historical transcript archives by default. Search or open them only for targeted recall.
 
@@ -58,12 +59,35 @@ These per-agent session-memory mirrors are separate from
 `agent-relay/transcripts/all.md`, which is the single merged timeline for
 ROLE/governance handoffs (Validator/Builder/Editor) only.
 
+## Role Bootloader
+
+`AGENTS.md` instantiates the role workflow by routing each agent to the role
+documents it must obey:
+
+- Validator reads `agent-relay/roles/Validator/ROLE.md` before freezing
+  requirements, writing directives, judging Builder/Editor reports, or accepting
+  work.
+- Builder reads `agent-relay/roles/Builder/ROLE.md` before implementing any
+  Validator directive.
+- Editor reads `agent-relay/roles/Editor/ROLE.md` before reviewing,
+  simplifying, refactoring, or marking an `EDITOR BLOCKER`.
+- When one running agent is mediating the roles, it must read all three role
+  documents before routing or simulating role handoffs.
+
 ## Planning Conventions
 
 - Follow `.planning/plans/PLAN_CONVENTIONS.md` whenever creating, moving, renaming, or auditing PRDs, checklists, active plans, or workstreams.
 - Every active workstream must have a paired `.planning/plans/ACTIVE/<slug>-prd.md` and `.planning/plans/ACTIVE/<slug>-checklist.md` so the PRD and checklist sort together.
 - Do not leave standalone notes, references, or orphan planning docs in `ACTIVE/`; convert them into a PRD/checklist pair or move them to `TODO`, `REFERENCE`, or `ARCHIVE`.
 - Keep this planning naming convention visible in `AGENTS.md`; it is startup-critical and prevents PRDs/checklists from scattering.
+
+## Pattern Detector Coding Paradigm
+
+- Pattern Detector is governed as a `medium-large-modular-web` project. Read `PATTERN_DETECTOR_CODING_PARADIGM.md` before substantial feature, refactor, frontend, backend, domain, or architecture work.
+- The target architecture is a modular monolith organized by product capability: scanner, charting, strategies, backtests, broker, universe, plugins, and auth/settings.
+- New substantial work must name the affected product domain and stay inside the approved domain boundary. Do not add new global dumping grounds, parallel engines, duplicate caches, duplicate workflows, or shared abstractions without Validator approval.
+- Migration is incremental. Do not reshuffle the whole repo just to match the target tree; improve touched areas toward the target boundary only when the directive authorizes it.
+- Validator enforces the coding paradigm in directives, Builder implements within the named boundary, and Editor treats architecture drift as an anti-spaghetti concern.
 
 ## Workspace AI / Agent Creation
 

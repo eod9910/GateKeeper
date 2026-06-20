@@ -983,6 +983,11 @@
                 <button class="chart-display-mode-btn" data-chart-display-mode="time" title="Show normal time-based candles" style="padding:2px 6px;font-size:11px;background:#222224;color:#a8a8a4;border:1px solid #333335;border-radius:3px;cursor:pointer;">Time</button>
                 <button class="chart-display-mode-btn" data-chart-display-mode="equivol" title="Group candles into equal-volume buckets" style="padding:2px 6px;font-size:11px;background:#222224;color:#a8a8a4;border:1px solid #333335;border-radius:3px;cursor:pointer;">Equivol</button>
               </div>
+              <div id="chart-candle-type-btns" style="display:flex;gap:2px;margin-left:8px;align-items:center;">
+                <button class="chart-candle-type-btn" data-chart-candle-type="normal" title="Show normal candles (raw OHLC)" style="padding:2px 6px;font-size:11px;background:#222224;color:#a8a8a4;border:1px solid #333335;border-radius:3px;cursor:pointer;">Normal</button>
+                <button class="chart-candle-type-btn" data-chart-candle-type="heikin" title="Show Heikin-Ashi candles (smoothed, synthetic bodies)" style="padding:2px 6px;font-size:11px;background:#222224;color:#a8a8a4;border:1px solid #333335;border-radius:3px;cursor:pointer;">Heikin-Ashi</button>
+                <span id="chart-candle-type-note" title="Heikin-Ashi bodies are synthetic (smoothed). Markers and price levels still reference real price." style="margin-left:2px;font-size:12px;color:#7f7f7c;cursor:help;" aria-label="Heikin-Ashi bodies are synthetic; levels reference real price.">&#9432;</span>
+              </div>
               <button id="btn-toggle-ai-levels" type="button" class="btn btn-ghost btn-sm" onclick="toggleAILevelsVisibility()" title="Show or hide AI chart levels" style="margin-left:8px;display:none;">
                 Hide AI Set
               </button>

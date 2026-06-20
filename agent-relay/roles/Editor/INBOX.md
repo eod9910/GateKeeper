@@ -1,6 +1,6 @@
 # Editor Inbox
 
-Generated: 2026-06-18T04:28:20Z
+Generated: 2026-06-20T13:00:33Z
 
 ## Editor relay smoke directive
 
@@ -101,3 +101,123 @@ Generated: 2026-06-18T04:28:20Z
 - Timestamp: `2026-06-18T04:24:10Z`
 - Body: `agent-relay/messages/route-20260618-042410-validator-to-editor-19f73143.md`
 - SHA-256: `b4e0ee65964014c38cb57746345218b94209cb77150d220b602181901fadee0f`
+
+## Editor Cleanup Pass: Chart Cache Coalescing
+
+- Routing ID: `route-20260619-035637-validator-to-editor-28ce4bfd`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `chart-performance-cache-coalescing`
+- Timestamp: `2026-06-19T03:56:37Z`
+- Body: `agent-relay/messages/route-20260619-035637-validator-to-editor-28ce4bfd.md`
+- SHA-256: `1d3dbe82686c42e0d16a5ef50859a4d0a71ffd461777b3313c8c91a9357c747f`
+
+## Editor Pass: Heikin-Ashi + Equivolume
+
+- Routing ID: `route-20260619-043650-validator-to-editor-0237d314`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `heikin-ashi-equivolume`
+- Timestamp: `2026-06-19T04:36:50Z`
+- Body: `agent-relay/messages/route-20260619-043650-validator-to-editor-0237d314.md`
+- SHA-256: `cfcabd528752216a202772e9e0778d5d101f7601d9575af202a73a367a74c28c`
+
+## Review Ponytail-style Editor pass
+
+- Routing ID: `route-20260620-105734-validator-to-editor-ea0a7356`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `editor-ponytail-pass`
+- Timestamp: `2026-06-20T10:57:34Z`
+- Body: `agent-relay/messages/route-20260620-105734-validator-to-editor-ea0a7356.md`
+- SHA-256: `5c098f70889889582f43ec9bb88e04d8fabc17664053f5aeed0698d52a97ac58`
+
+## Current worktree Editor review
+
+- Routing ID: `route-20260620-110225-validator-to-editor-a4165b36`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `current-worktree-editor-review`
+- Timestamp: `2026-06-20T11:02:25Z`
+- Body: `agent-relay/messages/route-20260620-110225-validator-to-editor-a4165b36.md`
+- SHA-256: `1ec8168bfe712d5f696b2125e072a82cc99dc9ffae1d1b0c3439f02de58415b5`
+
+## Review frontend public chart cluster
+
+- Routing ID: `route-20260620-110655-validator-to-editor-f51baaf7`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `frontend-public-chart-cluster-editor-review`
+- Timestamp: `2026-06-20T11:06:55Z`
+- Body: `agent-relay/messages/route-20260620-110655-validator-to-editor-f51baaf7.md`
+- SHA-256: `9861a4dfbeaeae1875249adb05eb669d9c87ebd6bea570c8b36ec8c5c5cacfc2`
+
+## Review scanner duplicate universe function fix
+
+- Routing ID: `route-20260620-111209-validator-to-editor-9d7fe3c3`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `fix-scanner-duplicate-universe-functions`
+- Timestamp: `2026-06-20T11:12:09Z`
+- Body: `agent-relay/messages/route-20260620-111209-validator-to-editor-9d7fe3c3.md`
+- SHA-256: `6af0069debc32b8cd7d907daadd42bc2aef764225999551c5f454cb2d2903d9a`
+
+## Review Builder Elegance Standard
+
+- Routing ID: `route-20260620-111649-validator-to-editor-9f503e22`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `builder-elegance-standard`
+- Timestamp: `2026-06-20T11:16:49Z`
+- Body: `agent-relay/messages/route-20260620-111649-validator-to-editor-9f503e22.md`
+- SHA-256: `f4aca5d1c37c06145d17a4c3b763c305503c41735dbd8fe806d7f330149f9383`
+
+## Review Validator planning standard
+
+- Routing ID: `route-20260620-112441-validator-to-editor-b5b6f9d1`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `validator-improve-style-planning-standard`
+- Timestamp: `2026-06-20T11:24:41Z`
+- Body: `agent-relay/messages/route-20260620-112441-validator-to-editor-b5b6f9d1.md`
+- SHA-256: `cce032a85a1b565acd633392e14e572f316f7045a7a1a46afa49fc8e94fb180b`
+
+## Review Builder elegance metric
+
+- Routing ID: `route-20260620-113135-validator-to-editor-de882127`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `builder-elegance-metric`
+- Timestamp: `2026-06-20T11:31:35Z`
+- Body: `agent-relay/messages/route-20260620-113135-validator-to-editor-de882127.md`
+- SHA-256: `5a9b8d51c15a7045d75352dc5c983db399640b55cb227317eb7f626321365115`
+
+## Review agent memory bootstrap role doctrine sync
+
+- Routing ID: `route-20260620-113654-validator-to-editor-e72e1ce0`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `agent-memory-bootstrap-role-doctrine-sync`
+- Timestamp: `2026-06-20T11:36:54Z`
+- Body: `agent-relay/messages/route-20260620-113654-validator-to-editor-e72e1ce0.md`
+- SHA-256: `bfb18dbe8b3230d7677c650bdbfa9ee82f5c8dd1a0d9e19d551c2ab0103c6e4e`
+
+## Review Pattern Detector coding paradigm
+
+- Routing ID: `route-20260620-125243-validator-to-editor-94b9a042`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `pattern-detector-coding-paradigm`
+- Timestamp: `2026-06-20T12:52:43Z`
+- Body: `agent-relay/messages/route-20260620-125243-validator-to-editor-94b9a042.md`
+- SHA-256: `69799948e1b44f9e1d17d95a5ae94c2533b619131599bdfbb7d786cc2bb1492f`
+
+## Review modular domain migration plan
+
+- Routing ID: `route-20260620-130033-validator-to-editor-b63e3532`
+- From: `Validator`
+- Type: `REVIEW DIRECTIVE`
+- Phase: `modular-domain-migration-plan`
+- Timestamp: `2026-06-20T13:00:33Z`
+- Body: `agent-relay/messages/route-20260620-130033-validator-to-editor-b63e3532.md`
+- SHA-256: `edf796b5f97df1bbaca9ebe6d0ea49d093fbab5087260c3ee617509e88748dd0`

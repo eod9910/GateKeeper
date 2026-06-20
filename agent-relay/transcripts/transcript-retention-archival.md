@@ -1,6 +1,6 @@
 # Agent Relay Transcript: transcript-retention-archival
 
-Generated: 2026-06-18T05:38:58Z
+Generated: 2026-06-20T13:00:33Z
 
 ## 1. Validator -> Builder: Transcript retention and archival (Tier 2)
 

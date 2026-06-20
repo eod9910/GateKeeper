@@ -52,6 +52,28 @@ Percent complete: 42% (10 complete, 2 partial, 12 remaining)
 
 Use the checklist item count as the default basis. If the checklist is a new shell that still needs a first implementation audit, use `0%` rather than hiding the uncertainty.
 
+## Executable Planning Standard
+
+PRDs and checklists should be self-contained execution packets for Builder.
+Borrow the useful discipline of audit-first planning without adopting any
+external folder layout: this repo still uses paired `<slug>-prd.md` and
+`<slug>-checklist.md` files only.
+
+When practical, include:
+
+- current-state evidence, with file paths and line/symbol references when they
+  matter;
+- exact files, symbols, routes, data stores, UI surfaces, or plans in scope;
+- explicit out-of-scope boundaries;
+- verification gates, including commands and expected observable results;
+- STOP conditions for mismatched reality, stale assumptions, missing files,
+  failing setup, or scope expansion;
+- a drift check before implementation when the plan may be stale;
+- done criteria that Validator can verify against files, diffs, and test output.
+
+Do not create `plans/001-*` style one-off planning files. Convert work into the
+paired PRD/checklist format in `TODO/`, `ACTIVE/`, or `COMPLETED/` as appropriate.
+
 ## Folder Rules
 
 - `ACTIVE/` contains only current workstreams with a PRD/checklist pair.

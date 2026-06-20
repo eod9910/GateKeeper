@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "bootstrap",
+      "path": "../bootstrap"
+    },
+    {
+      "name": "pattern-detector",
+      "path": "."
+    }
+  ],
+  "settings": {}
+}
