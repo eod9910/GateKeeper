@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781995355012`
+- Last mirrored epoch ms: `1781996069315`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -3116,6 +3116,7 @@
 - Do you feel confident
 - OK that sounds like you have a plan so let's go ahead and do that as long as you have a plan
 - next
+- continue untill you hit a blocker
 
 ## Latest Session Transcript
 
@@ -7546,4 +7547,67 @@ The build route now delegates that filesystem probe. I’m running the focused c
 ### Assistant - 2026-06-20T22:42:26.885Z
 
 Focused tests and build pass. I’ll run adjacent universe tests plus relay verification, then GitNexus detection before committing.
+
+### Assistant - 2026-06-20T22:42:40.627Z
+
+GitNexus is still LOW risk with no affected flows. I’m committing this `/build` optionable-reuse extraction locally now.
+
+### Assistant - 2026-06-20T22:42:43.793Z
+
+The code diff is contained and behavior-preserving. I’m staging and committing it, with live memory mirror snapshots included as usual for this repo.
+
+### Assistant - 2026-06-20T22:42:54.589Z
+
+The optionable reuse check is committed locally as `cbb8b0661`; no push. I’m doing a quick status/log check before handing back the update.
+
+### Assistant - 2026-06-20T22:43:00.939Z
+
+Continued with the next safe slice.
+
+Committed locally:
+
+`cbb8b0661 Extract universe optionable reuse check`
+
+What changed:
+- Moved the `/build` route’s `optionable.json` access probe into `canReuseOptionableCatalog`.
+- Added tests for accessible vs missing optionable catalog.
+- Route behavior stays the same: if the file exists, build command gets `--skip-options-check`; if not, it does not.
+
+Verified:
+- `universe-job-commands:test`
+- `universe-job-factory:test`
+- `universe-job-lifecycle:test`
+- backend build
+- relay verify
+- GitNexus LOW risk / no affected processes
+
+No push. Working tree only has live Cursor memory mirror updates.
+
+### User - 2026-06-20T22:52:49.214Z
+
+continue untill you hit a blocker
+
+### Assistant - 2026-06-20T22:52:59.631Z
+
+Understood. I’ll keep taking the next smallest behavior-preserving slices and stop only when the next step needs a bigger harness or hits a real risk. I’m moving down the build/rebuild/update subprocess routes now, looking for extractable pure or easily-characterized seams before touching process ownership.
+
+### Assistant - 2026-06-20T22:53:08.798Z
+
+The next small seam is the `/update` manifest guard: it is the same kind of filesystem-access decision as the optionable reuse check. I’ll generalize the helper inside the universe command module, then keep the 400 response in the route so the HTTP contract stays put.
+
+### Assistant - 2026-06-20T22:53:14.764Z
+
+Blast radius remains LOW, with only the server importing this router and no affected execution flows. I’m editing the helper and the focused tests now.
+
+### Assistant - 2026-06-20T22:53:36.003Z
+
+The generic access helper is covered. I’m wiring the `/update` route to it while preserving the same 400 error message.
+
+### Assistant - 2026-06-20T22:53:46.091Z
+
+The route-level behavior is unchanged, just moved from inline try/catch to the tested helper. I’m running the command tests and build.
+
+### Assistant - 2026-06-20T22:54:24.474Z
+
+Focused tests and TypeScript pass. I’ll run the adjacent tests, relay verify, then GitNexus before committing this slice.
 

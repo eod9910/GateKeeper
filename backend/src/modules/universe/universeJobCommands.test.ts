@@ -5,6 +5,7 @@ import {
   buildRegimeClassificationCommand,
   buildUniverseBuildCommand,
   buildUniverseUpdateCommand,
+  canAccessUniverseFile,
   canReuseOptionableCatalog,
 } from './universeJobCommands';
 
@@ -107,12 +108,23 @@ async function testCanReuseOptionableCatalogWhenMissing(): Promise<void> {
   assert.equal(canReuse, false);
 }
 
+async function testCanAccessUniverseFile(): Promise<void> {
+  assert.equal(await canAccessUniverseFile('manifest.json', async () => undefined), true);
+  assert.equal(
+    await canAccessUniverseFile('manifest.json', async () => {
+      throw new Error('missing');
+    }),
+    false,
+  );
+}
+
 async function runTests(): Promise<void> {
   testBuildUniverseBuildCommand();
   testBuildUniverseBuildCommandWithoutSkipOptions();
   testOptionableRebuildCommand();
   testUpdateCommand();
   testRegimeClassificationCommand();
+  await testCanAccessUniverseFile();
   await testCanReuseOptionableCatalogWhenAccessible();
   await testCanReuseOptionableCatalogWhenMissing();
 }

@@ -9,16 +9,23 @@ export interface UniverseJobCommand {
 
 export type AccessUniverseFile = (filePath: string) => Promise<unknown>;
 
-export async function canReuseOptionableCatalog(
-  optionablePath: string,
+export async function canAccessUniverseFile(
+  filePath: string,
   accessFile: AccessUniverseFile = fs.access,
 ): Promise<boolean> {
   try {
-    await accessFile(optionablePath);
+    await accessFile(filePath);
     return true;
   } catch {
     return false;
   }
+}
+
+export async function canReuseOptionableCatalog(
+  optionablePath: string,
+  accessFile: AccessUniverseFile = fs.access,
+): Promise<boolean> {
+  return canAccessUniverseFile(optionablePath, accessFile);
 }
 
 export function buildUniverseBuildCommand(options: {

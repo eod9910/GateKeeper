@@ -26,6 +26,7 @@ import {
   buildRegimeClassificationCommand,
   buildUniverseBuildCommand,
   buildUniverseUpdateCommand,
+  canAccessUniverseFile,
   canReuseOptionableCatalog,
 } from '../modules/universe/universeJobCommands';
 import {
@@ -212,10 +213,7 @@ router.post('/update', async (req: Request, res: Response) => {
     });
   }
 
-  // Check manifest exists
-  try {
-    await fs.access(MANIFEST_PATH);
-  } catch {
+  if (!(await canAccessUniverseFile(MANIFEST_PATH))) {
     return res.status(400).json({
       success: false,
       error: 'Universe not built yet. Run Build Universe first.'
