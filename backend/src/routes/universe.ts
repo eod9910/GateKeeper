@@ -14,7 +14,6 @@ import {
 } from '../services/cacheService';
 import {
   UniverseJob,
-  appendUniverseJobLog,
   clampUniverseProgress,
   getUniverseSourceLabel,
 } from '../modules/universe/universeJobProgress';
@@ -31,10 +30,14 @@ import {
   buildUniverseUpdateCommand,
 } from '../modules/universe/universeJobCommands';
 import {
-  applyRegimeProgressLine,
   cancelUniverseJob,
   completeUniverseJobFromExitCode,
 } from '../modules/universe/universeJobLifecycle';
+import {
+  appendRegimeStdoutChunk,
+  appendUniverseStderrChunk,
+  appendUniverseStdoutChunk,
+} from '../modules/universe/universeProcessOutput';
 
 const router = Router();
 
@@ -316,17 +319,11 @@ router.post('/build', async (req: Request, res: Response) => {
   activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      appendUniverseJobLog(activeJob!, line);
-    }
+    appendUniverseStdoutChunk(activeJob!, data);
   });
 
   activeProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      appendUniverseJobLog(activeJob!, `[err] ${line}`);
-    }
+    appendUniverseStderrChunk(activeJob!, data);
   });
 
   activeProcess.on('close', (code: number | null) => {
@@ -379,17 +376,11 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
   activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      appendUniverseJobLog(activeJob!, line);
-    }
+    appendUniverseStdoutChunk(activeJob!, data);
   });
 
   activeProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      appendUniverseJobLog(activeJob!, `[err] ${line}`);
-    }
+    appendUniverseStderrChunk(activeJob!, data);
   });
 
   activeProcess.on('close', (code: number | null) => {
@@ -442,17 +433,11 @@ router.post('/update', async (req: Request, res: Response) => {
   activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      appendUniverseJobLog(activeJob!, line);
-    }
+    appendUniverseStdoutChunk(activeJob!, data);
   });
 
   activeProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      appendUniverseJobLog(activeJob!, `[err] ${line}`);
-    }
+    appendUniverseStderrChunk(activeJob!, data);
   });
 
   activeProcess.on('close', (code: number | null) => {
@@ -504,21 +489,11 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
   activeProcess = spawn(command.command, command.args);
 
   activeProcess.stdout?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      // Parse progress from output like "[2000/4440] regimes so far: ..."
-      if (activeJob) {
-        applyRegimeProgressLine(activeJob, line);
-      }
-      appendUniverseJobLog(activeJob!, line);
-    }
+    appendRegimeStdoutChunk(activeJob!, data);
   });
 
   activeProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n').filter(Boolean);
-    for (const line of lines) {
-      appendUniverseJobLog(activeJob!, `[err] ${line}`);
-    }
+    appendUniverseStderrChunk(activeJob!, data);
   });
 
   activeProcess.on('close', async (code: number | null) => {

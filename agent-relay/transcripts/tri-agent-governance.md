@@ -1,6 +1,6 @@
 # Agent Relay Transcript: tri-agent-governance
 
-Generated: 2026-06-20T14:10:41Z
+Generated: 2026-06-20T14:20:28Z
 
 ## 1. Validator -> Editor: Add explicit Editor blocker rule
 
