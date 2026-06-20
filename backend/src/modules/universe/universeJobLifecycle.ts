@@ -4,6 +4,23 @@ export interface KillableUniverseProcess {
   kill(): unknown;
 }
 
+export interface UniverseJobConflict {
+  success: false;
+  error: string;
+}
+
+export function getRunningUniverseJobConflict(
+  job: UniverseJob | null,
+  includeWaitMessage = true,
+): UniverseJobConflict | null {
+  if (!job || job.status !== 'running') return null;
+  const waitMessage = includeWaitMessage ? ' Wait for it to complete.' : '';
+  return {
+    success: false,
+    error: `A ${job.type} job is already running.${waitMessage}`,
+  };
+}
+
 export function completeUniverseJobFromExitCode(
   job: UniverseJob,
   code: number | null,

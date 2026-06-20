@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996069315`
+- Last mirrored epoch ms: `1781996166323`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7610,4 +7610,40 @@ The route-level behavior is unchanged, just moved from inline try/catch to the t
 ### Assistant - 2026-06-20T22:54:24.474Z
 
 Focused tests and TypeScript pass. I’ll run the adjacent tests, relay verify, then GitNexus before committing this slice.
+
+### Assistant - 2026-06-20T22:54:36.621Z
+
+GitNexus reports LOW risk and no affected processes. I’m committing the manifest access guard extraction now.
+
+### Assistant - 2026-06-20T22:54:39.777Z
+
+The code diff is contained; the rest is the live memory mirror. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-20T22:54:52.595Z
+
+The manifest access guard is committed as `3913f4b3a`. I’m continuing to the next small seam: the repeated “job already running” conflict responses across the job-start routes.
+
+### Assistant - 2026-06-20T22:54:59.266Z
+
+The repeated running-job guard is extractable, but one route has a slightly different message, so I’m preserving that with an option rather than flattening behavior. I’ll run impact again before editing.
+
+### Assistant - 2026-06-20T22:55:05.190Z
+
+Impact is LOW with no affected flows. I’m adding the conflict response helper to lifecycle tests first.
+
+### Assistant - 2026-06-20T22:55:13.321Z
+
+The helper preserves both variants of the conflict message. I’m adding tests for no job, completed job, default wait message, and the update route’s shorter message.
+
+### Assistant - 2026-06-20T22:55:23.921Z
+
+The conflict behavior is covered. I’m wiring the four job-start routes to use it while preserving each existing status code and message.
+
+### Assistant - 2026-06-20T22:55:41.107Z
+
+The route guards are now one-line calls to the tested helper. I’m running lifecycle tests and build first.
+
+### Assistant - 2026-06-20T22:56:03.858Z
+
+Focused tests and build pass. I’ll run adjacent universe tests, relay verification, and GitNexus detection before committing.
 

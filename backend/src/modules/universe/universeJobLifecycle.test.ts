@@ -5,6 +5,7 @@ import {
   cancelActiveUniverseJob,
   cancelUniverseJob,
   completeUniverseJobFromExitCode,
+  getRunningUniverseJobConflict,
 } from './universeJobLifecycle';
 
 function createJob(): UniverseJob {
@@ -29,6 +30,34 @@ function testCompleteJobSuccess(): void {
   assert.equal(job.progress_label, 'Build complete.');
   assert.equal(job.stage, 'completed');
   assert.equal(job.error, undefined);
+}
+
+function testRunningJobConflict(): void {
+  const job = createJob();
+  const conflict = getRunningUniverseJobConflict(job);
+
+  assert.deepEqual(conflict, {
+    success: false,
+    error: 'A build job is already running. Wait for it to complete.',
+  });
+}
+
+function testRunningJobConflictWithoutWaitMessage(): void {
+  const job = createJob();
+  const conflict = getRunningUniverseJobConflict(job, false);
+
+  assert.deepEqual(conflict, {
+    success: false,
+    error: 'A build job is already running.',
+  });
+}
+
+function testRunningJobConflictIgnoresInactiveJob(): void {
+  const job = createJob();
+  job.status = 'completed';
+
+  assert.equal(getRunningUniverseJobConflict(null), null);
+  assert.equal(getRunningUniverseJobConflict(job), null);
 }
 
 function testCompleteJobFailure(): void {
@@ -111,6 +140,9 @@ function testRegimeProgressIgnoresUnmatchedLine(): void {
 }
 
 function runTests(): void {
+  testRunningJobConflict();
+  testRunningJobConflictWithoutWaitMessage();
+  testRunningJobConflictIgnoresInactiveJob();
   testCompleteJobSuccess();
   testCompleteJobFailure();
   testCompleteJobNullFailure();

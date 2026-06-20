@@ -32,6 +32,7 @@ import {
 import {
   cancelActiveUniverseJob,
   completeUniverseJobFromExitCode,
+  getRunningUniverseJobConflict,
 } from '../modules/universe/universeJobLifecycle';
 import {
   appendRegimeStdoutChunk,
@@ -105,12 +106,8 @@ router.get('/prices', async (req: Request, res: Response) => {
 
 // ─── POST /api/universe/build ─────────────────────────────────────────────────
 router.post('/build', async (req: Request, res: Response) => {
-  if (activeJob && activeJob.status === 'running') {
-    return res.status(409).json({
-      success: false,
-      error: `A ${activeJob.type} job is already running. Wait for it to complete.`
-    });
-  }
+  const conflict = getRunningUniverseJobConflict(activeJob);
+  if (conflict) return res.status(409).json(conflict);
 
   const {
     lookback = '5y',
@@ -162,12 +159,8 @@ router.post('/build', async (req: Request, res: Response) => {
 
 // ─── POST /api/universe/update ────────────────────────────────────────────────
 router.post('/rebuild-optionable', async (req: Request, res: Response) => {
-  if (activeJob && activeJob.status === 'running') {
-    return res.status(409).json({
-      success: false,
-      error: `A ${activeJob.type} job is already running. Wait for it to complete.`
-    });
-  }
+  const conflict = getRunningUniverseJobConflict(activeJob);
+  if (conflict) return res.status(409).json(conflict);
 
   const {
     workers = 5,
@@ -206,12 +199,8 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
 });
 
 router.post('/update', async (req: Request, res: Response) => {
-  if (activeJob && activeJob.status === 'running') {
-    return res.status(409).json({
-      success: false,
-      error: `A ${activeJob.type} job is already running.`
-    });
-  }
+  const conflict = getRunningUniverseJobConflict(activeJob, false);
+  if (conflict) return res.status(409).json(conflict);
 
   if (!(await canAccessUniverseFile(MANIFEST_PATH))) {
     return res.status(400).json({
@@ -255,12 +244,8 @@ router.post('/update', async (req: Request, res: Response) => {
 // Runs build_regime_universes.py to classify all universe stocks by market phase
 // (expansion / distribution / accumulation / markdown) and save the JSON files.
 router.post('/classify-regimes', async (req: Request, res: Response) => {
-  if (activeJob && activeJob.status === 'running') {
-    return res.status(409).json({
-      success: false,
-      error: `A ${activeJob.type} job is already running. Wait for it to complete.`
-    });
-  }
+  const conflict = getRunningUniverseJobConflict(activeJob);
+  if (conflict) return res.status(409).json(conflict);
 
   const { interval = '1d' } = req.body || {};
 
