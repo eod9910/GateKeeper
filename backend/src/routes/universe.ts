@@ -38,6 +38,7 @@ import {
   appendUniverseStderrChunk,
   appendUniverseStdoutChunk,
 } from '../modules/universe/universeProcessOutput';
+import { readUniverseRegimeSnapshot } from '../modules/universe/universeRegimeSnapshot';
 
 const router = Router();
 
@@ -521,22 +522,9 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 // ─── GET /api/universe/regime-snapshot ───────────────────────────────────────
 // Returns the latest regime snapshot metadata (counts + generated_at timestamp).
 router.get('/regime-snapshot', async (req: Request, res: Response) => {
-  try {
-    const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
-    const raw = await fs.readFile(snapshotPath, 'utf-8');
-    const snap = JSON.parse(raw);
-    res.json({
-      success: true,
-      data: {
-        generated_at: snap.generated_at,
-        interval: snap.interval,
-        total: snap.total,
-        summary: snap.summary,
-      }
-    });
-  } catch {
-    res.json({ success: true, data: null });
-  }
+  const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
+  const snapshot = await readUniverseRegimeSnapshot(snapshotPath);
+  res.json({ success: true, data: snapshot });
 });
 
 // ─── DELETE /api/universe/cancel ─────────────────────────────────────────────
