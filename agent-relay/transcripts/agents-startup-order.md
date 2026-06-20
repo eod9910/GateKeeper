@@ -1,6 +1,6 @@
 # Agent Relay Transcript: agents-startup-order
 
-Generated: 2026-06-20T14:20:28Z
+Generated: 2026-06-20T14:25:04Z
 
 ## 1. Editor -> Validator: AGENTS.md startup order editor review
 

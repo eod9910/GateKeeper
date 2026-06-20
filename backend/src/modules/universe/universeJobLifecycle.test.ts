@@ -2,6 +2,7 @@ import assert from 'assert';
 import { UniverseJob } from './universeJobProgress';
 import {
   applyRegimeProgressLine,
+  cancelActiveUniverseJob,
   cancelUniverseJob,
   completeUniverseJobFromExitCode,
 } from './universeJobLifecycle';
@@ -62,6 +63,37 @@ function testCancelJob(): void {
   assert.equal(job.stage, 'failed');
 }
 
+function testCancelActiveJobKillsProcessAndReturnsNull(): void {
+  const job = createJob();
+  let killed = false;
+  const nextProcess = cancelActiveUniverseJob(
+    job,
+    {
+      kill: () => {
+        killed = true;
+      },
+    },
+    '2026-06-20T00:05:00.000Z',
+  );
+
+  assert.equal(killed, true);
+  assert.equal(nextProcess, null);
+  assert.equal(job.status, 'failed');
+  assert.equal(job.error, 'Cancelled by user');
+  assert.equal(job.completed_at, '2026-06-20T00:05:00.000Z');
+  assert.equal(job.progress_label, 'Cancelled.');
+  assert.equal(job.stage, 'failed');
+}
+
+function testCancelActiveJobAllowsMissingProcess(): void {
+  const job = createJob();
+  const nextProcess = cancelActiveUniverseJob(job, null, '2026-06-20T00:06:00.000Z');
+
+  assert.equal(nextProcess, null);
+  assert.equal(job.status, 'failed');
+  assert.equal(job.completed_at, '2026-06-20T00:06:00.000Z');
+}
+
 function testRegimeProgressLine(): void {
   const job = createJob();
   applyRegimeProgressLine(job, '[2000/4000] regimes so far: expansion=10');
@@ -83,6 +115,8 @@ function runTests(): void {
   testCompleteJobFailure();
   testCompleteJobNullFailure();
   testCancelJob();
+  testCancelActiveJobKillsProcessAndReturnsNull();
+  testCancelActiveJobAllowsMissingProcess();
   testRegimeProgressLine();
   testRegimeProgressIgnoresUnmatchedLine();
 }

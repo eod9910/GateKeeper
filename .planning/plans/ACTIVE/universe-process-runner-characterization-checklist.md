@@ -2,7 +2,7 @@
 
 PRD: universe-process-runner-characterization-prd.md
 
-Percent complete: 63% (10 complete, 1 partial, 5 remaining)
+Percent complete: 94% (16 complete, 1 partial, 0 remaining)
 
 ## Phase 1: Governed Start
 
@@ -14,7 +14,7 @@ Percent complete: 63% (10 complete, 1 partial, 5 remaining)
 
 - [x] Identify the smallest fake process or fake runner seam.
 - [x] Confirm the seam does not change runtime behavior.
-- [ ] Confirm the seam can model stdout, stderr, close, and kill.
+- [x] Confirm the seam can model stdout, stderr, close, and kill.
 
 ## Phase 3: Characterization Tests
 
@@ -22,7 +22,7 @@ Percent complete: 63% (10 complete, 1 partial, 5 remaining)
 - [x] Cover stdout log append.
 - [x] Cover stderr `[err]` log append.
 - [x] Cover close success and failure.
-- [ ] Cover cancellation and kill.
+- [x] Cover cancellation and kill.
 - [~] Cover regime progress and summary behavior where feasible.
 
 ## Phase 4: Verification And Decision

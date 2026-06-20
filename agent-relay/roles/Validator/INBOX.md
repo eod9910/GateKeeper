@@ -1,6 +1,6 @@
 # Validator Inbox
 
-Generated: 2026-06-20T14:20:28Z
+Generated: 2026-06-20T14:25:04Z
 
 ## Builder relay smoke report
 
@@ -761,3 +761,23 @@ Generated: 2026-06-20T14:20:28Z
 - Timestamp: `2026-06-20T14:20:28Z`
 - Body: `agent-relay/messages/route-20260620-142028-editor-to-validator-cd244374.md`
 - SHA-256: `7960bedf1e990ec313e2575df0c0a2354514e133ae0fd09f215598f38872c148`
+
+## Universe cancel kill characterization builder report
+
+- Routing ID: `route-20260620-142503-builder-to-validator-a1db9e43`
+- From: `Builder`
+- Type: `report`
+- Phase: `universe-process-runner-characterization`
+- Timestamp: `2026-06-20T14:25:03Z`
+- Body: `agent-relay/messages/route-20260620-142503-builder-to-validator-a1db9e43.md`
+- SHA-256: `7ae3f26cfde6d2183a957982a30464c77360acc62c80257dc7eec01251f01381`
+
+## Universe cancel kill characterization editor report
+
+- Routing ID: `route-20260620-142504-editor-to-validator-1f733b13`
+- From: `Editor`
+- Type: `report`
+- Phase: `universe-process-runner-characterization`
+- Timestamp: `2026-06-20T14:25:04Z`
+- Body: `agent-relay/messages/route-20260620-142504-editor-to-validator-1f733b13.md`
+- SHA-256: `4f454af55b8a0b37a91c4a4f7b48b8129de8caa412bc6c9bc4289fedb1407a9b`

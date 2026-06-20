@@ -1,6 +1,6 @@
 # Builder Inbox
 
-Generated: 2026-06-20T14:20:28Z
+Generated: 2026-06-20T14:25:04Z
 
 ## Router smoke test
 
@@ -311,3 +311,13 @@ Generated: 2026-06-20T14:20:28Z
 - Timestamp: `2026-06-20T14:17:57Z`
 - Body: `agent-relay/messages/route-20260620-141757-validator-to-builder-1b72a168.md`
 - SHA-256: `075948c361d32f0a6d06491addcabd07cefa1ffb8947d1665bd64207b4ccb0e6`
+
+## Universe cancel kill characterization
+
+- Routing ID: `route-20260620-142454-validator-to-builder-eaafe4a9`
+- From: `Validator`
+- Type: `directive`
+- Phase: `universe-process-runner-characterization`
+- Timestamp: `2026-06-20T14:24:54Z`
+- Body: `agent-relay/messages/route-20260620-142454-validator-to-builder-eaafe4a9.md`
+- SHA-256: `3b5d23be8fe44e803e2589688838855f8a4e78786cd221577c3499eb647fa556`

@@ -30,7 +30,7 @@ import {
   buildUniverseUpdateCommand,
 } from '../modules/universe/universeJobCommands';
 import {
-  cancelUniverseJob,
+  cancelActiveUniverseJob,
   completeUniverseJobFromExitCode,
 } from '../modules/universe/universeJobLifecycle';
 import {
@@ -544,11 +544,7 @@ router.delete('/cancel', (req: Request, res: Response) => {
   if (!activeJob || activeJob.status !== 'running') {
     return res.status(400).json({ success: false, error: 'No active job to cancel.' });
   }
-  if (activeProcess) {
-    activeProcess.kill();
-    activeProcess = null;
-  }
-  cancelUniverseJob(activeJob);
+  activeProcess = cancelActiveUniverseJob(activeJob, activeProcess);
   res.json({ success: true, data: { message: 'Job cancelled.' } });
 });
 

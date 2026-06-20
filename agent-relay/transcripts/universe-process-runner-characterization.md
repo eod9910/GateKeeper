@@ -1,6 +1,6 @@
 # Agent Relay Transcript: universe-process-runner-characterization
 
-Generated: 2026-06-20T14:20:28Z
+Generated: 2026-06-20T14:25:04Z
 
 ## 1. Validator -> Builder: Characterize universe process output handling
 
@@ -191,6 +191,122 @@ Editor recommends stopping before process-runner extraction. Full extraction nee
 - active process clearing.
 
 Without that seam, moving `spawn` ownership would be a riskier behavioral refactor.
+
+
+---
+
+## 4. Validator -> Builder: Universe cancel kill characterization
+
+- Routing ID: `route-20260620-142454-validator-to-builder-eaafe4a9`
+- Type: `directive`
+- Phase: `universe-process-runner-characterization`
+- Timestamp: `2026-06-20T14:24:54Z`
+- Original: `agent-relay/roles/Validator/directives/2026-06-20-builder-universe-cancel-kill-characterization.md`
+- Body: `agent-relay/messages/route-20260620-142454-validator-to-builder-eaafe4a9.md`
+- SHA-256: `3b5d23be8fe44e803e2589688838855f8a4e78786cd221577c3499eb647fa556`
+
+### Validator Directive: Universe Cancel/Kill Characterization
+
+Date: 2026-06-20
+Phase: universe-process-runner-characterization
+From: Validator
+To: Builder
+
+#### Intent
+
+Complete the remaining cancellation/kill characterization for the universe process runner plan without moving full process ownership out of `backend/src/routes/universe.ts`.
+
+#### Scope
+
+- Add the smallest module helper needed to model cancellation against a fake killable process.
+- Keep `spawn`, stdout/stderr listener registration, close handlers, HTTP response timing, and `activeProcess` ownership in the route.
+- Add focused tests proving kill invocation, null process return, and existing cancellation state.
+
+#### Required Checks
+
+- `npm.cmd --prefix backend run universe-job-lifecycle:test`
+- `npm.cmd --prefix backend run universe-process-output:test`
+- `npm.cmd --prefix backend run build`
+- `python tools\agent_router.py verify`
+- GitNexus detect changes before any commit.
+
+
+---
+
+## 5. Builder -> Validator: Universe cancel kill characterization builder report
+
+- Routing ID: `route-20260620-142503-builder-to-validator-a1db9e43`
+- Type: `report`
+- Phase: `universe-process-runner-characterization`
+- Timestamp: `2026-06-20T14:25:03Z`
+- Original: `agent-relay/roles/Builder/reports/2026-06-20-universe-cancel-kill-characterization-builder-report.md`
+- Body: `agent-relay/messages/route-20260620-142503-builder-to-validator-a1db9e43.md`
+- SHA-256: `7ae3f26cfde6d2183a957982a30464c77360acc62c80257dc7eec01251f01381`
+
+### Builder Report: Universe Cancel/Kill Characterization
+
+Date: 2026-06-20
+Phase: universe-process-runner-characterization
+From: Builder
+To: Validator
+
+#### Summary
+
+Implemented the cancellation/kill characterization slice by adding `cancelActiveUniverseJob` to the universe lifecycle module and routing `DELETE /api/universe/cancel` through it.
+
+#### Files Changed
+
+- `backend/src/modules/universe/universeJobLifecycle.ts`
+- `backend/src/modules/universe/universeJobLifecycle.test.ts`
+- `backend/src/routes/universe.ts`
+- `.planning/plans/ACTIVE/universe-process-runner-characterization-checklist.md`
+
+#### Behavior
+
+- Fake killable process tests prove `kill()` is invoked.
+- The helper returns `null`, preserving route ownership of `activeProcess`.
+- Existing cancellation state is still applied by `cancelUniverseJob`.
+- Missing-process cancellation remains tolerated by the helper.
+
+#### Checks
+
+- Passed: `npm.cmd --prefix backend run universe-job-lifecycle:test`
+- Passed: `npm.cmd --prefix backend run universe-process-output:test`
+- Passed: `npm.cmd --prefix backend run build`
+
+
+---
+
+## 6. Editor -> Validator: Universe cancel kill characterization editor report
+
+- Routing ID: `route-20260620-142504-editor-to-validator-1f733b13`
+- Type: `report`
+- Phase: `universe-process-runner-characterization`
+- Timestamp: `2026-06-20T14:25:04Z`
+- Original: `agent-relay/roles/Editor/reports/2026-06-20-universe-cancel-kill-characterization-editor-report.md`
+- Body: `agent-relay/messages/route-20260620-142504-editor-to-validator-1f733b13.md`
+- SHA-256: `4f454af55b8a0b37a91c4a4f7b48b8129de8caa412bc6c9bc4289fedb1407a9b`
+
+### Editor Report: Universe Cancel/Kill Characterization
+
+Date: 2026-06-20
+Phase: universe-process-runner-characterization
+From: Editor
+To: Validator
+
+#### Review
+
+The slice is appropriately small. It removes the inline cancel/kill sequence from the route while avoiding the risky runner extraction that would need a fuller fake process harness.
+
+#### Findings
+
+- No behavior drift found in cancellation state.
+- The helper interface is intentionally minimal: only `kill()` is modeled.
+- Route still owns `activeProcess`, response timing, spawn, stdout/stderr listeners, and close handlers.
+
+#### Residual Risk
+
+Full runner extraction should still wait until the project has a fake runner capable of modeling event registration order and async close behavior.
 
 
 ---

@@ -1,5 +1,9 @@
 import { UniverseJob } from './universeJobProgress';
 
+export interface KillableUniverseProcess {
+  kill(): unknown;
+}
+
 export function completeUniverseJobFromExitCode(
   job: UniverseJob,
   code: number | null,
@@ -25,6 +29,18 @@ export function cancelUniverseJob(
   job.completed_at = completedAt;
   job.progress_label = 'Cancelled.';
   job.stage = 'failed';
+}
+
+export function cancelActiveUniverseJob(
+  job: UniverseJob,
+  activeProcess: KillableUniverseProcess | null,
+  completedAt = new Date().toISOString(),
+): null {
+  if (activeProcess) {
+    activeProcess.kill();
+  }
+  cancelUniverseJob(job, completedAt);
+  return null;
 }
 
 export function applyRegimeProgressLine(job: UniverseJob, line: string): void {
