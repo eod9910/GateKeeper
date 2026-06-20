@@ -3,12 +3,27 @@
 > Auto-generated from the live Cursor mirror.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996389628`
+- Last mirrored epoch ms: `1781996649256`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-cursor-transcripts-live`
 
 ## Global Prompt History
-- None captured yet
+- global
+- 019e241f-4658-7f91-a1a9-fa87faab307c
+- 019e28a9-dc8b-72c0-b9fd-374a44262702
+- 019e81ec-36cd-77a0-921f-3e42df5dcbf3
+- 019e89c5-c72e-7862-b4fa-0e3d515ed22e
+- 019e94a9-4f7d-7cf1-a102-3367d7500b2a
+- 019eb93b-72f0-7220-a86f-dc26955cd02e
+- 019ec377-bbbf-7091-994c-3e978d5a62bf
+- 019ec5cf-1d5f-79e1-a0c4-04339a92daec
+- 019ec5db-2d53-7233-98f3-dc2f4ba1d544
+- 019ec860-b466-7051-9350-fa13d386d465
+- 019ec8e3-50d2-7700-8836-46b3e1941fec
+- 019ece5b-1ff1-7832-9633-2c352bdce07c
+- 019eceb4-c48f-7353-afa5-8bce430b5667
+- 019ed080-f35c-7310-bd0f-8bb4b9fe6272
+- 019ee4a2-df64-75d3-b760-e61bb5077971
 
 ## Workspace Prompt Log
 - have the editor do a clean up pass

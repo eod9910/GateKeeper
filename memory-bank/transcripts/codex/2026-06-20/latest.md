@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996389330`
+- Last mirrored epoch ms: `1781996646773`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -3117,6 +3117,7 @@
 - OK that sounds like you have a plan so let's go ahead and do that as long as you have a plan
 - next
 - continue untill you hit a blocker
+- ok build the harnes and test it
 
 ## Latest Session Transcript
 
@@ -7726,4 +7727,79 @@ The classify close handler now delegates only the summary metrics read. I’m ru
 ### Assistant - 2026-06-20T22:59:34.730Z
 
 Focused test and build pass. I’m running adjacent process-output/lifecycle tests, relay verify, and GitNexus before committing this final pre-blocker slice.
+
+### Assistant - 2026-06-20T22:59:48.334Z
+
+GitNexus is LOW risk with no affected processes. I’m committing the regime summary metrics extraction.
+
+### Assistant - 2026-06-20T22:59:52.029Z
+
+The diff is contained and still leaves close ownership in the route. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-20T23:00:10.606Z
+
+The regime summary metrics slice is committed as `6002240bb`. I’ve now reached the blocker: remaining work is process-runner extraction itself, which moves `spawn`, `close`, active process assignment/clearing, and response timing together. I’m doing one final status check and will summarize the blocker clearly.
+
+### Assistant - 2026-06-20T23:00:18.441Z
+
+I continued until the next real blocker.
+
+Local commits added:
+
+- `3913f4b3a` Extract universe manifest access check
+- `4063ad48c` Extract universe running job conflict response
+- `4be112c13` Extract universe process output attachment
+- `6002240bb` Extract universe regime summary metrics
+
+All passed focused tests, backend build, relay verify, and GitNexus LOW risk / no affected processes before commit.
+
+Blocker reached: the remaining repeated code is the actual process runner boundary:
+- `spawn(...)`
+- `activeProcess = ...`
+- `attachUniverseProcessOutputHandlers(...)`
+- `activeProcess.on('close', ...)`
+- `activeProcess = null`
+- immediate `res.json(...)`
+
+Moving that now means changing ownership of process lifecycle and HTTP response timing together. That is exactly the risky extraction we said should wait for a fuller fake runner or endpoint-level harness. No push. Current tree only has live memory mirror churn.
+
+### User - 2026-06-20T23:00:45.765Z
+
+ok build the harnes and test it
+
+### Assistant - 2026-06-20T23:00:52.200Z
+
+I’ll build the harness as the next governed slice: a fake process/fake stream test surface that can model `stdout`, `stderr`, `close`, `kill`, active-process clearing, and response timing. I’m going to add it around the current universe process lifecycle before moving the route over to any new runner abstraction.
+
+### Assistant - 2026-06-20T23:01:23.910Z
+
+I’m going to make the harness as a new universe-domain module first, without wiring the route yet. That gives us a real fake process runner test surface and a clean checkpoint before changing runtime ownership.
+
+### Assistant - 2026-06-20T23:01:29.221Z
+
+GitNexus shows LOW risk for the route boundary: only `server.ts` imports it and no execution flows are marked affected. I’m adding the runner harness module and fake-process tests now.
+
+### Assistant - 2026-06-20T23:02:09.222Z
+
+The harness is now a real fake runner: it models output streams, close events, kill, post-success hooks, and active-process clearing order. I’m adding it to the backend scripts and running it.
+
+### Assistant - 2026-06-20T23:02:26.673Z
+
+Harness script is registered. I’m running the new harness test, adjacent process tests, and TypeScript build.
+
+### Assistant - 2026-06-20T23:02:57.436Z
+
+The harness runtime test passes; TypeScript caught my test using a regime-specific metric key outside the current `UniverseJob.metrics` type. I’m adjusting the fake success-hook assertion to use an existing metric field so the test matches the repo contract.
+
+### Assistant - 2026-06-20T23:03:14.318Z
+
+The harness test now uses an allowed metric field. I’m rerunning the harness and build.
+
+### Assistant - 2026-06-20T23:03:41.700Z
+
+Harness and build are green. I’m running the remaining verification gates and GitNexus change scan before committing this harness checkpoint.
+
+### Assistant - 2026-06-20T23:03:58.819Z
+
+GitNexus reports LOW risk with no affected processes. I’m committing the harness as its own checkpoint, still with no route ownership change.
 
