@@ -1,9 +1,11 @@
 import assert from 'assert';
+import { EventEmitter } from 'events';
 import { UniverseJob } from './universeJobProgress';
 import {
   appendRegimeStdoutChunk,
   appendUniverseStderrChunk,
   appendUniverseStdoutChunk,
+  attachUniverseProcessOutputHandlers,
 } from './universeProcessOutput';
 
 function createJob(): UniverseJob {
@@ -58,12 +60,38 @@ function testRegimeStdoutStillAppendsPlainLines(): void {
   assert.equal(job.progress_label, 'plain line');
 }
 
+function testAttachOutputHandlersAppendsStdoutAndStderr(): void {
+  const job = createJob();
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+
+  attachUniverseProcessOutputHandlers({ stdout, stderr }, job);
+  stdout.emit('data', Buffer.from('hello\n'));
+  stderr.emit('data', Buffer.from('bad\n'));
+
+  assert.deepEqual(job.log, ['hello', '[err] bad']);
+}
+
+function testAttachOutputHandlersCanUseRegimeStdout(): void {
+  const job = createJob();
+  job.type = 'classify_regimes';
+  const stdout = new EventEmitter();
+
+  attachUniverseProcessOutputHandlers({ stdout }, job, true);
+  stdout.emit('data', Buffer.from('[20/40] regimes so far: expansion=3\n'));
+
+  assert.equal(job.progress, 45);
+  assert.deepEqual(job.log, ['[20/40] regimes so far: expansion=3']);
+}
+
 function runTests(): void {
   testStdoutChunkAppendsLines();
   testStdoutChunkIgnoresEmptySplitParts();
   testStderrChunkPrefixesLines();
   testRegimeStdoutAppliesProgressBeforeAppend();
   testRegimeStdoutStillAppendsPlainLines();
+  testAttachOutputHandlersAppendsStdoutAndStderr();
+  testAttachOutputHandlersCanUseRegimeStdout();
 }
 
 runTests();

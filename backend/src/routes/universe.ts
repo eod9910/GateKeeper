@@ -35,9 +35,7 @@ import {
   getRunningUniverseJobConflict,
 } from '../modules/universe/universeJobLifecycle';
 import {
-  appendRegimeStdoutChunk,
-  appendUniverseStderrChunk,
-  appendUniverseStdoutChunk,
+  attachUniverseProcessOutputHandlers,
 } from '../modules/universe/universeProcessOutput';
 import { readUniverseRegimeSnapshot } from '../modules/universe/universeRegimeSnapshot';
 
@@ -139,13 +137,7 @@ router.post('/build', async (req: Request, res: Response) => {
 
   activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
-  activeProcess.stdout?.on('data', (data: Buffer) => {
-    appendUniverseStdoutChunk(activeJob!, data);
-  });
-
-  activeProcess.stderr?.on('data', (data: Buffer) => {
-    appendUniverseStderrChunk(activeJob!, data);
-  });
+  attachUniverseProcessOutputHandlers(activeProcess, activeJob);
 
   activeProcess.on('close', (code: number | null) => {
     if (activeJob) {
@@ -180,13 +172,7 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
 
   activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
-  activeProcess.stdout?.on('data', (data: Buffer) => {
-    appendUniverseStdoutChunk(activeJob!, data);
-  });
-
-  activeProcess.stderr?.on('data', (data: Buffer) => {
-    appendUniverseStderrChunk(activeJob!, data);
-  });
+  attachUniverseProcessOutputHandlers(activeProcess, activeJob);
 
   activeProcess.on('close', (code: number | null) => {
     if (activeJob) {
@@ -222,13 +208,7 @@ router.post('/update', async (req: Request, res: Response) => {
 
   activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
 
-  activeProcess.stdout?.on('data', (data: Buffer) => {
-    appendUniverseStdoutChunk(activeJob!, data);
-  });
-
-  activeProcess.stderr?.on('data', (data: Buffer) => {
-    appendUniverseStderrChunk(activeJob!, data);
-  });
+  attachUniverseProcessOutputHandlers(activeProcess, activeJob);
 
   activeProcess.on('close', (code: number | null) => {
     if (activeJob) {
@@ -261,13 +241,7 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 
   activeProcess = spawn(command.command, command.args);
 
-  activeProcess.stdout?.on('data', (data: Buffer) => {
-    appendRegimeStdoutChunk(activeJob!, data);
-  });
-
-  activeProcess.stderr?.on('data', (data: Buffer) => {
-    appendUniverseStderrChunk(activeJob!, data);
-  });
+  attachUniverseProcessOutputHandlers(activeProcess, activeJob, true);
 
   activeProcess.on('close', async (code: number | null) => {
     if (activeJob) {

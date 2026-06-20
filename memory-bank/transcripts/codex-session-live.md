@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996166323`
+- Last mirrored epoch ms: `1781996260665`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7646,4 +7646,40 @@ The route guards are now one-line calls to the tested helper. I’m running life
 ### Assistant - 2026-06-20T22:56:03.858Z
 
 Focused tests and build pass. I’ll run adjacent universe tests, relay verification, and GitNexus detection before committing.
+
+### Assistant - 2026-06-20T22:56:10.351Z
+
+Verification is green. I’m running GitNexus `detect_changes`; if it stays low risk, this conflict-guard slice gets its own checkpoint.
+
+### Assistant - 2026-06-20T22:56:18.574Z
+
+GitNexus reports LOW risk and no affected processes. I’m committing the conflict response helper extraction locally.
+
+### Assistant - 2026-06-20T22:56:21.953Z
+
+The diff preserves the update route’s shorter conflict message and removes duplicate guard bodies. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-20T22:56:34.952Z
+
+The running-job conflict helper is committed as `4063ad48c`. I’m continuing until a blocker; next I’m checking if there is another safe pure seam before process ownership itself.
+
+### Assistant - 2026-06-20T22:56:44.814Z
+
+The next safe seam is output listener attachment, not process ownership: the route repeats `stdout.on('data')` and `stderr.on('data')` four times. I can extract just listener registration while leaving `spawn`, `close`, `activeProcess`, and response timing in the route.
+
+### Assistant - 2026-06-20T22:56:48.825Z
+
+Impact remains LOW. I’m adding a fake-stream test around listener attachment so we prove stdout/stderr behavior before wiring the route.
+
+### Assistant - 2026-06-20T22:57:06.291Z
+
+The attachment helper still only handles output streams. It does not touch close handlers or process lifecycle. I’m adding tests with Node’s `EventEmitter`.
+
+### Assistant - 2026-06-20T22:57:19.458Z
+
+The fake-stream tests are in place. I’m wiring all four spawned-process output blocks to the helper while leaving every `close` handler exactly in the route.
+
+### Assistant - 2026-06-20T22:57:38.323Z
+
+The route now delegates output attachment but still owns all `spawn`, `close`, and `activeProcess` logic. I’m running the process-output tests and build.
 
