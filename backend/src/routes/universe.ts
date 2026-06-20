@@ -211,15 +211,14 @@ router.post('/update', async (req: Request, res: Response) => {
     interval: String(interval),
   });
 
-  activeProcess = spawn(command.command, command.args, { cwd: command.cwd });
-
-  attachUniverseProcessOutputHandlers(activeProcess, activeJob);
-
-  activeProcess.on('close', (code: number | null) => {
-    if (activeJob) {
-      completeUniverseJobFromExitCode(activeJob, code, 'Update complete.');
-    }
-    activeProcess = null;
+  activeProcess = startUniverseProcessJob({
+    command,
+    job: activeJob,
+    spawnProcess: spawn,
+    successLabel: 'Update complete.',
+    onProcessClosed: () => {
+      activeProcess = null;
+    },
   });
 
   res.json({ success: true, data: { message: 'Update started.', job: activeJob } });

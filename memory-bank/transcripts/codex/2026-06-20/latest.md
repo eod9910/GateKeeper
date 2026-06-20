@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781996901693`
+- Last mirrored epoch ms: `1781996966100`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7903,4 +7903,28 @@ Impact is still LOW. I’m wiring `/rebuild-optionable` to the same runner path 
 ### Assistant - 2026-06-20T23:08:03.451Z
 
 `/rebuild-optionable` is wired. I’m running the harness, lifecycle, command tests, and build.
+
+### Assistant - 2026-06-20T23:08:25.871Z
+
+Tests and build are green. I’m running relay verification and GitNexus detection before committing this route.
+
+### Assistant - 2026-06-20T23:08:29.659Z
+
+Relay is clean and the route diff is exactly the second simple runner migration. I’m running GitNexus now.
+
+### Assistant - 2026-06-20T23:08:33.730Z
+
+GitNexus is LOW risk with no affected processes. I’m committing `/rebuild-optionable` runner wiring.
+
+### Assistant - 2026-06-20T23:08:46.086Z
+
+`/rebuild-optionable` is on the runner and committed as `5c5e46dab`. I’m moving to `/update`, another simple close path.
+
+### Assistant - 2026-06-20T23:08:51.337Z
+
+Impact is LOW. I’m wiring `/update` to the runner with the existing `Update complete.` success label.
+
+### Assistant - 2026-06-20T23:09:04.866Z
+
+`/update` is wired. I’m running the focused runner/lifecycle/command tests and build again.
 

@@ -4,14 +4,14 @@
 > Keep this compact. Use `memory-bank/transcripts/cursor-session-live.md` and the offline mirror for deeper history.
 > Treat this as a startup bridge: current focus, user directives, open questions, and likely next steps.
 
-- Last mirrored epoch ms: `1781996908060`
+- Last mirrored epoch ms: `1781996972014`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Cursor workspace storage: `C:\Users\eod99\AppData\Roaming\Cursor\User\workspaceStorage\e3dc2a18a0d15f1c40bae1b11b82b8e0`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-cursor-transcripts-live`
 
 ## Current Focus
-- Latest prompt: `019ee4a2-df64-75d3-b760-e61bb5077971`
-- Last substantive prompt: `019ee4a2-df64-75d3-b760-e61bb5077971`
+- Latest prompt: `No recent prompt captured`
+- Last substantive prompt: `No recent substantive prompt captured`
 - Dominant topic window: `No dominant topic detected`
 
 ## Active Threads
