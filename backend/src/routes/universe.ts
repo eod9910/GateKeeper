@@ -28,6 +28,7 @@ import {
   buildUniverseFreshness,
   createUniversePriceSnapshotService,
 } from '../modules/universe/universePriceSnapshot';
+import { summarizeUniverseManifest } from '../modules/universe/universeStatusSummary';
 import {
   buildOptionableRebuildCommand,
   buildRegimeClassificationCommand,
@@ -83,21 +84,13 @@ router.get('/status', async (req: Request, res: Response) => {
     try {
       const raw = await fs.readFile(MANIFEST_PATH, 'utf-8');
       manifest = JSON.parse(raw);
-      symbolCount = manifest.total_symbols || Object.keys(manifest.symbols || {}).length;
-      sourceSymbolCount = Number(manifest.source_symbol_count || 0);
-      lastUpdated = manifest.last_updated || manifest.generated_at || null;
-      source = manifest.source || null;
-      sourceLabel = manifest.source_label || null;
-
-      // Count stale symbols (last bar > 7 days ago)
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 7);
-      for (const meta of Object.values(manifest.symbols || {}) as any[]) {
-        if (meta.end) {
-          const end = new Date(meta.end);
-          if (end < cutoff) staleCount++;
-        }
-      }
+      const summary = summarizeUniverseManifest(manifest);
+      symbolCount = summary.symbolCount;
+      sourceSymbolCount = summary.sourceSymbolCount;
+      lastUpdated = summary.lastUpdated;
+      source = summary.source;
+      sourceLabel = summary.sourceLabel;
+      staleCount = summary.staleCount;
     } catch {
       // manifest doesn't exist yet
     }
