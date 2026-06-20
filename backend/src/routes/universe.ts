@@ -15,8 +15,13 @@ import {
 import {
   UniverseJob,
   clampUniverseProgress,
-  getUniverseSourceLabel,
 } from '../modules/universe/universeJobProgress';
+import {
+  createOptionableRebuildJob,
+  createRegimeClassificationJob,
+  createUniverseBuildJob,
+  createUniverseUpdateJob,
+} from '../modules/universe/universeJobFactory';
 import { getOptionableCatalogMeta } from '../modules/universe/universeCatalogMeta';
 import {
   UniversePriceSnapshot,
@@ -290,22 +295,13 @@ router.post('/build', async (req: Request, res: Response) => {
     canReuseOptionable = false;
   }
 
-  activeJob = {
-    type: 'build',
-    status: 'running',
-    started_at: new Date().toISOString(),
-    log: [],
-    progress: 0,
-    progress_label: 'Starting build...',
-    stage: 'starting',
+  activeJob = createUniverseBuildJob({
     source: String(source),
-    source_label: getUniverseSourceLabel(String(source)),
     lookback: String(lookback),
     interval: String(interval),
     workers: Number(workers),
-    min_volume: Number(min_volume),
-    metrics: {},
-  };
+    minVolume: Number(min_volume),
+  });
 
   const command = buildUniverseBuildCommand({
     servicesDir: SERVICES_DIR,
@@ -351,22 +347,10 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
     source = 'nasdaq-trader-us',
   } = req.body || {};
 
-  activeJob = {
-    type: 'rebuild_optionable',
-    status: 'running',
-    started_at: new Date().toISOString(),
-    log: [],
-    progress: 0,
-    progress_label: 'Starting optionable subset rebuild...',
-    stage: 'starting',
+  activeJob = createOptionableRebuildJob({
     source: String(source),
-    source_label: getUniverseSourceLabel(String(source)),
-    lookback: 'n/a',
-    interval: '1d',
     workers: Number(workers),
-    min_volume: 0,
-    metrics: {},
-  };
+  });
 
   const command = buildOptionableRebuildCommand({
     servicesDir: SERVICES_DIR,
@@ -414,17 +398,9 @@ router.post('/update', async (req: Request, res: Response) => {
 
   const { interval = '1d' } = req.body;
 
-  activeJob = {
-    type: 'update',
-    status: 'running',
-    started_at: new Date().toISOString(),
-    log: [],
-    progress: 0,
-    progress_label: 'Starting update...',
-    stage: 'starting',
+  activeJob = createUniverseUpdateJob({
     interval: String(interval),
-    metrics: {},
-  };
+  });
 
   const command = buildUniverseUpdateCommand({
     servicesDir: SERVICES_DIR,
@@ -464,22 +440,9 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 
   const { interval = '1d' } = req.body || {};
 
-  activeJob = {
-    type: 'classify_regimes',
-    status: 'running',
-    started_at: new Date().toISOString(),
-    log: [],
-    progress: 0,
-    progress_label: 'Starting regime classification...',
-    stage: 'classifying',
-    source: 'local_csv',
-    source_label: 'Local CSV cache',
-    lookback: interval,
+  activeJob = createRegimeClassificationJob({
     interval: String(interval),
-    workers: 1,
-    min_volume: 0,
-    metrics: {},
-  };
+  });
 
   const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'build_regime_universes.py');
   const command = buildRegimeClassificationCommand({

@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781965647672`
+- Last mirrored epoch ms: `1781965745031`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7067,4 +7067,32 @@ The route now delegates only the data-shaping read to `universeRegimeSnapshot`; 
 ### Assistant - 2026-06-20T14:27:10.201Z
 
 Focused tests are green. I’m running TypeScript and then I’ll do the GitNexus/relay checks before deciding whether this slice is ready to commit.
+
+### Assistant - 2026-06-20T14:27:31.965Z
+
+TypeScript passes and the route diff is clean: the endpoint got shorter without changing its envelope or failure behavior. I’m running the final required checks for this slice now.
+
+### Assistant - 2026-06-20T14:27:35.109Z
+
+Relay is still valid. The only code changes are the new regime snapshot module/test, route wiring, and package scripts, plus live memory mirror updates from the watchers. GitNexus scan is next.
+
+### Assistant - 2026-06-20T14:27:38.176Z
+
+GitNexus is LOW risk with no affected execution flows. I’m making the local checkpoint for this regime snapshot slice now.
+
+### Assistant - 2026-06-20T14:27:49.264Z
+
+Regime snapshot extraction is committed locally as `5c86beeca`; no push. I’m going one more safe slice: the route still has repeated job object literals for build/rebuild/update/regime. I’ll extract those into a pure `universeJobFactory` module with tests, keeping all route timing and subprocess behavior unchanged.
+
+### Assistant - 2026-06-20T14:27:52.806Z
+
+The route impact remains LOW, so I’m making the job factory pure and testable: it will only construct the same `UniverseJob` shapes the route already builds today.
+
+### Assistant - 2026-06-20T14:28:24.238Z
+
+The pure factory and tests are added. Now I’m replacing the route’s four object literals with those factory calls, keeping request parsing and command building exactly where they are.
+
+### Assistant - 2026-06-20T14:28:56.578Z
+
+The route is now slimmer in a very mechanical way: four job constructors moved into a tested module, no subprocess flow moved. I’m running the new test and the adjacent universe tests/build.
 
