@@ -26,6 +26,7 @@ import {
   buildRegimeClassificationCommand,
   buildUniverseBuildCommand,
   buildUniverseUpdateCommand,
+  canReuseOptionableCatalog,
 } from '../modules/universe/universeJobCommands';
 import {
   cancelActiveUniverseJob,
@@ -118,13 +119,7 @@ router.post('/build', async (req: Request, res: Response) => {
     source = 'nasdaq-trader-us',
   } = req.body;
 
-  let canReuseOptionable = false;
-  try {
-    await fs.access(OPTIONABLE_PATH);
-    canReuseOptionable = true;
-  } catch {
-    canReuseOptionable = false;
-  }
+  const canReuseOptionable = await canReuseOptionableCatalog(OPTIONABLE_PATH);
 
   activeJob = createUniverseBuildJob({
     source: String(source),

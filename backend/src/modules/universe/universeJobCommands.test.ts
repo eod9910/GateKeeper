@@ -5,6 +5,7 @@ import {
   buildRegimeClassificationCommand,
   buildUniverseBuildCommand,
   buildUniverseUpdateCommand,
+  canReuseOptionableCatalog,
 } from './universeJobCommands';
 
 const servicesDir = 'C:\\repo\\backend\\services';
@@ -92,13 +93,33 @@ function testRegimeClassificationCommand(): void {
   assert.deepEqual(command.args, ['-u', scriptPath, '--interval', '1d']);
 }
 
-function runTests(): void {
+async function testCanReuseOptionableCatalogWhenAccessible(): Promise<void> {
+  const canReuse = await canReuseOptionableCatalog('optionable.json', async () => undefined);
+
+  assert.equal(canReuse, true);
+}
+
+async function testCanReuseOptionableCatalogWhenMissing(): Promise<void> {
+  const canReuse = await canReuseOptionableCatalog('optionable.json', async () => {
+    throw new Error('missing');
+  });
+
+  assert.equal(canReuse, false);
+}
+
+async function runTests(): Promise<void> {
   testBuildUniverseBuildCommand();
   testBuildUniverseBuildCommandWithoutSkipOptions();
   testOptionableRebuildCommand();
   testUpdateCommand();
   testRegimeClassificationCommand();
+  await testCanReuseOptionableCatalogWhenAccessible();
+  await testCanReuseOptionableCatalogWhenMissing();
 }
 
-runTests();
-console.log('universeJobCommands tests passed');
+runTests()
+  .then(() => console.log('universeJobCommands tests passed'))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

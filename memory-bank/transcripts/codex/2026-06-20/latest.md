@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781994817403`
+- Last mirrored epoch ms: `1781995355012`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7475,4 +7475,75 @@ Now I’m wiring the route to the helper and removing the cache freshness import
 ### Assistant - 2026-06-20T22:33:17.115Z
 
 The `/prices` route is now just guard, force-refresh parse, service call, response helper. I’m running the focused price test and TypeScript.
+
+### Assistant - 2026-06-20T22:33:40.170Z
+
+Focused test and build pass. I’m running adjacent universe tests plus relay verification before the GitNexus scan.
+
+### Assistant - 2026-06-20T22:33:48.088Z
+
+The verification gates are still green. I’m running GitNexus `detect_changes`, then I’ll commit this `/prices` response extraction locally if it stays low risk.
+
+### Assistant - 2026-06-20T22:33:56.624Z
+
+GitNexus reports LOW risk and no affected processes. I’m committing the `/prices` response-helper slice locally now.
+
+### Assistant - 2026-06-20T22:34:01.584Z
+
+The code diff is exactly the response extraction; the rest is live memory mirror churn. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-20T22:34:34.511Z
+
+The `/prices` response-builder slice is committed locally as `d6f0d5a5a`; no push. I’m doing a quick final branch/status check so I can hand you a clean update.
+
+### Assistant - 2026-06-20T22:34:41.233Z
+
+Next slice is done.
+
+Committed locally:
+
+`d6f0d5a5a Extract universe prices response builder`
+
+What changed:
+- Moved `/api/universe/prices` response shaping into `buildUniversePriceSnapshotResponse`.
+- Added a focused test locking the response contract: `count`, `prices`, nested `data.freshness`, and top-level `freshness`.
+- `universe.ts` is thinner again; the route now handles guard/service/error envelope only.
+
+Verification passed:
+- `universe-price-snapshot:test`
+- `universe-status-summary:test`
+- `universe-job-progress:test`
+- backend build
+- relay verify
+- GitNexus LOW risk / no affected processes
+
+No push. Working tree only has live memory mirror updates.
+
+### User - 2026-06-20T22:41:13.089Z
+
+continue
+
+### Assistant - 2026-06-20T22:41:27.077Z
+
+I’ll continue with the same discipline: one small vertical slice, tests first around behavior that could drift, then route wiring and verification. Next target is `/build`’s optionable-reuse decision, because it is file-system orchestration that can be characterized with an injected `access` function without touching subprocess ownership.
+
+### Assistant - 2026-06-20T22:41:33.972Z
+
+This is a good small extraction: the route currently probes `optionable.json` only to decide `--skip-options-check`. I’m moving that probe next to command-building logic and testing both accessible and missing paths.
+
+### Assistant - 2026-06-20T22:41:39.250Z
+
+GitNexus says LOW risk, with only `server.ts` importing the route and no affected execution flows. I’m making the helper and tests now.
+
+### Assistant - 2026-06-20T22:41:58.862Z
+
+The helper is tested with an injected access function. I’m wiring `/build` to call it and removing the inline try/catch.
+
+### Assistant - 2026-06-20T22:42:08.799Z
+
+The build route now delegates that filesystem probe. I’m running the focused command tests and TypeScript build.
+
+### Assistant - 2026-06-20T22:42:26.885Z
+
+Focused tests and build pass. I’ll run adjacent universe tests plus relay verification, then GitNexus detection before committing.
 

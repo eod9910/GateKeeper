@@ -1,9 +1,24 @@
 import * as path from 'path';
+import * as fs from 'fs/promises';
 
 export interface UniverseJobCommand {
   command: string;
   args: string[];
   cwd?: string;
+}
+
+export type AccessUniverseFile = (filePath: string) => Promise<unknown>;
+
+export async function canReuseOptionableCatalog(
+  optionablePath: string,
+  accessFile: AccessUniverseFile = fs.access,
+): Promise<boolean> {
+  try {
+    await accessFile(optionablePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function buildUniverseBuildCommand(options: {

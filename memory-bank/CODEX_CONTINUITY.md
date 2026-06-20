@@ -6,15 +6,15 @@
 > Keep this compact. Use `memory-bank/transcripts/codex-session-live.md` and the offline mirror for deeper history.
 > Treat this as a startup bridge: current focus, user directives, open questions, and likely next steps.
 
-- Last mirrored epoch ms: `1781994817401`
+- Last mirrored epoch ms: `1781995355011`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 - Mirrored sessions: `36`
 
 ## Current Focus
 - Latest session: `Gate Keeper V1`
-- Latest prompt: `next`
-- Last substantive prompt: `next`
+- Latest prompt: `continue`
+- Last substantive prompt: `continue`
 - Dominant topic window: `Tri-agent relay and governance`
 
 ## Active Threads
