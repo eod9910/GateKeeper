@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781997865350`
+- Last mirrored epoch ms: `1781998126214`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,46 +5721,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-md](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/AGENTS.md:7):
-
-- read `agent-relay/roles/Validator/ROLE.md`
-- read `agent-relay/roles/Builder/ROLE.md`
-- read `agent-relay/roles/Editor/ROLE.md`
-
-And it has a new **Role Bootloader** section in [AGENTS.md](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/AGENTS.md:62) saying:
-
-- Validator reads its role doc before freezing requirements or accepting work.
-- Builder reads its role doc before implementing.
-- Editor reads its role doc before reviewing or blocking.
-- A single mediating agent must read all three before routing/simulating handoffs.
-
-Bootstrap now has the same reusable rule in:
-
-`templates/agents/AGENTS_PACKAGE_SELECTION_BLOCK.md`
-
-and I pushed it:
-
-```text
-ca1630c Add role bootloader to AGENTS template
-```
-
-So yes: `AGENTS.md` is now treated as the bootloader that wakes the roles and sends them to their documents before they act.
-
-### User - 2026-06-20T12:58:12.845Z
-
-OK do you want to start the migration process or what do you want to do
-
-### Assistant - 2026-06-20T12:58:25.297Z
-
-I do want to start, but I would start with a migration **plan and first vertical slice**, not by moving folders today. The first useful move is to create a PRD/checklist that declares the migration workstream and picks the first domain, probably `universe` or `scanner`, because that area already showed duplicate code pain.
-
-### Assistant - 2026-06-20T12:58:35.112Z
-
-There are already many active plans, so I’m going to make this a focused architecture workstream rather than bury it as a note. I’ll create a paired ACTIVE PRD/checklist for “modular domain migration,” with the first slice scoped to `universe/scanner` discovery and then a small behavior-preserving move.
-
-### Assistant - 2026-06-20T12:59:04.316Z
-
-The repo scan confirms why this should start with `universe/scanner`: backend has `backend/src/routes/universe.ts`, `backend/src/services/universeRegistry.ts`, legacy Python services/scripts, and the frontend has scanner/chart/universe behavior in `frontend/public`. I’m turning that into an ACTIVE PRD/checklist pair now so the migration has a governed track instead of becoming another loose cleanup idea.
+in `frontend/public`. I’m turning that into an ACTIVE PRD/checklist pair now so the migration has a governed track instead of becoming another loose cleanup idea.
 
 ### Assistant - 2026-06-20T12:59:44.975Z
 
@@ -8057,4 +8018,40 @@ GitNexus reports low risk and no affected processes, but its analyzer also touch
 ### Assistant - 2026-06-20T23:24:06.653Z
 
 Those `AGENTS.md` and `CLAUDE.md` edits are analyzer side effects, not part of the migration slice. I’m going to remove just those tool-added doc changes so the commit stays about request parsing and the live memory snapshots only.
+
+### Assistant - 2026-06-20T23:24:49.510Z
+
+The analyzer side-effect docs are back out of the working diff. I’m checking the tree again, then I’ll stage and commit the parser slice.
+
+### Assistant - 2026-06-20T23:24:53.179Z
+
+Clean: only the parser slice plus live memory files are dirty now, and the route dropped a few more lines while making the defaults explicit. I’m committing this local checkpoint.
+
+### Assistant - 2026-06-20T23:25:03.021Z
+
+The staged set is exactly the request-param module, route usage, package test script, and continuity snapshots. Committing it now.
+
+### Assistant - 2026-06-20T23:25:13.726Z
+
+Second local checkpoint made: `cae2e5e23 Extract universe request parameter parsing`. I’m refreshing GitNexus after the commit and checking the new route size/status before I decide on the next safe slice.
+
+### Assistant - 2026-06-20T23:26:28.513Z
+
+Post-commit index refresh is done; only live memory files are dirty again. Next slice I’d take is route configuration: move path/TTL construction out of `routes/universe.ts` into a small config module, so the route stops owning filesystem layout knowledge.
+
+### Assistant - 2026-06-20T23:26:35.796Z
+
+GitNexus still has stale symbol labels for this file, but the route-level blast radius it can see is low: direct route file, indirect server import, no affected processes. I’m moving only path/TTL construction now and adding a config test.
+
+### Assistant - 2026-06-20T23:27:31.159Z
+
+Route filesystem layout is now in `universeRouteConfig`, with a tiny test pinning the paths and TTLs. I’m running the config test, nearby route-helper tests, and the build.
+
+### Assistant - 2026-06-20T23:27:54.949Z
+
+The config slice passes the focused tests and TypeScript compile. I’m doing relay verify plus GitNexus detect, then I’ll commit this checkpoint if scope stays clean.
+
+### Assistant - 2026-06-20T23:27:58.738Z
+
+The analyzer side-effect docs came back from the post-commit index refresh. Same treatment: remove those unrelated doc edits before staging the config slice.
 

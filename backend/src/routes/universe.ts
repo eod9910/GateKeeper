@@ -43,6 +43,7 @@ import {
   UniverseProcessRunnerProcess,
   startUniverseProcessJob,
 } from '../modules/universe/universeProcessRunner';
+import { createUniverseRouteConfig } from '../modules/universe/universeRouteConfig';
 import {
   applyRegimeSnapshotSummaryMetrics,
   readUniverseRegimeSnapshot,
@@ -50,22 +51,15 @@ import {
 
 const router = Router();
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'universe');
-const MANIFEST_PATH = path.join(DATA_DIR, 'manifest.json');
-const OPTIONABLE_PATH = path.join(DATA_DIR, 'optionable.json');
-const OPTIONABLE_PROGRESS_PATH = path.join(DATA_DIR, 'optionable-progress.json');
-const PRICE_SNAPSHOT_CACHE_PATH = path.join(DATA_DIR, 'prices-cache.json');
-const SERVICES_DIR = path.join(__dirname, '..', '..', 'services');
-const UNIVERSE_MANIFEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const UNIVERSE_PRICE_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
+const routeConfig = createUniverseRouteConfig(path.join(__dirname, '..', '..'));
 
 let activeJob: UniverseJob | null = null;
 let activeProcess: UniverseProcessRunnerProcess | null = null;
 const universePriceSnapshotService = createUniversePriceSnapshotService({
-  dataDir: DATA_DIR,
-  manifestPath: MANIFEST_PATH,
-  priceSnapshotCachePath: PRICE_SNAPSHOT_CACHE_PATH,
-  priceSnapshotTtlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+  dataDir: routeConfig.dataDir,
+  manifestPath: routeConfig.manifestPath,
+  priceSnapshotCachePath: routeConfig.priceSnapshotCachePath,
+  priceSnapshotTtlMs: routeConfig.priceSnapshotTtlMs,
 });
 
 // ─── GET /api/universe/status ─────────────────────────────────────────────────
@@ -74,12 +68,12 @@ router.get('/status', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: await buildUniverseStatusApiData({
-        manifestPath: MANIFEST_PATH,
-        optionablePath: OPTIONABLE_PATH,
-        optionableProgressPath: OPTIONABLE_PROGRESS_PATH,
-        priceSnapshotCachePath: PRICE_SNAPSHOT_CACHE_PATH,
-        manifestTtlMs: UNIVERSE_MANIFEST_TTL_MS,
-        priceSnapshotTtlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+        manifestPath: routeConfig.manifestPath,
+        optionablePath: routeConfig.optionablePath,
+        optionableProgressPath: routeConfig.optionableProgressPath,
+        priceSnapshotCachePath: routeConfig.priceSnapshotCachePath,
+        manifestTtlMs: routeConfig.manifestTtlMs,
+        priceSnapshotTtlMs: routeConfig.priceSnapshotTtlMs,
         activeJob,
       })
     });
@@ -91,8 +85,8 @@ router.get('/status', async (req: Request, res: Response) => {
 router.get('/prices', async (req: Request, res: Response) => {
   try {
     const response = await buildUniversePricesApiResponse({
-      manifestPath: MANIFEST_PATH,
-      priceSnapshotTtlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+      manifestPath: routeConfig.manifestPath,
+      priceSnapshotTtlMs: routeConfig.priceSnapshotTtlMs,
       forceRefresh: parseUniverseForceRefreshQuery(req.query),
       canAccessManifest: canAccessUniverseFile,
       buildPriceSnapshot: universePriceSnapshotService.buildUniversePriceSnapshot,
@@ -110,7 +104,7 @@ router.post('/build', async (req: Request, res: Response) => {
 
   const params = parseUniverseBuildRequestParams(req.body);
 
-  const canReuseOptionable = await canReuseOptionableCatalog(OPTIONABLE_PATH);
+  const canReuseOptionable = await canReuseOptionableCatalog(routeConfig.optionablePath);
 
   activeJob = createUniverseBuildJob({
     source: params.source,
@@ -121,7 +115,7 @@ router.post('/build', async (req: Request, res: Response) => {
   });
 
   const command = buildUniverseBuildCommand({
-    servicesDir: SERVICES_DIR,
+    servicesDir: routeConfig.servicesDir,
     source: params.source,
     lookback: params.lookback,
     interval: params.interval,
@@ -156,7 +150,7 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
   });
 
   const command = buildOptionableRebuildCommand({
-    servicesDir: SERVICES_DIR,
+    servicesDir: routeConfig.servicesDir,
     source: params.source,
     workers: params.workersArg,
   });
@@ -178,7 +172,7 @@ router.post('/update', async (req: Request, res: Response) => {
   const conflict = getRunningUniverseJobConflict(activeJob, false);
   if (conflict) return res.status(409).json(conflict);
 
-  if (!(await canAccessUniverseFile(MANIFEST_PATH))) {
+  if (!(await canAccessUniverseFile(routeConfig.manifestPath))) {
     return res.status(400).json({
       success: false,
       error: 'Universe not built yet. Run Build Universe first.'
@@ -192,7 +186,7 @@ router.post('/update', async (req: Request, res: Response) => {
   });
 
   const command = buildUniverseUpdateCommand({
-    servicesDir: SERVICES_DIR,
+    servicesDir: routeConfig.servicesDir,
     interval: params.interval,
   });
 
@@ -222,9 +216,8 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
     interval: params.interval,
   });
 
-  const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'build_regime_universes.py');
   const command = buildRegimeClassificationCommand({
-    scriptPath,
+    scriptPath: routeConfig.regimeScriptPath,
     interval: params.interval,
   });
 
@@ -235,8 +228,7 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
     successLabel: 'Regime classification complete.',
     useRegimeStdout: true,
     afterSuccessfulClose: async (job) => {
-      const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
-      await applyRegimeSnapshotSummaryMetrics(job, snapshotPath);
+      await applyRegimeSnapshotSummaryMetrics(job, routeConfig.regimeSnapshotPath);
     },
     onProcessClosed: () => {
       activeProcess = null;
@@ -249,8 +241,7 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 // ─── GET /api/universe/regime-snapshot ───────────────────────────────────────
 // Returns the latest regime snapshot metadata (counts + generated_at timestamp).
 router.get('/regime-snapshot', async (req: Request, res: Response) => {
-  const snapshotPath = path.join(__dirname, '..', '..', 'data', 'regime_snapshot.json');
-  const snapshot = await readUniverseRegimeSnapshot(snapshotPath);
+  const snapshot = await readUniverseRegimeSnapshot(routeConfig.regimeSnapshotPath);
   res.json({ success: true, data: snapshot });
 });
 
