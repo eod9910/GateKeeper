@@ -6,7 +6,6 @@
 import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs/promises';
 import { UniverseJob } from '../modules/universe/universeJobProgress';
 import {
   createOptionableRebuildJob,
@@ -15,12 +14,12 @@ import {
   createUniverseUpdateJob,
 } from '../modules/universe/universeJobFactory';
 import {
-  buildUniversePriceSnapshotResponse,
   createUniversePriceSnapshotService,
 } from '../modules/universe/universePriceSnapshot';
 import {
-  buildUniverseStatusSnapshot,
-} from '../modules/universe/universeStatusSummary';
+  buildUniversePricesApiResponse,
+  buildUniverseStatusApiData,
+} from '../modules/universe/universeRouteResponses';
 import {
   buildOptionableRebuildCommand,
   buildRegimeClassificationCommand,
@@ -67,7 +66,7 @@ router.get('/status', async (req: Request, res: Response) => {
   try {
     res.json({
       success: true,
-      data: await buildUniverseStatusSnapshot({
+      data: await buildUniverseStatusApiData({
         manifestPath: MANIFEST_PATH,
         optionablePath: OPTIONABLE_PATH,
         optionableProgressPath: OPTIONABLE_PROGRESS_PATH,
@@ -84,22 +83,15 @@ router.get('/status', async (req: Request, res: Response) => {
 
 router.get('/prices', async (req: Request, res: Response) => {
   try {
-    await fs.access(MANIFEST_PATH);
-  } catch {
-    return res.status(400).json({
-      success: false,
-      error: 'Universe not built yet. Run Build Universe first.'
-    });
-  }
-
-  try {
     const forceRefresh = String(req.query.force_refresh || '').trim().toLowerCase() === 'true';
-    const snapshot = await universePriceSnapshotService.buildUniversePriceSnapshot(forceRefresh);
-    const priceResponse = buildUniversePriceSnapshotResponse(snapshot, UNIVERSE_PRICE_SNAPSHOT_TTL_MS);
-    res.json({
-      success: true,
-      ...priceResponse,
+    const response = await buildUniversePricesApiResponse({
+      manifestPath: MANIFEST_PATH,
+      priceSnapshotTtlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+      forceRefresh,
+      canAccessManifest: canAccessUniverseFile,
+      buildPriceSnapshot: universePriceSnapshotService.buildUniversePriceSnapshot,
     });
+    res.status(response.statusCode).json(response.body);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
