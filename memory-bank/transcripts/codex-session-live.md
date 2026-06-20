@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781968447168`
+- Last mirrored epoch ms: `1781968577434`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -7274,4 +7274,52 @@ Focused test and build pass. I’m running the adjacent tests and verification g
 ### Assistant - 2026-06-20T15:14:04.757Z
 
 All verification gates are green so far. I’m doing the final GitNexus change scan and then I’ll commit this status response-builder slice locally.
+
+### Assistant - 2026-06-20T15:14:10.184Z
+
+GitNexus is LOW risk with no affected processes. I’m committing the response-builder extraction locally now, still on the migration branch and still not pushing.
+
+### Assistant - 2026-06-20T15:14:24.100Z
+
+Status response shaping is committed as `eabc5b29a`. One more safe cleanup is left inside `/status`: the price-cache freshness read can live beside the existing universe price snapshot service, with an injected reader test.
+
+### Assistant - 2026-06-20T15:14:27.662Z
+
+GitNexus doesn’t resolve the newly extracted module file by name in the current index, so I’m using the indexed route target again for the live blast radius and keeping the module edit additive.
+
+### Assistant - 2026-06-20T15:14:31.224Z
+
+Route blast radius is LOW again. I’m adding the price freshness helper and tests now.
+
+### Assistant - 2026-06-20T15:14:43.004Z
+
+The helper preserves the current missing-on-error behavior. I’m extending the price snapshot tests around the new freshness path.
+
+### Assistant - 2026-06-20T15:14:46.690Z
+
+I found the existing price snapshot test file; I’m adding focused cases there instead of creating a separate test script.
+
+### Assistant - 2026-06-20T15:15:00.508Z
+
+The tests now cover disk freshness and the missing/error fallback. I’m wiring `/status` to call the helper.
+
+### Assistant - 2026-06-20T15:15:16.457Z
+
+The route no longer needs to know how price freshness is read; it just asks the universe price module. I’m running the price tests and build now.
+
+### Assistant - 2026-06-20T15:15:38.469Z
+
+Runtime tests pass, but TypeScript caught the fake cache envelope missing a required `source` field. I’m fixing the test fixture to match the real cache contract.
+
+### Assistant - 2026-06-20T15:15:47.250Z
+
+The fixture now matches the actual cache envelope shape. I’m rerunning build and the verification gates.
+
+### Assistant - 2026-06-20T15:16:05.955Z
+
+TypeScript is being correctly picky about the generic fake reader. I’m making the fake reader generic so it returns `data` as the requested envelope type.
+
+### Assistant - 2026-06-20T15:16:14.644Z
+
+That should satisfy both runtime behavior and compile-time shape. I’m rerunning the price test and full build.
 

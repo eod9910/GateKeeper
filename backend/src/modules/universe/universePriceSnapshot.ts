@@ -25,6 +25,8 @@ export interface UniversePriceSnapshotResult {
   cacheLayer: 'memory' | 'disk' | 'refresh';
 }
 
+export type ReadUniversePriceSnapshotEnvelope = <T>(filePath: string) => Promise<CacheEnvelope<T> | null>;
+
 export function parseIsoTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
   const ts = new Date(value).getTime();
@@ -37,6 +39,32 @@ export function buildUniverseFreshness(value: string | null | undefined, ttlMs: 
     ttlMs,
     cacheLayer: 'disk',
   });
+}
+
+export async function readUniversePriceSnapshotFreshness(
+  priceSnapshotCachePath: string,
+  priceSnapshotTtlMs: number,
+  readEnvelope: ReadUniversePriceSnapshotEnvelope = readCacheEnvelope,
+) {
+  const missingFreshness = buildFreshnessInfo({
+    ttlMs: priceSnapshotTtlMs,
+    cacheLayer: 'missing',
+    sourceStatus: 'missing',
+  });
+
+  try {
+    const cacheEntry = await readEnvelope<UniversePriceSnapshot>(priceSnapshotCachePath);
+    if (!cacheEntry) return missingFreshness;
+    return buildFreshnessInfo({
+      fetchedAt: cacheEntry.fetchedAt,
+      ttlMs: cacheEntry.ttlMs,
+      cacheLayer: 'disk',
+      cacheKey: cacheEntry.key,
+      version: cacheEntry.version,
+    });
+  } catch {
+    return missingFreshness;
+  }
 }
 
 export async function readLastCloseFromCsv(filePath: string): Promise<number | null> {

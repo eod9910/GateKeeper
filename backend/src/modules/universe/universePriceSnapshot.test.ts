@@ -7,6 +7,7 @@ import {
   createUniversePriceSnapshotService,
   parseIsoTimestamp,
   readLastCloseFromCsv,
+  readUniversePriceSnapshotFreshness,
 } from './universePriceSnapshot';
 
 async function createTempUniverseDir(): Promise<string> {
@@ -28,6 +29,39 @@ function testBuildUniverseFreshness(): void {
   assert.equal(freshness.cache_layer, 'disk');
   assert.equal(freshness.source_status, 'ok');
   assert.equal(freshness.stale, false);
+}
+
+async function testReadUniversePriceSnapshotFreshnessFromCache(): Promise<void> {
+  const freshness = await readUniversePriceSnapshotFreshness(
+    'prices-cache.json',
+    60_000,
+    async <T>() => ({
+      key: 'cache-key',
+      version: 3,
+      fetchedAt: Date.now(),
+      ttlMs: 60_000,
+      createdAt: new Date().toISOString(),
+      source: 'universePriceSnapshot',
+      data: {} as T,
+    }),
+  );
+
+  assert.equal(freshness.cache_layer, 'disk');
+  assert.equal(freshness.cache_key, 'cache-key');
+  assert.equal(freshness.version, 3);
+  assert.equal(freshness.source_status, 'ok');
+}
+
+async function testReadUniversePriceSnapshotFreshnessMissingOnNullOrError(): Promise<void> {
+  const missing = await readUniversePriceSnapshotFreshness('prices-cache.json', 60_000, async () => null);
+  assert.equal(missing.cache_layer, 'missing');
+  assert.equal(missing.source_status, 'missing');
+
+  const errored = await readUniversePriceSnapshotFreshness('prices-cache.json', 60_000, async () => {
+    throw new Error('read failed');
+  });
+  assert.equal(errored.cache_layer, 'missing');
+  assert.equal(errored.source_status, 'missing');
 }
 
 async function testReadLastCloseFromCsv(): Promise<void> {
@@ -94,6 +128,8 @@ async function testBuildUniversePriceSnapshotUsesManifestAndCsvTail(): Promise<v
 async function runTests(): Promise<void> {
   testParseIsoTimestamp();
   testBuildUniverseFreshness();
+  await testReadUniversePriceSnapshotFreshnessFromCache();
+  await testReadUniversePriceSnapshotFreshnessMissingOnNullOrError();
   await testReadLastCloseFromCsv();
   await testBuildUniversePriceSnapshotUsesManifestAndCsvTail();
 }

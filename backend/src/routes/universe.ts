@@ -8,9 +8,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import {
-  CacheEnvelope,
   buildFreshnessInfo,
-  readCacheEnvelope,
 } from '../services/cacheService';
 import { UniverseJob } from '../modules/universe/universeJobProgress';
 import {
@@ -23,6 +21,7 @@ import {
   UniversePriceSnapshot,
   buildUniverseFreshness,
   createUniversePriceSnapshotService,
+  readUniversePriceSnapshotFreshness,
 } from '../modules/universe/universePriceSnapshot';
 import {
   applyOptionableCatalogStatus,
@@ -114,25 +113,10 @@ router.get('/status', async (req: Request, res: Response) => {
     sourceSymbolCount = optionableStatus.sourceSymbolCount;
 
     const manifestFreshness = buildUniverseFreshness(lastUpdated, UNIVERSE_MANIFEST_TTL_MS);
-    let priceSnapshotFreshness = buildFreshnessInfo({
-      ttlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
-      cacheLayer: 'missing',
-      sourceStatus: 'missing',
-    });
-    try {
-      const cacheEntry = await readCacheEnvelope<UniversePriceSnapshot>(PRICE_SNAPSHOT_CACHE_PATH);
-      if (cacheEntry) {
-        priceSnapshotFreshness = buildFreshnessInfo({
-          fetchedAt: cacheEntry.fetchedAt,
-          ttlMs: cacheEntry.ttlMs,
-          cacheLayer: 'disk',
-          cacheKey: cacheEntry.key,
-          version: cacheEntry.version,
-        });
-      }
-    } catch {
-      // no persisted price snapshot yet
-    }
+    const priceSnapshotFreshness = await readUniversePriceSnapshotFreshness(
+      PRICE_SNAPSHOT_CACHE_PATH,
+      UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
+    );
 
     res.json({
       success: true,
