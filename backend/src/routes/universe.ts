@@ -6,7 +6,6 @@
 import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import * as path from 'path';
-import { UniverseJob } from '../modules/universe/universeJobProgress';
 import {
   createOptionableRebuildJob,
   createRegimeClassificationJob,
@@ -36,12 +35,9 @@ import {
   canReuseOptionableCatalog,
 } from '../modules/universe/universeJobCommands';
 import {
-  cancelActiveUniverseJob,
   getRunningUniverseJobConflict,
 } from '../modules/universe/universeJobLifecycle';
-import {
-  UniverseProcessRunnerProcess,
-} from '../modules/universe/universeProcessRunner';
+import { UniverseActiveJobState } from '../modules/universe/universeActiveJobState';
 import { createUniverseProcessStarter } from '../modules/universe/universeProcessStarter';
 import { createUniverseRouteConfig } from '../modules/universe/universeRouteConfig';
 import {
@@ -53,10 +49,9 @@ const router = Router();
 
 const routeConfig = createUniverseRouteConfig(path.join(__dirname, '..', '..'));
 
-let activeJob: UniverseJob | null = null;
-let activeProcess: UniverseProcessRunnerProcess | null = null;
+const activeState = new UniverseActiveJobState();
 const startUniverseRouteProcess = createUniverseProcessStarter(spawn, () => {
-  activeProcess = null;
+  activeState.clearProcess();
 });
 const universePriceSnapshotService = createUniversePriceSnapshotService({
   dataDir: routeConfig.dataDir,
@@ -77,7 +72,7 @@ router.get('/status', async (req: Request, res: Response) => {
         priceSnapshotCachePath: routeConfig.priceSnapshotCachePath,
         manifestTtlMs: routeConfig.manifestTtlMs,
         priceSnapshotTtlMs: routeConfig.priceSnapshotTtlMs,
-        activeJob,
+        activeJob: activeState.getJob(),
       })
     });
   } catch (err: any) {
@@ -102,20 +97,21 @@ router.get('/prices', async (req: Request, res: Response) => {
 
 // ─── POST /api/universe/build ─────────────────────────────────────────────────
 router.post('/build', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeJob);
+  const conflict = getRunningUniverseJobConflict(activeState.getJob());
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseUniverseBuildRequestParams(req.body);
 
   const canReuseOptionable = await canReuseOptionableCatalog(routeConfig.optionablePath);
 
-  activeJob = createUniverseBuildJob({
+  const job = createUniverseBuildJob({
     source: params.source,
     lookback: params.lookback,
     interval: params.interval,
     workers: params.workers,
     minVolume: params.minVolume,
   });
+  activeState.setJob(job);
 
   const command = buildUniverseBuildCommand({
     servicesDir: routeConfig.servicesDir,
@@ -127,26 +123,27 @@ router.post('/build', async (req: Request, res: Response) => {
     skipOptionsCheck: canReuseOptionable,
   });
 
-  activeProcess = startUniverseRouteProcess({
+  activeState.setProcess(startUniverseRouteProcess({
     command,
-    job: activeJob,
+    job,
     successLabel: 'Build complete.',
-  });
+  }));
 
-  res.json({ success: true, data: { message: 'Build started.', job: activeJob } });
+  res.json({ success: true, data: { message: 'Build started.', job } });
 });
 
 // ─── POST /api/universe/update ────────────────────────────────────────────────
 router.post('/rebuild-optionable', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeJob);
+  const conflict = getRunningUniverseJobConflict(activeState.getJob());
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseOptionableRebuildRequestParams(req.body);
 
-  activeJob = createOptionableRebuildJob({
+  const job = createOptionableRebuildJob({
     source: params.source,
     workers: params.workers,
   });
+  activeState.setJob(job);
 
   const command = buildOptionableRebuildCommand({
     servicesDir: routeConfig.servicesDir,
@@ -154,17 +151,17 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
     workers: params.workersArg,
   });
 
-  activeProcess = startUniverseRouteProcess({
+  activeState.setProcess(startUniverseRouteProcess({
     command,
-    job: activeJob,
+    job,
     successLabel: 'Optionable subset rebuild complete.',
-  });
+  }));
 
-  res.json({ success: true, data: { message: 'Optionable subset rebuild started.', job: activeJob } });
+  res.json({ success: true, data: { message: 'Optionable subset rebuild started.', job } });
 });
 
 router.post('/update', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeJob, false);
+  const conflict = getRunningUniverseJobConflict(activeState.getJob(), false);
   if (conflict) return res.status(409).json(conflict);
 
   if (!(await canAccessUniverseFile(routeConfig.manifestPath))) {
@@ -176,53 +173,55 @@ router.post('/update', async (req: Request, res: Response) => {
 
   const params = parseUniverseUpdateRequestParams(req.body);
 
-  activeJob = createUniverseUpdateJob({
+  const job = createUniverseUpdateJob({
     interval: params.interval,
   });
+  activeState.setJob(job);
 
   const command = buildUniverseUpdateCommand({
     servicesDir: routeConfig.servicesDir,
     interval: params.interval,
   });
 
-  activeProcess = startUniverseRouteProcess({
+  activeState.setProcess(startUniverseRouteProcess({
     command,
-    job: activeJob,
+    job,
     successLabel: 'Update complete.',
-  });
+  }));
 
-  res.json({ success: true, data: { message: 'Update started.', job: activeJob } });
+  res.json({ success: true, data: { message: 'Update started.', job } });
 });
 
 // ─── POST /api/universe/classify-regimes ─────────────────────────────────────
 // Runs build_regime_universes.py to classify all universe stocks by market phase
 // (expansion / distribution / accumulation / markdown) and save the JSON files.
 router.post('/classify-regimes', async (req: Request, res: Response) => {
-  const conflict = getRunningUniverseJobConflict(activeJob);
+  const conflict = getRunningUniverseJobConflict(activeState.getJob());
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseRegimeClassificationRequestParams(req.body);
 
-  activeJob = createRegimeClassificationJob({
+  const job = createRegimeClassificationJob({
     interval: params.interval,
   });
+  activeState.setJob(job);
 
   const command = buildRegimeClassificationCommand({
     scriptPath: routeConfig.regimeScriptPath,
     interval: params.interval,
   });
 
-  activeProcess = startUniverseRouteProcess({
+  activeState.setProcess(startUniverseRouteProcess({
     command,
-    job: activeJob,
+    job,
     successLabel: 'Regime classification complete.',
     useRegimeStdout: true,
     afterSuccessfulClose: async (job) => {
       await applyRegimeSnapshotSummaryMetrics(job, routeConfig.regimeSnapshotPath);
     },
-  });
+  }));
 
-  res.json({ success: true, data: { message: 'Regime classification started.', job: activeJob } });
+  res.json({ success: true, data: { message: 'Regime classification started.', job } });
 });
 
 // ─── GET /api/universe/regime-snapshot ───────────────────────────────────────
@@ -234,10 +233,11 @@ router.get('/regime-snapshot', async (req: Request, res: Response) => {
 
 // ─── DELETE /api/universe/cancel ─────────────────────────────────────────────
 router.delete('/cancel', (req: Request, res: Response) => {
-  if (!activeJob || activeJob.status !== 'running') {
+  const job = activeState.getJob();
+  if (!job || job.status !== 'running') {
     return res.status(400).json({ success: false, error: 'No active job to cancel.' });
   }
-  activeProcess = cancelActiveUniverseJob(activeJob, activeProcess);
+  activeState.cancel();
   res.json({ success: true, data: { message: 'Job cancelled.' } });
 });
 

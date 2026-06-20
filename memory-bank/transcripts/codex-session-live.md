@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1781998356028`
+- Last mirrored epoch ms: `1781998802655`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,130 +5721,6 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-igration
-- no trading/backtest/research behavior changes
-- migration by vertical slice only
-
-Editor reviewed the plan and found no `EDITOR BLOCKER`. Validator accepted it in:
-
-[2026-06-20-modular-domain-migration-plan-validator-ruling.md](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/agent-relay/roles/Validator/rulings/2026-06-20-modular-domain-migration-plan-validator-ruling.md:1)
-
-Verification passed:
-
-```text
-python tools\agent_router.py verify
-ok: true, checked: 107
-```
-
-Next move is not moving files yet. Next move is routing Builder to audit the current `universe/scanner` flow, then we choose the smallest safe vertical slice from that evidence.
-
-### User - 2026-06-20T13:08:58.876Z
-
-So this would be a real test of the You know I don't think I would have even tried attempted this prior to having uh the Tri agent contract frame framework I think this would have been too risky
-
-### Assistant - 2026-06-20T13:09:05.964Z
-
-I agree. Before the tri-agent framework, this kind of migration would have been the exact kind of thing that quietly turns into a disaster: “just clean up the architecture” becomes broad file movement, broken routes, half-migrated frontend behavior, and nobody can tell what changed for structural reasons versus accidental reasons.
-
-With the tri-agent contract, it becomes testable and much safer because the system has brakes:
-
-Validator says: **what slice, what domain, what is out of scope, when to stop.**
-
-Builder says: **what changed, what assumptions were made, what verification passed.**
-
-Editor says: **did this reduce spaghetti or just move it into new folders?**
-
-And the important part: nobody gets to certify their own work.
-
-This is a good real test because it exercises the whole framework:
-
-- `AGENTS.md` bootloader
-- role docs
-- coding paradigm
-- PRD/checklist convention
-- GitNexus impact checks
-- Builder elegance
-- Editor anti-spaghetti
-- Validator acceptance gate
-
-The win condition is not “migrate Pattern Detector fast.” The win condition is proving that we can make one small architecture move without breaking behavior or creating a new mess.
-
-That is exactly the kind of work the tri-agent framework was born for.
-
-### User - 2026-06-20T13:10:22.937Z
-
-So we should create a backup copy so if things go really badly we can just revert to the backup copy but that copy shouldn't be I don't know should Shouldn't be in git
-
-### Assistant - 2026-06-20T13:10:35.997Z
-
-Yes. I’d make a local filesystem snapshot outside the repo, not a committed backup folder. It should capture the current messy-but-known-good working tree before we touch architecture, and it should exclude huge/generated folders like `node_modules` so the backup is useful rather than enormous.
-
-### Assistant - 2026-06-20T13:13:13.941Z
-
-The backup copy started but the command timed out, which usually means the repo is too large for a full mirror pass at that timeout. I’m going to check whether the copy is partial and whether a `robocopy` process is still running before I touch anything else.
-
-### Assistant - 2026-06-20T13:13:23.677Z
-
-`robocopy` is still running, so the timeout did not necessarily mean failure. I’m going to wait for it to finish, then write/verify a manifest so we know whether the snapshot is usable.
-
-### Assistant - 2026-06-20T13:13:42.597Z
-
-The copy process is still alive, and PowerShell would not wait on it cleanly. This tells me the full tree copy is too heavy for the way the repo is shaped, likely because of large data/cache folders. I’m checking size/count now; if it’s ballooning, the better backup is code/config/plans only plus a manifest, not raw market data.
-
-### Assistant - 2026-06-20T13:15:27.450Z
-
-The backup already has tens of thousands of files, and `robocopy` is still running. I don’t want that silently chewing through generated market data. I’m going to stop this oversized copy and replace it with a safer code/governance snapshot unless you tell me to preserve raw data too.
-
-### Assistant - 2026-06-20T13:15:50.631Z
-
-I stopped the oversized full-tree copy. Now I’m creating the more useful rollback snapshot: source, governance, planning, frontend/backend code, scripts, configs, and manifests, while excluding generated data, dependencies, logs, build outputs, and raw transcript archives.
-
-### Assistant - 2026-06-20T13:17:44.001Z
-
-The clean snapshot is created outside the repo. I’m verifying it has a manifest and checking that Pattern Detector itself didn’t gain any backup files inside git.
-
-### Assistant - 2026-06-20T13:20:16.494Z
-
-Yes. I created a local backup outside git.
-
-Usable rollback snapshot:
-
-```text
-C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector-backups\pre-modular-migration-code-20260620-061636
-```
-
-It includes code/governance/planning/frontend/backend source and a manifest:
-
-```text
-BACKUP_MANIFEST.json
-```
-
-Size check:
-
-```text
-10,345 files
-152 directories
-~3000 MB
-```
-
-I intentionally excluded things that make backups enormous or noisy:
-
-- `.git`
-- `.gitnexus`
-- `node_modules`
-- `backend/data`
-- build outputs
-- logs
-- raw transcript archives
-
-One note: I first started a full-tree backup, but it began copying too much generated data, so I stopped it and marked that partial folder as not the one to use. The correct backup is the `pre-modular-migration-code-*` one above.
-
-So now we have a local, not-in-git safety net before starting real migration work.
-
-### User - 2026-06-20T13:23:48.966Z
-
-Where is the backup
-
 ### Assistant - 2026-06-20T13:23:56.113Z
 
 The usable backup is here:
@@ -8057,4 +7933,111 @@ The process-starter slice passes its tests and the backend build. I’m doing re
 ### Assistant - 2026-06-20T23:32:02.337Z
 
 Route is down to 244 lines. The GitNexus analyzer doc side effects are present again, so I’ll remove those before final detection/staging just like the last two slices.
+
+### Assistant - 2026-06-20T23:32:45.542Z
+
+The unrelated doc side effects are removed. I’m running GitNexus detect one more time, then I’ll stage and commit this process-starter slice.
+
+### Assistant - 2026-06-20T23:32:50.965Z
+
+Detection is low risk with no affected processes. I’m staging the process-starter files and continuity snapshots now.
+
+### Assistant - 2026-06-20T23:32:58.724Z
+
+Staged. Quick scope check, then commit.
+
+### Assistant - 2026-06-20T23:33:00.974Z
+
+The staged set is exactly the starter slice plus memory snapshots. Committing locally now.
+
+### Assistant - 2026-06-20T23:33:11.573Z
+
+Fourth checkpoint made: `74f548de7 Extract universe process starter`. I’m doing the required post-commit GitNexus refresh and final status check for this run.
+
+### Assistant - 2026-06-20T23:34:20.991Z
+
+Post-commit index refresh is done; only live memory mirror files are dirty. I’m doing one last GitNexus detect on the current tree, then I’ll give you the concise handoff.
+
+### Assistant - 2026-06-20T23:34:28.726Z
+
+Git status says only memory mirrors are dirty, but GitNexus still reports stale analyzer doc changes for `AGENTS.md`/`CLAUDE.md`. I’m checking the actual filesystem diff; if Git agrees those docs are clean, I’ll trust Git status over the stale graph report.
+
+### Assistant - 2026-06-20T23:34:34.358Z
+
+There it is: GitNexus rewrote the docs again after the final index refresh. I’m removing those side effects one last time so the working tree ends with only live memory mirrors dirty.
+
+### Assistant - 2026-06-20T23:35:18.181Z
+
+The doc side effects are removed. I’m doing the final Git/filesystem check now; no more code edits after this.
+
+### Assistant - 2026-06-20T23:35:25.400Z
+
+Continued the migration and took four more safe local slices. No push.
+
+New local commits:
+- `043583a65` Extract universe route response helpers
+- `cae2e5e23` Extract universe request parameter parsing
+- `3c00ab879` Extract universe route configuration
+- `74f548de7` Extract universe process starter
+
+What improved:
+- `backend/src/routes/universe.ts` is now down to 244 lines.
+- Status/prices response shaping, request parsing, route config, and process-start wiring are now in tested universe modules.
+- The route is closer to the target shape: mostly HTTP orchestration, with domain behavior living under `backend/src/modules/universe`.
+
+Verified:
+- New focused tests for each extracted module passed.
+- Neighboring universe tests passed where relevant.
+- Backend `tsc` build passed after each slice.
+- `python tools\agent_router.py verify` passed.
+- GitNexus detect before commits stayed low risk with no affected processes.
+
+Current working tree:
+- Only live memory/transcript mirror files are dirty.
+- Code is committed locally on `migration/universe-domain-slices`.
+- No GitHub push was performed.
+
+### User - 2026-06-20T23:37:13.231Z
+
+continue
+
+### Assistant - 2026-06-20T23:37:22.028Z
+
+I’ll keep going in the same rhythm: inspect the now-thinner universe route, pick one small boring extraction, run impact/detect around it, test it, and commit locally only. The next useful target is likely the repeated “start job then respond” shape or the cancel/regime read endpoints.
+
+### Assistant - 2026-06-20T23:37:36.007Z
+
+The next clean slice is state ownership. Right now the route owns `activeJob`, `activeProcess`, and cancellation/cleanup directly; I’m going to move that tiny state machine into a universe module so the route asks for current state instead of mutating globals everywhere.
+
+### Assistant - 2026-06-20T23:37:39.303Z
+
+GitNexus still has stale symbol names for this route, but the route-level blast radius it can resolve is low: direct route file and indirect server import, no affected flows. I’m making the state extraction now with focused tests.
+
+### Assistant - 2026-06-20T23:38:41.289Z
+
+The route no longer owns raw `activeJob`/`activeProcess` globals; it uses a small `UniverseActiveJobState` instead. I’m running the new state test, lifecycle/starter tests, and build now.
+
+### Assistant - 2026-06-20T23:39:07.112Z
+
+The first pass found two real issues in my state wrapper: `cancelActiveUniverseJob` expects a non-null job, and its existing behavior marks cancel as `failed` with the current lifecycle wording rather than `cancelled`. I’m tightening the wrapper/test to match the actual lifecycle contract instead of inventing a new one.
+
+### Assistant - 2026-06-20T23:39:10.957Z
+
+The existing lifecycle deliberately represents cancellation as a failed job with `Cancelled.` as the label. I’m preserving that behavior and making the new state wrapper null-safe.
+
+### Assistant - 2026-06-20T23:39:25.873Z
+
+The wrapper is corrected. I’m rerunning the focused tests and build; if those pass, I’ll do the usual relay and GitNexus checks.
+
+### Assistant - 2026-06-20T23:39:49.134Z
+
+The state extraction is now green: focused state/lifecycle/starter tests plus backend compile all passed. I’m checking the diff, relay, and GitNexus scope before committing.
+
+### Assistant - 2026-06-20T23:39:53.142Z
+
+Relay verification is clean. The route line count stayed flat because this slice trades raw globals for explicit state calls, but the ownership is cleaner and now tested. Running GitNexus detect now.
+
+### Assistant - 2026-06-20T23:40:00.684Z
+
+GitNexus still reports stale route symbols, but the change is low risk with no affected execution flows. I’m staging the state slice plus continuity snapshots and committing locally.
 
