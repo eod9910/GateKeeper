@@ -19,6 +19,20 @@ export interface UniverseOptionableStatus {
   sourceSymbolCount: number;
 }
 
+export interface UniverseStatusDataOptions {
+  symbolCount: number;
+  sourceSymbolCount: number;
+  optionableStatus: UniverseOptionableStatus;
+  source: string | null;
+  sourceLabel: string | null;
+  lastUpdated: string | null;
+  staleCount: number;
+  manifestFreshness: unknown;
+  priceSnapshotFreshness: unknown;
+  activeJob: UniverseJob | null;
+  now?: Date;
+}
+
 export function summarizeUniverseManifest(
   manifest: any,
   now: Date = new Date(),
@@ -114,4 +128,57 @@ export function applyOptionableProgressStatus(
       : `Option chains checked for ${meta.classifiedCount.toLocaleString()} / ${meta.sourceSymbolCount.toLocaleString()} symbols`;
     activeJob.last_log_at = progressCatalog?.generated_at || activeJob.last_log_at;
   }
+}
+
+export function projectUniverseActiveJob(job: UniverseJob | null, now: Date = new Date()) {
+  if (!job) return null;
+  const completedOrCurrent = job.completed_at ? new Date(job.completed_at) : now;
+  return {
+    type: job.type,
+    status: job.status,
+    started_at: job.started_at,
+    completed_at: job.completed_at,
+    elapsed_seconds: Math.max(
+      0,
+      Math.floor((completedOrCurrent.getTime() - new Date(job.started_at).getTime()) / 1000)
+    ),
+    progress: job.progress ?? null,
+    progress_label: job.progress_label ?? null,
+    stage: job.stage ?? null,
+    source: job.source ?? null,
+    source_label: job.source_label ?? null,
+    interval: job.interval ?? null,
+    lookback: job.lookback ?? null,
+    workers: job.workers ?? null,
+    min_volume: job.min_volume ?? null,
+    metrics: job.metrics ?? null,
+    last_log_at: job.last_log_at ?? null,
+    log_tail: job.log.slice(-60),
+    log_count: job.log.length,
+    error: job.error,
+  };
+}
+
+export function buildUniverseStatusData(options: UniverseStatusDataOptions) {
+  const built = options.symbolCount > 0;
+  return {
+    built,
+    source_symbol_count: options.sourceSymbolCount,
+    symbol_count: options.symbolCount,
+    downloaded_symbol_count: options.symbolCount,
+    optionable_count: options.optionableStatus.optionableCount,
+    optionable_classified_count: options.optionableStatus.optionableClassifiedCount,
+    optionable_unclassified_count: options.optionableStatus.optionableUnclassifiedCount,
+    optionable_complete: options.optionableStatus.optionableComplete,
+    source: options.source,
+    source_label: options.sourceLabel,
+    last_updated: options.lastUpdated,
+    stale_count: options.staleCount,
+    needs_update: built && options.staleCount > 0,
+    freshness: {
+      manifest: options.manifestFreshness,
+      prices: options.priceSnapshotFreshness,
+    },
+    active_job: projectUniverseActiveJob(options.activeJob, options.now),
+  };
 }

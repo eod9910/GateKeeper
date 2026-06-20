@@ -3,7 +3,9 @@ import type { UniverseJob } from './universeJobProgress';
 import {
   applyOptionableCatalogStatus,
   applyOptionableProgressStatus,
+  buildUniverseStatusData,
   createEmptyOptionableStatus,
+  projectUniverseActiveJob,
   summarizeUniverseManifest,
 } from './universeStatusSummary';
 
@@ -152,6 +154,68 @@ function testProgressCatalogUpdatesActiveRebuildJob(): void {
   assert.equal(activeJob.last_log_at, '2026-06-20T00:01:00.000Z');
 }
 
+function testProjectsActiveJobShape(): void {
+  const job: UniverseJob = {
+    type: 'build',
+    status: 'running',
+    started_at: '2026-06-20T00:00:00.000Z',
+    log: Array.from({ length: 65 }, (_, index) => `line ${index}`),
+    progress: 42,
+    progress_label: 'Working',
+    stage: 'downloading_history',
+    source: 'nasdaq-trader-us',
+    source_label: 'Nasdaq Trader US-listed underlyings',
+    interval: '1d',
+    lookback: '5y',
+    workers: 10,
+    min_volume: 100000,
+    metrics: { download_batch: 2 },
+    last_log_at: '2026-06-20T00:02:00.000Z',
+  };
+
+  const projected = projectUniverseActiveJob(job, new Date('2026-06-20T00:03:05.000Z'));
+
+  assert.equal(projected?.elapsed_seconds, 185);
+  assert.equal(projected?.progress, 42);
+  assert.equal(projected?.metrics?.download_batch, 2);
+  assert.equal(projected?.log_tail.length, 60);
+  assert.equal(projected?.log_tail[0], 'line 5');
+  assert.equal(projected?.log_count, 65);
+}
+
+function testBuildsStatusDataShape(): void {
+  const optionableStatus = createEmptyOptionableStatus(10);
+  optionableStatus.optionableCount = 4;
+  optionableStatus.optionableClassifiedCount = 8;
+  optionableStatus.optionableUnclassifiedCount = 2;
+  optionableStatus.optionableComplete = false;
+  const data = buildUniverseStatusData({
+    symbolCount: 12,
+    sourceSymbolCount: 10,
+    optionableStatus,
+    source: 'nasdaq-trader-us',
+    sourceLabel: 'Nasdaq Trader US-listed underlyings',
+    lastUpdated: '2026-06-20T00:00:00.000Z',
+    staleCount: 1,
+    manifestFreshness: { cacheLayer: 'disk' },
+    priceSnapshotFreshness: { sourceStatus: 'missing' },
+    activeJob: null,
+  });
+
+  assert.equal(data.built, true);
+  assert.equal(data.source_symbol_count, 10);
+  assert.equal(data.symbol_count, 12);
+  assert.equal(data.downloaded_symbol_count, 12);
+  assert.equal(data.optionable_count, 4);
+  assert.equal(data.optionable_classified_count, 8);
+  assert.equal(data.optionable_unclassified_count, 2);
+  assert.equal(data.optionable_complete, false);
+  assert.equal(data.needs_update, true);
+  assert.deepEqual(data.freshness.manifest, { cacheLayer: 'disk' });
+  assert.deepEqual(data.freshness.prices, { sourceStatus: 'missing' });
+  assert.equal(data.active_job, null);
+}
+
 function runTests(): void {
   testSummarizesManifestFields();
   testFallsBackToSymbolObjectCountAndGeneratedAt();
@@ -160,6 +224,8 @@ function runTests(): void {
   testIgnoresMismatchedOptionableCatalog();
   testProgressCatalogWinsWhenMoreClassified();
   testProgressCatalogUpdatesActiveRebuildJob();
+  testProjectsActiveJobShape();
+  testBuildsStatusDataShape();
 }
 
 runTests();

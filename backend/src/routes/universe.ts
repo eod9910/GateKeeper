@@ -27,6 +27,7 @@ import {
 import {
   applyOptionableCatalogStatus,
   applyOptionableProgressStatus,
+  buildUniverseStatusData,
   createEmptyOptionableStatus,
   summarizeUniverseManifest,
 } from '../modules/universe/universeStatusSummary';
@@ -71,10 +72,6 @@ const universePriceSnapshotService = createUniversePriceSnapshotService({
 router.get('/status', async (req: Request, res: Response) => {
   try {
     let manifest: any = null;
-    let optionableCount = 0;
-    let optionableClassifiedCount = 0;
-    let optionableUnclassifiedCount = 0;
-    let optionableComplete = true;
     let sourceSymbolCount = 0;
     let lastUpdated: string | null = null;
     let symbolCount = 0;
@@ -114,14 +111,8 @@ router.get('/status', async (req: Request, res: Response) => {
       // progress file doesn't exist yet
     }
 
-    optionableCount = optionableStatus.optionableCount;
-    optionableClassifiedCount = optionableStatus.optionableClassifiedCount;
-    optionableUnclassifiedCount = optionableStatus.optionableUnclassifiedCount;
-    optionableComplete = optionableStatus.optionableComplete;
     sourceSymbolCount = optionableStatus.sourceSymbolCount;
 
-    const built = symbolCount > 0;
-    const needsUpdate = built && staleCount > 0;
     const manifestFreshness = buildUniverseFreshness(lastUpdated, UNIVERSE_MANIFEST_TTL_MS);
     let priceSnapshotFreshness = buildFreshnessInfo({
       ttlMs: UNIVERSE_PRICE_SNAPSHOT_TTL_MS,
@@ -145,52 +136,18 @@ router.get('/status', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: {
-        built,
-        source_symbol_count: sourceSymbolCount,
-        symbol_count: symbolCount,
-        downloaded_symbol_count: symbolCount,
-        optionable_count: optionableCount,
-        optionable_classified_count: optionableClassifiedCount,
-        optionable_unclassified_count: optionableUnclassifiedCount,
-        optionable_complete: optionableComplete,
+      data: buildUniverseStatusData({
+        symbolCount,
+        sourceSymbolCount,
+        optionableStatus,
         source,
-        source_label: sourceLabel,
-        last_updated: lastUpdated,
-        stale_count: staleCount,
-        needs_update: needsUpdate,
-        freshness: {
-          manifest: manifestFreshness,
-          prices: priceSnapshotFreshness,
-        },
-        active_job: activeJob ? {
-          type: activeJob.type,
-          status: activeJob.status,
-          started_at: activeJob.started_at,
-          completed_at: activeJob.completed_at,
-          elapsed_seconds: Math.max(
-            0,
-            Math.floor(
-              ((activeJob.completed_at ? new Date(activeJob.completed_at) : new Date()).getTime() - new Date(activeJob.started_at).getTime()) /
-              1000
-            )
-          ),
-          progress: activeJob.progress ?? null,
-          progress_label: activeJob.progress_label ?? null,
-          stage: activeJob.stage ?? null,
-          source: activeJob.source ?? null,
-          source_label: activeJob.source_label ?? null,
-          interval: activeJob.interval ?? null,
-          lookback: activeJob.lookback ?? null,
-          workers: activeJob.workers ?? null,
-          min_volume: activeJob.min_volume ?? null,
-          metrics: activeJob.metrics ?? null,
-          last_log_at: activeJob.last_log_at ?? null,
-          log_tail: activeJob.log.slice(-60),
-          log_count: activeJob.log.length,
-          error: activeJob.error,
-        } : null,
-      }
+        sourceLabel,
+        lastUpdated,
+        staleCount,
+        manifestFreshness,
+        priceSnapshotFreshness,
+        activeJob,
+      })
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
