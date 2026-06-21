@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1782001738707`
+- Last mirrored epoch ms: `1782001967549`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5722,43 +5722,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-lay verification, and file checks all pass. I’m running final GitNexus change detection and then recording the acceptance ruling.
-
-### Assistant - 2026-06-20T13:46:30.810Z
-
-GitNexus final scope remains LOW with no affected execution flows. Validator is accepting the test slice now and closing its checklist.
-
-### Assistant - 2026-06-20T13:46:52.201Z
-
-The second slice is accepted and recorded. I’m doing the closing relay/status check now; still no commit and no push.
-
-### Assistant - 2026-06-20T13:46:57.770Z
-
-Next slice is done and accepted.
-
-I added focused tests for the new universe boundary:
-
-- [universeJobProgress.test.ts](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/backend/src/modules/universe/universeJobProgress.test.ts:1)
-- [package.json](C:/Users/eod99/OneDrive/Documents/Coding/pattern-detector/backend/package.json:28) now has `universe-job-progress:test`, and the aggregate backend `test` script includes it.
-- New PRD/checklist and Builder/Editor/Validator artifacts were recorded for this slice.
-
-Verification passed:
-
-```powershell
-npm.cmd --prefix backend run universe-job-progress:test
-npm.cmd --prefix backend run build
-python tools\agent_router.py verify
-```
-
-GitNexus final check stayed LOW risk with no affected execution flows. No commit, no push.
-
-### User - 2026-06-20T13:47:27.356Z
-
-Next
-
-### Assistant - 2026-06-20T13:47:44.728Z
-
-I’ll take the next safe production slice: extract the pure optionable catalog metadata helpers out of `backend/src/routes/universe.ts` into the `universe` module, with focused tests. This keeps us moving from “giant route owns everything” toward “route orchestrates, domain modules own domain logic,” without touching API paths or subprocess behavior.
+src/routes/universe.ts` into the `universe` module, with focused tests. This keeps us moving from “giant route owns everything” toward “route orchestrates, domain modules own domain logic,” without touching API paths or subprocess behavior.
 
 ### Assistant - 2026-06-20T13:47:51.776Z
 
@@ -8153,4 +8117,40 @@ Doc side effect removed. I’m running detect, then committing this error-respon
 ### Assistant - 2026-06-21T00:28:53.398Z
 
 Only the intended files and memory mirrors are dirty. Running GitNexus detect now.
+
+### Assistant - 2026-06-21T00:29:02.324Z
+
+GitNexus reports low risk and no affected processes. I’m staging and committing this checkpoint.
+
+### Assistant - 2026-06-21T00:29:10.561Z
+
+Staged. Scope check, then commit.
+
+### Assistant - 2026-06-21T00:29:13.885Z
+
+The staged set is correct. Committing.
+
+### Assistant - 2026-06-21T00:29:23.779Z
+
+Checkpoint made: `b5f14389c Share universe error response body`. I’m refreshing GitNexus and then I’ll continue.
+
+### Assistant - 2026-06-21T00:30:46.350Z
+
+A stronger seam is now visible: the route still owns job success labels and the regime completion hook. Those belong with the job plan. I’m going to move start options into `universeJobPlans`, so each route starts a plan without knowing its completion label or post-success hook.
+
+### Assistant - 2026-06-21T00:30:56.381Z
+
+Impact is low with no affected processes. I’m moving the start options into the plan module now.
+
+### Assistant - 2026-06-21T00:31:38.311Z
+
+Job plans now carry their own process start options, including the regime completion hook. The route no longer knows success labels or regime summary application. I’m running focused tests and build.
+
+### Assistant - 2026-06-21T00:32:03.329Z
+
+The plan-start-options slice is green. I’m checking relay, route size, and diff scope before GitNexus detect.
+
+### Assistant - 2026-06-21T00:32:08.155Z
+
+Great slice: the route dropped to 157 lines. I’m removing the recurring GitNexus doc side effect, then I’ll run detect and commit.
 

@@ -19,10 +19,15 @@ import {
   UniverseBuildRequestParams,
   UniverseUpdateRequestParams,
 } from './universeRequestParams';
+import { UniverseProcessStartOptions } from './universeProcessStarter';
+import { applyRegimeSnapshotSummaryMetrics } from './universeRegimeSnapshot';
+
+export type UniverseJobPlanStartOptions = Omit<UniverseProcessStartOptions, 'command' | 'job'>;
 
 export interface UniverseJobPlan {
   job: UniverseJob;
   command: UniverseJobCommand;
+  startOptions: UniverseJobPlanStartOptions;
 }
 
 export function createUniverseBuildPlan(
@@ -47,6 +52,9 @@ export function createUniverseBuildPlan(
       workers: params.workersArg,
       skipOptionsCheck: canReuseOptionable,
     }),
+    startOptions: {
+      successLabel: 'Build complete.',
+    },
   };
 }
 
@@ -64,6 +72,9 @@ export function createOptionableRebuildPlan(
       source: params.source,
       workers: params.workersArg,
     }),
+    startOptions: {
+      successLabel: 'Optionable subset rebuild complete.',
+    },
   };
 }
 
@@ -79,6 +90,9 @@ export function createUniverseUpdatePlan(
       servicesDir: routeConfig.servicesDir,
       interval: params.interval,
     }),
+    startOptions: {
+      successLabel: 'Update complete.',
+    },
   };
 }
 
@@ -94,5 +108,12 @@ export function createRegimeClassificationPlan(
       scriptPath: routeConfig.regimeScriptPath,
       interval: params.interval,
     }),
+    startOptions: {
+      successLabel: 'Regime classification complete.',
+      useRegimeStdout: true,
+      afterSuccessfulClose: async (job) => {
+        await applyRegimeSnapshotSummaryMetrics(job, routeConfig.regimeSnapshotPath);
+      },
+    },
   };
 }

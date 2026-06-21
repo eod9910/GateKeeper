@@ -5,11 +5,10 @@ import {
   getRunningUniverseJobConflict,
 } from './universeJobLifecycle';
 import { UniverseProcessRunnerProcess } from './universeProcessRunner';
-import { UniverseJobPlan } from './universeJobPlans';
+import { UniverseJobPlan, UniverseJobPlanStartOptions } from './universeJobPlans';
 import { UniverseProcessStartOptions } from './universeProcessStarter';
 
 export type StartUniverseJobPlan = (options: UniverseProcessStartOptions) => UniverseProcessRunnerProcess;
-export type StartUniverseJobPlanOptions = Omit<UniverseProcessStartOptions, 'command' | 'job'>;
 
 export class UniverseActiveJobState {
   private activeJob: UniverseJob | null = null;
@@ -38,7 +37,7 @@ export class UniverseActiveJobState {
   startPlan(
     plan: UniverseJobPlan,
     startProcess: StartUniverseJobPlan,
-    options: StartUniverseJobPlanOptions,
+    options: UniverseJobPlanStartOptions = plan.startOptions,
   ): UniverseJob {
     this.setJob(plan.job);
     this.setProcess(startProcess({

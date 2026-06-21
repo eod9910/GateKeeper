@@ -99,15 +99,15 @@ function testStartsPlanAndStoresJobAndProcess() {
         command: 'py',
         args: ['-u', 'script.py'],
       },
+      startOptions: {
+        successLabel: 'Done.',
+      },
     },
     (options) => {
       successLabel = options.successLabel;
       assert.strictEqual(options.job, job);
       assert.deepStrictEqual(options.command.args, ['-u', 'script.py']);
       return process;
-    },
-    {
-      successLabel: 'Done.',
     },
   );
 
