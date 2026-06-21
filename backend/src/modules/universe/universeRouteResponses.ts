@@ -35,6 +35,10 @@ export function buildUniverseSuccessApiBody(data: unknown) {
   };
 }
 
+export function buildUniverseJobStartedApiBody(message: string, job: UniverseJob) {
+  return buildUniverseSuccessApiBody({ message, job });
+}
+
 export function buildMissingUniverseApiResponse(): UniversePriceSnapshotApiResponse {
   return {
     statusCode: 400,

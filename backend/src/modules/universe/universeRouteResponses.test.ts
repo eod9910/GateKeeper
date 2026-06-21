@@ -1,6 +1,7 @@
 import assert from 'assert';
 import {
   buildMissingUniverseApiResponse,
+  buildUniverseJobStartedApiBody,
   buildUniversePricesApiResponse,
   buildUniverseSuccessApiBody,
 } from './universeRouteResponses';
@@ -9,6 +10,21 @@ function testBuildsSuccessBody() {
   assert.deepStrictEqual(buildUniverseSuccessApiBody({ ok: true }), {
     success: true,
     data: { ok: true },
+  });
+}
+
+function testBuildsJobStartedBody() {
+  const job: any = {
+    type: 'update',
+    status: 'running',
+  };
+
+  assert.deepStrictEqual(buildUniverseJobStartedApiBody('Update started.', job), {
+    success: true,
+    data: {
+      message: 'Update started.',
+      job,
+    },
   });
 }
 
@@ -76,6 +92,7 @@ async function testReturnsPriceSnapshotResponse() {
 
 async function main() {
   testBuildsSuccessBody();
+  testBuildsJobStartedBody();
   testBuildsMissingUniverseResponse();
   await testReturnsMissingUniverseResponse();
   await testReturnsPriceSnapshotResponse();

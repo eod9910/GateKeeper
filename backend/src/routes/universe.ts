@@ -11,6 +11,7 @@ import {
 } from '../modules/universe/universePriceSnapshot';
 import {
   buildMissingUniverseApiResponse,
+  buildUniverseJobStartedApiBody,
   buildUniversePricesApiResponse,
   buildUniverseStatusApiData,
   buildUniverseSuccessApiBody,
@@ -103,7 +104,7 @@ router.post('/build', async (req: Request, res: Response) => {
     successLabel: 'Build complete.',
   });
 
-  res.json({ success: true, data: { message: 'Build started.', job } });
+  res.json(buildUniverseJobStartedApiBody('Build started.', job));
 });
 
 // ─── POST /api/universe/update ────────────────────────────────────────────────
@@ -117,7 +118,7 @@ router.post('/rebuild-optionable', async (req: Request, res: Response) => {
     successLabel: 'Optionable subset rebuild complete.',
   });
 
-  res.json({ success: true, data: { message: 'Optionable subset rebuild started.', job } });
+  res.json(buildUniverseJobStartedApiBody('Optionable subset rebuild started.', job));
 });
 
 router.post('/update', async (req: Request, res: Response) => {
@@ -135,7 +136,7 @@ router.post('/update', async (req: Request, res: Response) => {
     successLabel: 'Update complete.',
   });
 
-  res.json({ success: true, data: { message: 'Update started.', job } });
+  res.json(buildUniverseJobStartedApiBody('Update started.', job));
 });
 
 // ─── POST /api/universe/classify-regimes ─────────────────────────────────────
@@ -155,7 +156,7 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
     },
   });
 
-  res.json({ success: true, data: { message: 'Regime classification started.', job } });
+  res.json(buildUniverseJobStartedApiBody('Regime classification started.', job));
 });
 
 // ─── GET /api/universe/regime-snapshot ───────────────────────────────────────
