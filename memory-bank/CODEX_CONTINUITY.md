@@ -6,22 +6,21 @@
 > Keep this compact. Use `memory-bank/transcripts/codex-session-live.md` and the offline mirror for deeper history.
 > Treat this as a startup bridge: current focus, user directives, open questions, and likely next steps.
 
-- Last mirrored epoch ms: `1782002970818`
+- Last mirrored epoch ms: `1782006912629`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 - Mirrored sessions: `36`
 
 ## Current Focus
 - Latest session: `Gate Keeper V1`
-- Latest prompt: `Continue until you hit a blocker`
-- Last substantive prompt: `Continue until you hit a blocker`
+- Latest prompt: `OK continue until blocked`
+- Last substantive prompt: `OK continue until blocked`
 - Dominant topic window: `No dominant topic detected`
 
 ## Active Threads
 - No dominant thread detected yet
 
 ## Recent User Directives
-- So here's what I want you to do I guess what I want you to continue so this is a next until it's unless there's a problem If there's a problem stop...
 - OK that sounds like you have a plan so let's go ahead and do that as long as you have a plan
 
 ## Open Questions
@@ -31,9 +30,6 @@
 - Use the long-term transcript files only for targeted recall; do not preload them into startup context.
 
 ## Recent Prompt Log
-- What's your plan
-- proceed
-- OK continue
 - proceed at your Discretion
 - Do you feel confident
 - OK that sounds like you have a plan so let's go ahead and do that as long as you have a plan
@@ -41,6 +37,9 @@
 - continue untill you hit a blocker
 - ok build the harnes and test it
 - Continue until you hit a blocker
+- Continue until blocked
+- Hey how much have we done percentage wise
+- OK continue until blocked
 
 ## Long-Term Sources
 - `memory-bank/transcripts/codex-session-live.md`
