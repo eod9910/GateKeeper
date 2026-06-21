@@ -27,12 +27,23 @@ accepts or rejects work.
 The Validator may inspect, test, ask questions, and issue directives. The
 Validator must not implement the solution for major work.
 
+The Validator owns code-intelligence tooling such as GitNexus. For substantial
+coding, refactoring, debugging, or architecture work, Validator runs or delegates
+the required GitNexus query/context/impact checks, records the blast radius in
+the directive or ruling, and runs GitNexus change detection before accepting or
+committing work when the tools are available.
+
 ### Builder
 
 The Builder implements approved Validator directives. The Builder writes code,
 records assumptions, identifies limitations, and reports what changed.
 
 The Builder must not declare its own work accepted.
+
+Builder does not own GitNexus acceptance gates. Builder may use GitNexus only
+when the Validator directive delegates a scoped lookup or asks Builder to gather
+supporting evidence. Builder must report that evidence back to Validator rather
+than treating it as acceptance.
 
 ### Editor / Anti-Spaghetti
 
@@ -41,6 +52,10 @@ modularity, naming, maintainability, and documentation.
 
 The Editor must not add product behavior or certify that its own refactor
 preserved behavior.
+
+Editor does not own GitNexus acceptance gates. Editor may request or use
+Validator-provided GitNexus evidence to judge blast radius, hidden coupling, and
+architecture drift, but Validator makes the final acceptance decision.
 
 ## Work Tiers
 
