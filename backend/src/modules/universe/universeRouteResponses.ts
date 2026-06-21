@@ -49,6 +49,20 @@ export function buildMissingUniverseApiResponse(): UniversePriceSnapshotApiRespo
   };
 }
 
+export function buildNoActiveUniverseJobApiResponse(): UniversePriceSnapshotApiResponse {
+  return {
+    statusCode: 400,
+    body: {
+      success: false,
+      error: 'No active job to cancel.',
+    },
+  };
+}
+
+export function buildUniverseJobCancelledApiBody() {
+  return buildUniverseSuccessApiBody({ message: 'Job cancelled.' });
+}
+
 export async function buildUniverseStatusApiData(options: UniverseStatusApiDataOptions) {
   return buildUniverseStatusSnapshot(options);
 }

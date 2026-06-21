@@ -11,6 +11,8 @@ import {
 } from '../modules/universe/universePriceSnapshot';
 import {
   buildMissingUniverseApiResponse,
+  buildNoActiveUniverseJobApiResponse,
+  buildUniverseJobCancelledApiBody,
   buildUniverseJobStartedApiBody,
   buildUniversePricesApiResponse,
   buildUniverseStatusApiBody,
@@ -167,12 +169,12 @@ router.get('/regime-snapshot', async (req: Request, res: Response) => {
 
 // ─── DELETE /api/universe/cancel ─────────────────────────────────────────────
 router.delete('/cancel', (req: Request, res: Response) => {
-  const job = activeState.getJob();
-  if (!job || job.status !== 'running') {
-    return res.status(400).json({ success: false, error: 'No active job to cancel.' });
+  if (!activeState.canCancel()) {
+    const response = buildNoActiveUniverseJobApiResponse();
+    return res.status(response.statusCode).json(response.body);
   }
   activeState.cancel();
-  res.json({ success: true, data: { message: 'Job cancelled.' } });
+  res.json(buildUniverseJobCancelledApiBody());
 });
 
 export default router;

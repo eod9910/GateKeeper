@@ -1,7 +1,9 @@
 import assert from 'assert';
 import {
   buildMissingUniverseApiResponse,
+  buildNoActiveUniverseJobApiResponse,
   buildUniverseJobStartedApiBody,
+  buildUniverseJobCancelledApiBody,
   buildUniversePricesApiResponse,
   buildUniverseStatusApiBody,
   buildUniverseSuccessApiBody,
@@ -25,6 +27,25 @@ function testBuildsJobStartedBody() {
     data: {
       message: 'Update started.',
       job,
+    },
+  });
+}
+
+function testBuildsNoActiveJobResponse() {
+  assert.deepStrictEqual(buildNoActiveUniverseJobApiResponse(), {
+    statusCode: 400,
+    body: {
+      success: false,
+      error: 'No active job to cancel.',
+    },
+  });
+}
+
+function testBuildsJobCancelledBody() {
+  assert.deepStrictEqual(buildUniverseJobCancelledApiBody(), {
+    success: true,
+    data: {
+      message: 'Job cancelled.',
     },
   });
 }
@@ -115,6 +136,8 @@ async function testBuildsStatusBody() {
 async function main() {
   testBuildsSuccessBody();
   testBuildsJobStartedBody();
+  testBuildsNoActiveJobResponse();
+  testBuildsJobCancelledBody();
   testBuildsMissingUniverseResponse();
   await testReturnsMissingUniverseResponse();
   await testReturnsPriceSnapshotResponse();

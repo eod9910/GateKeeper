@@ -23,6 +23,10 @@ export class UniverseActiveJobState {
     return getRunningUniverseJobConflict(this.activeJob, includeWaitMessage);
   }
 
+  canCancel(): boolean {
+    return this.activeJob?.status === 'running';
+  }
+
   setJob(job: UniverseJob): void {
     this.activeJob = job;
   }

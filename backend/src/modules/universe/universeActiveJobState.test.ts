@@ -60,6 +60,17 @@ function testReportsRunningJobConflict() {
   });
 }
 
+function testCanCancelOnlyRunningJobs() {
+  const state = new UniverseActiveJobState();
+  const job = createJob();
+
+  assert.strictEqual(state.canCancel(), false);
+  state.setJob(job);
+  assert.strictEqual(state.canCancel(), true);
+  job.status = 'completed';
+  assert.strictEqual(state.canCancel(), false);
+}
+
 function testCancelsActiveJobAndProcess() {
   const state = new UniverseActiveJobState();
   const job = createJob();
@@ -108,6 +119,7 @@ function testStartsPlanAndStoresJobAndProcess() {
 function main() {
   testStoresJobAndClearsProcess();
   testReportsRunningJobConflict();
+  testCanCancelOnlyRunningJobs();
   testCancelsActiveJobAndProcess();
   testStartsPlanAndStoresJobAndProcess();
   console.log('universeActiveJobState tests passed');
