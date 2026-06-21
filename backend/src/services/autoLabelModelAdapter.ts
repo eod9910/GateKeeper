@@ -3,28 +3,21 @@ import { getConfiguredOpenAIKey } from './aiSettings';
 import {
   clamp01,
   extractJsonObject,
+  fallbackHeuristic,
   normalizeLabel,
+  normalizePrediction,
   toFinite,
-  type AutoLabelClass,
+  type AutoLabelModelPrediction,
 } from '../modules/auto-label/modelOutputParsing';
 import {
   buildCandidateSnapshot,
   type CandidateSnapshot,
 } from '../modules/auto-label/candidateSnapshot';
 
-export type { AutoLabelClass } from '../modules/auto-label/modelOutputParsing';
-
-export interface AutoLabelModelPrediction {
-  label: AutoLabelClass;
-  labelConfidence: number; // 0..1
-  needsCorrection: boolean;
-  baseTop?: number;
-  baseBottom?: number;
-  correctionConfidence: number; // 0..1
-  reasoning: string;
-  modelVersion: string;
-  raw?: string;
-}
+export type {
+  AutoLabelClass,
+  AutoLabelModelPrediction,
+} from '../modules/auto-label/modelOutputParsing';
 
 const DEFAULT_PROVIDER = (process.env.VISION_PROVIDER || 'openai').toLowerCase();
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
@@ -53,53 +46,6 @@ function buildPrompt(snapshot: CandidateSnapshot): string {
     '',
     `Candidate JSON:\n${JSON.stringify(snapshot)}`,
   ].join('\n');
-}
-
-function fallbackHeuristic(snapshot: CandidateSnapshot): AutoLabelModelPrediction {
-  const baseTop = toFinite(snapshot.base?.high);
-  const baseBottom = toFinite(snapshot.base?.low);
-  const score = Number.isFinite(snapshot.score) ? snapshot.score : 0;
-  const label: AutoLabelClass = score >= 0.8 ? 'yes' : (score >= 0.6 ? 'close' : 'no');
-
-  return {
-    label,
-    labelConfidence: clamp01(score),
-    needsCorrection: Number.isFinite(baseTop) && Number.isFinite(baseBottom) && baseTop! > baseBottom!,
-    baseTop,
-    baseBottom,
-    correctionConfidence: Number.isFinite(baseTop) && Number.isFinite(baseBottom) ? 0.55 : 0,
-    reasoning: 'Heuristic fallback from scanner score.',
-    modelVersion: 'heuristic-fallback-v1',
-  };
-}
-
-function normalizePrediction(rawParsed: any, modelVersion: string, rawText: string, snapshot: CandidateSnapshot): AutoLabelModelPrediction {
-  if (!rawParsed || typeof rawParsed !== 'object') {
-    return fallbackHeuristic(snapshot);
-  }
-
-  const label = normalizeLabel(rawParsed.label);
-  const labelConfidence = clamp01(Number(rawParsed.label_confidence));
-  const needsCorrection = !!rawParsed.needs_correction;
-  let baseTop = toFinite(rawParsed.base_top);
-  let baseBottom = toFinite(rawParsed.base_bottom);
-  if (Number.isFinite(baseTop) && Number.isFinite(baseBottom) && baseBottom! > baseTop!) {
-    const tmp = baseTop!;
-    baseTop = baseBottom;
-    baseBottom = tmp;
-  }
-
-  return {
-    label,
-    labelConfidence,
-    needsCorrection,
-    baseTop,
-    baseBottom,
-    correctionConfidence: clamp01(Number(rawParsed.correction_confidence)),
-    reasoning: String(rawParsed.reasoning || '').slice(0, 220),
-    modelVersion,
-    raw: rawText,
-  };
 }
 
 async function predictWithOpenAI(prompt: string): Promise<{ parsed: any; raw: string; modelVersion: string }> {
