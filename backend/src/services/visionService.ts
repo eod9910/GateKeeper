@@ -54,7 +54,10 @@ import {
 } from '../modules/vision/compositePatternStore';
 import { buildLocalCompositeDefinition } from '../modules/vision/compositeDefinition';
 import { inferCompositeStagesFromContext } from '../modules/vision/compositeStageInference';
-import { summarizePrimitiveInventory } from '../modules/vision/workspacePromptFormatting';
+import {
+  summarizeChatHistory,
+  summarizePrimitiveInventory,
+} from '../modules/vision/workspacePromptFormatting';
 import type {
   MLScores,
   PatternReview,
@@ -1484,13 +1487,6 @@ function stringifyWorkspaceContextSection(title: string, value: unknown, maxChar
   } catch {
     return '';
   }
-}
-
-function summarizeChatHistory(chatHistory: any[], limit: number = 10): Array<{ sender: string; text: string }> {
-  return chatHistory.slice(-limit).map((entry: any) => ({
-    sender: String(entry?.sender || 'user'),
-    text: String(entry?.text || '').slice(0, 1200),
-  }));
 }
 
 function buildWorkspaceWorkingMemoryBlock(context: TradingContext): string {

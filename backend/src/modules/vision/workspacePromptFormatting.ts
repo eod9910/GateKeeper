@@ -13,3 +13,10 @@ export function summarizePrimitiveInventory(primitives: any[], limit: number = 3
       : [],
   }));
 }
+
+export function summarizeChatHistory(chatHistory: any[], limit: number = 10): Array<{ sender: string; text: string }> {
+  return chatHistory.slice(-limit).map((entry: any) => ({
+    sender: String(entry?.sender || 'user'),
+    text: String(entry?.text || '').slice(0, 1200),
+  }));
+}

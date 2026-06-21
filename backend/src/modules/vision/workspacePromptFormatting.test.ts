@@ -1,5 +1,8 @@
 import assert from 'assert';
-import { summarizePrimitiveInventory } from './workspacePromptFormatting';
+import {
+  summarizeChatHistory,
+  summarizePrimitiveInventory,
+} from './workspacePromptFormatting';
 
 function testSummarizesPrimitiveInventory() {
   const summary = summarizePrimitiveInventory([
@@ -58,9 +61,24 @@ function testAppliesLimits() {
   assert.strictEqual(summary[0].tunable_params.length, 8);
 }
 
+function testSummarizesChatHistory() {
+  const longText = 'x'.repeat(1300);
+  const summary = summarizeChatHistory([
+    { sender: 'assistant', text: 'first' },
+    { sender: 'user', text: 'second' },
+    { text: longText },
+  ], 2);
+
+  assert.deepStrictEqual(summary, [
+    { sender: 'user', text: 'second' },
+    { sender: 'user', text: 'x'.repeat(1200) },
+  ]);
+}
+
 function main() {
   testSummarizesPrimitiveInventory();
   testAppliesLimits();
+  testSummarizesChatHistory();
   console.log('workspacePromptFormatting tests passed');
 }
 
