@@ -7,9 +7,6 @@ import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import {
-  createUniversePriceSnapshotService,
-} from '../modules/universe/universePriceSnapshot';
-import {
   buildMissingUniverseApiResponse,
   buildNoActiveUniverseJobApiResponse,
   buildUniverseJobCancelledApiBody,
@@ -35,9 +32,7 @@ import {
   createUniverseBuildPlan,
   createUniverseUpdatePlan,
 } from '../modules/universe/universeJobPlans';
-import { UniverseActiveJobState } from '../modules/universe/universeActiveJobState';
-import { createUniverseProcessStarter } from '../modules/universe/universeProcessStarter';
-import { createUniverseRouteConfig } from '../modules/universe/universeRouteConfig';
+import { createUniverseRouteContext } from '../modules/universe/universeRouteContext';
 import {
   applyRegimeSnapshotSummaryMetrics,
   readUniverseRegimeSnapshot,
@@ -45,18 +40,12 @@ import {
 
 const router = Router();
 
-const routeConfig = createUniverseRouteConfig(path.join(__dirname, '..', '..'));
-
-const activeState = new UniverseActiveJobState();
-const startUniverseRouteProcess = createUniverseProcessStarter(spawn, () => {
-  activeState.clearProcess();
-});
-const universePriceSnapshotService = createUniversePriceSnapshotService({
-  dataDir: routeConfig.dataDir,
-  manifestPath: routeConfig.manifestPath,
-  priceSnapshotCachePath: routeConfig.priceSnapshotCachePath,
-  priceSnapshotTtlMs: routeConfig.priceSnapshotTtlMs,
-});
+const {
+  routeConfig,
+  activeState,
+  startUniverseRouteProcess,
+  universePriceSnapshotService,
+} = createUniverseRouteContext(path.join(__dirname, '..', '..'), spawn);
 
 // ─── GET /api/universe/status ─────────────────────────────────────────────────
 router.get('/status', async (req: Request, res: Response) => {
