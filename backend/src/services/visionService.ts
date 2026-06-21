@@ -44,6 +44,7 @@ import {
 } from '../modules/vision/ledgerStatusMessages';
 import {
   buildCompositeStageId,
+  inferIndicatorRole,
   normalizeCompositeId,
   suggestCompositeName,
 } from '../modules/vision/compositeNaming';
@@ -5329,11 +5330,6 @@ function inferCompositeStagesFromContext(message: string, context: TradingContex
       ...stage,
       id: buildCompositeStageId(inferIndicatorRole(stage.pattern_id, primitives), allStages.slice(0, index).map((item) => item.id)),
     }));
-}
-
-function inferIndicatorRole(patternId: string, primitives: any[]): string {
-  const match = primitives.find((primitive: any) => String(primitive?.pattern_id || '').trim() === patternId);
-  return String(match?.indicator_role || 'unknown').trim();
 }
 
 function buildLocalCompositeDefinition(

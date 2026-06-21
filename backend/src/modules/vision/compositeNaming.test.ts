@@ -2,6 +2,7 @@ import assert from 'assert';
 import {
   buildCompositeStageId,
   capitalizeIntent,
+  inferIndicatorRole,
   normalizeCompositeId,
   suggestCompositeName,
 } from './compositeNaming';
@@ -37,11 +38,20 @@ function testBuildCompositeStageId() {
   assert.strictEqual(buildCompositeStageId('', []), 'stage');
 }
 
+function testInferIndicatorRole() {
+  assert.strictEqual(inferIndicatorRole('fib_location_primitive', [
+    { pattern_id: 'rdp_swing_structure', indicator_role: 'anchor_structure' },
+    { pattern_id: 'fib_location_primitive', indicator_role: 'location' },
+  ]), 'location');
+  assert.strictEqual(inferIndicatorRole('missing', []), 'unknown');
+}
+
 function main() {
   testSuggestCompositeName();
   testCapitalizeIntent();
   testNormalizeCompositeId();
   testBuildCompositeStageId();
+  testInferIndicatorRole();
   console.log('compositeNaming tests passed');
 }
 

@@ -43,3 +43,8 @@ export function buildCompositeStageId(role: string, existingIds: string[]): stri
   while (used.has(`${base}_${index}`)) index += 1;
   return `${base}_${index}`;
 }
+
+export function inferIndicatorRole(patternId: string, primitives: any[]): string {
+  const match = primitives.find((primitive: any) => String(primitive?.pattern_id || '').trim() === patternId);
+  return String(match?.indicator_role || 'unknown').trim();
+}
