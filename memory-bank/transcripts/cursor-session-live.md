@@ -3,7 +3,7 @@
 > Auto-generated from the live Cursor mirror.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1782006916524`
+- Last mirrored epoch ms: `1782008849227`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-cursor-transcripts-live`
 
@@ -23,7 +23,6 @@
 - 019ece5b-1ff1-7832-9633-2c352bdce07c
 - 019eceb4-c48f-7353-afa5-8bce430b5667
 - 019ed080-f35c-7310-bd0f-8bb4b9fe6272
-- 019ee4a2-df64-75d3-b760-e61bb5077971
 
 ## Workspace Prompt Log
 - have the editor do a clean up pass

@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1782006912631`
+- Last mirrored epoch ms: `1782008380606`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5725,73 +5725,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-- stdout lines append to the active job log
-   - stderr lines append as `[err] ...`
-   - close code `0` completes the job
-   - close code nonzero fails the job
-   - cancel calls `kill()` and marks the job canceled
-   - regime classification can still read final summary metrics after success
-
-5. Only then extract process lifecycle  
-   Move the runner wiring after tests exist and pass.
-
-I would not continue moving code until we have that checkpoint and test strategy. The app works now; that’s the moment to preserve the good state.
-
-### User - 2026-06-20T14:13:06.575Z
-
-proceed
-
-### Assistant - 2026-06-20T14:13:17.823Z
-
-Proceeding with the checkpoint path: I’ll create a new migration branch, verify the current accepted state, run GitNexus change detection, then commit locally. No push.
-
-### Assistant - 2026-06-20T14:13:22.537Z
-
-The relay is clean. I’m on the original checkpoint branch, so I’m creating the dedicated migration branch now before staging anything.
-
-### Assistant - 2026-06-20T14:13:31.586Z
-
-Branch created: `migration/universe-domain-slices`. I’m running the universe test stack and build one more time before the local commit.
-
-### Assistant - 2026-06-20T14:13:40.861Z
-
-All focused universe tests pass. I’m running backend build, relay verify, and GitNexus detect-changes now; detect-changes is the required pre-commit scope check.
-
-### Assistant - 2026-06-20T14:14:02.367Z
-
-Build and relay verification passed. Now GitNexus final scope check before staging/commit.
-
-### Assistant - 2026-06-20T14:14:07.193Z
-
-GitNexus reports LOW risk with no affected execution flows. I’m staging and committing the current accepted migration state locally on the migration branch.
-
-### Assistant - 2026-06-20T14:14:13.333Z
-
-Changes are staged. The line-ending warnings are Git’s Windows normalization notice, not a test failure. I’m checking staged scope, then committing.
-
-### Assistant - 2026-06-20T14:14:19.860Z
-
-A few memory mirror files changed again after staging, which is normal because the transcript mirrors are live. I’m restaging those latest mirror updates so the checkpoint is coherent, then I’ll commit.
-
-### Assistant - 2026-06-20T14:14:23.717Z
-
-Everything is staged again. Creating the local checkpoint commit now on `migration/universe-domain-slices`.
-
-### Assistant - 2026-06-20T14:14:30.732Z
-
-Local checkpoint commit created. I’m checking final branch/status now; no push.
-
-### Assistant - 2026-06-20T14:14:40.427Z
-
-The checkpoint exists on `migration/universe-domain-slices` at `a65d93562`. The live transcript mirror has already modified three memory files after the commit, which is expected churn. I’m adding the next-phase PRD/checklist now: characterization tests for the process runner before any runner extraction.
-
-### Assistant - 2026-06-20T14:15:09.751Z
-
-The characterization PRD/checklist is in place. I’m committing that planning-only next step separately, so the code checkpoint remains clean and the risky next phase is explicit.
-
-### Assistant - 2026-06-20T14:15:12.854Z
-
-Relay verification is still clean. I’m doing GitNexus detect-changes before this planning commit as well, then staging only the new PRD/checklist.
+ing only the new PRD/checklist.
 
 ### Assistant - 2026-06-20T14:15:33.547Z
 
@@ -8174,4 +8108,76 @@ The handler harness is in. I’m running it first; if it passes, I’ll add the 
 ### Assistant - 2026-06-21T01:54:54.249Z
 
 The new handler tests pass. I’m broadening verification now to the route harness, related response/context tests, backend build, and relay check.
+
+### Assistant - 2026-06-21T01:55:16.039Z
+
+Everything passed. I’m checking the exact diff, then I’ll stage only this test-hardening slice plus the live memory files and run GitNexus staged analysis.
+
+### Assistant - 2026-06-21T01:55:22.361Z
+
+The package-script diff is exactly the new test script. I’m staging the new handler harness and memory mirrors now, then GitNexus gets the pre-commit check.
+
+### Assistant - 2026-06-21T01:55:25.214Z
+
+Staged. Running GitNexus `detect_changes` on exactly what would be committed.
+
+### Assistant - 2026-06-21T01:55:27.912Z
+
+GitNexus reports low risk and no affected processes for the staged test slice. I’m committing it.
+
+### Assistant - 2026-06-21T01:55:34.237Z
+
+Committed `eadf4226b Add universe route handler tests`. I’m refreshing GitNexus and then I’ll continue only if the next slice is still clearly valuable.
+
+### Assistant - 2026-06-21T01:56:33.352Z
+
+The index refresh completed and again touched the generated GitNexus docs. I’m cleaning that doc noise before moving on, then I’m going to run the broader backend test gate as the next validation slice.
+
+### Assistant - 2026-06-21T01:56:50.639Z
+
+Doc cleanup is done. I’m kicking off the backend test suite now; this is the right next gate because we’ve been landing small universe slices, and the app-level safety question matters more than another tiny code shuffle.
+
+### Assistant - 2026-06-21T01:57:50.876Z
+
+Blocked at the broader backend test gate.
+
+Good news: every universe migration test passed, including the new handler harness:
+
+- `universe-route-handlers:test`
+- `universe-route:test`
+- `universe-route-context:test`
+- `universe-route-responses:test`
+- all earlier universe module tests
+
+The full backend suite then failed at:
+
+`backend/src/services/signalScanner.test.ts:14`
+
+Failure:
+```text
+AssertionError [ERR_ASSERTION]: false == true
+at testStocksUniverseFallback
+```
+
+So the blocker is **outside the universe route migration slice**, in `signal-scanner:test`. Current repo state is clean except the live memory mirror files. Latest committed slice is:
+
+`eadf4226b Add universe route handler tests`
+
+No push was done.
+
+### User - 2026-06-21T02:00:19.869Z
+
+Continue until blocked
+
+### Assistant - 2026-06-21T02:00:29.532Z
+
+I’ll treat the failing `signal-scanner:test` as the next blocker to clear. I’m switching into the GitNexus debugging path now so we can trace whether this is a real regression, a brittle fixture, or an environment/data assumption.
+
+### Assistant - 2026-06-21T02:00:40.029Z
+
+The failure is coming from an old expectation that the stock default universe includes `BTC-USD`. The current loader prefers stock registries first, so if the repo has stock data available, that assertion is probably stale. I’m checking the actual returned universes and the registry behavior before deciding whether to update code or the test.
+
+### Assistant - 2026-06-21T02:00:47.666Z
+
+The code path is clear: stock defaults now prefer `tradable_stock_default` from the SQLite-backed catalog, while crypto/futures fall back to `symbols.json`. I’m checking the exact returned stock symbols before making the smallest fix.
 

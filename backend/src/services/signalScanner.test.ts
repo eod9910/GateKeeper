@@ -11,8 +11,8 @@ async function testCryptoUniverseFallback(): Promise<void> {
 async function testStocksUniverseFallback(): Promise<void> {
   const symbols = await loadDefaultUniverseForAssetClass('stocks');
   assert.ok(symbols.length > 0);
-  assert.ok(symbols.includes('SPY'));
-  assert.ok(symbols.includes('BTC-USD'));
+  assert.ok(symbols.includes('AAPL'));
+  assert.ok(!symbols.includes('BTC-USD'));
 }
 
 async function testFuturesUniverseFallback(): Promise<void> {
