@@ -44,3 +44,20 @@ export function ledgerFirstFiniteNumber(...values: unknown[]): number | null {
   }
   return null;
 }
+
+export function ledgerEvidenceText(data: any): string {
+  const refs = Array.isArray(data?.key_evidence_refs) ? data.key_evidence_refs : [];
+  const chunks = refs.flatMap((ref: any) => [
+    ref?.section_heading,
+    ref?.text_excerpt,
+    ref?.summary,
+  ]);
+  return chunks.map((chunk: any) => String(chunk || '').trim()).filter(Boolean).join(' ');
+}
+
+export function ledgerTechnologyClues(data: any): string[] {
+  const text = ledgerEvidenceText(data);
+  if (!text) return [];
+  const matches = text.match(/\b(?:technology|platform|proprietary|patent(?:ed|s)?|process|reactor|catalyst|software|algorithm|AI|machine learning|automation|manufacturing|chemistry|conversion|recycling|feedstock|sensor|device|therapy|drug|molecule|battery|semiconductor|network)\b/gi) || [];
+  return Array.from(new Set(matches.map((match) => match.toLowerCase()))).slice(0, 8);
+}

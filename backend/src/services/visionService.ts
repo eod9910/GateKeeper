@@ -27,8 +27,10 @@ import {
   ledgerDisplayMoney,
   ledgerDisplayNumber,
   ledgerDisplayPct,
+  ledgerEvidenceText,
   ledgerFirstFiniteNumber,
   ledgerMetricValue,
+  ledgerTechnologyClues,
 } from '../modules/vision/ledgerFormatting';
 import {
   getLedgerCorporateAction,
@@ -4351,23 +4353,6 @@ function buildLedgerNarrativeCaseLines(narrativeCase: any): string[] {
     priceLine,
     '- This overlay is narrative-driven and is NOT in the filings; the filing-anchored base case above is unchanged.',
   ];
-}
-
-function ledgerEvidenceText(data: any): string {
-  const refs = Array.isArray(data?.key_evidence_refs) ? data.key_evidence_refs : [];
-  const chunks = refs.flatMap((ref: any) => [
-    ref?.section_heading,
-    ref?.text_excerpt,
-    ref?.summary,
-  ]);
-  return chunks.map((chunk: any) => String(chunk || '').trim()).filter(Boolean).join(' ');
-}
-
-function ledgerTechnologyClues(data: any): string[] {
-  const text = ledgerEvidenceText(data);
-  if (!text) return [];
-  const matches = text.match(/\b(?:technology|platform|proprietary|patent(?:ed|s)?|process|reactor|catalyst|software|algorithm|AI|machine learning|automation|manufacturing|chemistry|conversion|recycling|feedstock|sensor|device|therapy|drug|molecule|battery|semiconductor|network)\b/gi) || [];
-  return Array.from(new Set(matches.map((match) => match.toLowerCase()))).slice(0, 8);
 }
 
 function buildLedgerExcitementResponse(companyName: string, data: any, hydrationData?: any): string {

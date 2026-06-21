@@ -3,9 +3,11 @@ import {
   ledgerDisplayMoney,
   ledgerDisplayNumber,
   ledgerDisplayPct,
+  ledgerEvidenceText,
   ledgerFirstFiniteNumber,
   ledgerMetricValue,
   ledgerScaleNumber,
+  ledgerTechnologyClues,
 } from './ledgerFormatting';
 
 function testDisplayNumber() {
@@ -48,6 +50,41 @@ function testFirstFiniteNumber() {
   assert.strictEqual(ledgerFirstFiniteNumber(undefined, 'bad'), null);
 }
 
+function testEvidenceText() {
+  const text = ledgerEvidenceText({
+    key_evidence_refs: [
+      {
+        section_heading: 'Business',
+        text_excerpt: ' Proprietary platform evidence. ',
+        summary: '',
+      },
+      {
+        section_heading: null,
+        text_excerpt: 'Manufacturing process detail.',
+        summary: 'Automation summary.',
+      },
+    ],
+  });
+
+  assert.strictEqual(text, 'Business Proprietary platform evidence. Manufacturing process detail. Automation summary.');
+  assert.strictEqual(ledgerEvidenceText({}), '');
+}
+
+function testTechnologyClues() {
+  const clues = ledgerTechnologyClues({
+    key_evidence_refs: [
+      {
+        section_heading: 'Technology',
+        text_excerpt: 'The company uses proprietary AI software and patented chemistry.',
+        summary: 'Its proprietary platform automates a process.',
+      },
+    ],
+  });
+
+  assert.deepStrictEqual(clues, ['technology', 'proprietary', 'ai', 'software', 'patented', 'chemistry', 'platform', 'process']);
+  assert.deepStrictEqual(ledgerTechnologyClues({}), []);
+}
+
 function main() {
   testDisplayNumber();
   testDisplayMoney();
@@ -55,6 +92,8 @@ function main() {
   testScaleNumber();
   testMetricValue();
   testFirstFiniteNumber();
+  testEvidenceText();
+  testTechnologyClues();
   console.log('ledgerFormatting tests passed');
 }
 
