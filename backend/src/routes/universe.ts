@@ -9,6 +9,7 @@ import * as path from 'path';
 import {
   buildMissingUniverseApiResponse,
   buildNoActiveUniverseJobApiResponse,
+  buildUniverseErrorApiBody,
   buildUniverseJobCancelledApiBody,
   buildUniverseJobStartedApiBody,
   buildUniversePricesApiResponse,
@@ -61,8 +62,8 @@ router.get('/status', async (req: Request, res: Response) => {
         activeJob: activeState.getJob(),
       }),
     );
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json(buildUniverseErrorApiBody(err));
   }
 });
 
@@ -76,8 +77,8 @@ router.get('/prices', async (req: Request, res: Response) => {
       buildPriceSnapshot: universePriceSnapshotService.buildUniversePriceSnapshot,
     });
     res.status(response.statusCode).json(response.body);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json(buildUniverseErrorApiBody(err));
   }
 });
 

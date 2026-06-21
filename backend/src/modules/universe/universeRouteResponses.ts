@@ -35,6 +35,13 @@ export function buildUniverseSuccessApiBody(data: unknown) {
   };
 }
 
+export function buildUniverseErrorApiBody(err: unknown) {
+  return {
+    success: false,
+    error: err instanceof Error ? err.message : String(err),
+  };
+}
+
 export function buildUniverseJobStartedApiBody(message: string, job: UniverseJob) {
   return buildUniverseSuccessApiBody({ message, job });
 }

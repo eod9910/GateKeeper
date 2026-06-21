@@ -2,6 +2,7 @@ import assert from 'assert';
 import {
   buildMissingUniverseApiResponse,
   buildNoActiveUniverseJobApiResponse,
+  buildUniverseErrorApiBody,
   buildUniverseJobStartedApiBody,
   buildUniverseJobCancelledApiBody,
   buildUniversePricesApiResponse,
@@ -13,6 +14,17 @@ function testBuildsSuccessBody() {
   assert.deepStrictEqual(buildUniverseSuccessApiBody({ ok: true }), {
     success: true,
     data: { ok: true },
+  });
+}
+
+function testBuildsErrorBody() {
+  assert.deepStrictEqual(buildUniverseErrorApiBody(new Error('boom')), {
+    success: false,
+    error: 'boom',
+  });
+  assert.deepStrictEqual(buildUniverseErrorApiBody('plain'), {
+    success: false,
+    error: 'plain',
   });
 }
 
@@ -135,6 +147,7 @@ async function testBuildsStatusBody() {
 
 async function main() {
   testBuildsSuccessBody();
+  testBuildsErrorBody();
   testBuildsJobStartedBody();
   testBuildsNoActiveJobResponse();
   testBuildsJobCancelledBody();
