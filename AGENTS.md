@@ -113,7 +113,7 @@ documents it must obey:
 
 This project is indexed by GitNexus as **pattern-detector** (11543 symbols, 32528 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> If any GitNexus tool warns the index is stale, run `powershell -ExecutionPolicy Bypass -File .\tools\run_gitnexus_analyze.ps1` in terminal first. This protects bootstrap-owned `AGENTS.md` and `CLAUDE.md` from GitNexus context-file rewrites.
 
 ## Always Do
 
@@ -184,13 +184,13 @@ Before completing any code modification task, verify:
 After committing code changes, the GitNexus index becomes stale. Re-run analyze to update it:
 
 ```bash
-npx gitnexus analyze
+powershell -ExecutionPolicy Bypass -File .\tools\run_gitnexus_analyze.ps1
 ```
 
 If the index previously included embeddings, preserve them by adding `--embeddings`:
 
 ```bash
-npx gitnexus analyze --embeddings
+powershell -ExecutionPolicy Bypass -File .\tools\run_gitnexus_analyze.ps1 --embeddings
 ```
 
 To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.embeddings` field shows the count (0 means no embeddings). **Running analyze without `--embeddings` will delete any previously generated embeddings.**
