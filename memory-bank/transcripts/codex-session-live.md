@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1782002742281`
+- Last mirrored epoch ms: `1782002970819`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5722,55 +5722,6 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-as argument builders first, rather than moving live process handling all at once.
-
-### Assistant - 2026-06-20T13:59:00.317Z
-
-The remaining risky part is live process lifecycle. I’m not going to yank that out wholesale. The safe next slice is narrower: extract only subprocess command construction into a tested `universeJobCommands` module, leaving spawn/listeners/completion state in the route.
-
-### Assistant - 2026-06-20T13:59:10.732Z
-
-File-level impact is LOW, and the only direct importer is `server.ts`. I’m extracting command construction only: no spawned process ownership, no event listeners, no active job mutation. That gives us tested arguments without touching lifecycle semantics.
-
-### Assistant - 2026-06-20T14:00:28.040Z
-
-I spotted one polish issue in the command module: I initially encoded Windows separators directly. The route previously used `path.join`, so I’m correcting the module to use `path.join` too, preserving the existing path-construction semantics instead of baking in a platform detail.
-
-### Assistant - 2026-06-20T14:00:45.793Z
-
-The command module now uses `path.join`, matching the route’s old behavior. I’m routing the directive and running the new command test plus the existing universe tests and build.
-
-### Assistant - 2026-06-20T14:00:57.153Z
-
-All universe module tests pass. I’m running the backend build, relay verification, and a diff check on the route command sites now.
-
-### Assistant - 2026-06-20T14:01:14.262Z
-
-Build and relay verification passed. The live process handling is still in the route; only command construction moved. I’m running final GitNexus detection and then I’ll close this slice.
-
-### Assistant - 2026-06-20T14:01:21.345Z
-
-GitNexus remains LOW with no affected flows. I’m closing the command-builder slice now. After that, the only meaningful remaining backend route extraction is live process lifecycle, and I’ll treat that as a stop-and-assess point rather than casually moving it.
-
-### Assistant - 2026-06-20T14:02:11.718Z
-
-The command-builder slice is accepted in the repo artifacts. I’m routing the reports and doing one last verification. Then I’m going to stop at the lifecycle boundary, because that is a real risk escalation point rather than another routine helper extraction.
-
-### Assistant - 2026-06-20T14:02:20.554Z
-
-Continued until the next real risk boundary, then stopped.
-
-Completed and accepted two more slices:
-
-1. Price snapshot/cache extraction
-- Added `backend/src/modules/universe/universePriceSnapshot.ts`
-- Added `universePriceSnapshot.test.ts`
-- Route now injects the same runtime paths into the module.
-- Verified memory cache, disk cache, manifest prices, CSV tail fallback, freshness helpers.
-
-2. Job command builder extraction
-- Added `backend/src/modules/universe/universeJobCommands.ts`
-- Added `universeJobCommands.test.ts`
 - Route now uses tested command builders for build/update/rebuild/regime jobs.
 - Live `spawn`, stdout/stderr listeners, close handlers, cancellation, and active job state stayed in the route.
 
@@ -8181,4 +8132,48 @@ I’m using Express’ router stack as the test harness here rather than startin
 ### Assistant - 2026-06-21T00:45:16.119Z
 
 Factory and harness are in place. I’m running the narrow route test and the TypeScript build now; if the harness is too loose or too strict, this is where it will show up.
+
+### Assistant - 2026-06-21T00:45:42.418Z
+
+The new route harness passed and the backend still builds. I’m adding the nearby universe route tests plus relay verification before I stage this slice, so we have more than just compile confidence.
+
+### Assistant - 2026-06-21T00:45:54.747Z
+
+The nearby tests and relay verify are green. I’m checking the diff with whitespace noise reduced, because replacing the file normalized line endings and I want to verify the real change is only the factory wrapper plus test harness.
+
+### Assistant - 2026-06-21T00:46:00.130Z
+
+The real diff looks right: the route grew slightly to 146 lines because we added an exportable factory, and the new test locks the route surface. I’m staging only this slice plus the live memory mirrors, then GitNexus will verify the affected scope before commit.
+
+### Assistant - 2026-06-21T00:46:06.000Z
+
+Staged. Now I’m running GitNexus’ staged-change analysis; if it reports anything above the expected low route impact, I’ll stop and unwind before committing.
+
+### Assistant - 2026-06-21T00:46:09.759Z
+
+GitNexus reports low risk, no affected processes, and the expected changed symbols. I’m committing this route-factory slice now, then I’ll refresh the index again and keep going if the next slice is still sane.
+
+### Assistant - 2026-06-21T00:46:16.540Z
+
+Committed `494017a11 Add universe route factory harness`. I’m refreshing GitNexus again; after that I’ll clean its doc side effects and reassess whether there’s another safe slice or whether we’ve reached the next meaningful boundary.
+
+### Assistant - 2026-06-21T00:47:31.391Z
+
+The index refresh succeeded and produced the same `AGENTS.md` / `CLAUDE.md` generated edits. I’m cleaning those again before looking for the next slice.
+
+### Assistant - 2026-06-21T00:47:36.128Z
+
+Same cleanup as before: restore the canonical count line and the short Claude router file. Then I’ll inspect the now-factory route for what can reasonably move next.
+
+### Assistant - 2026-06-21T00:47:57.571Z
+
+Cleanup is done. The next useful slice is clear now: move handler creation into `modules/universe`, leaving `routes/universe.ts` as a thin HTTP wiring file. That is the architectural payoff of the factory, and it should cut the route file way down without changing endpoint behavior.
+
+### Assistant - 2026-06-21T00:48:06.721Z
+
+GitNexus can’t see the new exported factory symbol yet, but the file-level impact is still low: direct importer is only `server.ts`, no affected flows. I’m extracting the handlers into a universe module now and leaving the route file as registration only.
+
+### Assistant - 2026-06-21T00:49:04.528Z
+
+That cut the route file down to thin wiring; the endpoint logic now lives with the universe module. I’m running the route harness, nearby tests, and build to catch any typing or behavior drift.
 
