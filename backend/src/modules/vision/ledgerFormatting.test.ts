@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {
+  buildLedgerNarrativeCaseLines,
   ledgerDisplayMoney,
   ledgerDisplayNumber,
   ledgerDisplayPct,
@@ -85,6 +86,27 @@ function testTechnologyClues() {
   assert.deepStrictEqual(ledgerTechnologyClues({}), []);
 }
 
+function testNarrativeCaseLines() {
+  const lines = buildLedgerNarrativeCaseLines({
+    applied: true,
+    rationale: 'Social attention could lift near-term demand.',
+    base_revenue_growth_pct: 10,
+    adjusted_revenue_growth_pct: 25,
+    base_fair_value_per_share: 15,
+    fair_value_per_share: 22,
+    narrative_vs_base_pct: 46.7,
+    price_vs_narrative_pct: -12,
+  });
+
+  assert.strictEqual(lines[1], 'Narrative-adjusted case (social-thesis overlay):');
+  assert.ok(lines[2].includes('Social attention'));
+  assert.ok(lines[3].includes('10.0%'));
+  assert.ok(lines[4].includes('$15.00'));
+  assert.ok(lines[5].includes('downside of 12%'));
+  assert.deepStrictEqual(buildLedgerNarrativeCaseLines({ applied: false }), []);
+  assert.deepStrictEqual(buildLedgerNarrativeCaseLines(null), []);
+}
+
 function main() {
   testDisplayNumber();
   testDisplayMoney();
@@ -94,6 +116,7 @@ function main() {
   testFirstFiniteNumber();
   testEvidenceText();
   testTechnologyClues();
+  testNarrativeCaseLines();
   console.log('ledgerFormatting tests passed');
 }
 

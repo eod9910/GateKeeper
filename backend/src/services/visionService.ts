@@ -24,6 +24,7 @@ import {
 import { parseVisionResponse } from '../modules/vision/visionResponseParser';
 import { checkVisionStatus } from '../modules/vision/visionStatusService';
 import {
+  buildLedgerNarrativeCaseLines,
   ledgerDisplayMoney,
   ledgerDisplayNumber,
   ledgerDisplayPct,
@@ -4327,32 +4328,6 @@ function buildLedgerDcfExplanationResponse(
     '',
     `Bottom line: ${judgment?.summary || 'The DCF still points to a demanding valuation.'}`,
   ].join('\n');
-}
-
-/**
- * Render the narrative-adjusted (social thesis overlay) section of a DCF
- * explanation. Returns [] when no narrative case was applied, so callers can
- * spread it in unconditionally.
- */
-function buildLedgerNarrativeCaseLines(narrativeCase: any): string[] {
-  if (!narrativeCase || !narrativeCase.applied) return [];
-  const gap = narrativeCase.narrative_vs_base_pct;
-  const priceGap = narrativeCase.price_vs_narrative_pct;
-  const gapText = Number.isFinite(Number(gap))
-    ? `${Number(gap) > 0 ? '+' : ''}${gap}% vs the base case`
-    : 'a different level than the base case';
-  const priceLine = Number.isFinite(Number(priceGap))
-    ? `- Against today's price, the narrative case implies ${Number(priceGap) >= 0 ? 'upside' : 'downside'} of ${Math.abs(Number(priceGap))}%. If the price has not moved yet, that delta IS the expectation gap — the market story front-running the fundamentals.`
-    : '- Current price was unavailable to size the gap against the narrative case.';
-  return [
-    '',
-    'Narrative-adjusted case (social-thesis overlay):',
-    `- ${narrativeCase.rationale || 'A social-narrative thesis is influencing demand expectations for this name.'}`,
-    `- I moved near-term revenue growth from ${ledgerDisplayPct(narrativeCase.base_revenue_growth_pct)} to ${ledgerDisplayPct(narrativeCase.adjusted_revenue_growth_pct)} in this scenario only.`,
-    `- That shifts fair value from a base of ${ledgerDisplayMoney(narrativeCase.base_fair_value_per_share)} to ${ledgerDisplayMoney(narrativeCase.fair_value_per_share)} (${gapText}).`,
-    priceLine,
-    '- This overlay is narrative-driven and is NOT in the filings; the filing-anchored base case above is unchanged.',
-  ];
 }
 
 function buildLedgerExcitementResponse(companyName: string, data: any, hydrationData?: any): string {
