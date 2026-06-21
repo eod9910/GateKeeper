@@ -39,6 +39,9 @@ import {
   classifyLedgerFinding,
   isLedgerGenericRiskBoilerplate,
 } from '../modules/vision/ledgerFindings';
+import {
+  isLedgerNoDataStatus,
+} from '../modules/vision/ledgerStatusMessages';
 import type {
   MLScores,
   PatternReview,
@@ -3967,10 +3970,6 @@ function isLedgerExcitementRequest(message: string): boolean {
 function isLedgerShortQuestion(message: string): boolean {
   const lower = extractPrimaryUserMessage(message).toLowerCase();
   return /\bshort(?:ing)?\b|\bbet against\b|\bputs?\b|\bbearish bet\b/.test(lower);
-}
-
-function isLedgerNoDataStatus(data: any): boolean {
-  return data?.status === 'no_company_data' || data?.status === 'not_in_database';
 }
 
 function buildLedgerNoDataMessage(data: any, hydrationData?: any): string {
