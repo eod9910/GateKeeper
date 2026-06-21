@@ -22,6 +22,7 @@ import {
   type WorkspaceAnalystId,
 } from './copilotTools';
 import { parseVisionResponse } from '../modules/vision/visionResponseParser';
+import { checkVisionStatus } from '../modules/vision/visionStatusService';
 import type {
   MLScores,
   PatternReview,
@@ -31,6 +32,7 @@ import type {
 } from '../modules/vision/visionTypes';
 
 export const parseResponse = parseVisionResponse;
+export const checkOllamaStatus = checkVisionStatus;
 export type {
   MLScores,
   PatternReview,
@@ -744,62 +746,6 @@ export async function analyzeChartPattern(
       throw new Error('Vision service not available. Check your configuration.');
     }
     throw error;
-  }
-}
-
-/**
- * Check if vision service is available
- */
-export async function checkOllamaStatus(): Promise<{
-  available: boolean;
-  modelLoaded: boolean;
-  provider: string;
-  error?: string;
-}> {
-  if (VISION_PROVIDER === 'openai') {
-    // Check OpenAI configuration
-    const openaiApiKey = getConfiguredOpenAIKey();
-    if (!openaiApiKey) {
-      return {
-        available: false,
-        modelLoaded: false,
-        provider: 'openai',
-        error: 'OpenAI API key not configured. Add it in Settings or backend/.env'
-      };
-    }
-    
-    // We can't easily verify the API key without making a call, so assume it's valid
-    return {
-      available: true,
-      modelLoaded: true,
-      provider: 'openai'
-    };
-  }
-
-  // Check Ollama
-  try {
-    const tagsResponse = await fetch(`${OLLAMA_URL}/api/tags`);
-    if (!tagsResponse.ok) {
-      return { available: false, modelLoaded: false, provider: 'ollama', error: 'Ollama not responding' };
-    }
-    
-    const tags = await tagsResponse.json() as { models: Array<{ name: string }> };
-    const models = tags.models || [];
-    const hasModel = models.some(m => m.name.includes('minicpm') || m.name.includes(VISION_MODEL));
-    
-    return {
-      available: true,
-      modelLoaded: hasModel,
-      provider: 'ollama',
-      error: hasModel ? undefined : `Model ${VISION_MODEL} not found. Run: ollama pull ${VISION_MODEL}`
-    };
-  } catch (error: any) {
-    return {
-      available: false,
-      modelLoaded: false,
-      provider: 'ollama',
-      error: 'Ollama not running. Install from https://ollama.com and run: ollama serve'
-    };
   }
 }
 
