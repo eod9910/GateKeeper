@@ -30,6 +30,10 @@ import {
   ledgerFirstFiniteNumber,
   ledgerMetricValue,
 } from '../modules/vision/ledgerFormatting';
+import {
+  getLedgerCorporateAction,
+  getLedgerHardFlags,
+} from '../modules/vision/ledgerDataAccess';
 import type {
   MLScores,
   PatternReview,
@@ -4135,14 +4139,6 @@ function buildLedgerWorkflowLead(toolLabel: string, companyName: string, data: a
     ? `I refreshed coverage first: ${hydrationData.message || hydrationData.status || 'coverage update attempted.'}`
     : '';
   return [lead, hydration, caveat].filter(Boolean);
-}
-
-function getLedgerCorporateAction(data: any): any | null {
-  return data?.special_situations?.corporate_action || null;
-}
-
-function getLedgerHardFlags(data: any): any[] {
-  return Array.isArray(data?.special_situations?.hard_flags) ? data.special_situations.hard_flags : [];
 }
 
 function buildLedgerHardFlagLines(data: any): string[] {
