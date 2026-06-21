@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1782000303857`
+- Last mirrored epoch ms: `1782000496510`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5721,31 +5721,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-ty files. Because this is a refactor/migration slice, I’m also pulling in the GitNexus refactoring workflow before touching code, so the “what breaks if this moves?” question stays explicit.
-
-### Assistant - 2026-06-20T13:36:55.666Z
-
-GitNexus refactoring instructions are loaded. Next I’m going to inspect the current universe route and registry boundaries, then rerun impact on the tiny helper candidates with depth capped so we can actually use the result.
-
-### Assistant - 2026-06-20T13:37:12.146Z
-
-The route scan confirms the extraction target is nicely contained: these helpers mostly serve `/api/universe/*` job state and logging. I also see the expected relay/transcript dirtiness from starting the migration slice, and no migration code edits yet.
-
-### Assistant - 2026-06-20T13:37:15.623Z
-
-The TypeScript constraint is confirmed: `backend/tsconfig.json` compiles only `src/**/*`, so the first architecture move should be a `backend/src/modules/universe/*` boundary. No API paths or frontend calls need to move in this first pass.
-
-### Assistant - 2026-06-20T13:37:23.741Z
-
-GitNexus says `appendUniverseJobLog` is LOW risk with one direct caller bucket: `backend/src/routes/universe.ts`. That supports the smallest slice, but I’ll check the rest of the helper cluster before editing so the boundary is coherent.
-
-### Assistant - 2026-06-20T13:37:27.940Z
-
-Impact is LOW across the helper cluster: direct dependents stay in `backend/src/routes/universe.ts`, with no affected execution flows reported. I’m going to make the first migration edit now: create `backend/src/modules/universe/universeJobProgress.ts`, move only the pure job progress/log helpers there, and import them back into the existing route.
-
-### Assistant - 2026-06-20T13:37:44.100Z
-
-GitNexus context agrees with the impact read: `appendUniverseJobLog` calls only `updateUniverseJobFromLine`, and callers are confined to the universe route file. That’s the right shape for this first boundary.
+ary.
 
 ### Assistant - 2026-06-20T13:39:05.656Z
 
@@ -8034,4 +8010,44 @@ The missing-universe API response is now shared between prices and update. I’m
 ### Assistant - 2026-06-21T00:05:02.116Z
 
 The response helper slice is green. I’m running relay verify and GitNexus detect, then I’ll commit it locally if the scope is still clean.
+
+### Assistant - 2026-06-21T00:05:08.799Z
+
+Relay is clean, route is 177 lines, and the diff is narrowly scoped. I’m running GitNexus detect now.
+
+### Assistant - 2026-06-21T00:05:13.823Z
+
+GitNexus reports low risk and no affected processes. I’m staging this shared-response slice plus the continuity snapshots, then committing locally.
+
+### Assistant - 2026-06-21T00:05:21.676Z
+
+Staged. I’m checking the staged scope and committing.
+
+### Assistant - 2026-06-21T00:05:27.847Z
+
+The staged set is exactly the response-helper slice and memory snapshots. Committing now.
+
+### Assistant - 2026-06-21T00:05:36.826Z
+
+Checkpoint made: `ecfb4296b Share missing universe route response`. I’m refreshing GitNexus and checking the tree before deciding whether to take another small slice.
+
+### Assistant - 2026-06-21T00:06:35.485Z
+
+The checkpoint is clean except for live memory mirrors. I’ll take one more small route-read slice: centralize the regime snapshot success envelope in `universeRouteResponses`, leaving the route to call the reader and send the standardized response.
+
+### Assistant - 2026-06-21T00:06:44.887Z
+
+Impact is low in the Universe module and no execution flows are affected. I’m adding a tiny success-envelope helper for regime snapshot responses and using it in the route.
+
+### Assistant - 2026-06-21T00:07:05.816Z
+
+The regime snapshot response now uses the same success-envelope helper as other API response shaping. I’m running the response/regime tests and build.
+
+### Assistant - 2026-06-21T00:07:29.821Z
+
+The helper is green; the route line count nudged up by one because the import costs more than the inline object, but API response shaping is more consistent and tested. I’m running relay and GitNexus checks before deciding whether to keep this slice.
+
+### Assistant - 2026-06-21T00:07:34.717Z
+
+Relay is clean. GitNexus’s earlier analyze side effect is present in `AGENTS.md`/`CLAUDE.md` again, so I’m removing that before detection/staging.
 

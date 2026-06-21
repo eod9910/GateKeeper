@@ -28,6 +28,13 @@ export interface UniversePriceSnapshotApiResponse {
 export type AccessUniverseManifest = (manifestPath: string) => Promise<boolean>;
 export type BuildUniversePriceSnapshot = (forceRefresh: boolean) => Promise<UniversePriceSnapshotResult>;
 
+export function buildUniverseSuccessApiBody(data: unknown) {
+  return {
+    success: true,
+    data,
+  };
+}
+
 export function buildMissingUniverseApiResponse(): UniversePriceSnapshotApiResponse {
   return {
     statusCode: 400,

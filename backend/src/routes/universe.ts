@@ -13,6 +13,7 @@ import {
   buildMissingUniverseApiResponse,
   buildUniversePricesApiResponse,
   buildUniverseStatusApiData,
+  buildUniverseSuccessApiBody,
 } from '../modules/universe/universeRouteResponses';
 import {
   parseOptionableRebuildRequestParams,
@@ -161,7 +162,7 @@ router.post('/classify-regimes', async (req: Request, res: Response) => {
 // Returns the latest regime snapshot metadata (counts + generated_at timestamp).
 router.get('/regime-snapshot', async (req: Request, res: Response) => {
   const snapshot = await readUniverseRegimeSnapshot(routeConfig.regimeSnapshotPath);
-  res.json({ success: true, data: snapshot });
+  res.json(buildUniverseSuccessApiBody(snapshot));
 });
 
 // ─── DELETE /api/universe/cancel ─────────────────────────────────────────────

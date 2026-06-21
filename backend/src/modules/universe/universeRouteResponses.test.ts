@@ -2,7 +2,15 @@ import assert from 'assert';
 import {
   buildMissingUniverseApiResponse,
   buildUniversePricesApiResponse,
+  buildUniverseSuccessApiBody,
 } from './universeRouteResponses';
+
+function testBuildsSuccessBody() {
+  assert.deepStrictEqual(buildUniverseSuccessApiBody({ ok: true }), {
+    success: true,
+    data: { ok: true },
+  });
+}
 
 function testBuildsMissingUniverseResponse() {
   assert.deepStrictEqual(buildMissingUniverseApiResponse(), {
@@ -67,6 +75,7 @@ async function testReturnsPriceSnapshotResponse() {
 }
 
 async function main() {
+  testBuildsSuccessBody();
   testBuildsMissingUniverseResponse();
   await testReturnsMissingUniverseResponse();
   await testReturnsPriceSnapshotResponse();
