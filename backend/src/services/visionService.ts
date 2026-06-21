@@ -54,6 +54,7 @@ import {
 } from '../modules/vision/compositePatternStore';
 import { buildLocalCompositeDefinition } from '../modules/vision/compositeDefinition';
 import { inferCompositeStagesFromContext } from '../modules/vision/compositeStageInference';
+import { summarizePrimitiveInventory } from '../modules/vision/workspacePromptFormatting';
 import type {
   MLScores,
   PatternReview,
@@ -1483,22 +1484,6 @@ function stringifyWorkspaceContextSection(title: string, value: unknown, maxChar
   } catch {
     return '';
   }
-}
-
-function summarizePrimitiveInventory(primitives: any[], limit: number = 30): any[] {
-  return primitives.slice(0, limit).map((p: any) => ({
-    pattern_id: p?.pattern_id ?? null,
-    name: p?.name ?? null,
-    indicator_role: p?.indicator_role ?? null,
-    description: p?.description ?? null,
-    tunable_params: Array.isArray(p?.tunable_params)
-      ? p.tunable_params.slice(0, 8).map((tp: any) => ({
-          key: tp?.key ?? null,
-          type: tp?.type ?? null,
-          default: tp?.default ?? null,
-        }))
-      : [],
-  }));
 }
 
 function summarizeChatHistory(chatHistory: any[], limit: number = 10): Array<{ sender: string; text: string }> {
