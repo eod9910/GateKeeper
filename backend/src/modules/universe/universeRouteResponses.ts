@@ -28,6 +28,16 @@ export interface UniversePriceSnapshotApiResponse {
 export type AccessUniverseManifest = (manifestPath: string) => Promise<boolean>;
 export type BuildUniversePriceSnapshot = (forceRefresh: boolean) => Promise<UniversePriceSnapshotResult>;
 
+export function buildMissingUniverseApiResponse(): UniversePriceSnapshotApiResponse {
+  return {
+    statusCode: 400,
+    body: {
+      success: false,
+      error: 'Universe not built yet. Run Build Universe first.',
+    },
+  };
+}
+
 export async function buildUniverseStatusApiData(options: UniverseStatusApiDataOptions) {
   return buildUniverseStatusSnapshot(options);
 }
@@ -40,13 +50,7 @@ export async function buildUniversePricesApiResponse(options: {
   buildPriceSnapshot: BuildUniversePriceSnapshot;
 }): Promise<UniversePriceSnapshotApiResponse> {
   if (!(await options.canAccessManifest(options.manifestPath))) {
-    return {
-      statusCode: 400,
-      body: {
-        success: false,
-        error: 'Universe not built yet. Run Build Universe first.',
-      },
-    };
+    return buildMissingUniverseApiResponse();
   }
 
   const snapshot = await options.buildPriceSnapshot(options.forceRefresh);

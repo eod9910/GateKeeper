@@ -10,6 +10,7 @@ import {
   createUniversePriceSnapshotService,
 } from '../modules/universe/universePriceSnapshot';
 import {
+  buildMissingUniverseApiResponse,
   buildUniversePricesApiResponse,
   buildUniverseStatusApiData,
 } from '../modules/universe/universeRouteResponses';
@@ -123,10 +124,8 @@ router.post('/update', async (req: Request, res: Response) => {
   if (conflict) return res.status(409).json(conflict);
 
   if (!(await canAccessUniverseFile(routeConfig.manifestPath))) {
-    return res.status(400).json({
-      success: false,
-      error: 'Universe not built yet. Run Build Universe first.'
-    });
+    const response = buildMissingUniverseApiResponse();
+    return res.status(response.statusCode).json(response.body);
   }
 
   const params = parseUniverseUpdateRequestParams(req.body);

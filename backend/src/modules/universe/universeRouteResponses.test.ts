@@ -1,5 +1,18 @@
 import assert from 'assert';
-import { buildUniversePricesApiResponse } from './universeRouteResponses';
+import {
+  buildMissingUniverseApiResponse,
+  buildUniversePricesApiResponse,
+} from './universeRouteResponses';
+
+function testBuildsMissingUniverseResponse() {
+  assert.deepStrictEqual(buildMissingUniverseApiResponse(), {
+    statusCode: 400,
+    body: {
+      success: false,
+      error: 'Universe not built yet. Run Build Universe first.',
+    },
+  });
+}
 
 async function testReturnsMissingUniverseResponse() {
   const response = await buildUniversePricesApiResponse({
@@ -54,6 +67,7 @@ async function testReturnsPriceSnapshotResponse() {
 }
 
 async function main() {
+  testBuildsMissingUniverseResponse();
   await testReturnsMissingUniverseResponse();
   await testReturnsPriceSnapshotResponse();
   console.log('universeRouteResponses tests passed');
