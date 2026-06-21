@@ -47,6 +47,10 @@ import {
   normalizeCompositeId,
   suggestCompositeName,
 } from '../modules/vision/compositeNaming';
+import {
+  loadPatternDefinition,
+  loadPrimitiveDefaultParams,
+} from '../modules/vision/compositePatternStore';
 import type {
   MLScores,
   PatternReview,
@@ -5402,28 +5406,6 @@ function buildLocalCompositeDefinition(
     composition: 'composite',
     indicator_role: `${chosenIntent}_composite`,
   };
-}
-
-function loadPrimitiveDefaultParams(patternId: string): Record<string, any> {
-  const definition = loadPatternDefinition(patternId);
-  const setup = definition?.default_setup_params && typeof definition.default_setup_params === 'object'
-    ? { ...definition.default_setup_params }
-    : {};
-  delete setup.pattern_type;
-  return setup;
-}
-
-function loadPatternDefinition(patternId: string): Record<string, any> | null {
-  const normalized = String(patternId || '').trim();
-  if (!normalized) return null;
-  try {
-    const filePath = path.join(process.cwd(), 'backend', 'data', 'patterns', `${normalized}.json`);
-    if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch (error) {
-    console.warn('[visionService] Failed to load pattern definition for local composite fallback:', patternId, error);
-    return null;
-  }
 }
 
 function generateLocalResponse(message: string, context: TradingContext): string {
