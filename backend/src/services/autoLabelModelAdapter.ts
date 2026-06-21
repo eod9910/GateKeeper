@@ -1,7 +1,14 @@
 import fetch from 'node-fetch';
 import { getConfiguredOpenAIKey } from './aiSettings';
+import {
+  clamp01,
+  extractJsonObject,
+  normalizeLabel,
+  toFinite,
+  type AutoLabelClass,
+} from '../modules/auto-label/modelOutputParsing';
 
-export type AutoLabelClass = 'yes' | 'no' | 'close';
+export type { AutoLabelClass } from '../modules/auto-label/modelOutputParsing';
 
 export interface AutoLabelModelPrediction {
   label: AutoLabelClass;
@@ -46,44 +53,6 @@ const OLLAMA_MODEL = process.env.VISION_MODEL || 'minicpm-v';
 const OPENAI_AUTO_LABEL_MODEL = process.env.OPENAI_AUTO_LABEL_MODEL
   || process.env.OPENAI_CHAT_MODEL
   || 'gpt-4o';
-
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(1, value));
-}
-
-function toFinite(value: any): number | undefined {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function extractJsonObject(raw: string): any | null {
-  const text = String(raw || '').trim();
-  if (!text) return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {}
-
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start >= 0 && end > start) {
-    const slice = text.slice(start, end + 1);
-    try {
-      return JSON.parse(slice);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-function normalizeLabel(raw: any): AutoLabelClass {
-  const label = String(raw || '').trim().toLowerCase();
-  if (label === 'yes' || label === 'no' || label === 'close') return label;
-  if (label === 'skip') return 'close';
-  return 'close';
-}
 
 function summarizeChartStats(chartData: any): CandidateSnapshot['chartStats'] {
   if (!Array.isArray(chartData) || !chartData.length) return undefined;
