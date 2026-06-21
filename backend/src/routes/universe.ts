@@ -1,8 +1,3 @@
-/**
- * Universe Management API Routes
- * Handles build/update of the optionable scanning universe.
- */
-
 import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import * as path from 'path';
@@ -47,7 +42,6 @@ const {
   universePriceSnapshotService,
 } = createUniverseRouteContext(path.join(__dirname, '..', '..'), spawn);
 
-// ─── GET /api/universe/status ─────────────────────────────────────────────────
 router.get('/status', async (req: Request, res: Response) => {
   try {
     res.json(
@@ -81,27 +75,22 @@ router.get('/prices', async (req: Request, res: Response) => {
   }
 });
 
-// ─── POST /api/universe/build ─────────────────────────────────────────────────
 router.post('/build', async (req: Request, res: Response) => {
   const conflict = activeState.getConflict();
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseUniverseBuildRequestParams(req.body);
-
   const canReuseOptionable = await canReuseOptionableCatalog(routeConfig.optionablePath);
-
   const job = activeState.startPlan(createUniverseBuildPlan(params, routeConfig, canReuseOptionable), startUniverseRouteProcess);
 
   res.json(buildUniverseJobStartedApiBody('Build started.', job));
 });
 
-// ─── POST /api/universe/update ────────────────────────────────────────────────
 router.post('/rebuild-optionable', async (req: Request, res: Response) => {
   const conflict = activeState.getConflict();
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseOptionableRebuildRequestParams(req.body);
-
   const job = activeState.startPlan(createOptionableRebuildPlan(params, routeConfig), startUniverseRouteProcess);
 
   res.json(buildUniverseJobStartedApiBody('Optionable subset rebuild started.', job));
@@ -117,34 +106,26 @@ router.post('/update', async (req: Request, res: Response) => {
   }
 
   const params = parseUniverseUpdateRequestParams(req.body);
-
   const job = activeState.startPlan(createUniverseUpdatePlan(params, routeConfig), startUniverseRouteProcess);
 
   res.json(buildUniverseJobStartedApiBody('Update started.', job));
 });
 
-// ─── POST /api/universe/classify-regimes ─────────────────────────────────────
-// Runs build_regime_universes.py to classify all universe stocks by market phase
-// (expansion / distribution / accumulation / markdown) and save the JSON files.
 router.post('/classify-regimes', async (req: Request, res: Response) => {
   const conflict = activeState.getConflict();
   if (conflict) return res.status(409).json(conflict);
 
   const params = parseRegimeClassificationRequestParams(req.body);
-
   const job = activeState.startPlan(createRegimeClassificationPlan(params, routeConfig), startUniverseRouteProcess);
 
   res.json(buildUniverseJobStartedApiBody('Regime classification started.', job));
 });
 
-// ─── GET /api/universe/regime-snapshot ───────────────────────────────────────
-// Returns the latest regime snapshot metadata (counts + generated_at timestamp).
 router.get('/regime-snapshot', async (req: Request, res: Response) => {
   const snapshot = await readUniverseRegimeSnapshot(routeConfig.regimeSnapshotPath);
   res.json(buildUniverseSuccessApiBody(snapshot));
 });
 
-// ─── DELETE /api/universe/cancel ─────────────────────────────────────────────
 router.delete('/cancel', (req: Request, res: Response) => {
   if (!activeState.canCancel()) {
     const response = buildNoActiveUniverseJobApiResponse();

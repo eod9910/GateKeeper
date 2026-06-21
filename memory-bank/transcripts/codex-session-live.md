@@ -5,7 +5,7 @@
 > Treat it as sensitive repo memory; do not publish outside trusted repo channels.
 > This is long-term memory for search and recall, not a startup preload file.
 
-- Last mirrored epoch ms: `1782001967549`
+- Last mirrored epoch ms: `1782002258355`
 - Workspace: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector`
 - Offline mirror: `C:\Users\eod99\OneDrive\Documents\Coding\pattern-detector\offline-codex-transcripts-live`
 
@@ -5722,43 +5722,7 @@ What changed:
 
 [... transcript truncated in compact view ...]
 
-src/routes/universe.ts` into the `universe` module, with focused tests. This keeps us moving from “giant route owns everything” toward “route orchestrates, domain modules own domain logic,” without touching API paths or subprocess behavior.
-
-### Assistant - 2026-06-20T13:47:51.776Z
-
-I’ve got the target in view: `normalizeUniverseSymbols` and `getOptionableCatalogMeta` are pure, route-local catalog logic. Before editing those production symbols, I’m running GitNexus impact on both so we know the blast radius.
-
-### Assistant - 2026-06-20T13:47:58.279Z
-
-One GitNexus ambiguity surfaced: `normalizeUniverseSymbols` exists elsewhere too, and the broad impact call picked the validator-route symbol. I’m disambiguating the universe-route helper before editing, because that is exactly where accidental refactors get sneaky.
-
-### Assistant - 2026-06-20T13:49:48.816Z
-
-Disambiguated: the universe `normalizeUniverseSymbols` is only called by `getOptionableCatalogMeta`; `getOptionableCatalogMeta` is only called by `backend/src/routes/universe.ts`. Risk is LOW and local, so I’m creating the catalog module and tests now.
-
-### Assistant - 2026-06-20T13:51:05.310Z
-
-The catalog extraction and tests are in place. Route ownership stayed put; only pure catalog metadata logic moved into `backend/src/modules/universe`. I’m routing the directive and running the focused checks now.
-
-### Assistant - 2026-06-20T13:51:28.399Z
-
-Focused catalog test passes, the previous universe job-progress test still passes, and backend build passes. I’m doing relay verification plus GitNexus scope detection, then I’ll prepare the Builder report.
-
-### Assistant - 2026-06-20T13:51:33.206Z
-
-The route still exposes the same endpoint list, and the catalog helper call sites are exactly the two status-path reads: persisted optionable catalog and in-progress optionable catalog. I’m running GitNexus final detection now.
-
-### Assistant - 2026-06-20T13:51:38.984Z
-
-Final GitNexus detection remains LOW risk with no affected execution flows. The changed-symbol list is noisy because all migration slices are still uncommitted together, but the new catalog slice itself is tightly scoped.
-
-### Assistant - 2026-06-20T13:52:26.248Z
-
-Builder and Editor artifacts are written. I’m routing them through the relay and then Validator will do the final independent verification pass.
-
-### Assistant - 2026-06-20T13:52:35.673Z
-
-The relay accepted all three messages. Now Validator is re-running the actual commands and file checks rather than accepting the reports on faith.
+-running the actual commands and file checks rather than accepting the reports on faith.
 
 ### Assistant - 2026-06-20T13:52:57.046Z
 
@@ -8153,4 +8117,64 @@ The plan-start-options slice is green. I’m checking relay, route size, and dif
 ### Assistant - 2026-06-21T00:32:08.155Z
 
 Great slice: the route dropped to 157 lines. I’m removing the recurring GitNexus doc side effect, then I’ll run detect and commit.
+
+### Assistant - 2026-06-21T00:32:53.966Z
+
+Doc side effect removed. Running detect for the plan-start-options slice.
+
+### Assistant - 2026-06-21T00:32:57.217Z
+
+Only intended code plus live memory is dirty. Running GitNexus detect.
+
+### Assistant - 2026-06-21T00:33:03.053Z
+
+GitNexus reports low risk and no affected processes. I’m committing the plan-start-options slice.
+
+### Assistant - 2026-06-21T00:33:15.871Z
+
+Staged. Scope check, then commit.
+
+### Assistant - 2026-06-21T00:33:19.162Z
+
+Staged set is correct. Committing.
+
+### Assistant - 2026-06-21T00:33:28.986Z
+
+Checkpoint made: `431afa769 Move universe start options into job plans`. I’m refreshing GitNexus and looking for the next safe slice.
+
+### Assistant - 2026-06-21T00:34:31.586Z
+
+Post-commit refresh is complete; only live memory files are dirty. I’m inspecting the route again to see whether there’s another safe, meaningful slice left.
+
+### Assistant - 2026-06-21T00:34:44.067Z
+
+At this point the remaining route clutter is mostly stale decorative comments, including mojibake divider lines. I’m going to remove those comments; it’s low-risk cleanup but it makes the route materially easier to scan.
+
+### Assistant - 2026-06-21T00:34:48.939Z
+
+Impact is low: only the server imports the route, with no affected processes. I’m removing the stale route comments now.
+
+### Assistant - 2026-06-21T00:35:17.359Z
+
+The comment cleanup patch missed because those divider characters are encoded oddly on disk. I’m going to inspect line numbers and remove them with safer context.
+
+### Assistant - 2026-06-21T00:35:23.433Z
+
+I’ve got the exact lines now. Removing only the stale comments.
+
+### Assistant - 2026-06-21T00:35:59.374Z
+
+The encoding in those divider lines is resisting surgical patching. I’m going to replace the route file with the same code minus comments, which avoids brittle matching on corrupted characters.
+
+### Assistant - 2026-06-21T00:36:36.939Z
+
+The route file is now clean ASCII and the stale comments are gone. I’m running build and a focused route-adjacent test set to catch any transcription mistakes from the file replacement.
+
+### Assistant - 2026-06-21T00:37:00.478Z
+
+The clean route replacement passed focused tests and compile. I’m running relay verify, checking route size, and then GitNexus detect.
+
+### Assistant - 2026-06-21T00:37:05.231Z
+
+The route is now 138 lines. The GitNexus doc side effect is still present, so I’m stripping it before detect/staging.
 
