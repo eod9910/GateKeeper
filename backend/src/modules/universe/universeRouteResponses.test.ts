@@ -3,6 +3,7 @@ import {
   buildMissingUniverseApiResponse,
   buildUniverseJobStartedApiBody,
   buildUniversePricesApiResponse,
+  buildUniverseStatusApiBody,
   buildUniverseSuccessApiBody,
 } from './universeRouteResponses';
 
@@ -90,12 +91,34 @@ async function testReturnsPriceSnapshotResponse() {
   assert.ok(response.body.freshness);
 }
 
+async function testBuildsStatusBody() {
+  const body = await buildUniverseStatusApiBody({
+    manifestPath: 'missing-manifest.json',
+    optionablePath: 'missing-optionable.json',
+    optionableProgressPath: 'missing-progress.json',
+    priceSnapshotCachePath: 'missing-prices.json',
+    manifestTtlMs: 1000,
+    priceSnapshotTtlMs: 1000,
+    activeJob: null,
+    readJson: async () => {
+      throw new Error('missing');
+    },
+    readPriceEnvelope: async () => null,
+    now: new Date('2026-06-20T00:00:00.000Z'),
+  } as any);
+
+  assert.strictEqual(body.success, true);
+  assert.strictEqual((body.data as any).built, false);
+  assert.strictEqual((body.data as any).active_job, null);
+}
+
 async function main() {
   testBuildsSuccessBody();
   testBuildsJobStartedBody();
   testBuildsMissingUniverseResponse();
   await testReturnsMissingUniverseResponse();
   await testReturnsPriceSnapshotResponse();
+  await testBuildsStatusBody();
   console.log('universeRouteResponses tests passed');
 }
 

@@ -13,7 +13,7 @@ import {
   buildMissingUniverseApiResponse,
   buildUniverseJobStartedApiBody,
   buildUniversePricesApiResponse,
-  buildUniverseStatusApiData,
+  buildUniverseStatusApiBody,
   buildUniverseSuccessApiBody,
 } from '../modules/universe/universeRouteResponses';
 import {
@@ -59,9 +59,8 @@ const universePriceSnapshotService = createUniversePriceSnapshotService({
 // ─── GET /api/universe/status ─────────────────────────────────────────────────
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    res.json({
-      success: true,
-      data: await buildUniverseStatusApiData({
+    res.json(
+      await buildUniverseStatusApiBody({
         manifestPath: routeConfig.manifestPath,
         optionablePath: routeConfig.optionablePath,
         optionableProgressPath: routeConfig.optionableProgressPath,
@@ -69,8 +68,8 @@ router.get('/status', async (req: Request, res: Response) => {
         manifestTtlMs: routeConfig.manifestTtlMs,
         priceSnapshotTtlMs: routeConfig.priceSnapshotTtlMs,
         activeJob: activeState.getJob(),
-      })
-    });
+      }),
+    );
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

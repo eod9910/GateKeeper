@@ -53,6 +53,10 @@ export async function buildUniverseStatusApiData(options: UniverseStatusApiDataO
   return buildUniverseStatusSnapshot(options);
 }
 
+export async function buildUniverseStatusApiBody(options: UniverseStatusApiDataOptions) {
+  return buildUniverseSuccessApiBody(await buildUniverseStatusApiData(options));
+}
+
 export async function buildUniversePricesApiResponse(options: {
   manifestPath: string;
   priceSnapshotTtlMs: number;
