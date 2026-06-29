@@ -1,80 +1,21 @@
-# Agent Relay Ledger: all routes
-
-Generated: 2026-06-29T15:34:12Z
-
-<details markdown="1">
-<summary>1. Validator -> Editor: GateKeeper Forensic Repo Audit | directive | 2026-06-29T15:34:11Z | route-20260629-153411-validator-to-editor-bb24ab1d</summary>
-
-## 1. Validator -> Editor: GateKeeper Forensic Repo Audit
-
-- Routing ID: `route-20260629-153411-validator-to-editor-bb24ab1d`
-- Type: `directive`
-- Phase: `repo-forensic-audit-2026-06-29`
-- Timestamp: `2026-06-29T15:34:11Z`
-- Original: `agent-relay/messages/validator-directive-forensic-audit-2026-06-29.md`
-- Body: `agent-relay/messages/route-20260629-153411-validator-to-editor-bb24ab1d.md`
-- SHA-256: `bb24ab1de80c8201d5085719e5b946e75917543104be8123e0ce583d1a40536f`
-
-### Routed Body
-
-#### Validator Directive: GateKeeper Forensic Repo Audit
-
-##### Review Scope
-
-Perform an Editor-style forensic audit of GateKeeper after the relay/planning cleanup and GitNexus indexing pass.
-
-##### Editor Checks
-
-- Inspect repo shape, root ownership, tracked folder distribution, ignored/generated clutter, stale references, and large/data-heavy areas.
-- Use GitNexus evidence now that `GateKeeper` is indexed.
-- Identify what is healthy, what is risky, and what should be cleaned next.
-- Do not delete files during this audit.
-
-##### Blockers
-
-Mark `EDITOR BLOCKER` for unapproved root clutter, duplicate sources of truth, misplaced planning/transcript/generated artifacts, data-loss risk, or cleanup actions that should not proceed without Validator approval.
-
-##### Required Output
-
-Write a durable Editor review report under `agent-relay/planning-docs/reference/` and return clear cleanup recommendations to Validator.
-
-</details>
-
----
-
-<details markdown="1">
-<summary>2. Editor -> Validator: GateKeeper Forensic Repo Audit | review | 2026-06-29T15:34:12Z | route-20260629-153412-editor-to-validator-5e8f7a92</summary>
-
-## 2. Editor -> Validator: GateKeeper Forensic Repo Audit
-
-- Routing ID: `route-20260629-153412-editor-to-validator-5e8f7a92`
-- Type: `review`
-- Phase: `repo-forensic-audit-2026-06-29`
-- Timestamp: `2026-06-29T15:34:12Z`
-- Original: `agent-relay/planning-docs/reference/gatekeeper-forensic-audit-2026-06-29.md`
-- Body: `agent-relay/messages/route-20260629-153412-editor-to-validator-5e8f7a92.md`
-- SHA-256: `5e8f7a92a363c508adea7e6f234b9bb9bdb02b79c750e97913726c66e42bb864`
-
-### Routed Body
-
-#### Editor Review: GateKeeper Forensic Repo Audit
+# Editor Review: GateKeeper Forensic Repo Audit
 
 Date: 2026-06-29
 Repo: `GateKeeper`
 Branch: `migration/universe-domain-slices`
 Indexed by GitNexus: yes, as `GateKeeper`
 
-##### Directive Reviewed
+## Directive Reviewed
 
 Validator directive, phase `repo-forensic-audit-2026-06-29`: perform an Editor-style forensic audit of GateKeeper's repo shape, file/folder ownership, generated/local clutter, stale references, and cleanup candidates before additional cleanup changes.
 
-##### Result
+## Result
 
 Findings, no blocker for continuing cleanup. Several cleanup candidates should be handled by explicit Validator directives before deletion or rewrite.
 
-##### Findings
+## Findings
 
-###### Finding: Stale legacy planning and memory paths remain in active docs/source
+### Finding: Stale legacy planning and memory paths remain in active docs/source
 
 Problem: Several current files still reference removed or migrated surfaces such as `.planning/...` and `memory-bank/...`. Confirmed active examples include `README.md`, `workspace/Financial Analyst Workspace/DATA_CONTRACT.md`, `workspace/Hypothesis Author Workspace/skills/create-strategy/SKILL.md`, `workspace/Plugin Engineer Workspace/skills/create-primitive/SKILL.md`, `backend/research_framework/tools/migrate_legacy_research.py`, `backend/scripts/build_market_intelligence_db.py`, `backend/src/routes/marketIntelligence.ts`, `backend/src/services/marketIntelligenceScheduler.ts`, and `backend/src/types/marketIntelligence.ts`.
 
@@ -82,7 +23,7 @@ Why it matters: The repo now uses `agent-relay/planning-docs/` as the planning s
 
 Correction: Run a focused stale-reference cleanup pass. Update active docs/source references to `agent-relay/planning-docs/...`; preserve historical references only inside `agent-relay/planning-docs/finished/archive/` or clearly label them historical.
 
-###### Finding: Ignored local clutter still dominates the root worktree
+### Finding: Ignored local clutter still dominates the root worktree
 
 Problem: Root still contains ignored local/runtime folders: `.tmp`, `logs`, `.gitnexus`, and multiple `offline-cursor-transcripts-*` folders including `offline-cursor-transcripts-live`. The `.tmp/pretext` folder contains a nested `.git` checkout and many copied project files.
 
@@ -90,7 +31,7 @@ Why it matters: These folders are ignored, but they slow broad scans and create 
 
 Correction: Treat these as local cleanup candidates. Remove stale `offline-cursor-transcripts-*`, root `logs`, and `.tmp/pretext` after confirming no active watcher or process uses them. Keep `.gitnexus` because it is the active local index, but keep it ignored.
 
-###### Finding: Root has orphan transcript artifacts
+### Finding: Root has orphan transcript artifacts
 
 Problem: `youtube_VTlrVSJfvH4_transcript.txt` and `youtube_VTlrVSJfvH4_transcript_plain.txt` live at repo root.
 
@@ -98,7 +39,7 @@ Why it matters: Root files are exceptional under `agent-relay/protocols/REPO_ORG
 
 Correction: Move them to an owned reference location if still valuable, such as `agent-relay/planning-docs/reference/media-transcripts/`, or delete them if they were scratch artifacts.
 
-###### Finding: `README.md` still describes the old planning tree
+### Finding: `README.md` still describes the old planning tree
 
 Problem: `README.md` still links to `.planning/plans/REFERENCE/...` and lists `.planning/` in the project structure.
 
@@ -106,7 +47,7 @@ Why it matters: README is a human entrypoint. It currently contradicts the migra
 
 Correction: Update README links and structure references to `agent-relay/planning-docs/reference/...`, `ongoing/...`, and `finished/...`.
 
-###### Finding: `.vscode/settings.json` is tracked while other local editor folders were intentionally removed
+### Finding: `.vscode/settings.json` is tracked while other local editor folders were intentionally removed
 
 Problem: `.vscode/settings.json` remains tracked as the only tracked editor-local path.
 
@@ -114,7 +55,7 @@ Why it matters: It may be legitimate project configuration, but after removing r
 
 Correction: Review `.vscode/settings.json`; keep only if it encodes project-wide settings. Otherwise remove it and add `.vscode/` to `.gitignore` with any approved exceptions.
 
-###### Finding: Generated/runtime data boundaries need a second pass
+### Finding: Generated/runtime data boundaries need a second pass
 
 Problem: `backend/data` includes committed seed/reference data and many ignored runtime-data patterns. Tracked large examples include `backend/data/company_tickers.json`, market intelligence registries, strategy archives, and pattern registries. The boundary between canonical source data and generated runtime data is not obvious from folder names alone.
 
@@ -122,7 +63,7 @@ Why it matters: Data folders are high-risk for accidental deletion or accidental
 
 Correction: Create a `backend/data/README.md` or reference doc mapping subfolders as canonical tracked source, generated cache, runtime output, archive, and local-only. Then clean only folders covered by that map.
 
-###### Finding: Frontend is large static public surface without a package boundary
+### Finding: Frontend is large static public surface without a package boundary
 
 Problem: There is no root or frontend `package.json`; frontend appears to be static files under `frontend/public`. Several files are large (`market-intelligence.js`, `sweep.js`, `training-module.js`, `index.js`, `validator.js`, `copilot-core.js`).
 
@@ -130,7 +71,7 @@ Why it matters: Static frontend can be valid, but large page scripts increase ma
 
 Correction: Keep current frontend as static/public for now. For later cleanup, audit page ownership and split only within existing `frontend/public` conventions unless a separate Validator directive approves a frontend architecture change.
 
-###### Finding: GitNexus security/taint layer is not enabled
+### Finding: GitNexus security/taint layer is not enabled
 
 Problem: GitNexus MCP reports no taint layer: `no taint layer - run gitnexus analyze --pdg to record taint findings for this repo`.
 
@@ -138,7 +79,7 @@ Why it matters: The repo has broker, execution, file, subprocess, settings, and 
 
 Correction: For security cleanup or execution/broker changes, run a separate `gitnexus analyze --pdg` pass if available and acceptable for runtime cost.
 
-##### Good / Healthy Surfaces
+## Good / Healthy Surfaces
 
 - `agent-relay/` now owns governance, roles, protocols, planning docs, router, tools, and transcripts.
 - `agent-relay/planning-docs/` has consolidated planning material with `ongoing`, `finished`, `reference`, `research-studies`, and `prompts`.
@@ -147,7 +88,7 @@ Correction: For security cleanup or execution/broker changes, run a separate `gi
 - GitNexus is now indexed for `GateKeeper`: 908 files, 20,786 nodes, 46,309 edges, 300 processes, 0 embeddings.
 - Git worktree was clean before this audit report started.
 
-##### Verification Reviewed
+## Verification Reviewed
 
 - `git status --short --branch`
 - `git ls-files` top-level counts:
@@ -170,24 +111,24 @@ Correction: For security cleanup or execution/broker changes, run a separate `gi
 - Targeted stale-reference scan for `.planning`, `memory-bank`, `_skills`, `gsd`, offline transcript names, and legacy root tool paths.
 - Local root inventory and tracked largest-file inventory.
 
-##### Planning Docs Reviewed
+## Planning Docs Reviewed
 
 No PRD/checklist work package governed this audit. The audit output is a reference report at `agent-relay/planning-docs/reference/gatekeeper-forensic-audit-2026-06-29.md`.
 
-##### Organization Review
+## Organization Review
 
 This audit report belongs under `agent-relay/planning-docs/reference/` because it is durable repo-organization evidence for future cleanup directives. It is not source, runtime data, generated transcript output, or root-level documentation.
 
 The relay route body belongs under `agent-relay/messages/` as routed-message evidence consumed by `agent-relay/tools/agent_router.py`.
 
-##### Residual Risk
+## Residual Risk
 
 - This was a repo-wide forensic inventory, not a line-by-line correctness review of every file.
 - Ignored/runtime directories caused timeout risk during broad scans; deeper cleanup should inspect each candidate folder with explicit path guards.
 - GitNexus route output is large and may truncate in MCP display, so counts and representative examples were used rather than treating the printed route list as exhaustive human-reviewed evidence.
 - Some planning-doc references to `memory-bank` are historical provenance; they should be cleaned selectively, not blindly rewritten.
 
-##### Recommendation
+## Recommendation
 
 Validator should route cleanup in this order:
 
@@ -198,7 +139,3 @@ Validator should route cleanup in this order:
 5. Map `backend/data` ownership before deleting any data folders.
 6. Run a later frontend static-surface audit for oversized `frontend/public` scripts.
 7. Consider a GitNexus PDG/taint indexing pass before security-sensitive execution/broker cleanup.
-
-</details>
-
----
