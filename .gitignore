@@ -10,8 +10,10 @@ backend/.env
 **/venv/
 **/dist/
 **/build/
+.codex/
 .cursor/
 .claude/
+.agents/
 logs/
 offline-cursor-trace.txt
 offline-cursor-transcripts-*/
