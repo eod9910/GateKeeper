@@ -11,8 +11,8 @@ to design or replace that system. A new agent instance must be able to read this
 file and know where to route common requests.
 
 For major coding work, governance changes, or core trading/backtest/research
-systems, also follow `TRI_AGENT_CODING_CONTRACT.md`. Role handoffs that need a
-durable record should use `ROUTER_ONLY_PROTOCOL.md` and `tools/agent_router.py`.
+systems, also follow `agent-relay/TRI_AGENT_CODING_CONTRACT.md`. Role handoffs
+that need a durable record should use `agent-relay/tools/agent_router.py`.
 
 ## Non-Negotiable Rules
 

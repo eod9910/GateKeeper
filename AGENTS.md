@@ -57,9 +57,6 @@ Session memory is split across files, not one merged file.
 Each agent mirror writes only its own archive. Every agent reads both live
 windows at startup so Codex sees Cursor/Claude work and vice versa.
 
-Legacy `memory-bank/` files are historical/read-on-demand unless a current
-contract explicitly routes you there.
-
 ## Role Bootloader
 
 `AGENTS.md` instantiates the role workflow by routing each agent to the role

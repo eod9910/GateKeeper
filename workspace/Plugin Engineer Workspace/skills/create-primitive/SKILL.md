@@ -339,7 +339,6 @@ If imports fail, the plugin won't load. Fix before committing.
 | `docs/pattern-detector-framework.md` | Framework rationale + design rules |
 | `docs/parameter-manifest-architecture.md` | How `tunable_params` becomes a `parameter_manifest` |
 | `.planning/plans/ACTIVE/primitive-normalization-contract-v0.md` | Canonical primitive contract (v0) |
-| `memory-bank/PRIMITIVE_AUDIT_REPORT.md` | Audit findings on existing primitives |
 
 ## Related Skills
 

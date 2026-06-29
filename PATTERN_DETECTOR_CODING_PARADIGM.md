@@ -49,7 +49,6 @@ pattern-detector/
     market-data/
   data/
   tools/
-  memory-bank/
   agent-relay/
 ```
 
