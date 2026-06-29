@@ -1,4 +1,4 @@
-# Pattern Detector — V1 Roadmap & PRD
+# Pattern Detector â€” V1 Roadmap & PRD
 
 ## Current State (2026-02-22)
 
@@ -17,7 +17,7 @@
 **Validated Strategy:**
 - MACD divergence pullback + regime expansion filter
 - 2 ATR stop, 7R take profit, max 3 concurrent positions
-- 0.40R expectancy, 29.9% max DD, 1.73 PF — ELITE tier
+- 0.40R expectancy, 29.9% max DD, 1.73 PF â€” ELITE tier
 - RDP epsilon sweep in progress (signal quality tuning)
 
 ---
@@ -25,26 +25,26 @@
 ## Priority Order
 
 ### Tier 0: Finish Current Work
-- [ ] **RDP epsilon sweep** — resolve optimal signal granularity
-- [ ] **Fitness function fix** — DD penalty deployed (done in code, needs server restart verification)
-- [ ] **Verbose output suppression** — backtest mode in workers deployed (same)
+- [ ] **RDP epsilon sweep** â€” resolve optimal signal granularity
+- [ ] **Fitness function fix** â€” DD penalty deployed (done in code, needs server restart verification)
+- [ ] **Verbose output suppression** â€” backtest mode in workers deployed (same)
 
 ### Tier 1: V1 Ship (Make Money)
 
 #### 1.1 Stabilize & Harden
 - [ ] Fix fragile areas (identify via usage)
-- [ ] Strategy visibility unification — all pages see same strategy list
+- [ ] Strategy visibility unification â€” all pages see same strategy list
 - [ ] Editable risk_config UI on Strategy page
 - [ ] Clean up sweep-promoted strategy naming/versioning
 - [ ] Error handling & recovery for long-running processes
 - [ ] Git init + .gitignore (protect secrets, enable version control)
 
 #### 1.2 Execution Bridge (Autonomous Trading)
-- [ ] Broker API connection (Alpaca — free API, paper + live)
-- [ ] Signal scanner service (runs on schedule — daily/weekly scan of universe)
+- [ ] Broker API connection (Alpaca â€” free API, paper + live)
+- [ ] Signal scanner service (runs on schedule â€” daily/weekly scan of universe)
 - [ ] Order executor (places entries, stops, take profits when signals fire)
 - [ ] Position manager (enforces max concurrent = 3, tracks open positions across symbols)
-- [ ] Kill switch (halt all activity — UI button + account-level drawdown trigger)
+- [ ] Kill switch (halt all activity â€” UI button + account-level drawdown trigger)
 - [ ] Paper trading mode (1 month minimum before live)
 - [ ] Trade logging (every action recorded with timestamp, strategy ID, signal data)
 - [ ] Account split: discretionary (20%) vs systematic (80%)
@@ -61,7 +61,7 @@
   - Win rate drops below 30% over 50 trades
   - Live max DD exceeds 1.5x backtest max DD
   - 3+ correlated stops in same bar
-- [ ] Auto-disable strategy → Quarantine (not Tombstone)
+- [ ] Auto-disable strategy â†’ Quarantine (not Tombstone)
 - [ ] No manual override without explicit review
 
 ---
@@ -77,7 +77,7 @@
 
 #### 2.2 Adaptive Optimizer (Phase 1)
 - [ ] Early termination when fitness degrades across sweep variants
-- [ ] Gradient-based cutoff (2 consecutive steps down → stop)
+- [ ] Gradient-based cutoff (2 consecutive steps down â†’ stop)
 - [ ] Step up/down from current value with configurable step size
 - [ ] Auto-declare winner and promote
 - [ ] Plan: `.planning/plans/adaptive-optimizer-plan.md`
@@ -85,7 +85,7 @@
 #### 2.3 Adaptive Optimizer (Phase 2)
 - [ ] Multi-parameter optimization sessions
 - [ ] Sequential sweep orchestration (winner of sweep N feeds sweep N+1)
-- [ ] LLM-powered Optimizer Analyst (cheap model — o3-mini)
+- [ ] LLM-powered Optimizer Analyst (cheap model â€” o3-mini)
 - [ ] Interaction warnings + suggested confirmation grids
 
 #### 2.4 Adaptive Optimizer (Phase 3)
@@ -98,7 +98,7 @@
 ### Tier 3: V3 Scale (Make Money Systematically)
 
 #### 3.1 Evolutionary Strategy Lab (Phase 1)
-- [ ] Population Manager — seed, mutate, evaluate, select, breed, archive
+- [ ] Population Manager â€” seed, mutate, evaluate, select, breed, archive
 - [ ] Mutation-only evolution within RDP divergence family
 - [ ] 50 genomes per generation, top 5 parents, 10 children each
 - [ ] Tier 1 evaluation for all, Tier 2 for daily champion

@@ -1,4 +1,4 @@
-﻿# Execution Bridge Implementation Report
+# Execution Bridge Implementation Report
 
 Generated: 2026-02-22
 

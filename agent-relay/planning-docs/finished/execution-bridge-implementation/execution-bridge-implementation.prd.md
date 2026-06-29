@@ -1,4 +1,4 @@
-﻿# Execution Bridge - Step-by-Step Implementation Plan
+# Execution Bridge - Step-by-Step Implementation Plan
 
 > **Purpose**: This document is a Codex-ready implementation spec. Each step is self-contained with exact file paths, function signatures, data structures, and integration points. Execute steps in order - each builds on the previous.
 
@@ -1360,4 +1360,3 @@ After all steps are complete, verify:
 6. **Error handling**: Every async function should have try/catch. Log errors via `executionLogger.log()`.
 7. **No secrets in code**: API keys come from `.env` only.
 8. **The `executionEngine.ts` already exists** - it handles trade-level rule enforcement (breakeven, ladder, green-to-red). The execution bridge is the *outer loop* that orchestrates scanning, ordering, and position management. The execution engine is the *inner loop* that manages individual trade rules. They are complementary but separate concerns. Do not modify `executionEngine.ts`.
-
