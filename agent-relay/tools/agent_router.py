@@ -199,7 +199,7 @@ def read_body(row: Dict[str, object]) -> str:
 
 
 def render_routed_body(body: str) -> str:
-    """Nest routed message headings under the transcript envelope."""
+    """Nest routed message headings under the route heading."""
     rendered: List[str] = []
     in_fenced_block = False
     for line in body.rstrip().splitlines():
@@ -212,7 +212,7 @@ def render_routed_body(body: str) -> str:
             leading_space_count = len(line) - len(stripped)
             hash_count = len(stripped) - len(stripped.lstrip("#"))
             if hash_count > 0 and len(stripped) > hash_count and stripped[hash_count] == " ":
-                nested_hashes = "#" * min(hash_count + 3, 6)
+                nested_hashes = "#" * min(hash_count + 2, 6)
                 rendered.append(f"{line[:leading_space_count]}{nested_hashes}{stripped[hash_count:]}")
                 continue
         rendered.append(line)
@@ -220,7 +220,7 @@ def render_routed_body(body: str) -> str:
 
 
 def render_transcript(rows: List[Dict[str, object]], title: str) -> str:
-    lines = [f"# Agent Relay Ledger: {title}", "", f"Generated: {utc_now()}", ""]
+    lines = [f"Agent Relay Ledger: {title}", "", f"Generated: {utc_now()}", ""]
     if not rows:
         lines.append("_No routed messages._")
         lines.append("")
@@ -229,10 +229,7 @@ def render_transcript(rows: List[Dict[str, object]], title: str) -> str:
         label = f"{index}. {row['source']} -> {row['target']}: {row['title']}"
         lines.extend(
             [
-                '<details markdown="1">',
-                f"<summary>{label} | {row['message_type']} | {row['timestamp']} | {row['routing_id']}</summary>",
-                "",
-                f"## {label}",
+                f"# {label}",
                 "",
                 f"- Routing ID: `{row['routing_id']}`",
                 f"- Type: `{row['message_type']}`",
@@ -242,11 +239,9 @@ def render_transcript(rows: List[Dict[str, object]], title: str) -> str:
                 f"- Body: `{row['body_path']}`",
                 f"- SHA-256: `{row['sha256']}`",
                 "",
-                "### Routed Body",
+                "## Routed Body",
                 "",
                 render_routed_body(read_body(row)),
-                "",
-                "</details>",
                 "",
                 "---",
                 "",

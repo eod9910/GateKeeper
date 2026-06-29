@@ -48,13 +48,14 @@ Validator rulings may be stored under `agent-relay/roles/Validator/rulings/`. Th
 
 ## Required Transcript Envelope
 
-Every transcript entry generated into `agent-relay/transcripts/*.md` must use this collapsible Markdown envelope:
+Every transcript entry generated into `agent-relay/transcripts/*.md` must use
+plain Markdown headings so editor folding shortcuts can collapse each route in
+the raw `.md` file. Route entries use level-1 headings; the transcript title is
+plain text so fold-level-1 shortcuts collapse the routed messages, not the whole
+ledger.
 
 ```text
-<details markdown="1">
-<summary>N. SOURCE -> TARGET: <short title> | <message type> | <timestamp> | <routing id></summary>
-
-## N. SOURCE -> TARGET: <short title>
+# N. SOURCE -> TARGET: <short title>
 
 - Routing ID: `<routing id>`
 - Type: `<message type>`
@@ -64,16 +65,15 @@ Every transcript entry generated into `agent-relay/transcripts/*.md` must use th
 - Body: `<routed body path>`
 - SHA-256: `<sha256>`
 
-### Routed Body
+## Routed Body
 
 <message body>
-
-</details>
 ```
 
-`agent-relay-ledger.md` and calendar archive transcripts should contain a
-sequence of these envelopes only, plus the transcript title and generated
-timestamp.
+`agent-relay-ledger.md` and calendar archive transcripts should contain a plain
+text transcript title, generated timestamp, and a sequence of these heading
+envelopes only. Do not wrap entries in HTML `<details>` / `<summary>` blocks;
+those do not fold reliably in the raw editor.
 
 Phase-specific relay transcripts are work-package evidence. They belong under
 `agent-relay/planning-docs/ongoing/<work-package-slug>/` while active, and under
@@ -116,12 +116,13 @@ agent-relay/transcripts/codex-live/archive/user-to-validator/monthly/YYYY/YYYY-M
 ```
 
 When rendering the routed body into a transcript, preserve the body text but
-demote Markdown headings so they remain inside the envelope hierarchy:
+demote Markdown headings so they remain inside the route heading hierarchy:
 
 ```text
-# Message body H1  -> #### Message body H1
-## Message body H2 -> ##### Message body H2
-### Message body H3 and deeper -> ###### Message body H3 and deeper
+# Message body H1  -> ### Message body H1
+## Message body H2 -> #### Message body H2
+### Message body H3 -> ##### Message body H3
+#### Message body H4 and deeper -> ###### Message body H4 and deeper
 ```
 
 This keeps sections like `Review Scope`, `Editor Checks`, `Result`, `Findings`,
