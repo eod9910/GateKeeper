@@ -9,6 +9,14 @@ Indexed by GitNexus: yes, as `GateKeeper`
 
 Validator directive, phase `repo-forensic-audit-2026-06-29`: perform an Editor-style forensic audit of GateKeeper's repo shape, file/folder ownership, generated/local clutter, stale references, and cleanup candidates before additional cleanup changes.
 
+## Protocols Applied
+
+- `agent-relay/protocols/VALIDATOR_DIRECTIVE_PROTOCOL.md`: used to shape the Validator-to-Editor review directive with review scope, checks, blockers, and required output.
+- `agent-relay/protocols/EDITOR_REVIEW_PROTOCOL.md`: used to shape this report with directive reviewed, result, findings, verification, planning-doc review, organization review, residual risk, and recommendation.
+- `agent-relay/protocols/REPO_ORGANIZATION_PROTOCOL.md`: used as the placement standard for root clutter, generated/local state, planning evidence, transcript ownership, and new-folder cleanup recommendations.
+- `agent-relay/protocols/PLANNING_DOC_PROTOCOL.md`: used to place this durable audit under `agent-relay/planning-docs/reference/` instead of live transcripts, root, or an active PRD/checklist package.
+- `agent-relay/protocols/ROUTED_MESSAGE_PROTOCOL.md`: used for routing through `agent-relay/tools/agent_router.py`, preserving routed copies in `agent-relay/messages/`, and regenerating `agent-relay/transcripts/agent-relay-ledger.md`.
+
 ## Result
 
 Findings, no blocker for continuing cleanup. Several cleanup candidates should be handled by explicit Validator directives before deletion or rewrite.
