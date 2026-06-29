@@ -106,8 +106,6 @@ documents it must obey:
 ## Workspace AI / Agent Creation
 
 - Before creating or changing a workspace AI, read `workspace/WORKSPACE_ARCHITECTURE.md`.
-- For the canonical agent-building workflow, read `_skills/build-agent/SKILL.md`,
-  then `_skills/build-agent/BUILD_AGENT_WORKFLOW.md`.
 - Keep detailed workspace shape, runtime binding, skill activation, and naming
   rules in `workspace/WORKSPACE_ARCHITECTURE.md`; `AGENTS.md` only routes agents
   there.
