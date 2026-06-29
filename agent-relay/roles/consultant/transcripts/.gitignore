@@ -1,0 +1,14 @@
+# Mirror runtime artifacts (noisy / regenerable). Keep decoded Markdown tracked
+# only if the project accepts storing conversation memory in git.
+live/mirror.out.log
+live/mirror.err.log
+live/mirror.pid
+live/cursor_mirror.out.log
+live/cursor_mirror.err.log
+live/cursor_mirror.pid
+live/raw/
+live/decoded/session-cache.json
+
+# Keep when desired:
+# live/decoded/*.md
+# live/mirror-metadata.json

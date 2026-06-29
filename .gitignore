@@ -16,6 +16,8 @@ logs/
 offline-cursor-trace.txt
 offline-cursor-transcripts-*/
 offline-codex-transcripts-*/
+agent-relay/transcripts/codex-live/
+agent-relay/transcripts/cursor-live/
 backend/*.log
 backend/data/candidates/
 backend/data/candidates_archive/
