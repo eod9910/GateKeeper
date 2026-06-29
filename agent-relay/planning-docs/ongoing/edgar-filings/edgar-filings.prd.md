@@ -1,4 +1,4 @@
-# SEC EDGAR Filings Integration â€” PRD
+# SEC EDGAR Filings Integration — PRD
 
 Checklist: edgar-filings-checklist.md
 
@@ -13,11 +13,11 @@ Checklist: edgar-filings-checklist.md
 
 > **Add institutional money-movement detection to the existing sensor array so that insider buying clusters, insider selling patterns, and activist stake disclosures are captured automatically and available for cross-referencing with social buzz, DCF valuations, and technical signals.**
 
-SEC filings represent the highest-fidelity signal source available â€” these are legally mandated disclosures of real money movement by people with material non-public information access. Unlike social sentiment (noisy, easily gamed), EDGAR data is:
-- **Legally required** â€” filers face SEC enforcement for late or inaccurate filings
-- **Structured XML/JSON** â€” machine-parseable, no NLP needed
-- **Free and unlimited** â€” 10 req/sec, no API key, no daily cap
-- **Near-real-time** â€” Form 4 filings appear within seconds of submission
+SEC filings represent the highest-fidelity signal source available — these are legally mandated disclosures of real money movement by people with material non-public information access. Unlike social sentiment (noisy, easily gamed), EDGAR data is:
+- **Legally required** — filers face SEC enforcement for late or inaccurate filings
+- **Structured XML/JSON** — machine-parseable, no NLP needed
+- **Free and unlimited** — 10 req/sec, no API key, no daily cap
+- **Near-real-time** — Form 4 filings appear within seconds of submission
 
 ---
 
@@ -25,17 +25,17 @@ SEC filings represent the highest-fidelity signal source available â€” thes
 
 | # | Topic | Commitment |
 |---|-------|------------|
-| D1 | Filing types â€” Phase 1 | **Form 4** (insider transactions) and **SC 13D / SC 13D/A** (activist stakes â‰¥5%). These are near-real-time filings with the highest signal value. |
-| D2 | Filing types â€” Phase 2 (future) | **13F** (quarterly institutional holdings). Deferred because it's a quarterly batch job with 45-day delay â€” lower urgency. |
+| D1 | Filing types — Phase 1 | **Form 4** (insider transactions) and **SC 13D / SC 13D/A** (activist stakes ≥5%). These are near-real-time filings with the highest signal value. |
+| D2 | Filing types — Phase 2 (future) | **13F** (quarterly institutional holdings). Deferred because it's a quarterly batch job with 45-day delay — lower urgency. |
 | D3 | Data source | SEC's free EDGAR APIs: `efts.sec.gov` (full-text search / filing index) for polling recent filings, `data.sec.gov/submissions/` for company filing history, `sec.gov/files/company_tickers.json` for ticker-to-CIK mapping. No paid third-party API. |
 | D4 | Storage | New `edgar-filings.sqlite` database in `backend/data/`. Separate from social-intelligence.sqlite because the data semantics are fundamentally different (regulatory disclosure vs. social chatter). |
 | D5 | Collection strategy | Poll EFTS for Form 4 and SC 13D filings from the last N hours (configurable). Parse the filing XML/metadata to extract structured transaction data. Filter to symbols in our clean universe. |
-| D6 | Ticker-to-CIK mapping | Download `company_tickers.json` once per day, cache locally at `backend/data/company_tickers.json`. Build a bidirectional tickerâ†”CIK lookup. |
+| D6 | Ticker-to-CIK mapping | Download `company_tickers.json` once per day, cache locally at `backend/data/company_tickers.json`. Build a bidirectional ticker↔CIK lookup. |
 | D7 | Form 4 parsing | Form 4 filings contain structured XML at a predictable URL pattern: `https://www.sec.gov/Archives/edgar/data/{CIK}/{accession}/`. The ownership XML contains issuer, reporting owner, and transaction details. We parse transaction type (P=Purchase, S=Sale), shares, price, and ownership relationship. |
 | D8 | Architecture constraint | Follows the same scheduler pattern as social intelligence: Python collector script + TypeScript scheduler service + Express API routes + Settings UI. |
 | D9 | Rate limiting | Target 5 req/sec to stay well under SEC's 10 req/sec limit. 200ms delay between requests. User-Agent header: `PatternDetector/1.0 (edgar-filings-collector)`. |
 | D10 | Scheduling | Configurable: manual, hourly, every 4 hours, or daily. Default: manual. Runs during market hours make the most sense since filings cluster around market close. |
-| D11 | Alert generation | The collector flags notable filings: cluster insider buying (â‰¥3 insiders buying same stock within 14 days), large purchases (â‰¥$1M), C-suite transactions, new 13D stakes. Alerts stored in `filing_alerts` table. |
+| D11 | Alert generation | The collector flags notable filings: cluster insider buying (≥3 insiders buying same stock within 14 days), large purchases (≥$1M), C-suite transactions, new 13D stakes. Alerts stored in `filing_alerts` table. |
 | D12 | Universe filtering | Only track filings for symbols in our clean universe (from `universe_clean.json`). Ignore filings for companies we don't track. |
 | D13 | LLM cost | Zero. All collection, parsing, and alert generation is deterministic. |
 
@@ -44,32 +44,32 @@ SEC filings represent the highest-fidelity signal source available â€” thes
 ## Architecture
 
 ```
-  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-  â”‚  EDGAR Filings Pipeline (deterministic, zero LLM cost)          â”‚
-  â”‚                                                                 â”‚
-  â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  poll every N hrs  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
-  â”‚  â”‚ EFTS API         â”‚ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º   â”‚ Collector Script   â”‚ â”‚
-  â”‚  â”‚ (Form 4, 13D)    â”‚                   â”‚ (Python)           â”‚ â”‚
-  â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
-  â”‚                                                  â”‚             â”‚
-  â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  ticker lookup    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
-  â”‚  â”‚ company_tickers  â”‚ â—„â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  â”‚ Parse XML/JSON     â”‚ â”‚
-  â”‚  â”‚ .json (cached)   â”‚                   â”‚ Extract transactionsâ”‚ â”‚
-  â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
-  â”‚                                                  â”‚             â”‚
-  â”‚                                         â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
-  â”‚                                         â”‚ edgar-filings.sqliteâ”‚ â”‚
-  â”‚                                         â”‚ â€¢ insider_txns      â”‚ â”‚
-  â”‚                                         â”‚ â€¢ activist_stakes   â”‚ â”‚
-  â”‚                                         â”‚ â€¢ filing_alerts     â”‚ â”‚
-  â”‚                                         â”‚ â€¢ edgar_fetch_runs  â”‚ â”‚
-  â”‚                                         â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
-  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  EDGAR Filings Pipeline (deterministic, zero LLM cost)          │
+  │                                                                 │
+  │  ┌─────────────────┐  poll every N hrs  ┌────────────────────┐ │
+  │  │ EFTS API         │ ──────────────►   │ Collector Script   │ │
+  │  │ (Form 4, 13D)    │                   │ (Python)           │ │
+  │  └─────────────────┘                    └────────┬───────────┘ │
+  │                                                  │             │
+  │  ┌─────────────────┐  ticker lookup    ┌────────▼───────────┐ │
+  │  │ company_tickers  │ ◄───────────────  │ Parse XML/JSON     │ │
+  │  │ .json (cached)   │                   │ Extract transactions│ │
+  │  └─────────────────┘                    └────────┬───────────┘ │
+  │                                                  │             │
+  │                                         ┌────────▼───────────┐ │
+  │                                         │ edgar-filings.sqlite│ │
+  │                                         │ • insider_txns      │ │
+  │                                         │ • activist_stakes   │ │
+  │                                         │ • filing_alerts     │ │
+  │                                         │ • edgar_fetch_runs  │ │
+  │                                         └────────────────────┘ │
+  └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Database Schema
 
-**`insider_transactions`** â€” Form 4 parsed data
+**`insider_transactions`** — Form 4 parsed data
 | Column | Type | Description |
 |--------|------|-------------|
 | id | INTEGER PK | Auto-increment |
@@ -89,7 +89,7 @@ SEC filings represent the highest-fidelity signal source available â€” thes
 | filing_url | TEXT | URL to the filing on EDGAR |
 | created_at | TEXT | When we ingested this record |
 
-**`activist_stakes`** â€” SC 13D/13G parsed data
+**`activist_stakes`** — SC 13D/13G parsed data
 | Column | Type | Description |
 |--------|------|-------------|
 | id | INTEGER PK | Auto-increment |
@@ -105,7 +105,7 @@ SEC filings represent the highest-fidelity signal source available â€” thes
 | filing_url | TEXT | URL to the filing on EDGAR |
 | created_at | TEXT | When we ingested this record |
 
-**`filing_alerts`** â€” Notable events detected
+**`filing_alerts`** — Notable events detected
 | Column | Type | Description |
 |--------|------|-------------|
 | id | INTEGER PK | Auto-increment |
@@ -117,7 +117,7 @@ SEC filings represent the highest-fidelity signal source available â€” thes
 | filing_date | TEXT | Date of the triggering filing |
 | created_at | TEXT | When alert was generated |
 
-**`edgar_fetch_runs`** â€” Collection run tracking
+**`edgar_fetch_runs`** — Collection run tracking
 | Column | Type | Description |
 |--------|------|-------------|
 | run_id | TEXT PK | UUID |
@@ -133,7 +133,7 @@ SEC filings represent the highest-fidelity signal source available â€” thes
 
 ---
 
-## Phase 2 â€” 13F Institutional Holdings (Future)
+## Phase 2 — 13F Institutional Holdings (Future)
 
 Quarterly batch job to download 13F filings and build a "smart money consensus" signal:
 - Which top funds hold a position
@@ -141,11 +141,11 @@ Quarterly batch job to download 13F filings and build a "smart money consensus" 
 - Crowded trades (many funds holding same stock)
 - New positions from known successful managers
 
-This is deferred because 13F data is inherently delayed (45 days) and quarterly â€” the daily Form 4 + 13D pipeline provides much more actionable, timely signals.
+This is deferred because 13F data is inherently delayed (45 days) and quarterly — the daily Form 4 + 13D pipeline provides much more actionable, timely signals.
 
 ---
 
-## Phase 3 â€” Cross-Signal Integration (Future)
+## Phase 3 — Cross-Signal Integration (Future)
 
 Wire EDGAR signals into the Ledger agent context and the Market Intelligence conviction layer:
 - Insider buying cluster + social buzz spike + DCF undervalued = high-conviction long signal

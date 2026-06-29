@@ -1,11 +1,11 @@
-# Multi-Agent Patterns â€” PRD
+# Multi-Agent Patterns — PRD
 
 Checklist: multi-agent-patterns-checklist.md
 
 **Created:** 2026-04-29
 **Updated:** 2026-04-29
-**Status:** PHASE A CODE COMPLETE â€” awaiting first valuation refresh to populate data
-**Scope:** Integrate three multi-agent patterns from the TradingAgents framework â€” adversarial debate, DCF calibration engine, and multi-agent approval gate â€” into Pattern Detector's existing agent architecture without abandoning the cost-efficient single-agent-per-workspace model.
+**Status:** PHASE A CODE COMPLETE — awaiting first valuation refresh to populate data
+**Scope:** Integrate three multi-agent patterns from the TradingAgents framework — adversarial debate, DCF calibration engine, and multi-agent approval gate — into Pattern Detector's existing agent architecture without abandoning the cost-efficient single-agent-per-workspace model.
 
 ---
 
@@ -17,7 +17,7 @@ These three patterns address the three gaps identified in the TradingAgents comp
 
 1. **Single-perspective analysis.** Ledger and the conviction layer producer both generate analysis from one viewpoint. There is no structured mechanism to force consideration of the opposing case before committing.
 2. **No calibration loop.** The DCF engine runs across 3,500+ symbols on a schedule, producing bear/base/bull fair values with explicit assumptions (revenue growth, margins, discount rate, terminal growth). But it never checks whether those assumptions were right. There is no feedback loop from realized earnings back into future DCF assumptions. The engine makes the same systematic errors quarter after quarter.
-3. **No second opinion.** Analysis flows directly from engine output â†’ agent interpretation â†’ user display. There is no checkpoint where a different perspective can flag risks, concentration, or timing problems.
+3. **No second opinion.** Analysis flows directly from engine output → agent interpretation → user display. There is no checkpoint where a different perspective can flag risks, concentration, or timing problems.
 
 ---
 
@@ -25,22 +25,22 @@ These three patterns address the three gaps identified in the TradingAgents comp
 
 | # | Topic | Commitment |
 |---|-------|------------|
-| D1 | Architecture constraint | All three patterns are **extensions** of the existing three-layer stack (workspace contract â†’ runtime binding â†’ executable capability). No new orchestration framework (no LangGraph, no agent-to-agent messaging bus). Each pattern is implemented as a new function in the runtime binding layer that makes additional LLM calls and merges results. |
+| D1 | Architecture constraint | All three patterns are **extensions** of the existing three-layer stack (workspace contract → runtime binding → executable capability). No new orchestration framework (no LangGraph, no agent-to-agent messaging bus). Each pattern is implemented as a new function in the runtime binding layer that makes additional LLM calls and merges results. |
 | D2 | Cost constraint | The full stack (debate + gate + memory reflection) adds at most **4 LLM calls per analysis** on top of the existing 1. Total: 5 calls vs TradingAgents' 8-12+. Debate uses gpt-4o-mini for the two researcher calls. Gate uses gpt-4o-mini. Reflection uses gpt-4o-mini. |
-| D3 | Scope â€” which agents | DCF Calibration applies to the **valuation refresh scheduler** (universe-wide DCF runs) and to **financial_analyst** (Ledger interactive analyses). Adversarial Debate applies to **financial_analyst** (Ledger) and **conviction layer producer** (Market Intelligence). Approval Gate applies to **financial_analyst** and **conviction layer producer**. |
-| D4 | Scope â€” opt-in vs default | DCF prediction logging is **always on** (zero-cost DB write during existing valuation refresh). Calibration analysis is **scheduled** (quarterly after earnings season, not per-request). Calibration adjustments feed into the engine deterministically. Adversarial Debate is **opt-in per request** for Ledger (operator toggle, default off for exploratory chat, default on for valuation workflows). Debate is **always on** for the conviction layer producer. Approval Gate is **always on** for conviction-layer output and **opt-in** for Ledger (default on when execution bridge is active). |
+| D3 | Scope — which agents | DCF Calibration applies to the **valuation refresh scheduler** (universe-wide DCF runs) and to **financial_analyst** (Ledger interactive analyses). Adversarial Debate applies to **financial_analyst** (Ledger) and **conviction layer producer** (Market Intelligence). Approval Gate applies to **financial_analyst** and **conviction layer producer**. |
+| D4 | Scope — opt-in vs default | DCF prediction logging is **always on** (zero-cost DB write during existing valuation refresh). Calibration analysis is **scheduled** (quarterly after earnings season, not per-request). Calibration adjustments feed into the engine deterministically. Adversarial Debate is **opt-in per request** for Ledger (operator toggle, default off for exploratory chat, default on for valuation workflows). Debate is **always on** for the conviction layer producer. Approval Gate is **always on** for conviction-layer output and **opt-in** for Ledger (default on when execution bridge is active). |
 | D5 | Persistence | All three patterns use the existing `app-state.sqlite` database. New tables are additive (no schema migration on existing tables). |
 | D14 | DCF calibration data source | The valuation refresh scheduler already runs `runDcfValuationEngine()` across the universe and persists `fair_value_low/mid/high`, `valuation_gap_pct`, and `valuation_quality_score` to `symbol-catalog.sqlite` via `symbol_metrics`. The DCF engine already outputs explicit per-scenario assumptions: `revenue_growth_near_term_pct`, `target_free_cash_flow_margin_pct`, `discount_rate_pct`, `terminal_growth_pct`, `forecast_years`. These assumptions are what we log and later compare against actuals. |
-| D15 | Calibration granularity | Calibration errors are aggregated by **sector**, **market cap band**, and **assumption type** â€” not just per-ticker. The goal is to discover systematic biases ("we overestimate revenue growth for mid-cap semiconductors by 3%") that can be corrected engine-wide, not just per-symbol corrections. |
-| D16 | Calibration injection method | Calibration adjustments feed into the DCF engine as a `calibration_adjustments` field on `LedgerContextSummary`. The engine applies adjustments **before** computing scenarios â€” e.g., if calibration data shows a +3% revenue growth bias for this sector, the engine reduces its revenue growth assumption by 3%. This is deterministic, not LLM-dependent. |
-| D6 | Workspace strategy | Bull Researcher and Bear Researcher are **lightweight workspaces** (IDENTITY.md + SOUL.md only â€” no AGENTS.md, TOOLS.md, or skills). They receive engine output as context, not as tool calls. Risk Reviewer is a **standard workspace** (IDENTITY.md + SOUL.md + AGENTS.md + TOOLS.md) because it needs to query portfolio state and decision history. |
+| D15 | Calibration granularity | Calibration errors are aggregated by **sector**, **market cap band**, and **assumption type** — not just per-ticker. The goal is to discover systematic biases ("we overestimate revenue growth for mid-cap semiconductors by 3%") that can be corrected engine-wide, not just per-symbol corrections. |
+| D16 | Calibration injection method | Calibration adjustments feed into the DCF engine as a `calibration_adjustments` field on `LedgerContextSummary`. The engine applies adjustments **before** computing scenarios — e.g., if calibration data shows a +3% revenue growth bias for this sector, the engine reduces its revenue growth assumption by 3%. This is deterministic, not LLM-dependent. |
+| D6 | Workspace strategy | Bull Researcher and Bear Researcher are **lightweight workspaces** (IDENTITY.md + SOUL.md only — no AGENTS.md, TOOLS.md, or skills). They receive engine output as context, not as tool calls. Risk Reviewer is a **standard workspace** (IDENTITY.md + SOUL.md + AGENTS.md + TOOLS.md) because it needs to query portfolio state and decision history. |
 | D7 | Debate output format | Debate produces a structured `DebateResult` object, not free-text. Fields: `bull_thesis` (string), `bear_thesis` (string), `points_of_agreement` (string[]), `points_of_disagreement` (string[]), `unresolved_questions` (string[]), `strongest_bull_argument` (string), `strongest_bear_argument` (string). This object is injected into the primary agent's prompt as structured context. |
 | D8 | Gate output format | Gate produces a structured `GateResult`: `verdict` (APPROVE \| FLAG \| BLOCK), `reason` (string), `risk_factors` (string[]), `concentration_warning` (string \| null), `timing_warning` (string \| null). Verdict is surfaced as a validity flag on scenarios or as an annotation on Ledger output. |
-| D9 | Calibration scope | DCF predictions are logged per (symbol, prediction_date). Calibration errors are aggregated by sector, industry, and market_cap_band â€” not just per-ticker. The goal is systematic bias discovery, not per-symbol memory. Adjustments are applied globally per scope (e.g., all Technology sector symbols get the same revenue growth correction). |
-| D10 | Phasing | Phase A (DCF Calibration) â†’ Phase B (Approval Gate) â†’ Phase C (Adversarial Debate). Each phase is independently useful. Phase B benefits from Phase A's calibration history. Phase C's output flows through Phase B's gate. |
+| D9 | Calibration scope | DCF predictions are logged per (symbol, prediction_date). Calibration errors are aggregated by sector, industry, and market_cap_band — not just per-ticker. The goal is systematic bias discovery, not per-symbol memory. Adjustments are applied globally per scope (e.g., all Technology sector symbols get the same revenue growth correction). |
+| D10 | Phasing | Phase A (DCF Calibration) → Phase B (Approval Gate) → Phase C (Adversarial Debate). Each phase is independently useful. Phase B benefits from Phase A's calibration history. Phase C's output flows through Phase B's gate. |
 | D11 | Market Intelligence integration | For the conviction layer producer: debate replaces the single LLM call that currently produces `confirming_signals` + `invalidating_signals`. The bull researcher argues for the scenario; the bear researcher argues against. Synthesis is deterministic TypeScript that merges both into the existing conviction layer JSON shape. The gate adds a `RISK_REVIEW_FLAGGED` or `RISK_REVIEW_BLOCKED` validity flag. |
 | D12 | Ledger integration | For financial_analyst workflows: DCF prediction logging captures every valuation with its assumptions. Calibration adjustments feed into the engine before computation. Debate is injected between engine computation and LLM interpretation. The gate checks the final analysis for concentration, timing, and hard-flag risks. Prior valuations + calibration data are injected into the Ledger prompt. |
-| D13 | Research Agent relationship | The Research Agent already has a `reflectOnBacktest` pattern (post-hoc forensic analysis stored on genome entries). DCF calibration is architecturally similar but operates on **valuation assumptions** rather than backtest metrics, and feeds back **deterministically into the engine** rather than into hypothesis generation prompts. The two systems remain separate â€” they serve different feedback loops. |
+| D13 | Research Agent relationship | The Research Agent already has a `reflectOnBacktest` pattern (post-hoc forensic analysis stored on genome entries). DCF calibration is architecturally similar but operates on **valuation assumptions** rather than backtest metrics, and feeds back **deterministically into the engine** rather than into hypothesis generation prompts. The two systems remain separate — they serve different feedback loops. |
 
 ---
 
@@ -49,49 +49,49 @@ These three patterns address the three gaps identified in the TradingAgents comp
 ### Where the patterns plug in
 
 ```
-  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-  â”‚  PHASE A â€” DCF Calibration (deterministic, zero LLM cost)    â”‚
-  â”‚                                                              â”‚
-  â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  next refresh  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”‚
-  â”‚  â”‚ calibration_     â”‚ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º   â”‚ DCF Engine         â”‚  â”‚
-  â”‚  â”‚ adjustments      â”‚  (applied     â”‚ (assumptions       â”‚  â”‚
-  â”‚  â”‚ (sector biases)  â”‚   before      â”‚  corrected)        â”‚  â”‚
-  â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â–²â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   scenarios)  â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â”‚
-  â”‚           â”‚                                  â”‚              â”‚
-  â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”               â”Œâ”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
-  â”‚  â”‚ Calibration Job   â”‚               â”‚ Prediction Logger  â”‚ â”‚
-  â”‚  â”‚ (quarterly batch) â”‚               â”‚ (DB write per      â”‚ â”‚
-  â”‚  â”‚ predicted - actualâ”‚               â”‚  valuation run)    â”‚ â”‚
-  â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜               â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
-  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+  ┌──────────────────────────────────────────────────────────────┐
+  │  PHASE A — DCF Calibration (deterministic, zero LLM cost)    │
+  │                                                              │
+  │  ┌─────────────────┐  next refresh  ┌────────────────────┐  │
+  │  │ calibration_     │ ──────────►   │ DCF Engine         │  │
+  │  │ adjustments      │  (applied     │ (assumptions       │  │
+  │  │ (sector biases)  │   before      │  corrected)        │  │
+  │  └────────▲─────────┘   scenarios)  └────────┬───────────┘  │
+  │           │                                  │              │
+  │  ┌────────┴─────────┐               ┌───────▼────────────┐ │
+  │  │ Calibration Job   │               │ Prediction Logger  │ │
+  │  │ (quarterly batch) │               │ (DB write per      │ │
+  │  │ predicted - actual│               │  valuation run)    │ │
+  │  └──────────────────┘               └────────────────────┘ │
+  └──────────────────────────────────────────────────────────────┘
 
-                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-                    â”‚  Engine Output            â”‚
-                    â”‚  (deterministic TS/Python) â”‚
-                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                               â”‚
-                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-                    â”‚  Adversarial Debate       â”‚  â† Phase C
-                    â”‚  (bull + bear researchers) â”‚
-                    â”‚  2 LLM calls (gpt-4o-mini)â”‚
-                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                               â”‚
-                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-                    â”‚  Primary Agent            â”‚
-                    â”‚  (Ledger / conviction      â”‚
-                    â”‚   layer producer)          â”‚
-                    â”‚  1 LLM call (gpt-4o)      â”‚
-                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                               â”‚
-                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-                    â”‚  Approval Gate            â”‚  â† Phase B
-                    â”‚  (risk reviewer)          â”‚
-                    â”‚  1 LLM call (gpt-4o-mini) â”‚
-                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                               â”‚
-                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-                    â”‚  User / UI                â”‚
-                    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                    ┌──────────────────────────┐
+                    │  Engine Output            │
+                    │  (deterministic TS/Python) │
+                    └──────────┬───────────────┘
+                               │
+                    ┌──────────▼───────────────┐
+                    │  Adversarial Debate       │  ← Phase C
+                    │  (bull + bear researchers) │
+                    │  2 LLM calls (gpt-4o-mini)│
+                    └──────────┬───────────────┘
+                               │
+                    ┌──────────▼───────────────┐
+                    │  Primary Agent            │
+                    │  (Ledger / conviction      │
+                    │   layer producer)          │
+                    │  1 LLM call (gpt-4o)      │
+                    └──────────┬───────────────┘
+                               │
+                    ┌──────────▼───────────────┐
+                    │  Approval Gate            │  ← Phase B
+                    │  (risk reviewer)          │
+                    │  1 LLM call (gpt-4o-mini) │
+                    └──────────┬───────────────┘
+                               │
+                    ┌──────────▼───────────────┐
+                    │  User / UI                │
+                    └──────────────────────────┘
 ```
 
 ### Key files to modify
@@ -99,8 +99,8 @@ These three patterns address the three gaps identified in the TradingAgents comp
 | Layer | File | Changes |
 |-------|------|---------|
 | Runtime binding | `visionService.ts` | New `buildBullResearcherPrompt()`, `buildBearResearcherPrompt()`, `buildRiskReviewerPrompt()`. Inject debate result + prior reflections into existing workspace prompt builders. |
-| Runtime binding | NEW `debateService.ts` | `runAdversarialDebate(engineOutput, context)` â†’ `DebateResult`. Orchestrates bull + bear calls, parses structured output, merges. |
-| Runtime binding | NEW `gateService.ts` | `runApprovalGate(analysisOutput, context, decisionHistory)` â†’ `GateResult`. Single LLM call, structured output. |
+| Runtime binding | NEW `debateService.ts` | `runAdversarialDebate(engineOutput, context)` → `DebateResult`. Orchestrates bull + bear calls, parses structured output, merges. |
+| Runtime binding | NEW `gateService.ts` | `runApprovalGate(analysisOutput, context, decisionHistory)` → `GateResult`. Single LLM call, structured output. |
 | Executable capability | `copilotTools.ts` | Existing workflow tools (`run_financial_analysis`, etc.) optionally call debate + gate. New tool `get_prior_decisions` for decision memory injection. |
 | Data layer | NEW `dcfCalibrationDb.ts` | `dcf_predictions` + `dcf_calibration_errors` + `dcf_calibration_adjustments` table management. |
 | Scheduled job | NEW `run_dcf_calibration.py` | Quarterly batch: compare predictions vs actuals from PIT, compute errors, aggregate biases, produce adjustments. |
@@ -112,7 +112,7 @@ These three patterns address the three gaps identified in the TradingAgents comp
 
 ---
 
-## Phase A â€” DCF Calibration Engine
+## Phase A — DCF Calibration Engine
 
 ### Purpose
 
@@ -124,29 +124,29 @@ This is not per-chat decision memory. This is **systematic model calibration** a
 
 ```
 Valuation refresh runs DCF on AAPL
-    â†’ Logs prediction: bear $155 / base $185 / bull $220
-    â†’ Logs assumptions: revenue_growth 9%, FCF margin 28%, discount 10%
-    â†’ Logs price at prediction time: $172
-    â†’ Logs sector: Technology, industry: Consumer Electronics
+    → Logs prediction: bear $155 / base $185 / bull $220
+    → Logs assumptions: revenue_growth 9%, FCF margin 28%, discount 10%
+    → Logs price at prediction time: $172
+    → Logs sector: Technology, industry: Consumer Electronics
 
 [Next quarter: earnings report lands]
 
 Calibration job runs:
-    â†’ Fetches actual revenue growth: 6% (predicted 9%, error +3%)
-    â†’ Fetches actual FCF margin: 26% (predicted 28%, error +2%)
-    â†’ Logs assumption errors to dcf_calibration_errors table
+    → Fetches actual revenue growth: 6% (predicted 9%, error +3%)
+    → Fetches actual FCF margin: 26% (predicted 28%, error +2%)
+    → Logs assumption errors to dcf_calibration_errors table
 
 [Aggregation across all symbols in sector]
 
-    â†’ Technology sector: revenue growth bias = +2.8% (systematically optimistic)
-    â†’ Technology sector: FCF margin bias = +1.5%
-    â†’ Consumer Staples: revenue growth bias = -0.3% (accurate)
+    → Technology sector: revenue growth bias = +2.8% (systematically optimistic)
+    → Technology sector: FCF margin bias = +1.5%
+    → Consumer Staples: revenue growth bias = -0.3% (accurate)
 
 [Next valuation refresh]
 
-    â†’ Engine reads calibration_adjustments for this sector
-    â†’ Reduces revenue growth assumption by 2.8% before computing
-    â†’ Fair value estimates become more accurate over time
+    → Engine reads calibration_adjustments for this sector
+    → Reduces revenue growth assumption by 2.8% before computing
+    → Fair value estimates become more accurate over time
 ```
 
 ### Schema
@@ -239,33 +239,33 @@ CREATE TABLE IF NOT EXISTS dcf_calibration_adjustments (
 ### Deliverables
 
 - [ ] `dcf_predictions`, `dcf_calibration_errors`, `dcf_calibration_adjustments` tables in `app-state.sqlite`
-- [ ] `backend/src/services/dcfCalibrationDb.ts` â€” CRUD helpers:
-  - `logDcfPrediction(params)` â†’ prediction_id
-  - `getPredictionsForSymbol(symbol, limit?)` â†’ DcfPredictionRow[]
-  - `getPredictionsReadyForCalibration(minAge?)` â†’ DcfPredictionRow[]
-  - `logCalibrationError(params)` â†’ void
-  - `getCalibrationErrorsByScope(scopeType, scopeValue)` â†’ CalibrationErrorRow[]
-  - `upsertCalibrationAdjustment(params)` â†’ void
-  - `getCalibrationAdjustments(sector, industry?, marketCapBand?)` â†’ CalibrationAdjustmentRow[]
+- [ ] `backend/src/services/dcfCalibrationDb.ts` — CRUD helpers:
+  - `logDcfPrediction(params)` → prediction_id
+  - `getPredictionsForSymbol(symbol, limit?)` → DcfPredictionRow[]
+  - `getPredictionsReadyForCalibration(minAge?)` → DcfPredictionRow[]
+  - `logCalibrationError(params)` → void
+  - `getCalibrationErrorsByScope(scopeType, scopeValue)` → CalibrationErrorRow[]
+  - `upsertCalibrationAdjustment(params)` → void
+  - `getCalibrationAdjustments(sector, industry?, marketCapBand?)` → CalibrationAdjustmentRow[]
 - [ ] **Prediction logging wired into valuation refresh scheduler**:
   - After `runDcfValuationEngine()` completes for each symbol, `logDcfPrediction()` writes the prediction row
   - Captures: symbol, sector, industry, market_cap_band, all assumption values, fair_value_range, price, judgment
   - Zero-cost addition to existing flow (just a DB INSERT)
 - [ ] **Prediction logging wired into `copilotTools.ts`** for interactive analyses:
   - `buildLedgerWorkflowResult()` writes a prediction row after every `run_dcf_valuation` with `source='interactive_analysis'`
-- [ ] **`backend/scripts/run_dcf_calibration.py`** â€” quarterly calibration batch job:
+- [ ] **`backend/scripts/run_dcf_calibration.py`** — quarterly calibration batch job:
   - Queries predictions from the prior quarter that haven't been calibrated
   - Fetches actual revenue and margin data from PIT facts (`pit_statement_facts`) for the corresponding earnings period
   - Fetches current price via existing OHLCV endpoint
   - Computes per-prediction errors: revenue_growth_error, fcf_margin_error, price_error, direction_correct
   - Writes errors to `dcf_calibration_errors`
   - Aggregates errors by sector, market_cap_band, and assumption_key
-  - Computes bias adjustments (mean error with â‰¥10 sample size threshold)
+  - Computes bias adjustments (mean error with ≥10 sample size threshold)
   - Upserts to `dcf_calibration_adjustments`
   - Produces a human-readable calibration report (JSON) saved to `backend/data/calibration/`
 - [ ] **Scheduler registration**: `dcf_calibration` job in `ledgerHydrationScheduler.ts`
   - Kind: engine
-  - Cron: quarterly (after earnings season â€” approx Feb 15, May 15, Aug 15, Nov 15)
+  - Cron: quarterly (after earnings season — approx Feb 15, May 15, Aug 15, Nov 15)
   - Can also be triggered manually via POST endpoint
 - [ ] **Calibration injection into DCF engine**:
   - `LedgerContextSummary` gets a new optional field: `calibration_adjustments`
@@ -282,15 +282,15 @@ CREATE TABLE IF NOT EXISTS dcf_calibration_adjustments (
     - Active calibration adjustments for this sector
   - This gives the LLM context on its own track record when interpreting the engine output
 - [ ] **Calibration dashboard API**:
-  - `GET /api/calibration/summary` â€” aggregate bias by sector, cap-band, assumption
-  - `GET /api/calibration/errors/:symbol` â€” per-symbol prediction vs actual history
-  - `GET /api/calibration/adjustments` â€” current active adjustments
+  - `GET /api/calibration/summary` — aggregate bias by sector, cap-band, assumption
+  - `GET /api/calibration/errors/:symbol` — per-symbol prediction vs actual history
+  - `GET /api/calibration/adjustments` — current active adjustments
 
 ### Exit criteria
 
-- [ ] â‰¥500 predictions logged after 1 valuation refresh cycle across the universe
+- [ ] ≥500 predictions logged after 1 valuation refresh cycle across the universe
 - [ ] Calibration job runs successfully on at least 1 quarter of prediction data
-- [ ] At least 3 sectors have calibration adjustments computed with â‰¥10 sample size
+- [ ] At least 3 sectors have calibration adjustments computed with ≥10 sample size
 - [ ] Calibration adjustments are applied in at least 1 DCF engine run (visible in `calibration_applied` output field)
 - [ ] Prior valuation injection verified in at least 1 Ledger analysis (the `## Prior Valuations` block appears)
 - [ ] Calibration report JSON generated and readable
@@ -298,7 +298,7 @@ CREATE TABLE IF NOT EXISTS dcf_calibration_adjustments (
 
 ---
 
-## Phase B â€” Approval Gate (Risk Reviewer)
+## Phase B — Approval Gate (Risk Reviewer)
 
 ### Purpose
 
@@ -309,7 +309,7 @@ Add a lightweight second-opinion checkpoint that reviews the primary agent's out
 #### `Risk Reviewer Workspace/IDENTITY.md`
 - Name: **Sentinel**
 - Vibe: Skeptical, terse, adversarial-by-design
-- Not a bear â€” a risk manager. Approves good analysis, flags real problems
+- Not a bear — a risk manager. Approves good analysis, flags real problems
 
 #### `Risk Reviewer Workspace/SOUL.md`
 Core beliefs:
@@ -317,28 +317,28 @@ Core beliefs:
 - Timing risk is as dangerous as directional risk
 - Hard flags (acquisitions, distress, restatement) override all other analysis
 - The analyst's job is to be right; the reviewer's job is to catch what the analyst missed
-- If the evidence is thin, say so â€” don't manufacture confidence
+- If the evidence is thin, say so — don't manufacture confidence
 
 #### `Risk Reviewer Workspace/AGENTS.md`
 Standing orders:
 1. Read the analyst's output completely before judging
-2. Check for hard-flag severity â€” any active hard flag is an automatic FLAG
+2. Check for hard-flag severity — any active hard flag is an automatic FLAG
 3. Check for sector/position concentration if portfolio context is available
-4. Check for timing risk â€” is the market confirming the thesis, or is execution premature?
-5. Check assumption fragility â€” which one assumption, if wrong, would reverse the conclusion?
-6. Output structured JSON only â€” no prose, no hedging
+4. Check for timing risk — is the market confirming the thesis, or is execution premature?
+5. Check assumption fragility — which one assumption, if wrong, would reverse the conclusion?
+6. Output structured JSON only — no prose, no hedging
 7. APPROVE means "I see no risk the analyst missed." FLAG means "the analysis may be correct but these risks need the user's attention." BLOCK means "the analysis has a critical gap that should be resolved before acting."
 
 #### `Risk Reviewer Workspace/TOOLS.md`
-- `get_prior_decisions` â€” check if this ticker has been analyzed before and what happened
-- `get_portfolio_exposure` â€” check current portfolio concentration (when execution bridge is active)
+- `get_prior_decisions` — check if this ticker has been analyzed before and what happened
+- `get_portfolio_exposure` — check current portfolio concentration (when execution bridge is active)
 
 ### Output Schema
 
 ```typescript
 interface GateResult {
     verdict: 'APPROVE' | 'FLAG' | 'BLOCK';
-    reason: string;                          // â‰¤ 2 sentences
+    reason: string;                          // ≤ 2 sentences
     risk_factors: string[];                  // 2-5 items
     concentration_warning: string | null;
     timing_warning: string | null;
@@ -349,29 +349,29 @@ interface GateResult {
 
 ### Deliverables
 
-- [ ] `workspace/Risk Reviewer Workspace/` â€” IDENTITY.md, SOUL.md, AGENTS.md, TOOLS.md
-- [ ] `gateService.ts` â€” `runApprovalGate(analysisOutput, engineOutput, context, decisionHistory)` â†’ `GateResult`
+- [ ] `workspace/Risk Reviewer Workspace/` — IDENTITY.md, SOUL.md, AGENTS.md, TOOLS.md
+- [ ] `gateService.ts` — `runApprovalGate(analysisOutput, engineOutput, context, decisionHistory)` → `GateResult`
 - [ ] `buildRiskReviewerPrompt()` in `visionService.ts`
-- [ ] Gate wired into `copilotTools.ts` â€” financial analyst workflow tools optionally call `runApprovalGate()` after producing the analysis
+- [ ] Gate wired into `copilotTools.ts` — financial analyst workflow tools optionally call `runApprovalGate()` after producing the analysis
 - [ ] Gate result injected into the LLM response: Ledger's output includes a `## Risk Review` section with the verdict + risk factors
 - [ ] For Market Intelligence conviction layer: gate result becomes validity flags:
-  - `RISK_REVIEW_FLAGGED` â€” conviction produced but risk reviewer flagged concerns
-  - `RISK_REVIEW_BLOCKED` â€” conviction suppressed; scenario surfaces with flag
+  - `RISK_REVIEW_FLAGGED` — conviction produced but risk reviewer flagged concerns
+  - `RISK_REVIEW_BLOCKED` — conviction suppressed; scenario surfaces with flag
 - [ ] Operator toggle in settings: `riskReviewEnabled` (default: true when execution bridge active, false otherwise)
 - [ ] Gate uses `get_prior_decisions` to check decision history (benefits from Phase A)
 
 ### Exit criteria
 
 - [ ] Risk Reviewer workspace exists with all 4 markdown files
-- [ ] Gate produces valid `GateResult` JSON on â‰¥95% of calls (no parse failures)
+- [ ] Gate produces valid `GateResult` JSON on ≥95% of calls (no parse failures)
 - [ ] At least 1 FLAG or BLOCK correctly fires on a test case with a known hard flag
 - [ ] At least 1 APPROVE correctly fires on a clean analysis
-- [ ] Gate adds â‰¤ 3 seconds latency to the analysis flow
-- [ ] LLM cost per gate call â‰¤ $0.005 (gpt-4o-mini)
+- [ ] Gate adds ≤ 3 seconds latency to the analysis flow
+- [ ] LLM cost per gate call ≤ $0.005 (gpt-4o-mini)
 
 ---
 
-## Phase C â€” Adversarial Debate
+## Phase C — Adversarial Debate
 
 ### Purpose
 
@@ -381,25 +381,25 @@ Force structured consideration of both the bullish and bearish case before the p
 
 #### `Bull Researcher Workspace/IDENTITY.md`
 - Vibe: Constructive, evidence-focused optimist
-- Not a cheerleader â€” genuinely believes the thesis and backs it with data
+- Not a cheerleader — genuinely believes the thesis and backs it with data
 
 #### `Bull Researcher Workspace/SOUL.md`
 - Start from the assumption that the scenario/valuation thesis is correct
 - Find the strongest evidence supporting it
 - Identify what would make the thesis even stronger
 - Acknowledge risks but explain why they are manageable or priced in
-- Never fabricate evidence â€” only argue from what the engine output contains
+- Never fabricate evidence — only argue from what the engine output contains
 
 #### `Bear Researcher Workspace/IDENTITY.md`
 - Vibe: Constructive skeptic, devil's advocate
-- Not a doom-sayer â€” genuinely believes the risks are underappreciated and backs it with data
+- Not a doom-sayer — genuinely believes the risks are underappreciated and backs it with data
 
 #### `Bear Researcher Workspace/SOUL.md`
 - Start from the assumption that the market is efficient and the thesis is already priced
 - Find evidence that contradicts the thesis or suggests the timing is wrong
 - Identify which single assumption, if wrong, would reverse the conclusion
 - Explain what the bull case is missing or underweighting
-- Never fabricate evidence â€” only argue from what the engine output contains
+- Never fabricate evidence — only argue from what the engine output contains
 
 ### Output Schema
 
@@ -417,10 +417,10 @@ interface DebateResult {
 
 ### Deliverables
 
-- [ ] `workspace/Bull Researcher Workspace/` â€” IDENTITY.md + SOUL.md
-- [ ] `workspace/Bear Researcher Workspace/` â€” IDENTITY.md + SOUL.md
+- [ ] `workspace/Bull Researcher Workspace/` — IDENTITY.md + SOUL.md
+- [ ] `workspace/Bear Researcher Workspace/` — IDENTITY.md + SOUL.md
 - [ ] `debateService.ts`:
-  - `runAdversarialDebate(engineOutput, context, options)` â†’ `DebateResult`
+  - `runAdversarialDebate(engineOutput, context, options)` → `DebateResult`
   - Orchestrates two parallel gpt-4o-mini calls (bull + bear)
   - Parses structured JSON output from each
   - Deterministic TypeScript merge produces `DebateResult`
@@ -431,18 +431,18 @@ interface DebateResult {
 - [ ] Debate wired into conviction layer producer:
   - `run_conviction_producer.py` calls `debateService` via HTTP (or inline TypeScript if conviction producer is ported to TS)
   - Bull + bear outputs replace the single-LLM-call path for `confirming_signals` + `invalidating_signals`
-  - Synthesis maps bull arguments â†’ `confirming_signals`, bear arguments â†’ `invalidating_signals`, bear's strongest argument â†’ `what_breaks_it`
+  - Synthesis maps bull arguments → `confirming_signals`, bear arguments → `invalidating_signals`, bear's strongest argument → `what_breaks_it`
 - [ ] Operator toggle: `debateEnabled` per workspace (default: on for conviction producer, off for exploratory Ledger chat, on for Ledger valuation workflows)
-- [ ] Debate calls run in parallel (Promise.all) â€” latency is max(bull, bear), not sum
+- [ ] Debate calls run in parallel (Promise.all) — latency is max(bull, bear), not sum
 
 ### Exit criteria
 
 - [ ] Both researcher workspaces exist with IDENTITY.md + SOUL.md
-- [ ] Debate produces valid `DebateResult` JSON on â‰¥95% of calls
-- [ ] Debate adds â‰¤ 5 seconds latency (parallel calls)
+- [ ] Debate produces valid `DebateResult` JSON on ≥95% of calls
+- [ ] Debate adds ≤ 5 seconds latency (parallel calls)
 - [ ] At least 1 conviction layer with debate-backed confirming/invalidating signals produced
-- [ ] At least 1 Ledger DCF analysis with debate injected â€” user-visible `## Adversarial Debate` section
-- [ ] LLM cost per debate â‰¤ $0.01 (2x gpt-4o-mini calls)
+- [ ] At least 1 Ledger DCF analysis with debate injected — user-visible `## Adversarial Debate` section
+- [ ] LLM cost per debate ≤ $0.01 (2x gpt-4o-mini calls)
 - [ ] Debate output surfaces at least 1 point of disagreement that the primary agent addresses in its analysis
 
 ---
@@ -461,19 +461,19 @@ interface DebateResult {
 
 | Pattern | Model | Calls | Est. cost per call | Total |
 |---------|-------|-------|--------------------|-------|
-| DCF prediction logging | â€” | 0 (DB write) | $0 | $0 |
-| DCF calibration job | â€” | 0 (deterministic computation) | $0 | $0 |
+| DCF prediction logging | — | 0 (DB write) | $0 | $0 |
+| DCF calibration job | — | 0 (deterministic computation) | $0 | $0 |
 | Approval gate | gpt-4o-mini | 1 per analysis | ~$0.003 | $0.003 |
-| Debate (bull) | gpt-4o-mini | 1 per analysis | ~$0.004 | â€” |
-| Debate (bear) | gpt-4o-mini | 1 per analysis | ~$0.004 | â€” |
-| **Debate total** | â€” | 2 | â€” | $0.008 |
-| **Full stack (interactive)** | â€” | 3 additional | â€” | **~$0.011/analysis** |
+| Debate (bull) | gpt-4o-mini | 1 per analysis | ~$0.004 | — |
+| Debate (bear) | gpt-4o-mini | 1 per analysis | ~$0.004 | — |
+| **Debate total** | — | 2 | — | $0.008 |
+| **Full stack (interactive)** | — | 3 additional | — | **~$0.011/analysis** |
 
-Phase A (DCF Calibration) has **zero LLM cost** â€” it is entirely deterministic. Prediction logging is a DB write. Calibration comparison is arithmetic. Adjustment computation is aggregation. No LLM calls at any point.
+Phase A (DCF Calibration) has **zero LLM cost** — it is entirely deterministic. Prediction logging is a DB write. Calibration comparison is arithmetic. Adjustment computation is aggregation. No LLM calls at any point.
 
 Interactive analysis cost (Phase B + C): ~$0.011/analysis. At 50 interactive analyses/day: ~$0.55/day. Well within the existing $20/day budget.
 
-Conviction layer cost (Phase C only, scheduled): ~$0.008/conviction update. At 160 scenarios Ã— 1 update/day: ~$1.28/day.
+Conviction layer cost (Phase C only, scheduled): ~$0.008/conviction update. At 160 scenarios × 1 update/day: ~$1.28/day.
 
 ---
 
@@ -481,26 +481,26 @@ Conviction layer cost (Phase C only, scheduled): ~$0.008/conviction update. At 1
 
 ```
 Phase A: DCF Calibration Engine (zero LLM cost, deterministic)
-â”œâ”€â”€ Tables: dcf_predictions, dcf_calibration_errors, dcf_calibration_adjustments
-â”œâ”€â”€ Prediction logging in valuation refresh + copilotTools.ts
-â”œâ”€â”€ Quarterly calibration batch job (deterministic)
-â”œâ”€â”€ Calibration adjustments fed into DCF engine
-â”œâ”€â”€ Prior valuations injected into Ledger prompts
-â””â”€â”€ Independently useful â€” starts accumulating data on next valuation refresh
+├── Tables: dcf_predictions, dcf_calibration_errors, dcf_calibration_adjustments
+├── Prediction logging in valuation refresh + copilotTools.ts
+├── Quarterly calibration batch job (deterministic)
+├── Calibration adjustments fed into DCF engine
+├── Prior valuations injected into Ledger prompts
+└── Independently useful — starts accumulating data on next valuation refresh
 
 Phase B: Approval Gate (deterministic engine + optional LLM annotation)
-â”œâ”€â”€ Risk Reviewer workspace (or deterministic runRiskReviewEngine)
-â”œâ”€â”€ gateService.ts
-â”œâ”€â”€ Wired into Ledger workflows + conviction producer
-â”œâ”€â”€ Produces validity flags + annotations
-â””â”€â”€ Uses calibration history from Phase A for context
+├── Risk Reviewer workspace (or deterministic runRiskReviewEngine)
+├── gateService.ts
+├── Wired into Ledger workflows + conviction producer
+├── Produces validity flags + annotations
+└── Uses calibration history from Phase A for context
 
 Phase C: Adversarial Debate (output flows through B's gate)
-â”œâ”€â”€ Bull + Bear Researcher workspaces (or skill within existing workspace)
-â”œâ”€â”€ debateService.ts
-â”œâ”€â”€ Wired into Ledger workflows + conviction producer
-â”œâ”€â”€ Debate result â†’ primary agent prompt â†’ gate review
-â””â”€â”€ Most complex, highest quality improvement
+├── Bull + Bear Researcher workspaces (or skill within existing workspace)
+├── debateService.ts
+├── Wired into Ledger workflows + conviction producer
+├── Debate result → primary agent prompt → gate review
+└── Most complex, highest quality improvement
 ```
 
 ---
@@ -514,5 +514,5 @@ Phase C: Adversarial Debate (output flows through B's gate)
 | `backend/src/services/visionService.ts` | Runtime binding (where prompts are built) |
 | `backend/src/services/copilotTools.ts` | Tool implementations (where decisions are made) |
 | `backend/src/services/ledgerEngines.ts` | Engine layer (deterministic computation) |
-| `.planning/plans/ACTIVE/market-intelligence-scenario-engine-checklist.md` | MI scenario engine build state |
-| `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd.md` | MI scenario engine PRD |
+| `agent-relay/planning-docs/ongoing/market-intelligence-scenario-engine-checklist.md` | MI scenario engine build state |
+| `agent-relay/planning-docs/ongoing/market-intelligence-scenario-engine-prd.md` | MI scenario engine PRD |

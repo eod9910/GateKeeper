@@ -232,13 +232,13 @@ Recommended V1 default:
 
 Stats are always displayed, but labeled with confidence level based on trade count:
 
-- **LOW** (< 50 trades): "Not enough data â€” keep trading"
-- **MEDIUM** (50â€“200 trades): "Emerging pattern â€” directionally useful"
-- **HIGH** (> 200 trades): "Statistically meaningful â€” trust these numbers"
+- **LOW** (< 50 trades): "Not enough data — keep trading"
+- **MEDIUM** (50–200 trades): "Emerging pattern — directionally useful"
+- **HIGH** (> 200 trades): "Statistically meaningful — trust these numbers"
 
 Applies to: expectancy, win rate, avg R, Sharpe, and any per-strategy-type breakdowns.
 
-Per-strategy-type stats (Breakout / Pullback / Fade) each have their own independent confidence counter â€” 50 breakout trades doesn't make your pullback stats meaningful.
+Per-strategy-type stats (Breakout / Pullback / Fade) each have their own independent confidence counter — 50 breakout trades doesn't make your pullback stats meaningful.
 
 ---
 
@@ -314,24 +314,24 @@ Training page must show:
 
 ## 16) Delivery Phases
 
-## Phase 1 â€” Core Engine
+## Phase 1 — Core Engine
 
 - Contract schema + validator
 - Forward resolver + unit tests
 - Attempt persistence
 
-## Phase 2 â€” Training UI
+## Phase 2 — Training UI
 
 - Training page shell
 - Checklist + entry controls
 - Run/resolve flow + result card
 
-## Phase 3 â€” Scoring & Behavior
+## Phase 3 — Scoring & Behavior
 
 - Process/outcome/composite scoring
 - Violation ladder + cooldown logic
 
-## Phase 4 â€” Analytics
+## Phase 4 — Analytics
 
 - Session replay
 - Contract-level comparisons

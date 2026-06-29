@@ -1,4 +1,4 @@
-# Adaptive Strategy Optimizer â€” Implementation Plan
+# Adaptive Strategy Optimizer — Implementation Plan
 
 ## Overview
 
@@ -112,7 +112,7 @@ After all sweeps finish, call an LLM with:
 **Output**:
 - Recommended final configuration
 - Confidence level per parameter (high/medium/low)
-- Interaction warnings ("ATR and TP were optimized independently â€” consider a confirmation grid")
+- Interaction warnings ("ATR and TP were optimized independently — consider a confirmation grid")
 - Optional: suggest 2D confirmation sweep for interacting parameters
 
 ### Backend
@@ -139,9 +139,9 @@ interface OptRecommendation {
 ```
 
 New routes: `routes/optimizer.ts`
-- `POST /optimizer/run` â€” start optimization session
-- `GET /optimizer/:sessionId` â€” get status + results
-- `POST /optimizer/:sessionId/apply` â€” apply recommendation to strategy
+- `POST /optimizer/run` — start optimization session
+- `GET /optimizer/:sessionId` — get status + results
+- `POST /optimizer/:sessionId/apply` — apply recommendation to strategy
 
 ### Frontend
 
@@ -167,7 +167,7 @@ New page or tab within sweep: **"Optimizer"**
 Extend `runSweep()` to accept 2 `SweepParamDef` entries and generate a cartesian product:
 
 ```
-ATR: [1.5, 2.0, 2.5] Ã— TP: [2.0, 2.5, 3.0] = 9 variants
+ATR: [1.5, 2.0, 2.5] × TP: [2.0, 2.5, 3.0] = 9 variants
 ```
 
 ### Results Display
@@ -186,18 +186,18 @@ Highlight the peak cell. This confirms or corrects the sequential optimization r
 
 ## Implementation Order
 
-1. **Phase 1** â€” Adaptive single-param sweep with early termination (~1 day)
+1. **Phase 1** — Adaptive single-param sweep with early termination (~1 day)
    - Core algorithm in `sweepEngine.ts`
    - Route + frontend toggle
    - Test with ATR multiplier sweep
 
-2. **Phase 2** â€” Multi-param optimization sessions (~2 days)
+2. **Phase 2** — Multi-param optimization sessions (~2 days)
    - `optimizerService.ts` with session management
    - Sequential sweep orchestration
    - LLM-powered Optimizer Analyst
    - Frontend optimizer page
 
-3. **Phase 3** â€” 2D confirmation sweeps (~1 day)
+3. **Phase 3** — 2D confirmation sweeps (~1 day)
    - Cartesian product variant generation
    - Heatmap rendering in frontend
    - Integration with Optimizer Analyst warnings
@@ -207,7 +207,7 @@ Highlight the peak cell. This confirms or corrects the sequential optimization r
 - Existing sweep engine (done)
 - Existing fitness score function (done)
 - OpenAI API access for Optimizer Analyst (already configured for research agent)
-- No Python changes needed â€” all orchestration is in TypeScript
+- No Python changes needed — all orchestration is in TypeScript
 
 ## Risk: Overfitting
 

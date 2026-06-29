@@ -10,10 +10,10 @@ PRD: ledger-data-foundation-and-pit-ingestion-prd.md
 
 Related docs:
 
-- `.planning/plans/ACTIVE/ledger-data-foundation-and-pit-ingestion-prd.md`
-- `.planning/plans/ACTIVE/../REFERENCE/primitive-normalization-contract-v0.md`
-- `.planning/plans/ACTIVE/primitive-normalization-engine-and-autonomous-research-prd.md`
-- `.planning/plans/ACTIVE/../REFERENCE/family-structure-validation-ledger.md`
+- `agent-relay/planning-docs/ongoing/ledger-data-foundation-and-pit-ingestion-prd.md`
+- `agent-relay/planning-docs/reference/primitive-normalization-contract-v0.md`
+- `agent-relay/planning-docs/ongoing/primitive-normalization-engine-and-autonomous-research-prd.md`
+- `agent-relay/planning-docs/reference/family-structure-validation-ledger.md`
 - `Financial data/docling_probe/README.md`
 
 ---
@@ -47,7 +47,7 @@ Related docs:
 
 Notes:
 
-- v0 canonical schema lives in `.planning/plans/REFERENCE/data/ledger-canonical-fact-schema.md`
+- v0 canonical schema lives in `agent-relay/planning-docs/reference/data/ledger-canonical-fact-schema.md`
 - filing-derived facts now live in `pit_statement_facts`
 - document metadata now lives in `pit_documents`
 - Apple `5 annual + 8 quarterly` filing-derived data has been loaded into `backend/data/fundamentals-pit.sqlite`
@@ -123,7 +123,7 @@ Notes:
 1. Define the canonical schema strictly
 2. Define normalization rules hard enough for cross-issuer use
 3. Define a stable evidence contract
-4. Validate the path on 2â€“3 issuers
+4. Validate the path on 2–3 issuers
 5. Only then scale ingestion
 
 Operational hold until the above gates are complete:

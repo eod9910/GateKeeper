@@ -54,7 +54,7 @@ Evidence: `frontend/public/validator.js:910`
 Evidence: `backend/services/validatorPipeline.py:576`, `backend/services/validatorPipeline.py:746`
 
 - [ ] Explicit Tier API contract doc update for `/api/validator/tier-config`
-Target: `.planning/plans/REFERENCE/validator-architecture.md`
+Target: `agent-relay/planning-docs/reference/validator-architecture.md`
 
 - [ ] Backfill/migration of historical reports missing `config.asset_class`
 Target: one-time data migration script under `backend/scripts/`

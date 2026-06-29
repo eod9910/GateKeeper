@@ -29,12 +29,12 @@ The earlier grep/search approach can remain one implementation path: give the AI
 
 ```
 User: "what does pip value mean?"
-  â†’ Frontend sends message to /api/vision/chat
-  â†’ Backend detects help-related question (keyword match)
-  â†’ Backend greps app-reference.md for "pip value" section
-  â†’ Injects those 5-10 lines into THIS request's system prompt
-  â†’ OpenAI responds with full context
-  â†’ Non-help messages: zero extra context, same as before
+  → Frontend sends message to /api/vision/chat
+  → Backend detects help-related question (keyword match)
+  → Backend greps app-reference.md for "pip value" section
+  → Injects those 5-10 lines into THIS request's system prompt
+  → OpenAI responds with full context
+  → Non-help messages: zero extra context, same as before
 ```
 
 ## Components to Build
@@ -68,13 +68,13 @@ Three functions mirroring Cursor's search tools:
 
 ## Files to Change
 
-- **Create:** `backend/data/app-reference.md` â€” the help reference
-- **Create:** `backend/src/services/searchService.ts` â€” glob/grep/read utilities
-- **Modify:** `backend/src/services/visionService.ts` â€” add help detection + injection in `buildCopilotSystemPrompt()`
-- **Modify:** `frontend/public/copilot.js` â€” send full settings context (already done)
+- **Create:** `backend/data/app-reference.md` — the help reference
+- **Create:** `backend/src/services/searchService.ts` — glob/grep/read utilities
+- **Modify:** `backend/src/services/visionService.ts` — add help detection + injection in `buildCopilotSystemPrompt()`
+- **Modify:** `frontend/public/copilot.js` — send full settings context (already done)
 
 ## What This Does NOT Include
 
-- Semantic search / embeddings (future â€” see BACKLOG.md)
-- Chat transcript storage (future â€” see BACKLOG.md)
-- Function calling / REPL pattern (future â€” save for GSD rebuild)
+- Semantic search / embeddings (future — see BACKLOG.md)
+- Chat transcript storage (future — see BACKLOG.md)
+- Function calling / REPL pattern (future — save for GSD rebuild)

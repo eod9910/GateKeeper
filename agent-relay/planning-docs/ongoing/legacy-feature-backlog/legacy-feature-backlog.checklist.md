@@ -6,7 +6,7 @@
 - PRD: `legacy-feature-backlog.prd.md`
 - Phase: `legacy-feature-backlog`
 - Executor: `Builder`
-- Source: `.planning/plans/BACKLOG/legacy-feature-backlog.md`
+- Source: `agent-relay/planning-docs/ongoing/legacy-feature-backlog.md`
 
 ## Preconditions
 

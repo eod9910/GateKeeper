@@ -20,7 +20,7 @@ Do not move plans automatically unless the destination is obvious. For each acti
 
 ## Current Active Count
 
-After the 2026-06-01 cleanup pass, `.planning/plans/ACTIVE` contains 38 files.
+After the 2026-06-01 cleanup pass, `agent-relay/planning-docs/ACTIVE` contains 38 files.
 
 ## 2026-06-01 Cleanup Moves
 

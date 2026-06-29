@@ -80,7 +80,7 @@
 - [ ] Gradient-based cutoff (2 consecutive steps down â†’ stop)
 - [ ] Step up/down from current value with configurable step size
 - [ ] Auto-declare winner and promote
-- [ ] Plan: `.planning/plans/adaptive-optimizer-plan.md`
+- [ ] Plan: `agent-relay/planning-docs/adaptive-optimizer-plan.md`
 
 #### 2.3 Adaptive Optimizer (Phase 2)
 - [ ] Multi-parameter optimization sessions
@@ -105,7 +105,7 @@
 - [ ] Tombstones with cause-of-death metadata
 - [ ] Lineage graph (who bred whom)
 - [ ] Lab dashboard UI
-- [ ] Plan: `.planning/plans/evolutionary-strategy-lab.md`
+- [ ] Plan: `agent-relay/planning-docs/evolutionary-strategy-lab.md`
 
 #### 3.2 Evolutionary Strategy Lab (Phase 2-4)
 - [ ] Add crossover within family

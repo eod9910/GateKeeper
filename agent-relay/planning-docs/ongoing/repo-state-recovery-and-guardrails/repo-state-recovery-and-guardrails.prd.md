@@ -125,7 +125,7 @@ Make the repo say one coherent thing about what the project is doing now.
 - update stale docs that materially conflict with current execution reality
 - add explicit "superseded by" notes to lagging docs instead of leaving silent contradictions
 - reconcile the Microsoft smoke-test status across docs
-- add a single top-level "active workstreams" index under `.planning/plans/`
+- add a single top-level "active workstreams" index under `agent-relay/planning-docs/`
 
 ### Deliverable
 

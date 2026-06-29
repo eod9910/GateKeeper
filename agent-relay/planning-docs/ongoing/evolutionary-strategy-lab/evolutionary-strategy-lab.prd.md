@@ -1,4 +1,4 @@
-# Evolutionary Strategy Lab â€” Implementation Plan
+# Evolutionary Strategy Lab — Implementation Plan
 
 ## Origin
 
@@ -6,7 +6,7 @@ This plan originates from a ChatGPT conversation (2026-02-21) exploring how to b
 
 ## Vision
 
-A self-running research organism that searches, discards, refines, and eventually teaches itself â€” without human intervention. Strategies are treated as organisms: profits are food, the validator is the environment, and only the fittest survive to breed.
+A self-running research organism that searches, discards, refines, and eventually teaches itself — without human intervention. Strategies are treated as organisms: profits are food, the validator is the environment, and only the fittest survive to breed.
 
 ## Current State (What We Already Have)
 
@@ -49,7 +49,7 @@ The environment is already implemented:
 NOT raw profit. Fitness includes:
 
 - Expectancy (primary)
-- Monte Carlo p95 drawdown (hard penalty â€” already implemented)
+- Monte Carlo p95 drawdown (hard penalty — already implemented)
 - OOS degradation (hard penalty)
 - Walk-forward consistency (reward)
 - Trade count minimum (hard gate)
@@ -84,24 +84,24 @@ New service with 6 core functions:
    - Create n variants from baseline via small mutations
    - Store as Population with generation counter
 
-2. mutate(genome) â†’ genome
+2. mutate(genome) → genome
    - Apply 1-2 typed mutations per child (see operators below)
    - Return new genome with mutation log
 
-3. evaluate(genome, tier) â†’ FitnessResult
+3. evaluate(genome, tier) → FitnessResult
    - Call Validator Tier 1
    - Collect report summary
    - Compute fitness (with DD penalty)
-   - If FAIL â†’ tombstone immediately
+   - If FAIL → tombstone immediately
 
-4. selectParents(results) â†’ genome[]
+4. selectParents(results) → genome[]
    - Pick top K by robust fitness
    - Penalize: high DD, poor OOS, instability, low trade count
 
-5. breed(parents) â†’ genome[]
+5. breed(parents) → genome[]
    - Phase 1: mutation only (no crossover)
    - Each parent spawns M children
-   - Total next gen = K Ã— M
+   - Total next gen = K × M
 
 6. archiveAndTombstone(results)
    - Freeze champions (spec hash + dataset hash)
@@ -109,16 +109,16 @@ New service with 6 core functions:
    - Check similarity to prevent rediscovery loops
 ```
 
-### Mutation Operators (Phase 1 â€” Tight Set)
+### Mutation Operators (Phase 1 — Tight Set)
 
 | Operator | Target | Range | Probability |
 |----------|--------|-------|-------------|
-| epsilon_nudge | `setup_config.composite_spec.stages.0.params.epsilon_pct` | Â±10-25% | 30% |
-| atr_stop_nudge | `risk_config.atr_multiplier` | Â±0.25 | 20% |
-| tp_nudge | `risk_config.take_profit_R` | Â±0.5R | 20% |
-| max_concurrent_nudge | `risk_config.max_concurrent_positions` | Â±1 | 15% |
+| epsilon_nudge | `setup_config.composite_spec.stages.0.params.epsilon_pct` | ±10-25% | 30% |
+| atr_stop_nudge | `risk_config.atr_multiplier` | ±0.25 | 20% |
+| tp_nudge | `risk_config.take_profit_R` | ±0.5R | 20% |
+| max_concurrent_nudge | `risk_config.max_concurrent_positions` | ±1 | 15% |
 | filter_toggle | Add/remove one filter primitive (regime, volatility) | on/off | 10% |
-| stop_type_swap | `risk_config.stop_type` | atr â†” percentage | 5% |
+| stop_type_swap | `risk_config.stop_type` | atr ↔ percentage | 5% |
 
 Rules:
 - Max 2 mutations per child
@@ -132,10 +132,10 @@ Rules:
 2. Evaluate all via Tier 1 validator (parallel where possible)
 3. Tombstone failures (expectancy <= 0, trades < 100, MC DD > 50%)
 4. Select top 5 parents by robust fitness
-5. Each parent spawns 10 children via mutation â†’ 50 new genomes
+5. Each parent spawns 10 children via mutation → 50 new genomes
 6. Repeat from step 2
 7. Every 24 hours: run Tier 2 on generation champion
-8. If Tier 2 passes â†’ promote to Champions archive
+8. If Tier 2 passes → promote to Champions archive
 ```
 
 ### Phase 1 Settings
@@ -214,19 +214,19 @@ interface Lineage {
 
 ### Files to Create
 
-- `backend/src/services/populationManager.ts` â€” core 6 functions + generation loop
-- `backend/src/routes/evolution.ts` â€” API endpoints
-- `frontend/public/evolution.html` â€” lab dashboard
-- `frontend/public/evolution.js` â€” UI logic
+- `backend/src/services/populationManager.ts` — core 6 functions + generation loop
+- `backend/src/routes/evolution.ts` — API endpoints
+- `frontend/public/evolution.html` — lab dashboard
+- `frontend/public/evolution.js` — UI logic
 
 ### API Endpoints
 
-- `POST /api/evolution/start` â€” start a new evolution session
-- `GET /api/evolution/:sessionId` â€” get session status, current generation, champion
-- `POST /api/evolution/:sessionId/stop` â€” stop evolution
-- `GET /api/evolution/:sessionId/lineage` â€” get family tree
-- `GET /api/evolution/:sessionId/tombstones` â€” get death records
-- `POST /api/evolution/:sessionId/promote` â€” promote champion to production
+- `POST /api/evolution/start` — start a new evolution session
+- `GET /api/evolution/:sessionId` — get session status, current generation, champion
+- `POST /api/evolution/:sessionId/stop` — stop evolution
+- `GET /api/evolution/:sessionId/lineage` — get family tree
+- `GET /api/evolution/:sessionId/tombstones` — get death records
+- `POST /api/evolution/:sessionId/promote` — promote champion to production
 
 ---
 
@@ -238,7 +238,7 @@ interface Lineage {
 
 - Swap one primitive stage between parents
 - Splice reducer subtrees
-- Blend numeric params with bounded interpolation (midpoint Â± noise)
+- Blend numeric params with bounded interpolation (midpoint ± noise)
 - Inherit risk config from more conservative parent
 
 ### Breed Function Update
@@ -261,10 +261,10 @@ breed(parents):
 
 Run independent evolution for each family:
 
-1. **RDP Divergence Family** â€” MACD divergence, RSI divergence, price/volume divergence
-2. **RDP Swing/Basing Family** â€” wiggle base breakout, base retest, 75% base
-3. **Order Block + Regime Family** â€” OB pullback, OB breakout, regime transitions
-4. **Regression Channel Family** â€” mean reversion, channel breakout, SD expansion
+1. **RDP Divergence Family** — MACD divergence, RSI divergence, price/volume divergence
+2. **RDP Swing/Basing Family** — wiggle base breakout, base retest, 75% base
+3. **Order Block + Regime Family** — OB pullback, OB breakout, regime transitions
+4. **Regression Channel Family** — mean reversion, channel breakout, SD expansion
 
 ### Portfolio-Level Competition
 
@@ -293,7 +293,7 @@ Portfolio becomes an ecosystem of complementary species.
 - Cross-family breeding is rare (5% of children per generation)
 - Strict complexity cap (max 4 primitives)
 - Mandatory Tier 2 validation before promotion
-- If child is worse than both parents â†’ tombstone immediately
+- If child is worse than both parents → tombstone immediately
 - Monitor for Frankenstein strategies that overfit
 
 ---
@@ -333,7 +333,7 @@ Once deployed, automated kill switch when:
 - Live vs backtest slippage delta exceeds tolerance
 - Correlation spike detected (positions moving together)
 
-When breached: auto-disable strategy â†’ Quarantine (not Tombstone â€” can be reinstated if conditions recover)
+When breached: auto-disable strategy → Quarantine (not Tombstone — can be reinstated if conditions recover)
 
 ### Compute Budget
 
@@ -357,9 +357,9 @@ When breached: auto-disable strategy â†’ Quarantine (not Tombstone â€”
 
 - Existing validator pipeline (done)
 - Existing sweep engine (done)
-- Existing fitness function with DD penalty (done â€” fixed today)
+- Existing fitness function with DD penalty (done — fixed today)
 - Existing tombstone system (done)
-- Tier gate bypass for evolution variants (done â€” `skip_tier_gate`)
+- Tier gate bypass for evolution variants (done — `skip_tier_gate`)
 - Max concurrent positions filter (done)
 
 ## Key Principles

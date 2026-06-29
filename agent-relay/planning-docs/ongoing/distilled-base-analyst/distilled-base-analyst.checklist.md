@@ -6,7 +6,7 @@
 - PRD: `distilled-base-analyst.prd.md`
 - Phase: `distilled-base-analyst`
 - Executor: `Builder`
-- Source: `.planning/plans/BACKLOG/distilled-base-analyst.md`
+- Source: `agent-relay/planning-docs/ongoing/distilled-base-analyst.md`
 
 ## Preconditions
 

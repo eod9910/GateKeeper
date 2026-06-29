@@ -6,7 +6,7 @@
 - PRD: `market-intelligence-active-audit-2026-06-01.prd.md`
 - Phase: `market-intelligence-active-audit-2026-06-01`
 - Executor: `Builder`
-- Source: `.planning/plans/TODO/market-intelligence-active-audit-2026-06-01.md`
+- Source: `agent-relay/planning-docs/ongoing/market-intelligence-active-audit-2026-06-01.md`
 
 ## Preconditions
 

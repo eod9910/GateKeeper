@@ -6,7 +6,7 @@
 - PRD: `adaptive-optimizer-plan.prd.md`
 - Phase: `adaptive-optimizer-plan`
 - Executor: `Builder`
-- Source: `.planning/plans/BACKLOG/adaptive-optimizer-plan.md`
+- Source: `agent-relay/planning-docs/ongoing/adaptive-optimizer-plan.md`
 
 ## Preconditions
 

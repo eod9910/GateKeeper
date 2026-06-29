@@ -53,7 +53,7 @@ Research Candidate
 -> Trading Desk
 ```
 
-Reference: `.planning/plans/REFERENCE/strategy-lifecycle-doctrine.md`
+Reference: `agent-relay/planning-docs/reference/strategy-lifecycle-doctrine.md`
 
 ## User Workflow
 

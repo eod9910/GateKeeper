@@ -1,32 +1,32 @@
-# Distilled Base Analyst â€” Implementation Plan
+# Distilled Base Analyst — Implementation Plan
 
 ## Vision
 
-Build a **domain-specific AI** that understands market structure the way a human trader does â€” not a general-purpose LLM with a prompt, not an ML classifier that outputs YES/NO, but a specialized reasoning engine that can look at a chart and explain what it sees in terms of floors, caps, accumulation, distribution, and change of character.
+Build a **domain-specific AI** that understands market structure the way a human trader does — not a general-purpose LLM with a prompt, not an ML classifier that outputs YES/NO, but a specialized reasoning engine that can look at a chart and explain what it sees in terms of floors, caps, accumulation, distribution, and change of character.
 
 The end state: a small (3-8B parameter) model that runs locally, costs nothing per inference, and produces structured analysis like:
 
-> "I see floors at $1.11, $2.01, $2.45 clustering in a $1.11â€“$2.45 band. Caps at $6.33 and $6.72 forming a ceiling band. Price has oscillated in this range for 47 weeks with compressing amplitude. This is Stage 1 accumulation. CHoCH triggers above $6.72."
+> "I see floors at $1.11, $2.01, $2.45 clustering in a $1.11–$2.45 band. Caps at $6.33 and $6.72 forming a ceiling band. Price has oscillated in this range for 47 weeks with compressing amplitude. This is Stage 1 accumulation. CHoCH triggers above $6.72."
 
 ## Why Distillation (Not Fine-Tuning, Not Quantization, Not ML)
 
 | Approach | What you get | Limitation |
 |---|---|---|
 | Fine-tuning GPT-4o | Smart, API-dependent | Expensive per call. Not yours. Can't run offline. |
-| Quantization (e.g. Llama 70B â†’ 4-bit) | Compressed general model | Still general purpose. Knows Shakespeare, not bases. |
+| Quantization (e.g. Llama 70B → 4-bit) | Compressed general model | Still general purpose. Knows Shakespeare, not bases. |
 | ML classifier | Fast YES/NO score | No reasoning. No comprehension. Black box. |
 | **Distillation** | Small specialized model that reasons like the teacher | Runs locally. Fast. Domain-specific. Yours. |
 
-Distillation trains a small student model on the *reasoning outputs* of a large teacher model. The student doesn't just learn labels â€” it learns *how to think about the problem*.
+Distillation trains a small student model on the *reasoning outputs* of a large teacher model. The student doesn't just learn labels — it learns *how to think about the problem*.
 
 ## Current Baseline (Already in Repo)
 
 ### Indicators (Feature Layer)
-- `rdp_wiggle_base_primitive.py` â€” marks floors, caps, wiggle scores, escape events
-- `regime_filter.py` â€” HH/HL/LH/LL Dow Theory classification, majority vote
-- `energy.py` â€” energy state, buying/selling pressure
-- `rdp.py` + `swing_structure.py` â€” RDP swing detection, structural analysis
-- `numba_indicators.py` â€” compiled SMA/EMA/RSI/MACD/ATR/Bollinger
+- `rdp_wiggle_base_primitive.py` — marks floors, caps, wiggle scores, escape events
+- `regime_filter.py` — HH/HL/LH/LL Dow Theory classification, majority vote
+- `energy.py` — energy state, buying/selling pressure
+- `rdp.py` + `swing_structure.py` — RDP swing detection, structural analysis
+- `numba_indicators.py` — compiled SMA/EMA/RSI/MACD/ATR/Bollinger
 
 ### Labels (Ground Truth)
 - ~150 manually labeled charts (target: 300+)
@@ -38,49 +38,49 @@ Distillation trains a small student model on the *reasoning outputs* of a large 
 - Vision service: `backend/src/services/visionService.ts`
 - Pattern Analyst chat: already renders in scanner UI
 - Ollama integration: already configured for local model inference (`minicpm-v`)
-- Auto Labeler plan: `.planning/plans/auto labeler.md` (feeds into this)
+- Auto Labeler plan: `agent-relay/planning-docs/auto labeler.md` (feeds into this)
 
 ## Key Insight: Accidental Intelligence
 
-The RDP Wiggle Base primitive is already marking bases â€” it just doesn't know it.
+The RDP Wiggle Base primitive is already marking bases — it just doesn't know it.
 
 **Observation 1 (ABSI):** Multiple floor/cap events from the wiggle base trace the boundaries of a single accumulation zone. Floors at $1.11, $2.01, $2.45 cluster into a floor band. Caps at $6.33, $6.72 cluster into a ceiling band. The indicator "accidentally" boxes in the base.
 
-**Observation 2 (ACIC):** When price V-bottoms and breaks through the prior cap, that's a Change of Character (CHoCH). The wiggle base marks the floor ($0.26), the prior high ($6.99), and the escape. The CHoCH signal is implicit in the data â€” floor, cap, breakout â€” but never explicitly recognized.
+**Observation 2 (ACIC):** When price V-bottoms and breaks through the prior cap, that's a Change of Character (CHoCH). The wiggle base marks the floor ($0.26), the prior high ($6.99), and the escape. The CHoCH signal is implicit in the data — floor, cap, breakout — but never explicitly recognized.
 
 The distilled model's job: take these accidental markings and recognize them as intentional structure.
 
 ## Architecture
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚                    PERCEPTION                        â”‚
-â”‚  Wiggle Base â†’ floors, caps, wiggle scores           â”‚
-â”‚  Regime Filter â†’ HH/HL/LH/LL, expansion/distributionâ”‚
-â”‚  Energy State â†’ velocity, acceleration, pressure     â”‚
-â”‚  RDP Swings â†’ structural highs and lows              â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                       â”‚ structured features
-                       â–¼
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚               INTERPRETATION (new)                   â”‚
-â”‚  Clustering: group nearby floors â†’ floor band        â”‚
-â”‚              group nearby caps â†’ ceiling band         â”‚
-â”‚  Classification: is this a base? accumulation?       â”‚
-â”‚  Transition detection: CHoCH when cap breaks         â”‚
-â”‚  Context: where is price relative to the box?        â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                       â”‚ structured analysis
-                       â–¼
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚              REASONING (distilled model)              â”‚
-â”‚  "I see three floors clustering at $1-2.50 and       â”‚
-â”‚   two caps at $6.33-$6.72. This is a 47-week         â”‚
-â”‚   accumulation zone. CHoCH triggers above $6.72."    â”‚
-â”‚                                                       â”‚
-â”‚  Runs locally. 3-8B params. Domain-specific.          â”‚
-â”‚  Trained on teacher (GPT-4o) reasoning + your labels. â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────────────────────────────────────────┐
+│                    PERCEPTION                        │
+│  Wiggle Base → floors, caps, wiggle scores           │
+│  Regime Filter → HH/HL/LH/LL, expansion/distribution│
+│  Energy State → velocity, acceleration, pressure     │
+│  RDP Swings → structural highs and lows              │
+└──────────────────────┬──────────────────────────────┘
+                       │ structured features
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│               INTERPRETATION (new)                   │
+│  Clustering: group nearby floors → floor band        │
+│              group nearby caps → ceiling band         │
+│  Classification: is this a base? accumulation?       │
+│  Transition detection: CHoCH when cap breaks         │
+│  Context: where is price relative to the box?        │
+└──────────────────────┬──────────────────────────────┘
+                       │ structured analysis
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│              REASONING (distilled model)              │
+│  "I see three floors clustering at $1-2.50 and       │
+│   two caps at $6.33-$6.72. This is a 47-week         │
+│   accumulation zone. CHoCH triggers above $6.72."    │
+│                                                       │
+│  Runs locally. 3-8B params. Domain-specific.          │
+│  Trained on teacher (GPT-4o) reasoning + your labels. │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## Phased Rollout
@@ -91,23 +91,23 @@ The distilled model's job: take these accidental markings and recognize them as 
 Build a clustering + CHoCH detection pass on top of wiggle base output:
 
 1. **Floor/Cap Clustering**
-   - Group wiggle base events whose floor prices are within X% of each other â†’ floor band
-   - Group events whose cap prices are within X% of each other â†’ ceiling band
+   - Group wiggle base events whose floor prices are within X% of each other → floor band
+   - Group events whose cap prices are within X% of each other → ceiling band
    - X% default: 15-20% (tunable)
    - Output: `{ floor_band: [min, max], ceiling_band: [min, max], bar_count, event_count }`
 
 2. **Base Classification**
-   - If floor band and ceiling band exist, and price oscillated inside for N+ bars â†’ base
+   - If floor band and ceiling band exist, and price oscillated inside for N+ bars → base
    - Classify: `accumulation` (after prior downtrend), `re-accumulation` (after prior uptrend pause), `distribution` (at highs)
    - Use regime filter context for classification
 
 3. **Change of Character (CHoCH)**
-   - When close > max(ceiling_band) â†’ CHoCH confirmed
+   - When close > max(ceiling_band) → CHoCH confirmed
    - Floor band becomes invalidation level
-   - Ceiling band becomes re-test entry zone (old resistance â†’ new support)
+   - Ceiling band becomes re-test entry zone (old resistance → new support)
 
 4. **Visual Output**
-   - Render the unified box on chart (floor band â†’ ceiling band, shaded)
+   - Render the unified box on chart (floor band → ceiling band, shaded)
    - CHoCH marker when breakout occurs
    - Re-test zone highlighting
 
@@ -186,7 +186,7 @@ Build a clustering + CHoCH detection pass on top of wiggle base output:
 - [ ] Ollama Modelfile
 - [ ] Inference benchmark (speed, memory, quality)
 
-### Phase 3: Integration â€” Replace Pattern Analyst
+### Phase 3: Integration — Replace Pattern Analyst
 **Goal:** Wire the distilled model into the scanner as the Pattern Analyst.
 
 1. **Model adapter**
@@ -304,9 +304,9 @@ backend/
 
 ## Relationship to Other Plans
 
-- **Auto Labeler** (`auto labeler.md`): Phase 3 of this plan upgrades the auto-labeler's model adapter. The auto-labeler produces labels â†’ those labels feed the distillation dataset â†’ the distilled model replaces the auto-labeler's AI. Circular reinforcement.
+- **Auto Labeler** (`auto labeler.md`): Phase 3 of this plan upgrades the auto-labeler's model adapter. The auto-labeler produces labels → those labels feed the distillation dataset → the distilled model replaces the auto-labeler's AI. Circular reinforcement.
 - **Adaptive Optimizer** (`adaptive-optimizer-plan.md`): The CHoCH signal from Phase 0 can be composed as a primitive in strategy composites, swept and optimized like any other.
-- **Research Agent** (`evolutionary-strategy-lab.md`): The distilled model's analysis could feed the research agent's hypothesis generation â€” "this symbol has a confirmed CHoCH above a 47-week base" is much richer context than raw indicator output.
+- **Research Agent** (`evolutionary-strategy-lab.md`): The distilled model's analysis could feed the research agent's hypothesis generation — "this symbol has a confirmed CHoCH above a 47-week base" is much richer context than raw indicator output.
 - **Execution Bridge**: A high-confidence CHoCH detection from the distilled model could be a signal source for autonomous trading.
 
 ## Recommended Execution Order

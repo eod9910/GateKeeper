@@ -3,7 +3,7 @@
 **Date:** 2026-02-13
 **Status:** TODO
 **Checklist:** `unified-symbol-catalog-checklist.md`
-**Priority:** Medium-High â€” fixes Validator empty categories, eliminates triple symbol list duplication
+**Priority:** Medium-High — fixes Validator empty categories, eliminates triple symbol list duplication
 
 ---
 
@@ -12,8 +12,8 @@
 There are three separate symbol lists that don't talk to each other:
 
 - **Scanner** (`frontend/public/index.js`, lines 2208-2270): hardcoded `symbolLists` object with ~200+ symbols including a `smallcaps` category
-- **Co-Pilot** (`frontend/public/copilot.js`, lines 108-115): hardcoded `COPILOT_SYMBOL_LISTS` â€” a manual copy of the Scanner list (comment says "kept in sync with index.js")
-- **Validator** run modal (`frontend/public/validator.js`, line 219): loads from `GET /api/candidates/symbols` which reads `backend/services/symbols.json` â€” only ~37 ETFs, no small caps, no futures
+- **Co-Pilot** (`frontend/public/copilot.js`, lines 108-115): hardcoded `COPILOT_SYMBOL_LISTS` — a manual copy of the Scanner list (comment says "kept in sync with index.js")
+- **Validator** run modal (`frontend/public/validator.js`, line 219): loads from `GET /api/candidates/symbols` which reads `backend/services/symbols.json` — only ~37 ETFs, no small caps, no futures
 
 When a symbol is added to one list, the others don't know. The Validator's "Small Caps" category is empty because `symbols.json` was never updated with those tickers.
 
@@ -47,7 +47,7 @@ One source of truth. All pages load from the same API endpoint.
 | `backend/src/routes/candidates.ts` | Update `GET /symbols` path to read from new location |
 | `frontend/public/index.js` | Remove hardcoded `symbolLists` (~60 lines). Load from API on init. Wire autocomplete + batch scan to use loaded data |
 | `frontend/public/copilot.js` | Remove hardcoded `COPILOT_SYMBOL_LISTS` (~10 lines). Load from API on init. Wire autocomplete to use loaded data |
-| `frontend/public/validator.js` | Update API path if endpoint changes. Otherwise minimal â€” it already loads from API |
+| `frontend/public/validator.js` | Update API path if endpoint changes. Otherwise minimal — it already loads from API |
 | `backend/services/validatorPipeline.py` | Fix the `[] or ["SPY","QQQ"]` falsy bug (line 231) |
 
 ---
@@ -60,7 +60,7 @@ Move `backend/services/symbols.json` to `backend/data/symbols.json`. Merge in AL
 
 ```json
 {
-  "description": "Master symbol catalog â€” single source of truth for all pages",
+  "description": "Master symbol catalog — single source of truth for all pages",
   "commodities": ["SLV", "GLD", "USO", "UNG", "CPER", "PALL", "PPLT", "DBA", "DBC"],
   "futures": ["MES=F", "MNQ=F", "MYM=F", "MCL=F", "MGC=F", "M6E=F", "M6B=F"],
   "indices": ["SPY", "QQQ", "IWM", "DIA", "VTI"],
@@ -76,7 +76,7 @@ Move `backend/services/symbols.json` to `backend/data/symbols.json`. Merge in AL
 }
 ```
 
-**IMPORTANT:** Use `"smallcaps"` (no underscore) as the key name â€” NOT `"small_caps"`. The Scanner's hardcoded list uses `smallcaps` as the category key, and the batch scan dropdown `#scan-category` has `<option value="smallcaps">`. If you change this key name, the batch scan dropdown breaks. The Validator's `normalizeSymbolCatalog()` already handles both `"smallcaps"` and `"small_caps"` (lines 250-251 of `validator.js`), so either works on that side.
+**IMPORTANT:** Use `"smallcaps"` (no underscore) as the key name — NOT `"small_caps"`. The Scanner's hardcoded list uses `smallcaps` as the category key, and the batch scan dropdown `#scan-category` has `<option value="smallcaps">`. If you change this key name, the batch scan dropdown breaks. The Validator's `normalizeSymbolCatalog()` already handles both `"smallcaps"` and `"small_caps"` (lines 250-251 of `validator.js`), so either works on that side.
 
 **Source of truth for the tickers:** Copy them directly from `frontend/public/index.js`, the `symbolLists` object starting at line 2208. That's the most complete list.
 
@@ -94,7 +94,7 @@ const symbolsPath = path.join(__dirname, '..', '..', '..', 'services', 'symbols.
 const symbolsPath = path.join(__dirname, '..', '..', 'data', 'symbols.json');
 ```
 
-The endpoint URL stays the same (`GET /api/candidates/symbols`) â€” no frontend changes needed for the Validator.
+The endpoint URL stays the same (`GET /api/candidates/symbols`) — no frontend changes needed for the Validator.
 
 ### Step 3: Wire the Scanner to load from API
 
@@ -135,7 +135,7 @@ async function loadSymbolCatalog() {
     }
   } catch (err) {
     console.warn('Failed to load symbol catalog, using fallback:', err);
-    // symbolLists stays as the empty default â€” user can still type symbols manually
+    // symbolLists stays as the empty default — user can still type symbols manually
   }
 }
 ```
@@ -150,10 +150,10 @@ initSymbolAutocomplete();
 ```
 
 **3d. No changes needed to:**
-- `getSymbolsList()` (line 1959) â€” it already reads from `symbolLists`
-- `runBatchScan()` â€” it already reads `symbolLists[category]`
-- `initSymbolAutocomplete()` â€” it already calls `getSymbolsList()`
-- Batch scan `<option>` values in `index.html` â€” keep them static, they match the JSON keys
+- `getSymbolsList()` (line 1959) — it already reads from `symbolLists`
+- `runBatchScan()` — it already reads `symbolLists[category]`
+- `initSymbolAutocomplete()` — it already calls `getSymbolsList()`
+- Batch scan `<option>` values in `index.html` — keep them static, they match the JSON keys
 
 ### Step 4: Wire the Co-Pilot to load from API
 
@@ -184,15 +184,15 @@ initCopilotSymbolAutocomplete();
 ```
 
 **4d. No changes needed to:**
-- `getSymbolsList()` (line 152) â€” it already reads from `COPILOT_SYMBOL_LISTS`
-- `initCopilotSymbolAutocomplete()` â€” it already calls `getSymbolsList()`
+- `getSymbolsList()` (line 152) — it already reads from `COPILOT_SYMBOL_LISTS`
+- `initCopilotSymbolAutocomplete()` — it already calls `getSymbolsList()`
 
-### Step 5: Validator â€” minimal change
+### Step 5: Validator — minimal change
 
 `frontend/public/validator.js` already loads from `GET /api/candidates/symbols` in `loadSymbolLibrary()` (line 219). Once `symbols.json` has small caps, the Validator's "Small Caps" category will automatically populate because `normalizeSymbolCatalog()` maps the `smallcaps` key to the "Small Caps" label (line 250).
 
 **Changes needed (from the universe bug report):**
-- Add "Add All in Category" button (see `.planning/plans/fix-validator-universe-bug.md`, Fix 3a)
+- Add "Add All in Category" button (see `agent-relay/planning-docs/fix-validator-universe-bug.md`, Fix 3a)
 - Add empty-universe warning on submit (see Fix 3b)
 
 ### Step 6: Fix Python falsy bug
@@ -222,10 +222,10 @@ After confirming everything works, delete `backend/services/symbols.json` (the o
 
 ## What NOT to change
 
-- **History/Trading Desk** (`history.js`) â€” doesn't need a symbol catalog; it works from trade data
-- **Python services** (`patternScanner.py`, `quoteService.py`, `strategyRunner.py`) â€” they receive symbols as CLI args from Node; no catalog needed
-- **`storageService.ts`** â€” no symbol storage logic needed; the JSON file is read directly by the candidates route
-- **The API endpoint URL** â€” keep it at `GET /api/candidates/symbols` so the Validator doesn't need URL changes
+- **History/Trading Desk** (`history.js`) — doesn't need a symbol catalog; it works from trade data
+- **Python services** (`patternScanner.py`, `quoteService.py`, `strategyRunner.py`) — they receive symbols as CLI args from Node; no catalog needed
+- **`storageService.ts`** — no symbol storage logic needed; the JSON file is read directly by the candidates route
+- **The API endpoint URL** — keep it at `GET /api/candidates/symbols` so the Validator doesn't need URL changes
 
 ---
 
@@ -245,21 +245,21 @@ Throughout `index.js`, the variable `symbolLists` is referenced by `getSymbolsLi
 
 ### Manual symbol entry still works
 
-Even if the API fails, users can still type any symbol into the Scanner or Co-Pilot input fields. The autocomplete just won't have suggestions. The scan itself uses whatever the user typed â€” it doesn't validate against the catalog.
+Even if the API fails, users can still type any symbol into the Scanner or Co-Pilot input fields. The autocomplete just won't have suggestions. The scan itself uses whatever the user typed — it doesn't validate against the catalog.
 
 ---
 
 ## Testing
 
-1. **Scanner autocomplete:** Type "SM" â†’ should see SMCI and other small cap suggestions (previously only worked because of hardcoded list; now from API)
-2. **Scanner batch scan:** Select "smallcaps" category â†’ Run Batch Scan â†’ should scan all ~200 small cap tickers
-3. **Co-Pilot autocomplete:** Type "IO" â†’ should see IONQ (loaded from API, not hardcoded)
-4. **Validator run modal:** Select "Small Caps" category â†’ should see ~200 tickers in the library (previously empty)
-5. **Validator "Add All":** Click "Add All in Category" with Small Caps selected â†’ universe input fills with all tickers
-6. **Validator submit with universe:** Run validation with small caps â†’ progress should show "Downloading SMCI (1/N)..." NOT "Downloading SPY..."
-7. **API directly:** `GET /api/candidates/symbols` â†’ should return full catalog with all categories including smallcaps and futures
-8. **Fallback:** Stop the backend â†’ Scanner/Co-Pilot pages should still load (autocomplete empty, but manual input works)
-9. **Python falsy fix:** Run validation with strategy that has `universe: []` and no explicit override â†’ should default to SPY/QQQ (not crash)
+1. **Scanner autocomplete:** Type "SM" → should see SMCI and other small cap suggestions (previously only worked because of hardcoded list; now from API)
+2. **Scanner batch scan:** Select "smallcaps" category → Run Batch Scan → should scan all ~200 small cap tickers
+3. **Co-Pilot autocomplete:** Type "IO" → should see IONQ (loaded from API, not hardcoded)
+4. **Validator run modal:** Select "Small Caps" category → should see ~200 tickers in the library (previously empty)
+5. **Validator "Add All":** Click "Add All in Category" with Small Caps selected → universe input fills with all tickers
+6. **Validator submit with universe:** Run validation with small caps → progress should show "Downloading SMCI (1/N)..." NOT "Downloading SPY..."
+7. **API directly:** `GET /api/candidates/symbols` → should return full catalog with all categories including smallcaps and futures
+8. **Fallback:** Stop the backend → Scanner/Co-Pilot pages should still load (autocomplete empty, but manual input works)
+9. **Python falsy fix:** Run validation with strategy that has `universe: []` and no explicit override → should default to SPY/QQQ (not crash)
 
 ---
 

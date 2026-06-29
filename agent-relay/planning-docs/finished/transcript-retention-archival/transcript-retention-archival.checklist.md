@@ -2,7 +2,7 @@
 
 PRD: transcript-retention-archival-prd.md
 
-Percent complete: 100% (14 complete, 0 partial, 0 remaining) â€” first real `--apply` archival move completed under the Destructive Cleanup Gate with User approval (cursor/2026-03-10 -> cursor/archive/2026-03/).
+Percent complete: 100% (14 complete, 0 partial, 0 remaining) — first real `--apply` archival move completed under the Destructive Cleanup Gate with User approval (cursor/2026-03-10 -> cursor/archive/2026-03/).
 
 Tier 2 flow: Validator authored this PRD/checklist -> Builder implements ->
 Editor second-pass cleanup -> Validator verifies every item against files/diff and

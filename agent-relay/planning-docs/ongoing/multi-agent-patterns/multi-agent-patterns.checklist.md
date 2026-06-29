@@ -1,11 +1,11 @@
-# Multi-Agent Patterns â€” Build Checklist
+# Multi-Agent Patterns — Build Checklist
 
 Percent complete: 39% (17 complete, 0 partial, 27 remaining)
 
 PRD: multi-agent-patterns-prd.md
 
 Living tracker for the Multi-Agent Patterns PRD.
-Source of truth for "what have we actually finished?" â€” not "what code exists".
+Source of truth for "what have we actually finished?" — not "what code exists".
 
 > **Companion to:** [`multi-agent-patterns-prd.md`](./multi-agent-patterns-prd.md)
 > **Update protocol:** Tick a box only when the deliverable is **shipped + verified**, not when the code is written. Re-check exit-criteria boxes whenever live state changes.
@@ -14,14 +14,14 @@ Source of truth for "what have we actually finished?" â€” not "what code ex
 
 ## Status legend
 
-- âœ… Done and verified
-- ðŸŸ¡ Partial (code shipped but not producing or not yet meeting threshold)
-- ðŸ”µ In progress this session
-- âŒ Not started
+- ✅ Done and verified
+- 🟡 Partial (code shipped but not producing or not yet meeting threshold)
+- 🔵 In progress this session
+- ❌ Not started
 
 ---
 
-## Snapshot â€” last verified 2026-04-29
+## Snapshot — last verified 2026-04-29
 
 **HEAD:** Phase A code complete, awaiting first valuation refresh
 **Schema:** 3 new tables created in `app-state.sqlite` (on first access)
@@ -34,7 +34,7 @@ Source of truth for "what have we actually finished?" â€” not "what code ex
 
 ---
 
-## Phase A â€” DCF Calibration Engine ðŸŸ¡ code complete, awaiting data
+## Phase A — DCF Calibration Engine 🟡 code complete, awaiting data
 
 ### Deliverables
 
@@ -51,32 +51,32 @@ Source of truth for "what have we actually finished?" â€” not "what code ex
   - Columns: id, scope_type, scope_value, assumption_key, adjustment_pct, sample_size, confidence, last_computed_at
   - UNIQUE(scope_type, scope_value, assumption_key)
   - **Shipped in:** `dcfCalibrationDb.ts` + `run_dcf_calibration.py`
-- [x] **`backend/src/services/dcfCalibrationDb.ts`** â€” CRUD helpers:
-  - `logDcfPrediction(params)` â†’ prediction_id
-  - `getPredictionsForSymbol(symbol, limit?)` â†’ DcfPredictionRow[]
-  - `getPredictionsReadyForCalibration(minAge?, onlyUncalibrated?)` â†’ DcfPredictionRow[]
-  - `logCalibrationError(params)` â†’ error_id
-  - `getCalibrationErrorsByScope(scopeType, scopeValue)` â†’ CalibrationErrorRow[]
-  - `getCalibrationErrorsForPrediction(predictionId)` â†’ CalibrationErrorRow[]
-  - `upsertCalibrationAdjustment(params)` â†’ void
-  - `getCalibrationAdjustments(sector, industry?, marketCapBand?)` â†’ CalibrationAdjustmentRow[]
-  - `getAllCalibrationAdjustments()` â†’ CalibrationAdjustmentRow[]
-  - `computeCalibrationSummary(minSampleSize?)` â†’ CalibrationSummaryRow[]
+- [x] **`backend/src/services/dcfCalibrationDb.ts`** — CRUD helpers:
+  - `logDcfPrediction(params)` → prediction_id
+  - `getPredictionsForSymbol(symbol, limit?)` → DcfPredictionRow[]
+  - `getPredictionsReadyForCalibration(minAge?, onlyUncalibrated?)` → DcfPredictionRow[]
+  - `logCalibrationError(params)` → error_id
+  - `getCalibrationErrorsByScope(scopeType, scopeValue)` → CalibrationErrorRow[]
+  - `getCalibrationErrorsForPrediction(predictionId)` → CalibrationErrorRow[]
+  - `upsertCalibrationAdjustment(params)` → void
+  - `getCalibrationAdjustments(sector, industry?, marketCapBand?)` → CalibrationAdjustmentRow[]
+  - `getAllCalibrationAdjustments()` → CalibrationAdjustmentRow[]
+  - `computeCalibrationSummary(minSampleSize?)` → CalibrationSummaryRow[]
   - `getPredictionCount()` / `getCalibrationErrorCount()` / `getCalibrationAdjustmentCount()`
-  - `deriveMarketCapBand(marketCap)` â†’ MarketCapBand | null
+  - `deriveMarketCapBand(marketCap)` → MarketCapBand | null
   - All TypeScript types exported: `DcfPredictionRow`, `CalibrationErrorRow`, `CalibrationAdjustmentRow`, `LogDcfPredictionParams`, `LogCalibrationErrorParams`, `UpsertCalibrationAdjustmentParams`, `CalibrationSummaryRow`, `MarketCapBand`
 - [x] **Prediction logging wired into valuation refresh** (`build_universe_valuation_snapshot.py`):
   - `_build_current_standardized_dcf()` now returns base-case assumptions: `dcf_revenue_growth_pct`, `dcf_target_fcf_margin_pct`, `dcf_discount_rate_pct`, `dcf_terminal_growth_pct`, `dcf_forecast_years`
   - `ValuationSnapshotRow` extended with assumption fields
   - `_log_dcf_predictions()` writes every row to `dcf_predictions` in `app-state.sqlite` after snapshot build
   - Source = `'valuation_refresh'`, engine_version = `'universe_snapshot_v1'`
-  - Wrapped in try/except â€” failure doesn't block the valuation refresh
+  - Wrapped in try/except — failure doesn't block the valuation refresh
 - [x] **Prediction logging wired into `copilotTools.ts`** for interactive analyses:
   - `buildLedgerWorkflowResult()` logs a prediction after every `run_dcf_valuation`
   - Captures all base-case assumptions from `dcfResult.scenarios.base_case`
   - Source = `'interactive_analysis'`, engine_version = `'ledger_engines_v1'`
-  - Wrapped in try/catch â€” best-effort, never blocks the analysis
-- [x] **`backend/scripts/run_dcf_calibration.py`** â€” quarterly calibration batch job:
+  - Wrapped in try/catch — best-effort, never blocks the analysis
+- [x] **`backend/scripts/run_dcf_calibration.py`** — quarterly calibration batch job:
   - Queries uncalibrated predictions older than `min_age_days` (default 90)
   - Fetches actual revenue and FCF from PIT facts (`pit_statement_facts`) available after prediction date
   - Fetches current price from PIT market facts
@@ -87,28 +87,28 @@ Source of truth for "what have we actually finished?" â€” not "what code ex
     - `direction_correct` = 1 if judgment direction matches price move since prediction
   - Writes per-prediction errors to `dcf_calibration_errors`
   - Aggregates errors by (sector, assumption_key), (market_cap_band, assumption_key), and (global, assumption_key)
-  - Computes bias adjustments as mean error, with minimum sample size threshold (â‰¥10)
+  - Computes bias adjustments as mean error, with minimum sample size threshold (≥10)
   - Upserts to `dcf_calibration_adjustments`
   - Computes overall direction accuracy rate
   - Generates calibration report JSON saved to `backend/data/calibration/calibration_report_<date>.json`
 - [x] **Manual trigger endpoint**: `POST /api/ledger-hydration/calibration/run`
   - Accepts `min_age_days` and `min_sample_size` in body
   - Spawns `run_dcf_calibration.py`, returns report JSON on success
-  - **Note:** Cron-based scheduling (quarterly auto-trigger) not yet registered â€” manual trigger only for now
+  - **Note:** Cron-based scheduling (quarterly auto-trigger) not yet registered — manual trigger only for now
 - [x] **Calibration injection into DCF engine** (`ledgerEngines.ts`):
   - New `CalibrationAdjustment` type exported
   - `DcfEngineOptions` extended with optional `calibration_adjustments: CalibrationAdjustment[]`
   - `runDcfValuationEngine()` applies adjustments before computing scenarios:
-    - Revenue growth: `calibratedGrowthPct = baseNearTermGrowthPct - adjustment_pct` (clamped 0.5â€“25)
-    - FCF margin: `calibratedFcfMarginPct = baseTargetFcfMarginPct - adjustment_pct` (clamped 1â€“30)
+    - Revenue growth: `calibratedGrowthPct = baseNearTermGrowthPct - adjustment_pct` (clamped 0.5–25)
+    - FCF margin: `calibratedFcfMarginPct = baseTargetFcfMarginPct - adjustment_pct` (clamped 1–30)
     - Only applied when user hasn't explicitly overridden the assumption via options
-    - Uses most specific match first (adjustments arrive specificity-ordered: industry â†’ sector â†’ cap band â†’ global)
+    - Uses most specific match first (adjustments arrive specificity-ordered: industry → sector → cap band → global)
   - Engine output includes `calibration_applied` field showing what adjustments were used (null when none applied)
   - `supporting_context` enriched with `market_cap`, `current_price`, `valuation_gap_pct`, `valuation_quality_score`
 - [x] **Calibration data passed through the pipeline** (`copilotTools.ts`):
   - Before `runValuationEngine()`, queries `getCalibrationAdjustments()` for the symbol's sector/industry/cap-band from the snapshot
   - Passes adjustments as `calibration_adjustments` in engine options
-  - Wrapped in try/catch â€” best-effort, engine runs without calibration if lookup fails
+  - Wrapped in try/catch — best-effort, engine runs without calibration if lookup fails
 - [x] **Prior valuations injected into Ledger prompts** (`visionService.ts`):
   - `buildCalibrationContextBlock(context)` fetches prior predictions for the active symbol
   - If found, builds a `## Prior Valuations & Calibration` block with:
@@ -116,35 +116,35 @@ Source of truth for "what have we actually finished?" â€” not "what code ex
     - If calibration errors exist: assumption errors (e.g., "revenue growth predicted 9%, actual 6%, 3% optimistic")
     - Active calibration adjustments for this sector (e.g., "sector=Technology, revenue_growth_pct: reduce by 2.8% (n=45)")
   - Block appended to `dynamicContext` in `buildFinancialAnalystPrompt()`
-  - Wrapped in try/catch â€” returns empty string on any failure
+  - Wrapped in try/catch — returns empty string on any failure
 - [x] **Calibration dashboard API endpoints** (`backend/src/routes/calibration.ts`):
-  - `GET /api/calibration/summary` â€” counts, active adjustments, and bias summary (via `computeCalibrationSummary`)
-  - `GET /api/calibration/errors/:symbol` â€” per-symbol prediction history
-  - `GET /api/calibration/adjustments` â€” current active adjustments table
-  - `GET /api/calibration/errors-by-scope?scope_type=...&scope_value=...` â€” errors filtered by scope
+  - `GET /api/calibration/summary` — counts, active adjustments, and bias summary (via `computeCalibrationSummary`)
+  - `GET /api/calibration/errors/:symbol` — per-symbol prediction history
+  - `GET /api/calibration/adjustments` — current active adjustments table
+  - `GET /api/calibration/errors-by-scope?scope_type=...&scope_value=...` — errors filtered by scope
   - Registered at `/api/calibration` in `server.ts`
 
 ### Exit criteria
 
-- [ ] â‰¥500 predictions logged after 1 full valuation refresh cycle across the universe
+- [ ] ≥500 predictions logged after 1 full valuation refresh cycle across the universe
 - [ ] Calibration job runs successfully on at least 1 quarter of prediction data (manual trigger OK for first run)
-- [ ] At least 3 sectors have calibration adjustments computed with sample size â‰¥10
+- [ ] At least 3 sectors have calibration adjustments computed with sample size ≥10
 - [ ] Calibration adjustments are applied in at least 1 DCF engine run (`calibration_applied` field present in engine output)
 - [ ] Prior valuation injection verified in at least 1 Ledger analysis (the `## Prior Valuations & Calibration` block appears in the system prompt)
 - [ ] Calibration report JSON generated and human-readable
-- [x] No regressions in existing DCF engine behavior (when no calibration data exists, engine behaves identically to today â€” all calibration paths are additive, guarded by null/empty checks)
-- [x] Zero LLM cost for the entire Phase A pipeline (all computation is deterministic â€” prediction logging is DB writes, calibration is arithmetic, adjustment injection is arithmetic)
+- [x] No regressions in existing DCF engine behavior (when no calibration data exists, engine behaves identically to today — all calibration paths are additive, guarded by null/empty checks)
+- [x] Zero LLM cost for the entire Phase A pipeline (all computation is deterministic — prediction logging is DB writes, calibration is arithmetic, adjustment injection is arithmetic)
 
 ---
 
-## Phase B â€” Approval Gate (Risk Reviewer) âŒ 0%
+## Phase B — Approval Gate (Risk Reviewer) ❌ 0%
 
 > **Status:** Not started. Depends on Phase A data being available. Consider building only if/when the execution bridge is actively used for live trading.
 
 ### Deliverables
 
-- [ ] `workspace/Risk Reviewer Workspace/` â€” IDENTITY.md, SOUL.md, AGENTS.md, TOOLS.md
-- [ ] `gateService.ts` â€” `runApprovalGate()` â†’ `GateResult`
+- [ ] `workspace/Risk Reviewer Workspace/` — IDENTITY.md, SOUL.md, AGENTS.md, TOOLS.md
+- [ ] `gateService.ts` — `runApprovalGate()` → `GateResult`
 - [ ] `buildRiskReviewerPrompt()` in `visionService.ts`
 - [ ] Gate wired into `copilotTools.ts` + conviction producer
 - [ ] Operator toggle: `riskReviewEnabled`
@@ -152,36 +152,36 @@ Source of truth for "what have we actually finished?" â€” not "what code ex
 
 ### Exit criteria
 
-- [ ] Gate produces valid `GateResult` JSON on â‰¥95% of calls
+- [ ] Gate produces valid `GateResult` JSON on ≥95% of calls
 - [ ] At least 1 FLAG or BLOCK correctly fires on a test case
-- [ ] Gate adds â‰¤ 3 seconds latency
-- [ ] LLM cost per gate call â‰¤ $0.005
+- [ ] Gate adds ≤ 3 seconds latency
+- [ ] LLM cost per gate call ≤ $0.005
 
 ---
 
-## Phase C â€” Adversarial Debate âŒ 0%
+## Phase C — Adversarial Debate ❌ 0%
 
 > **Status:** Not started. Lowest priority. Consider building only after Phase A has produced measurable calibration improvements and Phase B is operational.
 
 ### Deliverables
 
 - [ ] Bull + Bear Researcher workspaces (IDENTITY.md + SOUL.md each)
-- [ ] `debateService.ts` â€” `runAdversarialDebate()` â†’ `DebateResult`
+- [ ] `debateService.ts` — `runAdversarialDebate()` → `DebateResult`
 - [ ] Debate wired into Ledger workflows + conviction producer
 - [ ] Operator toggle: `debateEnabled`
 - [ ] Debate calls run in parallel
 
 ### Exit criteria
 
-- [ ] Debate produces valid `DebateResult` JSON on â‰¥95% of calls
-- [ ] Debate adds â‰¤ 5 seconds latency (parallel calls)
-- [ ] LLM cost per debate â‰¤ $0.01
+- [ ] Debate produces valid `DebateResult` JSON on ≥95% of calls
+- [ ] Debate adds ≤ 5 seconds latency (parallel calls)
+- [ ] LLM cost per debate ≤ $0.01
 
 ---
 
 ## Open Infrastructure / Tech-Debt Items
 
-- [x] TypeScript types for `DcfPredictionRow`, `CalibrationErrorRow`, `CalibrationAdjustmentRow` defined in `dcfCalibrationDb.ts` (co-located with the service, not in `backend/src/types/` â€” consistent with pattern in `symbolCatalog.ts`)
+- [x] TypeScript types for `DcfPredictionRow`, `CalibrationErrorRow`, `CalibrationAdjustmentRow` defined in `dcfCalibrationDb.ts` (co-located with the service, not in `backend/src/types/` — consistent with pattern in `symbolCatalog.ts`)
 - [x] `CalibrationAdjustment` type exported from `ledgerEngines.ts`
 - [ ] `GateResult`, `DebateResult` types (Phase B/C)
 - [ ] New workspaces follow naming convention from `WORKSPACE_ARCHITECTURE.md` (Phase B/C)

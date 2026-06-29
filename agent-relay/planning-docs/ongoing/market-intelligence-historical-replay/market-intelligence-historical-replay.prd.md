@@ -200,8 +200,8 @@ The first "decision-grade" report should not just say whether eigen perturbation
 
 ## Related Plans
 
-- `.planning/plans/ACTIVE/backtesting-master.md`
-- `.planning/plans/ACTIVE/market-intelligence-scenario-engine-checklist.md`
-- `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd.md`
-- `.planning/plans/ACTIVE/ledger-data-foundation-and-pit-ingestion-prd.md`
-- `.planning/plans/ACTIVE/ledger-source-priority-matrix.md`
+- `agent-relay/planning-docs/ongoing/backtesting-master.md`
+- `agent-relay/planning-docs/ongoing/market-intelligence-scenario-engine-checklist.md`
+- `agent-relay/planning-docs/ongoing/market-intelligence-scenario-engine-prd.md`
+- `agent-relay/planning-docs/ongoing/ledger-data-foundation-and-pit-ingestion-prd.md`
+- `agent-relay/planning-docs/ongoing/ledger-source-priority-matrix.md`

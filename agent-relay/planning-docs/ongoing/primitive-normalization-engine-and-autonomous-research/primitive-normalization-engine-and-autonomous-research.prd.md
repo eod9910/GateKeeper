@@ -101,10 +101,10 @@ Current gap:
 
 ```text
 external indicator libraries
-â†’ source adapters
-â†’ primitive normalization engine
-â†’ canonical primitive registry entries
-â†’ builder/research/validator/scanner/execution consumers
+→ source adapters
+→ primitive normalization engine
+→ canonical primitive registry entries
+→ builder/research/validator/scanner/execution consumers
 ```
 
 ### The normalization engine owns
@@ -177,7 +177,7 @@ Every normalized primitive must expose:
 
 ## Execution Sequence
 
-## Phase 0 â€” Audit and Contract Definition
+## Phase 0 — Audit and Contract Definition
 
 **Goal:** Define the canonical primitive contract and audit current registry entries against it.
 
@@ -192,11 +192,11 @@ Every normalized primitive must expose:
 
 - every existing primitive can be classified into a canonical role or explicitly flagged as ambiguous
 - the app has one written contract for imported and custom primitives
-- the first â€œcore libraryâ€ target list is frozen
+- the first “core library” target list is frozen
 
 ---
 
-## Phase 1 â€” Build the Primitive Normalization Engine
+## Phase 1 — Build the Primitive Normalization Engine
 
 **Goal:** Add the adapter + normalization layer that converts raw imported indicator outputs into canonical app primitives.
 
@@ -214,7 +214,7 @@ Every normalized primitive must expose:
 
 ---
 
-## Phase 2 â€” Import the Standard Indicator Core
+## Phase 2 — Import the Standard Indicator Core
 
 **Goal:** Import a standard library of commodity indicators rather than implementing them ad hoc.
 
@@ -247,7 +247,7 @@ Every normalized primitive must expose:
 
 ---
 
-## Phase 3 â€” Registry Cleanup and Primitive Tiering
+## Phase 3 — Registry Cleanup and Primitive Tiering
 
 **Goal:** Make the primitive search space safe and legible for autonomous strategy design.
 
@@ -267,7 +267,7 @@ Every normalized primitive must expose:
 
 ---
 
-## Phase 4 â€” State-Machine-Aware Autonomy
+## Phase 4 — State-Machine-Aware Autonomy
 
 **Goal:** Allow autonomous creation of stateful strategies using approved templates.
 
@@ -291,7 +291,7 @@ Every normalized primitive must expose:
 
 ---
 
-## Phase 5 â€” Rebuild Research Studio Around Autonomous Strategy Design
+## Phase 5 — Rebuild Research Studio Around Autonomous Strategy Design
 
 **Goal:** Make `Research Studio` explicitly strategy-discovery-first.
 
@@ -302,8 +302,8 @@ Every normalized primitive must expose:
   - `Symbolic Regression`
 - clearer launch semantics:
   - `Start Strategy Research`
-  - â€œleave seed blank to explore from scratchâ€
-  - â€œenable primitive creation to let the agent invent new building blocksâ€
+  - “leave seed blank to explore from scratch”
+  - “enable primitive creation to let the agent invent new building blocks”
 - decision-first session details
 - explicit view into the primitive tier / search space being used
 
@@ -315,7 +315,7 @@ Every normalized primitive must expose:
 
 ---
 
-## Phase 6 â€” Autonomous Research Policy
+## Phase 6 — Autonomous Research Policy
 
 **Goal:** Make the research engine behave like a disciplined search system instead of a free-form generator.
 

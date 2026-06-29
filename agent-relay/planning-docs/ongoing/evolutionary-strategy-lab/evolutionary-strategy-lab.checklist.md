@@ -6,7 +6,7 @@
 - PRD: `evolutionary-strategy-lab.prd.md`
 - Phase: `evolutionary-strategy-lab`
 - Executor: `Builder`
-- Source: `.planning/plans/BACKLOG/evolutionary-strategy-lab.md`
+- Source: `agent-relay/planning-docs/ongoing/evolutionary-strategy-lab.md`
 
 ## Preconditions
 

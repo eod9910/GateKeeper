@@ -1,4 +1,4 @@
-# PRD: Expectation Gap Detector â€” Proactive Social Narrative Surfacing
+# PRD: Expectation Gap Detector — Proactive Social Narrative Surfacing
 
 Checklist: expectation-gap-detector-checklist.md
 
@@ -11,13 +11,13 @@ While reading the SOCIAL BUZZ panel for **ResMed (RMD)**, a post mentioned **Oze
 The operator did not understand why a weight-loss drug would move a sleep-apnea
 device company. The **Ledger** agent explained the causal chain:
 
-> GLP-1 drugs (Ozempic, Wegovy, Mounjaro, Zepbound) cause weight loss â†’ obesity is
-> a major driver of obstructive sleep apnea â†’ therefore the market fears long-term
-> CPAP demand erosion â†’ RMD sells off on *feared future impairment*, even though
+> GLP-1 drugs (Ozempic, Wegovy, Mounjaro, Zepbound) cause weight loss → obesity is
+> a major driver of obstructive sleep apnea → therefore the market fears long-term
+> CPAP demand erosion → RMD sells off on *feared future impairment*, even though
 > current filings (Rev +10.8%, GM 62%, FCF ~$1.66B, net cash ~$1.16B) show **no
 > damage yet**.
 
-That gap â€” **narrative moving faster than financial evidence** â€” is exactly the
+That gap — **narrative moving faster than financial evidence** — is exactly the
 signal we want to surface *before it becomes common knowledge*.
 
 The problem: the operator only found it by manually reading posts and asking.
@@ -41,13 +41,13 @@ Evidence Divergence, Pre-Consensus Mispricing Finder).
 ## Core thesis
 
 > Surface expectation gaps: cases where consensus belief is changing faster than
-> business reality, the business is financially durable, and the next 2â€“6 quarters
+> business reality, the business is financially durable, and the next 2–6 quarters
 > are likely to reveal whether the market is *early* or *wrong*.
 
 We are NOT building: generic value screens, low-P/E lists, hype-story finders, or
 post-hoc explanations of already-well-known themes.
 
-## What already exists (â‰ˆ70% of the machine)
+## What already exists (≈70% of the machine)
 
 | Framework layer | Existing component |
 |---|---|
@@ -57,14 +57,14 @@ post-hoc explanations of already-well-known themes.
 | 4. Time-to-proof | `run_forward_tracking.py`, `run_eigen_replay_study.py` |
 | 5. Disconfirming evidence (bull/bear) | The Ledger agent (`ledgerEngines.ts`, `ledgerWorkspaceSkills.ts`, `market-intelligence-investigation` skill) |
 
-## What is missing (the â‰ˆ30% to build)
+## What is missing (the ≈30% to build)
 
 ### A. Narrative Thesis Extractor (the new core)
 A pass that reads social posts for a symbol and classifies each as either:
 - **noise** (price targets, emojis, RSI/MACD bot posts, recap lists, generic
   hype/fear), or
-- **thesis** â€” a concrete causal claim about the business
-  ("X external force â†’ affects company economics via mechanism Y").
+- **thesis** — a concrete causal claim about the business
+  ("X external force → affects company economics via mechanism Y").
 
 For each detected thesis, extract: `claim`, `mechanism`, `external_driver`
 (e.g. "GLP-1 drugs"), `direction` (bull/bear), `specificity` score, and
@@ -90,28 +90,28 @@ fundamental_confirmation =
 expectation_gap = narrative_intensity - fundamental_confirmation
 ```
 
-High positive gap = story is ahead of the evidence â†’ candidate to surface.
+High positive gap = story is ahead of the evidence → candidate to surface.
 
 ### C. Ledger Classifier Pass
-A Ledger investigation that, for each high-gap candidate, produces the Aâ€“F output
+A Ledger investigation that, for each high-gap candidate, produces the A–F output
 (below) and assigns ONE classification tag, applying the false-positive filters.
 
 ### D. Surfacing / Auto-Flag
-- A highlighted **alert row / badge** on the Convergence Scoreboard ("âš  Expectation
+- A highlighted **alert row / badge** on the Convergence Scoreboard ("⚠ Expectation
   Gap: narrative ahead of evidence").
 - Optionally a dedicated "Expectation Gaps" view ranked by gap score.
-- The flag is generated automatically by the batch pass â€” the operator does NOT
+- The flag is generated automatically by the batch pass — the operator does NOT
   have to click to discover it.
 
 ## Output format (per surfaced case)
 
-- **A. Narrative** â€” what the market currently believes (the thesis, plain English).
-- **B. Evidence** â€” what reported numbers / filings show right now (PIT).
-- **C. Mismatch** â€” why narrative and evidence are not aligned.
-- **D. Why this may be early** â€” why the opportunity exists before it is well known.
-- **E. Confirm / invalidate** â€” the next KPIs, filings, quarters, or customer
+- **A. Narrative** — what the market currently believes (the thesis, plain English).
+- **B. Evidence** — what reported numbers / filings show right now (PIT).
+- **C. Mismatch** — why narrative and evidence are not aligned.
+- **D. Why this may be early** — why the opportunity exists before it is well known.
+- **E. Confirm / invalidate** — the next KPIs, filings, quarters, or customer
   signals that would resolve it.
-- **F. Classification** â€” exactly one of:
+- **F. Classification** — exactly one of:
   - Narrative ahead of damage
   - Narrative ahead of improvement
   - Hype ahead of economics
@@ -127,7 +127,7 @@ A Ledger investigation that, for each high-gap candidate, produces the Aâ€“
 3. Balance sheet strong enough to survive the debate
 4. Cash flow quality is real
 5. Business model is understandable
-6. Next 2â€“6 quarters can resolve the disagreement
+6. Next 2–6 quarters can resolve the disagreement
 7. Positioning suggests crowding / panic / premature certainty
 8. Valuation moved materially without equivalent operating change
 
@@ -147,8 +147,8 @@ Do NOT surface when:
 
 > You are a market-intelligence analyst monitoring social buzz in real time. Your
 > job is NOT to summarize chatter. Your job is to detect, inside noisy social
-> posts, a **material non-consensus thesis** about a company's future â€” a concrete
-> causal claim (external driver â†’ mechanism â†’ business impact) â€” and judge whether
+> posts, a **material non-consensus thesis** about a company's future — a concrete
+> causal claim (external driver → mechanism → business impact) — and judge whether
 > the market narrative is moving faster than the company's financial evidence.
 >
 > Ignore: price targets, emojis, RSI/MACD bot posts, recap lists, generic
@@ -157,25 +157,25 @@ Do NOT surface when:
 > For each thesis: state the claim and mechanism; pull the company's point-in-time
 > revenue/margin/FCF/balance-sheet trend; decide whether the feared/hyped outcome
 > is visible in the numbers YET. Force a bull AND bear test and actively search for
-> disconfirming evidence. Output Aâ€“F as specified and assign exactly one
+> disconfirming evidence. Output A–F as specified and assign exactly one
 > classification tag. If it is just noise or the business is already clearly broken,
 > say so and do not surface it.
 
 ## Build phases
 
-- **Phase 1 â€” Thesis Extractor**: classify social posts (noise vs thesis), cluster
+- **Phase 1 — Thesis Extractor**: classify social posts (noise vs thesis), cluster
   theses, persist to a `narrative_theses` table. Reuse the live buzz feed.
-- **Phase 2 â€” Gap Score**: join thesis intensity with PIT fundamental trend;
+- **Phase 2 — Gap Score**: join thesis intensity with PIT fundamental trend;
   compute `expectation_gap`; persist.
-- **Phase 3 â€” Ledger Classifier**: Aâ€“F + tag + false-positive filters.
-- **Phase 4 â€” Auto-Flag UI**: highlight gap rows on the Convergence Scoreboard
+- **Phase 3 — Ledger Classifier**: A–F + tag + false-positive filters.
+- **Phase 4 — Auto-Flag UI**: highlight gap rows on the Convergence Scoreboard
   and/or a dedicated ranked view; no click required to discover.
-- **Phase 5 â€” Forward tracking**: feed resolved cases into `run_forward_tracking.py`
+- **Phase 5 — Forward tracking**: feed resolved cases into `run_forward_tracking.py`
   to learn whether the detector was early or wrong (calibration).
 
 ## Open questions
 
-- Weights (w1â€“w4) â€” start heuristic, calibrate against forward outcomes in Phase 5.
+- Weights (w1–w4) — start heuristic, calibrate against forward outcomes in Phase 5.
 - Thesis extraction model: cheap classifier first-pass + LLM only on survivors
   (cost control, since this runs over the whole buzz feed).
 - Alert threshold / dedup cadence so the board is not noisy.

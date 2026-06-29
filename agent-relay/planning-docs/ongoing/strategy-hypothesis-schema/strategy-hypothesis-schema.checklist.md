@@ -6,7 +6,7 @@
 - PRD: `strategy-hypothesis-schema.prd.md`
 - Phase: `strategy-hypothesis-schema`
 - Executor: `Builder`
-- Source: `.planning/plans/BACKLOG/strategy_hypothesis_schema.md`
+- Source: `agent-relay/planning-docs/ongoing/strategy_hypothesis_schema.md`
 
 ## Preconditions
 

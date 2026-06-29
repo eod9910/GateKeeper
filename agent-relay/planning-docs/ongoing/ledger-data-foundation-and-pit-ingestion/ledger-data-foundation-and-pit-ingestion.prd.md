@@ -146,7 +146,7 @@ Why this matters for Ledger:
 Completed:
 
 - added canonical fact schema doc:
-  - `.planning/plans/REFERENCE/data/ledger-canonical-fact-schema.md`
+  - `agent-relay/planning-docs/reference/data/ledger-canonical-fact-schema.md`
 - extended `backend/services/fundamentals_pit_store.py` with:
   - `pit_documents`
   - `pit_statement_facts`
@@ -206,7 +206,7 @@ Ledger requirement:
 
 Current state:
 
-- v0 canonical fact schema now exists in `.planning/plans/REFERENCE/data/ledger-canonical-fact-schema.md`
+- v0 canonical fact schema now exists in `agent-relay/planning-docs/reference/data/ledger-canonical-fact-schema.md`
 - `pit_statement_facts` and `pit_documents` implement the first real storage shape
 - the schema is usable now, but still needs refinement for broader issuer/layout coverage
 
@@ -311,7 +311,7 @@ The current execution order is intentionally gated:
 1. define the canonical schema strictly
 2. define normalization rules hard enough for cross-issuer use
 3. define a stable evidence contract
-4. validate the full path on 2â€“3 issuers
+4. validate the full path on 2–3 issuers
 5. only then scale ingestion across the broader canonical universe
 
 Explicit hold:
@@ -321,7 +321,7 @@ Explicit hold:
 
 ---
 
-## Phase 1 â€” Define the canonical schema (strict)
+## Phase 1 — Define the canonical schema (strict)
 
 Deliverables:
 
@@ -335,12 +335,12 @@ Success condition:
 
 Status:
 
-- largely completed for v0 through `.planning/plans/REFERENCE/data/ledger-canonical-fact-schema.md` and the implemented `pit_statement_facts` / `pit_documents` tables
+- largely completed for v0 through `agent-relay/planning-docs/reference/data/ledger-canonical-fact-schema.md` and the implemented `pit_statement_facts` / `pit_documents` tables
 - still needs refinement rather than first creation
 
 ---
 
-## Phase 2 â€” Define normalization rules (hard)
+## Phase 2 — Define normalization rules (hard)
 
 Deliverables:
 
@@ -360,7 +360,7 @@ Status:
 
 ---
 
-## Phase 3 â€” Define the evidence contract (stable)
+## Phase 3 — Define the evidence contract (stable)
 
 Deliverables:
 
@@ -379,11 +379,11 @@ Status:
 
 ---
 
-## Phase 4 â€” Validate on 2â€“3 issuers
+## Phase 4 — Validate on 2–3 issuers
 
 Deliverables:
 
-- run the strict schema + hard normalization + stable evidence contract on 2â€“3 issuers
+- run the strict schema + hard normalization + stable evidence contract on 2–3 issuers
 - confirm results survive different filing layouts and forms
 - explicitly review misses, drift, and weak evidence cases before broad rollout
 
@@ -398,7 +398,7 @@ Status:
 
 ---
 
-## Phase 5 â€” Scale ingestion
+## Phase 5 — Scale ingestion
 
 Deliverables:
 
@@ -412,11 +412,11 @@ Success condition:
 
 Status:
 
-- intentionally blocked behind Phases 1â€“4
+- intentionally blocked behind Phases 1–4
 
 ---
 
-## Phase 6 â€” Ledger query model
+## Phase 6 — Ledger query model
 
 Deliverables:
 
@@ -474,4 +474,4 @@ What is not true yet:
 
 The next highest-value move is:
 
-**tighten the contract first: strict canonical schema, hard normalization rules, and a stable evidence contract â€” then validate on a third issuer before any scale-ingestion push.**
+**tighten the contract first: strict canonical schema, hard normalization rules, and a stable evidence contract — then validate on a third issuer before any scale-ingestion push.**

@@ -76,9 +76,9 @@ Quality loop data present:
 
 ## Recommendation
 
-1. Keep `.planning/plans/ACTIVE/market-intelligence-checklist.md` in `ACTIVE`.
+1. Keep `agent-relay/planning-docs/ongoing/market-intelligence-checklist.md` in `ACTIVE`.
 2. Refresh the checklist's counts and verification notes to the current schema v7 / 2,097-situation state.
-3. Move `.planning/plans/ACTIVE/market-intelligence-scenario-engine-prd-pdr.md` to `REFERENCE`, or add a top banner that says it is a historical PRD and no longer the live implementation tracker.
+3. Move `agent-relay/planning-docs/ongoing/market-intelligence-scenario-engine-prd-pdr.md` to `REFERENCE`, or add a top banner that says it is a historical PRD and no longer the live implementation tracker.
 4. Keep historical replay and calibration plans active, because they are now the real unfinished Market Intelligence work.
 5. Re-run or inspect Google Trends and Amazon review collectors before leaving their checklist items fully checked as "operational."
 

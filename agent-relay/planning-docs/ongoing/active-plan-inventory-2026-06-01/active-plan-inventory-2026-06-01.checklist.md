@@ -6,7 +6,7 @@
 - PRD: `active-plan-inventory-2026-06-01.prd.md`
 - Phase: `active-plan-inventory-2026-06-01`
 - Executor: `Builder`
-- Source: `.planning/plans/TODO/active-plan-inventory-2026-06-01.md`
+- Source: `agent-relay/planning-docs/ongoing/active-plan-inventory-2026-06-01.md`
 
 ## Preconditions
 

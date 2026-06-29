@@ -6,7 +6,7 @@
 - PRD: `workspace-agent-harness-plan.prd.md`
 - Phase: `workspace-agent-harness-plan`
 - Executor: `Builder`
-- Source: `.planning/plans/TODO/workspace-agent-harness-plan.md`
+- Source: `agent-relay/planning-docs/ongoing/workspace-agent-harness-plan.md`
 
 ## Preconditions
 

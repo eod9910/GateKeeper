@@ -1,9 +1,9 @@
-# Research â†’ Optimization â†’ Live Trading Pipeline
+# Research → Optimization → Live Trading Pipeline
 
 Checklist: research-to-live-trading-checklist.md
 **Created:** 2026-02-19
 **Status:** PLANNING
-**Prerequisite:** Tier-1 backtest working end-to-end âœ…, Research Agent generating real results âœ…
+**Prerequisite:** Tier-1 backtest working end-to-end ✅, Research Agent generating real results ✅
 
 ---
 
@@ -13,25 +13,25 @@ A fully autonomous pipeline:
 
 ```
 Research Agent          Parameter Sweep         Validation Gate
-(architecture search) â†’ (config optimization) â†’ (Tier 2 full test)
-        â†“                                               â†“
+(architecture search) → (config optimization) → (Tier 2 full test)
+        ↓                                               ↓
    Genome DB                                    Approved Strategies
-                                                        â†“
+                                                        ↓
                                                Live Trading Bot
-                                               (Alpaca paper â†’ real)
+                                               (Alpaca paper → real)
 ```
 
-The system discovers strategies, finds their optimal parameters, stress-tests survivors, and trades the ones that pass â€” without manual intervention.
+The system discovers strategies, finds their optimal parameters, stress-tests survivors, and trades the ones that pass — without manual intervention.
 
 ---
 
-## Phase 1 â€” Parameter Sweep (NEXT)
+## Phase 1 — Parameter Sweep (NEXT)
 
 **What:** Run N backtests in parallel, varying a single parameter, and return a ranked comparison table.
 
 **Why first:** Required before any strategy goes live. Stops, position sizing, and entry thresholds all need evidence-based values, not industry dogma.
 
-### 1A â€” Backend: Sweep Engine
+### 1A — Backend: Sweep Engine
 
 **New endpoint:** `POST /api/validator/sweep`
 
@@ -67,7 +67,7 @@ The system discovers strategies, finds their optimal parameters, stress-tests su
 **New file:** `backend/src/routes/sweep.ts`
 **New file:** `backend/src/services/sweepEngine.ts`
 
-### 1B â€” Sweep Result Schema
+### 1B — Sweep Result Schema
 
 ```typescript
 interface SweepResult {
@@ -97,7 +97,7 @@ interface SweepVariant {
 }
 ```
 
-### 1C â€” Frontend: Sweep UI in Validator
+### 1C — Frontend: Sweep UI in Validator
 
 **New tab in Validator:** "Parameter Sweep"
 
@@ -105,19 +105,19 @@ interface SweepVariant {
 - Strategy selector (same as run tab)
 - Parameter builder: dropdown (common params) or manual dot-path + value list
 - Quick presets:
-  - "Stop Type Comparison" â€” percentage vs ATR vs swing_low
-  - "ATR Multiplier Range" â€” 1.0, 1.5, 2.0, 2.5, 3.0
-  - "Take Profit R Range" â€” 1.5, 2.0, 2.5, 3.0
-  - "Risk % Range" â€” 0.5%, 1%, 1.5%, 2%, 3%
-  - "RSI Level Range" â€” 20, 25, 30, 35, 40
-- Run Sweep button â†’ progress bar per variant
+  - "Stop Type Comparison" — percentage vs ATR vs swing_low
+  - "ATR Multiplier Range" — 1.0, 1.5, 2.0, 2.5, 3.0
+  - "Take Profit R Range" — 1.5, 2.0, 2.5, 3.0
+  - "Risk % Range" — 0.5%, 1%, 1.5%, 2%, 3%
+  - "RSI Level Range" — 20, 25, 30, 35, 40
+- Run Sweep button → progress bar per variant
 - Results: ranked comparison table, winner highlighted
-- "Promote Winner" button â†’ saves winning config as new strategy version
+- "Promote Winner" button → saves winning config as new strategy version
 
 **New file:** `frontend/public/sweep.html`
 **New file:** `frontend/public/sweep.js`
 
-### 1D â€” Common Parameter Paths (presets)
+### 1D — Common Parameter Paths (presets)
 
 | Label | Path | Typical Range |
 |-------|------|---------------|
@@ -131,7 +131,7 @@ interface SweepVariant {
 
 ---
 
-## Phase 2 â€” Capital Allocation & Position Sizing Research
+## Phase 2 — Capital Allocation & Position Sizing Research
 
 **What:** Monte Carlo simulation with varying risk-per-trade percentages to find the psychologically and mathematically optimal allocation for each strategy.
 
@@ -141,7 +141,7 @@ interface SweepVariant {
 - Longest expected losing streak
 - Your personal drawdown pain threshold
 
-### 2A â€” Risk % Monte Carlo
+### 2A — Risk % Monte Carlo
 
 Extend the existing Monte Carlo (already in `validatorPipeline.py`) to also simulate different risk percentages:
 
@@ -154,24 +154,24 @@ For each risk_pct in [0.5%, 1%, 1.5%, 2%, 3%]:
 | Risk % | Median Return | p95 Max DD | p99 Max DD | Avg Recovery | Recommended |
 |--------|--------------|------------|------------|--------------|-------------|
 | 0.5% | +18% | 9% | 14% | 3 weeks | Conservative |
-| 1.0% | +38% | 17% | 26% | 5 weeks | Balanced âœ“ |
+| 1.0% | +38% | 17% | 26% | 5 weeks | Balanced ✓ |
 | 2.0% | +89% | 31% | 47% | 11 weeks | Aggressive |
 | 3.0% | +142% | 44% | 68% | 22 weeks | High risk |
 
-**Key insight surfaced:** The number where p99 drawdown stays inside your personal pain threshold. Not the "optimal" number â€” the *sustainable* number.
+**Key insight surfaced:** The number where p99 drawdown stays inside your personal pain threshold. Not the "optimal" number — the *sustainable* number.
 
-### 2B â€” UI: Risk Profile Selector
+### 2B — UI: Risk Profile Selector
 
 In the sweep results / strategy detail view:
-- "What's the max drawdown you can hold through?" â†’ slider (5% â†’ 50%)
+- "What's the max drawdown you can hold through?" → slider (5% → 50%)
 - System highlights the risk % row where p99 DD stays below that threshold
 - "Your recommended risk per trade for this strategy: **1.0%**"
 
 ---
 
-## Phase 3 â€” Autonomous Trading Bot
+## Phase 3 — Autonomous Trading Bot
 
-### 3A â€” Broker Integration: Alpaca
+### 3A — Broker Integration: Alpaca
 
 **Why Alpaca:**
 - REST API (not socket-based like IBKR)
@@ -182,15 +182,15 @@ In the sweep results / strategy detail view:
 **New service:** `backend/services/brokerService.py` (or TypeScript client)
 
 **Endpoints needed:**
-- `GET /account` â€” buying power, equity
-- `POST /orders` â€” submit market/limit order
-- `GET /positions` â€” open positions
-- `DELETE /positions/:symbol` â€” close position
-- `GET /orders/:id` â€” order status
+- `GET /account` — buying power, equity
+- `POST /orders` — submit market/limit order
+- `GET /positions` — open positions
+- `DELETE /positions/:symbol` — close position
+- `GET /orders/:id` — order status
 
 **New file:** `backend/src/services/alpacaClient.ts`
 
-### 3B â€” Bot Engine
+### 3B — Bot Engine
 
 **New file:** `backend/src/services/tradingBot.ts`
 
@@ -202,14 +202,14 @@ In the sweep results / strategy detail view:
 3. Check open positions (don't double-enter)
 4. Check max concurrent positions (e.g. max 5)
 5. Receive signal from scanner (strategy X, symbol Y, direction)
-6. Look up strategy spec â†’ get stop_type, stop_value, take_profit_R
-7. Calculate position size (risk_pct Ã— account equity Ã· stop_distance)
-8. Submit order â†’ record in Trading Desk
+6. Look up strategy spec → get stop_type, stop_value, take_profit_R
+7. Calculate position size (risk_pct × account equity ÷ stop_distance)
+8. Submit order → record in Trading Desk
 9. Monitor: check stop/target every bar close
 10. Auto-close on stop, target, or max_hold_bars hit
 ```
 
-### 3C â€” Risk Controls (non-negotiable)
+### 3C — Risk Controls (non-negotiable)
 
 | Control | Value (configurable) |
 |---------|---------------------|
@@ -220,7 +220,7 @@ In the sweep results / strategy detail view:
 | Only trade approved strategies | PASS + APPROVED status required |
 | Paper mode by default | `ALPACA_PAPER=true` until explicitly disabled |
 
-### 3D â€” Bot UI
+### 3D — Bot UI
 
 **New page:** `frontend/public/bot.html`
 
@@ -231,25 +231,25 @@ In the sweep results / strategy detail view:
 - Toggle paper / live (with confirmation modal)
 - Per-strategy enable/disable (approved strategies only)
 
-### 3E â€” Paper â†’ Live Gate
+### 3E — Paper → Live Gate
 
 **Paper trading period:** minimum 4 weeks, minimum 20 trades
 **Promotion criteria:**
 - Live execution expectancy within 20% of backtest expectancy
-- No runaway losses (daily limit never hit more than 3Ã— in paper period)
+- No runaway losses (daily limit never hit more than 3× in paper period)
 - Manual review and explicit approval click
 
 ---
 
-## Phase 4 â€” Full Autonomous Pipeline
+## Phase 4 — Full Autonomous Pipeline
 
 When all phases are complete, the system operates like this:
 
 ```
 Every night:
   Research Agent runs 5 generations
-  Discards â†’ logged to genome
-  Discarded â†’ gen N+1 learns from failure
+  Discards → logged to genome
+  Discarded → gen N+1 learns from failure
 
 When a strategy passes Tier 1:
   Parameter sweep runs automatically
@@ -267,7 +267,7 @@ After 4 weeks paper:
   Bot trades real money
 
 Ongoing:
-  Scanner fires signals â†’ bot executes
+  Scanner fires signals → bot executes
   Trading Desk tracks all positions
   Monte Carlo re-runs quarterly with new data
   Underperforming strategies automatically flagged
@@ -285,7 +285,7 @@ Ongoing:
 | 4 | Bot engine core loop | Medium | Critical |
 | 5 | Bot UI + risk controls | Medium | High |
 | 6 | Auto-sweep after Tier 1 pass | Small | High |
-| 7 | Paper â†’ live gate | Small | Critical (safety) |
+| 7 | Paper → live gate | Small | Critical (safety) |
 | 8 | Full autonomous nightly loop | Medium | Game-changer |
 
 ---
@@ -294,24 +294,24 @@ Ongoing:
 
 - **Alpaca vs IBKR:** Alpaca for now (simpler), IBKR later for options/futures
 - **Sweep: sequential vs parallel:** Sequential respects job queue limits; parallel would need separate worker pool
-- **Cartesian product sweeps:** Testing all combinations of multiple params explodes combinatorially â€” need a cap (max 20 variants per sweep)
+- **Cartesian product sweeps:** Testing all combinations of multiple params explodes combinatorially — need a cap (max 20 variants per sweep)
 - **Strategy retirement:** When does a live strategy get pulled? (e.g. 3-month rolling expectancy drops below 0)
-- **Position sizing method:** Fixed fractional (% of equity) vs Kelly Criterion vs fixed dollar â€” sweep this too
+- **Position sizing method:** Fixed fractional (% of equity) vs Kelly Criterion vs fixed dollar — sweep this too
 
 ---
 
 ## Files To Create
 
 ```
-backend/src/routes/sweep.ts              â€” sweep API endpoints
-backend/src/services/sweepEngine.ts     â€” sweep orchestration
-backend/src/services/alpacaClient.ts    â€” Alpaca REST client
-backend/src/services/tradingBot.ts      â€” bot core loop
-backend/src/routes/bot.ts               â€” bot API endpoints
-frontend/public/sweep.html              â€” parameter sweep UI
-frontend/public/sweep.js                â€” sweep frontend logic
-frontend/public/bot.html                â€” bot dashboard
-frontend/public/bot.js                  â€” bot frontend logic
-backend/data/sweep-results/             â€” persisted sweep reports
-backend/data/bot-config.json            â€” bot settings (paper/live, limits)
+backend/src/routes/sweep.ts              — sweep API endpoints
+backend/src/services/sweepEngine.ts     — sweep orchestration
+backend/src/services/alpacaClient.ts    — Alpaca REST client
+backend/src/services/tradingBot.ts      — bot core loop
+backend/src/routes/bot.ts               — bot API endpoints
+frontend/public/sweep.html              — parameter sweep UI
+frontend/public/sweep.js                — sweep frontend logic
+frontend/public/bot.html                — bot dashboard
+frontend/public/bot.js                  — bot frontend logic
+backend/data/sweep-results/             — persisted sweep reports
+backend/data/bot-config.json            — bot settings (paper/live, limits)
 ```

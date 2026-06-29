@@ -10,7 +10,7 @@ Checklist: strategy-scanner-refactor-checklist.md
 
 ## 1. Problem Statement
 
-The scanner was Wyckoff-specific. All detection thresholds were hardcoded in `patternScanner.py`. There was no concept of a "strategy version" â€” candidates had no link to the configuration that produced them. The goal was to make the scanner accept a versioned `StrategySpec` object, run it via a plugin architecture, and return candidates with rule-checklists, anchors, and scores.
+The scanner was Wyckoff-specific. All detection thresholds were hardcoded in `patternScanner.py`. There was no concept of a "strategy version" — candidates had no link to the configuration that produced them. The goal was to make the scanner accept a versioned `StrategySpec` object, run it via a plugin architecture, and return candidates with rule-checklists, anchors, and scores.
 
 ---
 
@@ -23,7 +23,7 @@ The scanner was Wyckoff-specific. All detection thresholds were hardcoded in `pa
 | `backend/src/types/strategy.ts` | 193 | Canonical type definitions: `StrategySpec`, `StructureConfig`, `SetupConfig`, `EntryConfig`, `RiskConfig`, `ExitConfig`, `CostConfig`, `RuleCheckItem`, `AnchorPoint`, `CandidateAnchors`, `StrategyCandidate` |
 | `backend/src/routes/strategies.ts` | 142 | REST API for strategy CRUD: `GET /api/strategies`, `GET /api/strategies/:id`, `POST /api/strategies`, `PATCH /api/strategies/:id/status` |
 | `backend/services/strategyRunner.py` | 677 | Python strategy runner: `extract_structure()`, `run_wyckoff_plugin()`, `run_strategy()`, plugin registry, CLI entry point |
-| `backend/data/strategies/wyckoff_accumulation_v1.json` | 62 | Default Wyckoff spec â€” pre-approved, all thresholds externalized |
+| `backend/data/strategies/wyckoff_accumulation_v1.json` | 62 | Default Wyckoff spec — pre-approved, all thresholds externalized |
 
 ### 2.2 Modified Files (6)
 
@@ -41,7 +41,7 @@ The scanner was Wyckoff-specific. All detection thresholds were hardcoded in `pa
 | File | Reason |
 |------|--------|
 | `backend/services/patternScanner.py` | Not modified. Still used for legacy scan modes (swing, fib-energy, copilot, discount). The strategy runner imports functions from it. |
-| `backend/src/routes/validator.ts` | Not modified. Existing mock strategies use the old flat-params shape â€” still valid because `StrategySpec` now has optional legacy fields (`params`, `entry`, `risk`, `costs`). |
+| `backend/src/routes/validator.ts` | Not modified. Existing mock strategies use the old flat-params shape — still valid because `StrategySpec` now has optional legacy fields (`params`, `entry`, `risk`, `costs`). |
 
 ---
 
@@ -85,7 +85,7 @@ Frontend (index.js)
   |  Displays candidate with strategy badge, entry_ready indicator, rule checklist
 ```
 
-### 3.2 Data Flow (Legacy Scan â€” unchanged)
+### 3.2 Data Flow (Legacy Scan — unchanged)
 
 ```
 Frontend -> POST /api/candidates/scan { scanMode: "swing" }
@@ -109,13 +109,13 @@ In `resolveStrategy()`:
 
 ## 4. Schema Definitions
 
-### 4.1 StrategySpec (TypeScript â€” strategy.ts)
+### 4.1 StrategySpec (TypeScript — strategy.ts)
 
 ```typescript
 interface StrategySpec {
   strategy_id: string;              // e.g. "wyckoff_accumulation"
   version: number | string;
-  strategy_version_id: string;      // "{strategy_id}_v{version}" â€” unique key / filename
+  strategy_version_id: string;      // "{strategy_id}_v{version}" — unique key / filename
   status: StrategyStatus;           // 'draft' | 'testing' | 'approved' | 'rejected'
   name: string;
   description: string;
@@ -141,7 +141,7 @@ interface StrategySpec {
 }
 ```
 
-### 4.2 StrategyCandidate (TypeScript â€” strategy.ts)
+### 4.2 StrategyCandidate (TypeScript — strategy.ts)
 
 ```typescript
 interface StrategyCandidate {
@@ -173,7 +173,7 @@ interface RuleCheckItem {
 }
 ```
 
-### 4.4 StructureExtraction (Python â€” strategyRunner.py)
+### 4.4 StructureExtraction (Python — strategyRunner.py)
 
 ```python
 @dataclass
@@ -283,7 +283,7 @@ class StructureExtraction:
 
 ---
 
-## 6. Python Strategy Runner â€” Function Signatures
+## 6. Python Strategy Runner — Function Signatures
 
 ```python
 def extract_structure(data, structure_config, symbol="UNKNOWN", timeframe="W") -> StructureExtraction
@@ -321,15 +321,15 @@ Every threshold is read from `spec.setup_config` or `spec.entry_config` with saf
 
 The plugin generates these rule_checklist items per candidate (9 rules):
 
-1. **markdown_decline** â€” decline_pct >= min_markdown_pct
-2. **base_found** â€” a valid base was detected near markdown low
-3. **base_duration** â€” base.duration >= base_min_duration
-4. **markup_breakout** â€” markup detected above base_high
-5. **pullback_found** â€” pullback detected with valid retracement
-6. **pullback_retracement** â€” retracement within [min, max] range
-7. **double_bottom** â€” pullback_low <= base_low * tolerance
-8. **second_breakout** â€” close above breakout_level with confirmation
-9. **score_above_min** â€” computed score >= score_min
+1. **markdown_decline** — decline_pct >= min_markdown_pct
+2. **base_found** — a valid base was detected near markdown low
+3. **base_duration** — base.duration >= base_min_duration
+4. **markup_breakout** — markup detected above base_high
+5. **pullback_found** — pullback detected with valid retracement
+6. **pullback_retracement** — retracement within [min, max] range
+7. **double_bottom** — pullback_low <= base_low * tolerance
+8. **second_breakout** — close above breakout_level with confirmation
+9. **score_above_min** — computed score >= score_min
 
 ---
 
@@ -346,7 +346,7 @@ The plugin generates these rule_checklist items per candidate (9 rules):
 - **Directory**: `backend/data/candidates/` (unchanged)
 - **Filename**: `{candidate_id}.json`
 - **New operations**: `saveStrategyCandidate()`, `saveStrategyCandidates()`
-- **Note**: New candidates include `strategy_version_id`, `rule_checklist`, `anchors`, `entry_ready` alongside all legacy fields â€” both old and new candidates coexist in the same directory.
+- **Note**: New candidates include `strategy_version_id`, `rule_checklist`, `anchors`, `entry_ready` alongside all legacy fields — both old and new candidates coexist in the same directory.
 
 ---
 
@@ -386,11 +386,11 @@ The plugin generates these rule_checklist items per candidate (9 rules):
 | Concern | How It's Handled |
 |---------|-----------------|
 | Old Wyckoff scans (`scanMode: 'wyckoff'`) | Auto-routed through strategy runner using default approved spec |
-| Legacy scan modes (swing, fib-energy, copilot, discount) | Still use `patternScanner.py` directly â€” unchanged |
-| Old candidate format in storage | Still readable â€” `StrategyCandidate` includes all old fields (`prior_peak`, `base`, `pullback`, etc.) |
-| Old `StrategySpec` in validator mock data | Still works â€” `StrategySpec` interface now includes optional legacy fields (`params`, `entry`, `risk`, `costs`) |
-| Frontend chart rendering | Unchanged â€” new candidates populate all `chart_*` index fields and legacy display fields |
-| Labeling / Corrections flow | Unchanged â€” candidates still have `id`, `symbol`, `timeframe`, `score` |
+| Legacy scan modes (swing, fib-energy, copilot, discount) | Still use `patternScanner.py` directly — unchanged |
+| Old candidate format in storage | Still readable — `StrategyCandidate` includes all old fields (`prior_peak`, `base`, `pullback`, etc.) |
+| Old `StrategySpec` in validator mock data | Still works — `StrategySpec` interface now includes optional legacy fields (`params`, `entry`, `risk`, `costs`) |
+| Frontend chart rendering | Unchanged — new candidates populate all `chart_*` index fields and legacy display fields |
+| Labeling / Corrections flow | Unchanged — candidates still have `id`, `symbol`, `timeframe`, `score` |
 
 ---
 
@@ -398,11 +398,11 @@ The plugin generates these rule_checklist items per candidate (9 rules):
 
 | Check | Result |
 |-------|--------|
-| TypeScript compilation (`npx tsc --noEmit`) | Exit code 0 â€” no errors |
+| TypeScript compilation (`npx tsc --noEmit`) | Exit code 0 — no errors |
 | Python syntax (`ast.parse`) | OK |
-| Python imports (`from strategyRunner import ...`) | OK â€” all imports resolve |
+| Python imports (`from strategyRunner import ...`) | OK — all imports resolve |
 | Linter errors (IDE diagnostics) | None found |
-| `patternScanner.py` unchanged | Confirmed â€” not modified |
+| `patternScanner.py` unchanged | Confirmed — not modified |
 
 ---
 
@@ -410,8 +410,8 @@ The plugin generates these rule_checklist items per candidate (9 rules):
 
 - **Backtest mode**: `run_strategy()` accepts `mode='backtest'` but only `'scan'` is implemented. Backtest is deferred to the validator system.
 - **New pattern plugins**: Only `wyckoff_accumulation` is registered. Adding Quasimodo/H&S/etc. requires writing a new plugin function and adding it to the `PLUGINS` dict.
-- **Volume confirmation**: Not added to the Wyckoff plugin (mirrors existing behavior â€” this is a known failure mode from the structure reference).
-- **Timeframe-adaptive RDP**: Not added (also a known failure mode â€” same `epsilon_pct` used for all timeframes).
+- **Volume confirmation**: Not added to the Wyckoff plugin (mirrors existing behavior — this is a known failure mode from the structure reference).
+- **Timeframe-adaptive RDP**: Not added (also a known failure mode — same `epsilon_pct` used for all timeframes).
 
 ---
 
@@ -486,7 +486,7 @@ The plugin generates these rule_checklist items per candidate (9 rules):
 
 ## REVISION: 6 Architectural Fixes (2026-02-13)
 
-### Fix 1: Production Gate â€” No Bypass. Period.
+### Fix 1: Production Gate — No Bypass. Period.
 
 **Problem**: The original code had `!scanRequest.strategyVersionId` as a bypass condition, allowing any explicit version ID to skip the production gate.
 
@@ -498,11 +498,11 @@ No exceptions. Research mode (`scanScope="research"`) allows anything.
 
 **Rationale**: If you allow a bypass, your future self will use it the moment you're emotionally attached to a strategy.
 
-**Files changed**: `backend/src/routes/candidates.ts` â€” both `POST /scan` and `POST /scan-batch` endpoints.
+**Files changed**: `backend/src/routes/candidates.ts` — both `POST /scan` and `POST /scan-batch` endpoints.
 
 ---
 
-### Fix 2: spec_hash â€” Integrity Fingerprint
+### Fix 2: spec_hash — Integrity Fingerprint
 
 **Problem**: No way to verify that a strategy's config hasn't been tampered with. Candidates pointed to a `strategy_version_id` but the underlying config could change silently.
 
@@ -540,9 +540,9 @@ The hash is:
 
 ---
 
-### Fix 4: Lookahead Bias â€” Causal Mode Flag
+### Fix 4: Lookahead Bias — Causal Mode Flag
 
-**Problem**: `extract_structure()` runs RDP and base detection over the entire dataset. Pivots computed with full-series RDP "see the future" â€” swing points depend on bars that haven't happened yet. This is fine for scanning (finding current candidates) but is FATAL for backtesting.
+**Problem**: `extract_structure()` runs RDP and base detection over the entire dataset. Pivots computed with full-series RDP "see the future" — swing points depend on bars that haven't happened yet. This is fine for scanning (finding current candidates) but is FATAL for backtesting.
 
 **Fix**:
 - Added `causal?: boolean` to `StructureConfig` interface.
@@ -566,8 +566,8 @@ The hash is:
 | Concept | Canonical Location | Removed From |
 |---------|-------------------|--------------|
 | `base_min_duration` | `structure_config` | `setup_config` |
-| All swing params | `structure_config` | â€” |
-| All pattern-specific params | `setup_config` | â€” |
+| All swing params | `structure_config` | — |
+| All pattern-specific params | `setup_config` | — |
 
 **Rule**:
 - `structure_config` = generic detectors (swings, bases) shared by many strategies
@@ -649,29 +649,29 @@ The production gate requiring ValidationReport PASS is strict (good)
 Rule checklists make the scanner's reasoning transparent and auditable
 The separation of structure_config vs setup_config is clean
 What is NOT production-grade:
-Tier 1 â€” Would break in real use:
-File-based storage with no concurrency control. Two simultaneous scans can corrupt the same candidate file. No transactions, no locking, no atomicity. Production uses a database â€” even SQLite would be a massive step up.
+Tier 1 — Would break in real use:
+File-based storage with no concurrency control. Two simultaneous scans can corrupt the same candidate file. No transactions, no locking, no atomicity. Production uses a database — even SQLite would be a massive step up.
 Spawning a Python child process per scan. Every single scan forks python strategyRunner.py, which means Python startup overhead, no connection pooling for data, no resource management. If you batch-scan 50 symbols, that's 50 Python processes in sequence. Production would be a Python microservice with a persistent process, or a job queue.
 No authentication or authorization. Anyone who can hit localhost:3000 can approve strategies, trigger production scans, delete all candidates. There is zero access control.
-The backtest path throws NotImplementedError. The production gate requires a ValidationReport â€” but you can't generate a ValidationReport without backtesting â€” and backtest mode literally crashes. So the whole pipeline is incomplete. You can only bypass it with Research mode.
+The backtest path throws NotImplementedError. The production gate requires a ValidationReport — but you can't generate a ValidationReport without backtesting — and backtest mode literally crashes. So the whole pipeline is incomplete. You can only bypass it with Research mode.
 The spec hash may not match between TypeScript and Python. JSON.stringify with sorted keys in JavaScript and json.dumps(sort_keys=True) in Python can produce different output for the same data (number formatting, null vs None, float precision). If the hashes diverge, your integrity chain breaks silently.
-Tier 2 â€” Would fail a code review:
+Tier 2 — Would fail a code review:
 No input validation. The API accepts whatever JSON you throw at it. No schema validation (Zod, Joi, Pydantic). A malformed spec could propagate silently through the entire pipeline.
-Scoring function has hardcoded magic numbers. _score_wyckoff() uses weights like 0.40, 0.30, 0.25 that aren't in the spec. The entire point of StrategySpec is to externalize parameters â€” but the scoring model is still baked into code.
+Scoring function has hardcoded magic numbers. _score_wyckoff() uses weights like 0.40, 0.30, 0.25 that aren't in the spec. The entire point of StrategySpec is to externalize parameters — but the scoring model is still baked into code.
 No tests. Zero. No unit tests, no integration tests, no contract tests. "Does it compile?" is the lowest possible verification bar.
 No structured logging or monitoring. console.log('[Scanner]', ...) and print(..., file=sys.stderr) is debugging, not observability. No request tracing, no metrics, no alerting.
 No retry, no queue, no backpressure. If yfinance rate-limits you or the Python process dies, the scan just fails. No retry logic, no dead letter queue. Nothing prevents launching 100 concurrent scans and crashing the machine.
-Tier 3 â€” Design debt that will compound:
+Tier 3 — Design debt that will compound:
 Two parallel scan paths. The "strategy runner" path and the "legacy patternScanner.py" path will drift. Bugs fixed in one won't be fixed in the other. Eventually you won't know which path produced which candidate.
 yfinance as a production data source. Yahoo Finance has no SLA, rate-limits aggressively, changes its API without notice, and occasionally returns bad data. Production systems have their own data pipeline with validation.
 Frontend is a single vanilla JS file with global state, no type safety, and presumably thousands of lines. Any UI change is fragile.
 Unversioned API. One breaking change to /api/candidates/scan breaks every client.
 Where you actually are on the spectrum:
-Proof of concept â†’ [YOU ARE HERE] â†’ Personal tool â†’ Alpha â†’ Beta â†’ Production                    â–²                    Well-structured prototype                    with good architectural bones
+Proof of concept → [YOU ARE HERE] → Personal tool → Alpha → Beta → Production                    ▲                    Well-structured prototype                    with good architectural bones
 The architectural thinking is ahead of the engineering. You have the right abstractions (StrategySpec, plugin registry, rule checklists, spec_hash) but the infrastructure around them is prototype-level.
 If you want to move toward production, the highest-leverage next steps are:
-Get backtest working (causal mode) â€” without this, the entire validation pipeline is broken and the production gate is a wall you can't get past legitimately.
-Add a real database â€” even SQLite via better-sqlite3. Gives you transactions, queries, and actual audit trails.
-Add input validation â€” Zod schemas for every API endpoint.
-Write tests for the strategy runner â€” feed it known data, assert expected candidates.
+Get backtest working (causal mode) — without this, the entire validation pipeline is broken and the production gate is a wall you can't get past legitimately.
+Add a real database — even SQLite via better-sqlite3. Gives you transactions, queries, and actual audit trails.
+Add input validation — Zod schemas for every API endpoint.
+Write tests for the strategy runner — feed it known data, assert expected candidates.
 Verify spec_hash parity between TypeScript and Python with a shared test fixture.

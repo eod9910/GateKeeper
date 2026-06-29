@@ -12,8 +12,8 @@ Checklist: legacy-plugin-conversion-checklist.md
 
 The scan route (`candidates.ts`) has two execution paths:
 
-1. **StrategyRunner path** â€” builds a `StrategySpec`, spawns `strategyRunner.py`, which calls a registered plugin function. This is the **target architecture**.
-2. **patternScanner path** â€” reads `scanner_mode` from the plugin JSON, assembles CLI flags (`--swing`, `--fib-energy`, etc.), spawns `patternScanner.py` with those flags, parses stdout. This is the **legacy path**.
+1. **StrategyRunner path** — builds a `StrategySpec`, spawns `strategyRunner.py`, which calls a registered plugin function. This is the **target architecture**.
+2. **patternScanner path** — reads `scanner_mode` from the plugin JSON, assembles CLI flags (`--swing`, `--fib-energy`, etc.), spawns `patternScanner.py` with those flags, parses stdout. This is the **legacy path**.
 
 When a plugin JSON has `"scanner_mode": "swing"`, the scan route takes path #2. When it has `"plugin_file": "strategyRunner.py"` and no `scanner_mode`, it takes path #1.
 
@@ -34,7 +34,7 @@ When a plugin JSON has `"scanner_mode": "swing"`, the scan route takes path #2. 
 | 3 | `regime_filter` | `regime` | `detect_regime_windows()` | ~380 | swing detection, numpy |
 | 4 | `discount_zone` | `discount-only` | `scan_discount_zone()` | ~650 | swing, fib-energy, energy |
 | 5 | `wyckoff_accumulation` | `wyckoff` | `detect_wyckoff_patterns()` | ~640 | basic pivots only |
-| 6 | `discount_wyckoff_pipeline` | `discount` | Composite: discount â†’ wyckoff | ~800 | discount + wyckoff |
+| 6 | `discount_wyckoff_pipeline` | `discount` | Composite: discount → wyckoff | ~800 | discount + wyckoff |
 
 ---
 
@@ -44,38 +44,38 @@ Many legacy functions share helpers. These must be extracted into a shared modul
 
 ```
 swing_structure
-  â”œâ”€â”€ detect_confirmed_swing_points()    â† MAJOR mode (217 lines)
-  â”œâ”€â”€ detect_swings_rdp()                â† RDP mode (149 lines)
-  â”œâ”€â”€ detect_relative_swing_points()     â† Relative fallback (128 lines)
-  â”œâ”€â”€ _build_swing_structure()           â† Builds SwingStructure (181 lines)
-  â”œâ”€â”€ detect_swing_highs_lows()          â† Basic pivots (34 lines)
-  â””â”€â”€ serialize_swing_structure()        â† JSON output (95 lines)
+  ├── detect_confirmed_swing_points()    ← MAJOR mode (217 lines)
+  ├── detect_swings_rdp()                ← RDP mode (149 lines)
+  ├── detect_relative_swing_points()     ← Relative fallback (128 lines)
+  ├── _build_swing_structure()           ← Builds SwingStructure (181 lines)
+  ├── detect_swing_highs_lows()          ← Basic pivots (34 lines)
+  └── serialize_swing_structure()        ← JSON output (95 lines)
 
 fib_energy
-  â”œâ”€â”€ calculate_fib_energy_signal()      â† Main (210 lines)
-  â”œâ”€â”€ calculate_energy_state()           â† Physics model (192 lines)
-  â”œâ”€â”€ calculate_selling_pressure()       â† Selling pressure (125 lines)
-  â””â”€â”€ [swing detection helpers]          â† Shared with swing_structure
+  ├── calculate_fib_energy_signal()      ← Main (210 lines)
+  ├── calculate_energy_state()           ← Physics model (192 lines)
+  ├── calculate_selling_pressure()       ← Selling pressure (125 lines)
+  └── [swing detection helpers]          ← Shared with swing_structure
 
 regime_filter
-  â”œâ”€â”€ detect_regime_windows()            â† Main (127 lines)
-  â”œâ”€â”€ _linear_regression_slope()         â† Regression (16 lines)
-  â””â”€â”€ [swing detection helpers]          â† Shared with swing_structure
+  ├── detect_regime_windows()            ← Main (127 lines)
+  ├── _linear_regression_slope()         ← Regression (16 lines)
+  └── [swing detection helpers]          ← Shared with swing_structure
 
 discount_zone
-  â”œâ”€â”€ scan_discount_zone()               â† Main (175 lines)
-  â””â”€â”€ [swing + fib-energy helpers]       â† Shared
+  ├── scan_discount_zone()               ← Main (175 lines)
+  └── [swing + fib-energy helpers]       ← Shared
 
-copilot (folds into fib_energy â€” see note)
-  â”œâ”€â”€ generate_copilot_analysis()        â† Main (438 lines)
-  â”œâ”€â”€ calculate_buying_pressure()        â† Buying pressure (120 lines)
-  â””â”€â”€ [swing + fib-energy helpers]       â† Shared
+copilot (folds into fib_energy — see note)
+  ├── generate_copilot_analysis()        ← Main (438 lines)
+  ├── calculate_buying_pressure()        ← Buying pressure (120 lines)
+  └── [swing + fib-energy helpers]       ← Shared
 
 wyckoff_accumulation
-  â”œâ”€â”€ detect_wyckoff_patterns()          â† Main (265 lines)
-  â”œâ”€â”€ find_major_peaks()                 â† Peak detection (45 lines)
-  â”œâ”€â”€ detect_swing_highs_lows()          â† Basic pivots (34 lines)
-  â””â”€â”€ serialize_wyckoff_pattern()        â† JSON output (326 lines)
+  ├── detect_wyckoff_patterns()          ← Main (265 lines)
+  ├── find_major_peaks()                 ← Peak detection (45 lines)
+  ├── detect_swing_highs_lows()          ← Basic pivots (34 lines)
+  └── serialize_wyckoff_pattern()        ← JSON output (326 lines)
 ```
 
 ### The shared core that needs extracting first:
@@ -125,7 +125,7 @@ This keeps `strategyRunner.py` focused on plugin functions (business logic) whil
 The order matters because of the dependency chain:
 
 ```
-Step 0: Extract shared helpers â†’ pluginHelpers.py
+Step 0: Extract shared helpers → pluginHelpers.py
 Step 1: swing_structure  (no deps beyond shared helpers)
 Step 2: regime_filter    (uses swing detection from shared helpers)
 Step 3: wyckoff_accumulation (standalone, but move to proper plugin path)
@@ -136,7 +136,7 @@ Step 6: discount_wyckoff_pipeline (composite: discount + wyckoff)
 
 ### Note on `copilot`
 
-The `copilot` scanner mode (`generate_copilot_analysis`) is a superset of `fib_energy` â€” it combines fib + energy + buying/selling pressure + a go/no-go reasoning engine. It's currently exposed in `patternScanner.py` but is **not registered as a plugin in the registry**.
+The `copilot` scanner mode (`generate_copilot_analysis`) is a superset of `fib_energy` — it combines fib + energy + buying/selling pressure + a go/no-go reasoning engine. It's currently exposed in `patternScanner.py` but is **not registered as a plugin in the registry**.
 
 **Decision**: Do NOT convert copilot to a StrategyRunner plugin. It's an AI analysis function, not a signal detector. It belongs as a service endpoint (e.g., called by the Co-Pilot chat), not in the plugin system. We'll leave the `copilot` code in `patternScanner.py` for now, or move it to its own service file later. The shared helpers it needs will be importable from `pluginHelpers.py`.
 
@@ -178,7 +178,7 @@ The `copilot` scanner mode (`generate_copilot_analysis`) is a superset of `fib_e
 - Reads swing params from `spec['setup_config']`: `swing_method`, `swing_pct`, `swing_epsilon_pct`
 - Calls `detect_swing_points_with_fallback()` from `pluginHelpers`
 
-**Output adaptation** â€” must return `List[StrategyCandidate]`:
+**Output adaptation** — must return `List[StrategyCandidate]`:
 ```python
 {
     'candidate_id': f"{symbol}_{timeframe}_swing_{hash}_{window}",
@@ -227,7 +227,7 @@ PLUGINS['swing_structure'] = run_swing_structure_plugin
 
 **Calls**: `detect_swings_rdp()`, `_linear_regression_slope()`, `_build_swing_structure()` from `pluginHelpers`
 
-**Returns**: `List[StrategyCandidate]` â€” one candidate per detected regime window, with:
+**Returns**: `List[StrategyCandidate]` — one candidate per detected regime window, with:
 - `anchors`: regime boundaries with classification
 - `rule_checklist`: volatility level, slope direction, swing structure alignment
 - `score`: regime clarity metric
@@ -244,7 +244,7 @@ PLUGINS['swing_structure'] = run_swing_structure_plugin
 
 **Note**: `wyckoff_accumulation` currently has `scanner_mode: "wyckoff"` which routes it through the legacy **strategy** path (not patternScanner). But it uses the default Wyckoff spec + the old dispatch chain. The RDP variant (`wyckoff_accumulation_rdp`) already goes through the proper plugin path.
 
-**Fix**: Remove `scanner_mode` from `wyckoff_accumulation.json`. Since it already has `pattern_type: "wyckoff_accumulation"` and `run_wyckoff_plugin` is already registered for that key in PLUGINS, this should "just work" â€” the scan route will auto-generate a StrategySpec from the plugin's `default_setup_params` and route through StrategyRunner.
+**Fix**: Remove `scanner_mode` from `wyckoff_accumulation.json`. Since it already has `pattern_type: "wyckoff_accumulation"` and `run_wyckoff_plugin` is already registered for that key in PLUGINS, this should "just work" — the scan route will auto-generate a StrategySpec from the plugin's `default_setup_params` and route through StrategyRunner.
 
 **Test**: Verify the auto-generated spec uses reasonable defaults from the JSON definition. May need to update `default_structure_config` and `default_setup_params` in `wyckoff_accumulation.json` to match what the old default Wyckoff spec provided.
 
@@ -297,7 +297,7 @@ PLUGINS['swing_structure'] = run_swing_structure_plugin
 
 **New plugin function**: `run_discount_wyckoff_pipeline_plugin()` in `strategyRunner.py`
 
-This is a **composite plugin** â€” it runs discount zone detection first, then Wyckoff pattern detection on passing candidates.
+This is a **composite plugin** — it runs discount zone detection first, then Wyckoff pattern detection on passing candidates.
 
 **Implementation**:
 ```python
@@ -331,7 +331,7 @@ After all 6 are converted:
    - Delete the `scanner_mode` check in the plugin block (lines 375-378)
    - Delete the entire patternScanner spawn section (lines ~560-650)
    - Delete the legacy scan mode dispatch (`if scanMode === 'swing' ... else if ...`)
-   - Remove `scanMode` variable entirely â€” everything goes through StrategyRunner
+   - Remove `scanMode` variable entirely — everything goes through StrategyRunner
 
 2. **Deprecate `patternScanner.py` CLI scan modes**:
    - Keep the file for `copilot` mode and any direct research usage
@@ -350,16 +350,16 @@ After all 6 are converted:
 
 | File | Action |
 |------|--------|
-| `backend/services/pluginHelpers.py` | **CREATE** â€” shared analysis primitives (~1,600 lines) |
-| `backend/services/strategyRunner.py` | **MODIFY** â€” add 4 new plugin functions, register in PLUGINS |
-| `backend/services/patternScanner.py` | **MODIFY** â€” replace function bodies with imports from pluginHelpers |
-| `backend/data/patterns/swing_structure.json` | **MODIFY** â€” remove scanner_mode, add plugin refs |
-| `backend/data/patterns/fib_energy.json` | **MODIFY** â€” remove scanner_mode, add plugin refs |
-| `backend/data/patterns/regime_filter.json` | **MODIFY** â€” remove scanner_mode, add plugin refs |
-| `backend/data/patterns/discount_zone.json` | **MODIFY** â€” remove scanner_mode, add plugin refs |
-| `backend/data/patterns/discount_wyckoff_pipeline.json` | **MODIFY** â€” remove scanner_mode, add plugin refs |
-| `backend/data/patterns/wyckoff_accumulation.json` | **MODIFY** â€” remove scanner_mode |
-| `backend/src/routes/candidates.ts` | **MODIFY** â€” remove legacy patternScanner spawn path |
+| `backend/services/pluginHelpers.py` | **CREATE** — shared analysis primitives (~1,600 lines) |
+| `backend/services/strategyRunner.py` | **MODIFY** — add 4 new plugin functions, register in PLUGINS |
+| `backend/services/patternScanner.py` | **MODIFY** — replace function bodies with imports from pluginHelpers |
+| `backend/data/patterns/swing_structure.json` | **MODIFY** — remove scanner_mode, add plugin refs |
+| `backend/data/patterns/fib_energy.json` | **MODIFY** — remove scanner_mode, add plugin refs |
+| `backend/data/patterns/regime_filter.json` | **MODIFY** — remove scanner_mode, add plugin refs |
+| `backend/data/patterns/discount_zone.json` | **MODIFY** — remove scanner_mode, add plugin refs |
+| `backend/data/patterns/discount_wyckoff_pipeline.json` | **MODIFY** — remove scanner_mode, add plugin refs |
+| `backend/data/patterns/wyckoff_accumulation.json` | **MODIFY** — remove scanner_mode |
+| `backend/src/routes/candidates.ts` | **MODIFY** — remove legacy patternScanner spawn path |
 
 ---
 
@@ -367,13 +367,13 @@ After all 6 are converted:
 
 | Step | Estimated Effort | Risk |
 |------|-----------------|------|
-| Step 0: Extract helpers | Medium (mostly copy-paste + imports) | Low â€” mechanical |
-| Step 1: swing_structure | High (largest, most modes) | Medium â€” output format adaptation |
+| Step 0: Extract helpers | Medium (mostly copy-paste + imports) | Low — mechanical |
+| Step 1: swing_structure | High (largest, most modes) | Medium — output format adaptation |
 | Step 2: regime_filter | Low (small, simple) | Low |
-| Step 3: wyckoff_accumulation | Low (just remove scanner_mode) | Low â€” already has plugin |
-| Step 4: fib_energy | Medium (energy model complexity) | Medium â€” complex output |
+| Step 3: wyckoff_accumulation | Low (just remove scanner_mode) | Low — already has plugin |
+| Step 4: fib_energy | Medium (energy model complexity) | Medium — complex output |
 | Step 5: discount_zone | Medium (multi-criteria logic) | Medium |
-| Step 6: discount_wyckoff_pipeline | Medium (composite orchestration) | Medium â€” two-stage merge |
+| Step 6: discount_wyckoff_pipeline | Medium (composite orchestration) | Medium — two-stage merge |
 | Step 7: Cleanup | Low (delete dead code) | Low |
 
 **Total**: ~4-6 working sessions

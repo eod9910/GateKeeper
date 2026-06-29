@@ -39,8 +39,8 @@ Every trade must pass through the same fork:
 
 This is a binary check.
 
-- YES â†’ Strategy Outcome
-- NO â†’ Operator Deviation
+- YES → Strategy Outcome
+- NO → Operator Deviation
 
 There is no third category.
 
@@ -120,10 +120,10 @@ It is mechanical.
 Behavior affects capital exposure automatically.
 
 Example policy:
-- ORS â‰¥ 0.90 â†’ full risk
-- ORS 0.75â€“0.89 â†’ risk reduced 20%
-- ORS 0.60â€“0.74 â†’ risk reduced 40%
-- ORS < 0.60 â†’ execution pause or confirmation gate
+- ORS ≥ 0.90 → full risk
+- ORS 0.75–0.89 → risk reduced 20%
+- ORS 0.60–0.74 → risk reduced 40%
+- ORS < 0.60 → execution pause or confirmation gate
 
 This mirrors drawdown-based de-leveraging.
 

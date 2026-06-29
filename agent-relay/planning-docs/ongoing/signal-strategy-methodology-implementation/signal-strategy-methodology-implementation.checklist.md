@@ -11,7 +11,7 @@ Date: 2026-05-16
 
 ## Documentation
 
-- [x] Create canonical methodology doc at `.planning/plans/REFERENCE/indicator/indicator-architecture.md`.
+- [x] Create canonical methodology doc at `agent-relay/planning-docs/reference/indicator/indicator-architecture.md`.
 - [x] Update primitive how-to with the new scannable primitive boundary.
 - [x] Update strategy how-to with the Validator-only strategy boundary.
 - [x] Update strategy validation policy to say Validator consumes strategies only.

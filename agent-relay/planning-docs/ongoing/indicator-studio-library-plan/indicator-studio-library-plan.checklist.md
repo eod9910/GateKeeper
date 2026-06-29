@@ -6,7 +6,7 @@
 - PRD: `indicator-studio-library-plan.prd.md`
 - Phase: `indicator-studio-library-plan`
 - Executor: `Builder`
-- Source: `.planning/plans/BACKLOG/indicator-studio-library-plan.md`
+- Source: `agent-relay/planning-docs/ongoing/indicator-studio-library-plan.md`
 
 ## Preconditions
 
